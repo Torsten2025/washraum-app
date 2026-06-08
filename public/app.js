@@ -8,6 +8,15 @@ const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
 const startAtInput = document.getElementById("startAt");
 const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
+const adminUsersPanel = document.getElementById("adminUsersPanel");
+const userForm = document.getElementById("userForm");
+const editingUserIdInput = document.getElementById("editingUserId");
+const managedUserNameInput = document.getElementById("managedUserName");
+const managedUserRoleInput = document.getElementById("managedUserRole");
+const managedUserPasswordInput = document.getElementById("managedUserPassword");
+const cancelUserEditButton = document.getElementById("cancelUserEditButton");
+const userMessage = document.getElementById("userMessage");
+const usersList = document.getElementById("usersList");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
 const calendarGrid = document.getElementById("calendarGrid");
@@ -24,6 +33,7 @@ let authToken = sessionStorage.getItem("washraumAuthToken");
 let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
 let allBookings = [];
+let allUsers = [];
 let visibleWeekStart = startOfWeek(new Date());
 
 if (!authToken) {
@@ -49,6 +59,42 @@ todayButton.addEventListener("click", () => {
   renderBookings();
 });
 nextWeekButton.addEventListener("click", () => moveWeek(1));
+
+userForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  userMessage.textContent = "";
+
+  const editingUserId = editingUserIdInput.value;
+  const body = {
+    userName: managedUserNameInput.value.trim(),
+    role: managedUserRoleInput.value
+  };
+
+  if (managedUserPasswordInput.value) {
+    body.password = managedUserPasswordInput.value;
+  }
+
+  const response = await fetch(editingUserId ? `/api/admin/users/${editingUserId}` : "/api/admin/users", {
+    method: editingUserId ? "PATCH" : "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body)
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  userMessage.textContent = editingUserId ? "Nutzer aktualisiert." : "Nutzer angelegt.";
+  resetUserForm();
+  await loadUsers();
+});
+
+cancelUserEditButton.addEventListener("click", () => {
+  resetUserForm();
+});
 
 bookingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -108,6 +154,19 @@ async function loadResources() {
   const response = await fetch("/api/resources");
   const data = await response.json();
   resources = data.resources;
+}
+
+async function loadUsers() {
+  if (role !== "admin") {
+    return;
+  }
+
+  const response = await fetch("/api/admin/users", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+  allUsers = data.users;
+  renderUsers();
 }
 
 function renderBookings() {
@@ -186,6 +245,49 @@ function renderCalendar(bookings) {
   }
 }
 
+function renderUsers() {
+  usersList.innerHTML = "";
+
+  for (const user of allUsers) {
+    const item = document.createElement("article");
+    item.className = "user-item";
+
+    const details = document.createElement("div");
+
+    const title = document.createElement("h3");
+    title.textContent = user.user_name;
+
+    const meta = document.createElement("p");
+    meta.textContent = user.role === "admin" ? "Admin" : "Nutzer";
+
+    details.append(title, meta);
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.textContent = "Bearbeiten";
+    editButton.addEventListener("click", () => editUser(user));
+
+    item.append(details, editButton);
+    usersList.append(item);
+  }
+}
+
+function editUser(user) {
+  editingUserIdInput.value = user.id;
+  managedUserNameInput.value = user.user_name;
+  managedUserRoleInput.value = user.role;
+  managedUserPasswordInput.value = "";
+  managedUserPasswordInput.placeholder = "Leer lassen, wenn unveraendert";
+  userMessage.textContent = "";
+}
+
+function resetUserForm() {
+  userForm.reset();
+  editingUserIdInput.value = "";
+  managedUserRoleInput.value = "user";
+  managedUserPasswordInput.placeholder = "";
+}
+
 async function deleteBooking(id) {
   const response = await fetch("/api/user/deleteBooking", {
     method: "POST",
@@ -241,6 +343,7 @@ async function loadSession() {
 function updateAdminControls() {
   const isAdmin = role === "admin";
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
+  adminUsersPanel.classList.toggle("hidden", !isAdmin);
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
 }
@@ -309,6 +412,12 @@ function messageForError(error) {
     invalid_login: "Name oder Passwort stimmt nicht.",
     not_authenticated: "Bitte neu einloggen.",
     admin_required: "Diese Aktion ist nur fuer Admins moeglich.",
+    missing_user_fields: "Bitte Name, Rolle und Passwort ausfuellen.",
+    invalid_user_role: "Unbekannte Rolle.",
+    invalid_user_name: "Der Name muss 2 bis 60 Zeichen lang sein.",
+    password_too_short: "Das Passwort braucht mindestens 6 Zeichen.",
+    user_already_exists: "Dieser Nutzer existiert bereits.",
+    user_not_found: "Nutzer nicht gefunden.",
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
@@ -331,6 +440,7 @@ async function boot() {
 
   await loadResources();
   updateResourceOptions();
+  await loadUsers();
   await loadBookings();
 }
 

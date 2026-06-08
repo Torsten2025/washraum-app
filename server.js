@@ -131,6 +131,99 @@ app.get("/api/bookings", (_req, res) => {
   res.json({ bookings });
 });
 
+app.get("/api/admin/users", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const users = db
+    .prepare("SELECT id, user_name, role, created_at FROM users ORDER BY user_name ASC")
+    .all();
+
+  res.json({ users });
+});
+
+app.post("/api/admin/users", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const userName = String(req.body?.userName || "").trim();
+  const password = String(req.body?.password || "");
+  const role = String(req.body?.role || "user").trim();
+  const validation = validateUserInput({ userName, password, role, requirePassword: true });
+
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  try {
+    const info = db
+      .prepare("INSERT INTO users (user_name, password_hash, role) VALUES (?, ?, ?)")
+      .run(userName, hashPassword(password), role);
+    const user = db
+      .prepare("SELECT id, user_name, role, created_at FROM users WHERE id = ?")
+      .get(info.lastInsertRowid);
+
+    res.status(201).json({ ok: true, user });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ ok: false, error: "user_already_exists" });
+    }
+
+    throw error;
+  }
+});
+
+app.patch("/api/admin/users/:id", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existingUser = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+
+  if (!existingUser) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  const userName = String(req.body?.userName || existingUser.user_name).trim();
+  const password = String(req.body?.password || "");
+  const role = String(req.body?.role || existingUser.role).trim();
+  const validation = validateUserInput({ userName, password, role, requirePassword: false });
+
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  try {
+    if (password) {
+      db
+        .prepare("UPDATE users SET user_name = ?, password_hash = ?, role = ? WHERE id = ?")
+        .run(userName, hashPassword(password), role, id);
+    } else {
+      db
+        .prepare("UPDATE users SET user_name = ?, role = ? WHERE id = ?")
+        .run(userName, role, id);
+    }
+
+    const user = db
+      .prepare("SELECT id, user_name, role, created_at FROM users WHERE id = ?")
+      .get(id);
+
+    res.json({ ok: true, user });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ ok: false, error: "user_already_exists" });
+    }
+
+    throw error;
+  }
+});
+
 app.post("/api/admin/addBooking", (req, res) => {
   const auth = getAuth(req);
   if (!auth) {
@@ -250,6 +343,47 @@ function getAuth(req) {
   }
 
   return session;
+}
+
+function getAdminAuth(req) {
+  const auth = getAuth(req);
+  if (!auth) {
+    return {
+      ok: false,
+      status: 401,
+      body: { ok: false, error: "not_authenticated" }
+    };
+  }
+
+  if (auth.role !== "admin") {
+    return {
+      ok: false,
+      status: 403,
+      body: { ok: false, error: "admin_required" }
+    };
+  }
+
+  return { ok: true, auth };
+}
+
+function validateUserInput({ userName, password, role, requirePassword }) {
+  if (!userName || !role || (requirePassword && !password)) {
+    return { ok: false, error: "missing_user_fields" };
+  }
+
+  if (!["user", "admin"].includes(role)) {
+    return { ok: false, error: "invalid_user_role" };
+  }
+
+  if (userName.length < 2 || userName.length > 60) {
+    return { ok: false, error: "invalid_user_name" };
+  }
+
+  if (password && password.length < 6) {
+    return { ok: false, error: "password_too_short" };
+  }
+
+  return { ok: true };
 }
 
 function createBooking(input) {

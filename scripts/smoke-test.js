@@ -22,6 +22,51 @@ async function run() {
   assert(resources.body.resources.washer.includes("WM-1"), "resources include WM-1");
   assert(resources.body.resources.drying_room.includes("TR-1"), "resources include TR-1");
 
+  const managedUserName = `Managed-${Date.now()}`;
+  const users = await request("/api/admin/users", {
+    token: admin.body.token
+  });
+
+  assertStatus(users, 200, "admin lists users");
+  assert(Array.isArray(users.body.users), "admin users response is an array");
+
+  const createUser = await request("/api/admin/users", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: managedUserName,
+      password: "secret123",
+      role: "user"
+    }
+  });
+
+  assertStatus(createUser, 201, "admin creates user");
+  assert(createUser.body.user.user_name === managedUserName, "created user name");
+
+  const updateUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
+    method: "PATCH",
+    token: admin.body.token,
+    body: {
+      userName: managedUserName,
+      password: "secret456",
+      role: "admin"
+    }
+  });
+
+  assertStatus(updateUser, 200, "admin updates user");
+  assert(updateUser.body.user.role === "admin", "updated user role");
+
+  const managedLogin = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: managedUserName,
+      password: "secret456"
+    }
+  });
+
+  assertStatus(managedLogin, 200, "managed user can log in with updated password");
+  assert(managedLogin.body.user.role === "admin", "managed user updated role is effective");
+
   const uniqueName = `Smoke-${Date.now()}`;
   const startAt = nextBookableIso();
   const endAt = new Date(new Date(startAt).getTime() + 1000 * 60 * 90).toISOString();

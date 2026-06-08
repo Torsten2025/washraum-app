@@ -50,6 +50,37 @@
           <button type="submit">Buchen</button>
           <p id="formMessage" class="message" role="status"></p>
         </form>
+
+        <div id="adminUsersPanel" class="admin-panel hidden">
+          <h2>Nutzer verwalten</h2>
+          <form id="userForm" class="booking-form">
+            <input id="editingUserId" type="hidden">
+            <label>
+              Name
+              <input id="managedUserName" name="managedUserName" autocomplete="name" required>
+            </label>
+
+            <label>
+              Rolle
+              <select id="managedUserRole" name="managedUserRole">
+                <option value="user">Nutzer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+
+            <label>
+              Passwort
+              <input id="managedUserPassword" name="managedUserPassword" type="password" autocomplete="new-password">
+            </label>
+
+            <div class="form-actions">
+              <button id="saveUserButton" type="submit">Nutzer speichern</button>
+              <button id="cancelUserEditButton" type="button">Abbrechen</button>
+            </div>
+            <p id="userMessage" class="message" role="status"></p>
+          </form>
+          <div id="usersList" class="users-list"></div>
+        </div>
       </section>
 
       <section class="calendar-panel">

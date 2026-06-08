@@ -111,6 +111,22 @@ select {
   padding: 1rem;
 }
 
+.admin-panel {
+  border-top: 1px solid #d7dee8;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.admin-panel h2 {
+  margin: 0 0 1rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .calendar-toolbar {
   display: flex;
   align-items: center;
@@ -187,6 +203,31 @@ select {
   border: 1px solid #d7dee8;
   border-radius: 8px;
   padding: 1rem;
+}
+
+.users-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.user-item {
+  align-items: center;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+}
+
+.user-item h3,
+.user-item p {
+  margin: 0;
+}
+
+.user-item p {
+  color: #536171;
 }
 
 .booking-item h3,
