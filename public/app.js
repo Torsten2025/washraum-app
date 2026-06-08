@@ -8,6 +8,10 @@ const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
 const startAtInput = document.getElementById("startAt");
 const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
+const passwordForm = document.getElementById("passwordForm");
+const currentPasswordInput = document.getElementById("currentPassword");
+const newPasswordInput = document.getElementById("newPassword");
+const passwordMessage = document.getElementById("passwordMessage");
 const adminUsersPanel = document.getElementById("adminUsersPanel");
 const userForm = document.getElementById("userForm");
 const editingUserIdInput = document.getElementById("editingUserId");
@@ -59,6 +63,30 @@ todayButton.addEventListener("click", () => {
   renderBookings();
 });
 nextWeekButton.addEventListener("click", () => moveWeek(1));
+
+passwordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  passwordMessage.textContent = "";
+
+  const response = await fetch("/api/me/password", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      currentPassword: currentPasswordInput.value,
+      newPassword: newPasswordInput.value
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    passwordMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  passwordForm.reset();
+  passwordMessage.textContent = "Passwort aktualisiert.";
+});
 
 userForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -416,6 +444,8 @@ function messageForError(error) {
     invalid_user_role: "Unbekannte Rolle.",
     invalid_user_name: "Der Name muss 2 bis 60 Zeichen lang sein.",
     password_too_short: "Das Passwort braucht mindestens 6 Zeichen.",
+    invalid_current_password: "Das aktuelle Passwort stimmt nicht.",
+    last_admin_required: "Mindestens ein Admin muss bestehen bleiben.",
     user_already_exists: "Dieser Nutzer existiert bereits.",
     user_not_found: "Nutzer nicht gefunden.",
     invalid_resource_type: "Unbekannter Bereich.",

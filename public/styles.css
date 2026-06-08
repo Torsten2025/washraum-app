@@ -111,12 +111,14 @@ select {
   padding: 1rem;
 }
 
+.account-panel,
 .admin-panel {
   border-top: 1px solid #d7dee8;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
 }
 
+.account-panel h2,
 .admin-panel h2 {
   margin: 0 0 1rem;
 }

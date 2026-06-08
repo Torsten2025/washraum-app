@@ -69,6 +69,27 @@ async function run() {
   assertStatus(managedLogin, 200, "managed user can log in with updated password");
   assert(managedLogin.body.user.role === "admin", "managed user updated role is effective");
 
+  const changePassword = await request("/api/me/password", {
+    method: "POST",
+    token: managedLogin.body.token,
+    body: {
+      currentPassword: "secret456",
+      newPassword: "secret789"
+    }
+  });
+
+  assertStatus(changePassword, 200, "managed user changes own password");
+
+  const managedLoginAfterPasswordChange = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: managedUserName,
+      password: "secret789"
+    }
+  });
+
+  assertStatus(managedLoginAfterPasswordChange, 200, "managed user can log in with changed password");
+
   const uniqueName = `Smoke-${Date.now()}`;
   cleanupPrefixes.push(uniqueName);
   const startAt = nextBookableIso();

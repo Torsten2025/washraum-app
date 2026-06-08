@@ -51,6 +51,24 @@
           <p id="formMessage" class="message" role="status"></p>
         </form>
 
+        <div class="account-panel">
+          <h2>Passwort aendern</h2>
+          <form id="passwordForm" class="booking-form">
+            <label>
+              Aktuelles Passwort
+              <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
+            </label>
+
+            <label>
+              Neues Passwort
+              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" required>
+            </label>
+
+            <button type="submit">Passwort speichern</button>
+            <p id="passwordMessage" class="message" role="status"></p>
+          </form>
+        </div>
+
         <div id="adminUsersPanel" class="admin-panel hidden">
           <h2>Nutzer verwalten</h2>
           <form id="userForm" class="booking-form">

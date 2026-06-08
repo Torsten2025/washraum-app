@@ -131,6 +131,32 @@ app.get("/api/bookings", (_req, res) => {
   res.json({ bookings });
 });
 
+app.post("/api/me/password", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const currentPassword = String(req.body?.currentPassword || "");
+  const newPassword = String(req.body?.newPassword || "");
+  const user = db.prepare("SELECT * FROM users WHERE user_name = ?").get(auth.user_name);
+
+  if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+    return res.status(400).json({ ok: false, error: "invalid_current_password" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ ok: false, error: "password_too_short" });
+  }
+
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?")
+    .run(hashPassword(newPassword), user.id);
+  db.prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?")
+    .run(user.id, getToken(req));
+
+  res.json({ ok: true });
+});
+
 if (process.env.NODE_ENV !== "production") {
   app.post("/api/dev/cleanup", (req, res) => {
     const auth = getAdminAuth(req);
@@ -242,6 +268,10 @@ app.patch("/api/admin/users/:id", (req, res) => {
 
   if (!validation.ok) {
     return res.status(400).json(validation);
+  }
+
+  if (existingUser.role === "admin" && role !== "admin" && countAdmins() <= 1) {
+    return res.status(400).json({ ok: false, error: "last_admin_required" });
   }
 
   try {
@@ -409,6 +439,10 @@ function getAdminAuth(req) {
   }
 
   return { ok: true, auth };
+}
+
+function countAdmins() {
+  return db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").get().count;
 }
 
 function validateUserInput({ userName, password, role, requirePassword }) {

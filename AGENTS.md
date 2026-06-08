@@ -25,6 +25,7 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - `GET /api/session`
 - `GET /api/resources`
 - `GET /api/bookings`
+- `POST /api/me/password`
 - `POST /api/dev/cleanup` (nur lokal, nicht in Produktion)
 - `GET /api/admin/users`
 - `POST /api/admin/users`
