@@ -7,6 +7,10 @@ const Database = require("better-sqlite3");
 const app = express();
 const port = process.env.PORT || 3000;
 const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
+const resources = {
+  washer: ["WM-1", "WM-2"],
+  drying_room: ["TR-1", "TR-2"]
+};
 
 fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
 
@@ -113,6 +117,10 @@ app.get("/api/session", (req, res) => {
       role: auth.role
     }
   });
+});
+
+app.get("/api/resources", (_req, res) => {
+  res.json({ resources });
 });
 
 app.get("/api/bookings", (_req, res) => {
@@ -257,6 +265,10 @@ function createBooking(input) {
 
   if (!["washer", "drying_room"].includes(resourceType)) {
     return { ok: false, error: "invalid_resource_type" };
+  }
+
+  if (!resources[resourceType].includes(resourceId)) {
+    return { ok: false, error: "invalid_resource_id" };
   }
 
   const start = new Date(startAt);

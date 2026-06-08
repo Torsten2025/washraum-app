@@ -20,6 +20,10 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 ## Wichtige API-Routen
 
 - `GET /api/health`
+- `POST /api/login`
+- `POST /api/logout`
+- `GET /api/session`
+- `GET /api/resources`
 - `GET /api/bookings`
 - `POST /api/bookings`
 - `POST /api/admin/addBooking`

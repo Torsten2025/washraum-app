@@ -37,6 +37,7 @@ http://localhost:3000
 - Lokale SQLite-Datenbank: `data/washraum.sqlite`
 - Render SQLite-Pfad: `/var/data/washraum.sqlite`
 - Projektregeln fuer Codex: `AGENTS.md`
+- Ressourcen-Konfiguration aktuell in `server.js`
 
 ## Test-Login
 

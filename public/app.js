@@ -16,11 +16,10 @@ const previousWeekButton = document.getElementById("previousWeekButton");
 const todayButton = document.getElementById("todayButton");
 const nextWeekButton = document.getElementById("nextWeekButton");
 
-const resources = {
-  washer: ["WM-1", "WM-2"],
-  drying_room: ["TR-1", "TR-2"]
+let resources = {
+  washer: [],
+  drying_room: []
 };
-
 let authToken = sessionStorage.getItem("washraumAuthToken");
 let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
@@ -90,7 +89,7 @@ function updateResourceOptions() {
   const selectedType = resourceTypeInput.value;
   resourceIdInput.innerHTML = "";
 
-  for (const resourceId of resources[selectedType]) {
+  for (const resourceId of resources[selectedType] || []) {
     const option = document.createElement("option");
     option.value = resourceId;
     option.textContent = resourceId;
@@ -103,6 +102,12 @@ async function loadBookings() {
   const data = await response.json();
   allBookings = data.bookings;
   renderBookings();
+}
+
+async function loadResources() {
+  const response = await fetch("/api/resources");
+  const data = await response.json();
+  resources = data.resources;
 }
 
 function renderBookings() {
@@ -305,6 +310,7 @@ function messageForError(error) {
     not_authenticated: "Bitte neu einloggen.",
     admin_required: "Diese Aktion ist nur fuer Admins moeglich.",
     invalid_resource_type: "Unbekannter Bereich.",
+    invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
     only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
@@ -323,6 +329,7 @@ async function boot() {
     return;
   }
 
+  await loadResources();
   updateResourceOptions();
   await loadBookings();
 }
