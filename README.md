@@ -48,6 +48,13 @@ Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sin
 Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 
+Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
+
+- `SEED_ADMIN_NAME`
+- `SEED_ADMIN_PASSWORD`
+- `SEED_USER_NAME`
+- `SEED_USER_PASSWORD`
+
 ## Render
 
 Die Datei `render.yaml` enthaelt eine Web-Service-Konfiguration mit persistentem Disk-Mount:

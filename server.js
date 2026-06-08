@@ -288,8 +288,8 @@ function seedDefaultUsers() {
   }
 
   const insert = db.prepare("INSERT INTO users (user_name, password_hash, role) VALUES (?, ?, ?)");
-  insert.run("admin", hashPassword("admin123"), "admin");
-  insert.run("user", hashPassword("user123"), "user");
+  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(process.env.SEED_ADMIN_PASSWORD || "admin123"), "admin");
+  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(process.env.SEED_USER_PASSWORD || "user123"), "user");
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
