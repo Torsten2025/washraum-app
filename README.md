@@ -49,6 +49,7 @@ Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sin
 Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
+Buchungen in der Vergangenheit werden serverseitig blockiert.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 

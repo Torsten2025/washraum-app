@@ -140,6 +140,22 @@ async function run() {
   assertStatus(invalidResource, 400, "invalid resource is blocked");
   assert(invalidResource.body.error === "invalid_resource_id", "invalid resource error code");
 
+  const past = pastRange();
+  const pastBooking = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${uniqueName}-past`,
+      resourceType: "washer",
+      resourceId: "WM-2",
+      startAt: past.startAt,
+      endAt: past.endAt
+    }
+  });
+
+  assertStatus(pastBooking, 400, "past booking is blocked");
+  assert(pastBooking.body.error === "booking_must_be_in_future", "past booking error code");
+
   const sunday = nextSundayRange();
   const sundayBooking = await request("/api/admin/addBooking", {
     method: "POST",
@@ -208,6 +224,17 @@ function nextBookableIso() {
 function nextSundayRange() {
   const date = new Date();
   date.setDate(date.getDate() + ((7 - date.getDay()) || 7));
+  date.setHours(10, 0, 0, 0);
+
+  return {
+    startAt: date.toISOString(),
+    endAt: new Date(date.getTime() + 1000 * 60 * 90).toISOString()
+  };
+}
+
+function pastRange() {
+  const date = new Date();
+  date.setDate(date.getDate() - 2);
   date.setHours(10, 0, 0, 0);
 
   return {

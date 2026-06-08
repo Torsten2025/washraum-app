@@ -171,6 +171,12 @@ function updateResourceOptions() {
   }
 }
 
+function updateDateInputMinimums() {
+  const minValue = formatDateTimeInputValue(new Date());
+  startAtInput.min = minValue;
+  endAtInput.min = minValue;
+}
+
 async function loadBookings() {
   const response = await fetch("/api/bookings");
   const data = await response.json();
@@ -404,6 +410,12 @@ function formatDayHeading(value) {
   }).format(value);
 }
 
+function formatDateTimeInputValue(value) {
+  const date = new Date(value);
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function startOfWeek(value) {
   const date = new Date(value);
   date.setHours(0, 0, 0, 0);
@@ -451,6 +463,7 @@ function messageForError(error) {
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
+    booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
     only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
@@ -470,6 +483,7 @@ async function boot() {
 
   await loadResources();
   updateResourceOptions();
+  updateDateInputMinimums();
   await loadUsers();
   await loadBookings();
 }

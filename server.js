@@ -491,6 +491,10 @@ function createBooking(input) {
     return { ok: false, error: "invalid_time_range" };
   }
 
+  if (start <= new Date()) {
+    return { ok: false, error: "booking_must_be_in_future" };
+  }
+
   if (start.getDay() === 0) {
     return { ok: false, error: "sunday_not_allowed" };
   }

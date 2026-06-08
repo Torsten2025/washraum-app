@@ -49,6 +49,7 @@ Das bedeutet:
 - Keine Buchungen am Sonntag.
 - Eine Buchung muss eindeutig einer Waschmaschine oder einem Trockenraum zugeordnet sein.
 - Bereits belegte Zeitraeume duerfen fuer dieselbe Ressource nicht doppelt gebucht werden.
+- Buchungen in der Vergangenheit sind nicht erlaubt.
 - Kalender-/Listenanzeige muss mit den gespeicherten Daten uebereinstimmen.
 
 ## Arbeitsweise
