@@ -49,14 +49,23 @@
 
       <section class="calendar-panel">
         <div class="calendar-toolbar">
-          <h2>Buchungen</h2>
-          <select id="bookingFilter">
-            <option value="all">Alle anzeigen</option>
-            <option value="washer">Waschmaschinen</option>
-            <option value="drying_room">Trockenraeume</option>
-          </select>
+          <div>
+            <h2>Buchungen</h2>
+            <p id="weekLabel" class="week-label"></p>
+          </div>
+          <div class="calendar-actions">
+            <button id="previousWeekButton" type="button">Zurueck</button>
+            <button id="todayButton" type="button">Heute</button>
+            <button id="nextWeekButton" type="button">Vor</button>
+            <select id="bookingFilter">
+              <option value="all">Alle anzeigen</option>
+              <option value="washer">Waschmaschinen</option>
+              <option value="drying_room">Trockenraeume</option>
+            </select>
+          </div>
         </div>
         <div id="bookingsList" class="bookings-list"></div>
+        <div id="calendarGrid" class="calendar-grid"></div>
       </section>
     </main>
 

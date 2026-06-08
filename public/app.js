@@ -8,6 +8,11 @@ const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
+const calendarGrid = document.getElementById("calendarGrid");
+const weekLabel = document.getElementById("weekLabel");
+const previousWeekButton = document.getElementById("previousWeekButton");
+const todayButton = document.getElementById("todayButton");
+const nextWeekButton = document.getElementById("nextWeekButton");
 
 const resources = {
   washer: ["WM-1", "WM-2"],
@@ -17,6 +22,8 @@ const resources = {
 let authToken = sessionStorage.getItem("washraumAuthToken");
 let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
+let allBookings = [];
+let visibleWeekStart = startOfWeek(new Date());
 
 if (!authToken) {
   window.location.href = "/login.html";
@@ -34,7 +41,13 @@ logoutButton.addEventListener("click", async () => {
 });
 
 resourceTypeInput.addEventListener("change", updateResourceOptions);
-bookingFilter.addEventListener("change", loadBookings);
+bookingFilter.addEventListener("change", renderBookings);
+previousWeekButton.addEventListener("click", () => moveWeek(-1));
+todayButton.addEventListener("click", () => {
+  visibleWeekStart = startOfWeek(new Date());
+  renderBookings();
+});
+nextWeekButton.addEventListener("click", () => moveWeek(1));
 
 bookingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -81,11 +94,21 @@ function updateResourceOptions() {
 async function loadBookings() {
   const response = await fetch("/api/bookings");
   const data = await response.json();
+  allBookings = data.bookings;
+  renderBookings();
+}
+
+function renderBookings() {
   const filter = bookingFilter.value;
-  const bookings = data.bookings.filter((booking) => {
+  const bookings = allBookings.filter((booking) => {
     return filter === "all" || booking.resource_type === filter;
   });
 
+  renderBookingsList(bookings);
+  renderCalendar(bookings);
+}
+
+function renderBookingsList(bookings) {
   bookingsList.innerHTML = "";
 
   if (bookings.length === 0) {
@@ -114,6 +137,40 @@ async function loadBookings() {
     }
 
     bookingsList.append(item);
+  }
+}
+
+function renderCalendar(bookings) {
+  const weekDays = getWeekDays(visibleWeekStart);
+  const weekEnd = addDays(visibleWeekStart, 6);
+  weekLabel.textContent = `${formatDateOnly(visibleWeekStart)} bis ${formatDateOnly(weekEnd)}`;
+  calendarGrid.innerHTML = "";
+
+  for (const day of weekDays) {
+    const column = document.createElement("section");
+    column.className = "calendar-day";
+
+    const heading = document.createElement("h3");
+    heading.textContent = formatDayHeading(day);
+    column.append(heading);
+
+    const dayBookings = bookings.filter((booking) => isSameDay(new Date(booking.start_at), day));
+
+    if (dayBookings.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "calendar-empty";
+      empty.textContent = "Frei";
+      column.append(empty);
+    }
+
+    for (const booking of dayBookings) {
+      const item = document.createElement("article");
+      item.className = `calendar-booking calendar-booking-${booking.resource_type}`;
+      item.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)} ${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
+      column.append(item);
+    }
+
+    calendarGrid.append(column);
   }
 }
 
@@ -173,6 +230,56 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatDateOnly(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    dateStyle: "medium"
+  }).format(value);
+}
+
+function formatTime(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatDayHeading(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit"
+  }).format(value);
+}
+
+function startOfWeek(value) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() - day + 1);
+  return date;
+}
+
+function addDays(value, days) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function getWeekDays(weekStart) {
+  return [0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(weekStart, offset));
+}
+
+function isSameDay(left, right) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function moveWeek(direction) {
+  visibleWeekStart = addDays(visibleWeekStart, direction * 7);
+  renderBookings();
 }
 
 function messageForError(error) {
