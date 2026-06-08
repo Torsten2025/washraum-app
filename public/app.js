@@ -3,6 +3,8 @@ const logoutButton = document.getElementById("logoutButton");
 const bookingForm = document.getElementById("bookingForm");
 const resourceTypeInput = document.getElementById("resourceType");
 const resourceIdInput = document.getElementById("resourceId");
+const adminTargetGroup = document.getElementById("adminTargetGroup");
+const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
 const startAtInput = document.getElementById("startAt");
 const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
@@ -60,6 +62,10 @@ bookingForm.addEventListener("submit", async (event) => {
     endAt: endAtInput.value
   };
 
+  if (role === "admin" && adminTargetUserNameInput.value.trim()) {
+    body.userName = adminTargetUserNameInput.value.trim();
+  }
+
   const response = await fetch(role === "admin" ? "/api/admin/addBooking" : "/api/bookings", {
     method: "POST",
     headers: authHeaders(),
@@ -75,6 +81,7 @@ bookingForm.addEventListener("submit", async (event) => {
 
   bookingForm.reset();
   updateResourceOptions();
+  updateAdminControls();
   formMessage.textContent = "Buchung gespeichert.";
   await loadBookings();
 });
@@ -221,8 +228,16 @@ async function loadSession() {
   sessionStorage.setItem("washraumUserName", userName);
   sessionStorage.setItem("washraumUserRole", role);
   sessionLabel.textContent = `${userName} (${role})`;
+  updateAdminControls();
 
   return true;
+}
+
+function updateAdminControls() {
+  const isAdmin = role === "admin";
+  adminTargetGroup.classList.toggle("hidden", !isAdmin);
+  adminTargetUserNameInput.required = false;
+  adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
 }
 
 function formatDate(value) {

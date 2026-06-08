@@ -200,6 +200,10 @@ select {
   color: #8a3b12;
 }
 
+.hidden {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .app-header,
   .calendar-toolbar {

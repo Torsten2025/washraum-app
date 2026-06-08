@@ -44,6 +44,7 @@ http://localhost:3000
 - Nutzer: `user` / `user123`
 
 Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sind gehasht gespeichert.
+Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 
 ## Render
 

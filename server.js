@@ -133,7 +133,7 @@ app.post("/api/admin/addBooking", (req, res) => {
     return res.status(403).json({ ok: false, error: "admin_required" });
   }
 
-  const result = createBooking({ ...req.body, userName: auth.user_name });
+  const result = createBooking({ ...req.body, userName: req.body?.userName || auth.user_name });
   if (!result.ok) {
     return res.status(400).json(result);
   }
