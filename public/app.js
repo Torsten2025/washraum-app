@@ -17,6 +17,7 @@ const userForm = document.getElementById("userForm");
 const editingUserIdInput = document.getElementById("editingUserId");
 const managedUserNameInput = document.getElementById("managedUserName");
 const managedUserRoleInput = document.getElementById("managedUserRole");
+const managedUserActiveInput = document.getElementById("managedUserActive");
 const managedUserPasswordInput = document.getElementById("managedUserPassword");
 const cancelUserEditButton = document.getElementById("cancelUserEditButton");
 const userMessage = document.getElementById("userMessage");
@@ -95,7 +96,8 @@ userForm.addEventListener("submit", async (event) => {
   const editingUserId = editingUserIdInput.value;
   const body = {
     userName: managedUserNameInput.value.trim(),
-    role: managedUserRoleInput.value
+    role: managedUserRoleInput.value,
+    active: managedUserActiveInput.value === "1"
   };
 
   if (managedUserPasswordInput.value) {
@@ -292,7 +294,7 @@ function renderUsers() {
     title.textContent = user.user_name;
 
     const meta = document.createElement("p");
-    meta.textContent = user.role === "admin" ? "Admin" : "Nutzer";
+    meta.textContent = `${user.role === "admin" ? "Admin" : "Nutzer"} · ${user.active ? "aktiv" : "inaktiv"}`;
 
     details.append(title, meta);
 
@@ -310,6 +312,7 @@ function editUser(user) {
   editingUserIdInput.value = user.id;
   managedUserNameInput.value = user.user_name;
   managedUserRoleInput.value = user.role;
+  managedUserActiveInput.value = user.active ? "1" : "0";
   managedUserPasswordInput.value = "";
   managedUserPasswordInput.placeholder = "Leer lassen, wenn unveraendert";
   userMessage.textContent = "";
@@ -319,6 +322,7 @@ function resetUserForm() {
   userForm.reset();
   editingUserIdInput.value = "";
   managedUserRoleInput.value = "user";
+  managedUserActiveInput.value = "1";
   managedUserPasswordInput.placeholder = "";
 }
 
@@ -450,6 +454,7 @@ function messageForError(error) {
     missing_required_fields: "Bitte alle Felder ausfuellen.",
     missing_login_fields: "Bitte Name und Passwort eingeben.",
     invalid_login: "Name oder Passwort stimmt nicht.",
+    user_inactive: "Dieses Nutzerkonto ist deaktiviert.",
     not_authenticated: "Bitte neu einloggen.",
     admin_required: "Diese Aktion ist nur fuer Admins moeglich.",
     missing_user_fields: "Bitte Name, Rolle und Passwort ausfuellen.",

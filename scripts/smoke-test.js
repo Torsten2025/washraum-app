@@ -38,7 +38,8 @@ async function run() {
     body: {
       userName: managedUserName,
       password: "secret123",
-      role: "user"
+      role: "user",
+      active: true
     }
   });
 
@@ -51,7 +52,8 @@ async function run() {
     body: {
       userName: managedUserName,
       password: "secret456",
-      role: "admin"
+      role: "admin",
+      active: true
     }
   });
 
@@ -89,6 +91,42 @@ async function run() {
   });
 
   assertStatus(managedLoginAfterPasswordChange, 200, "managed user can log in with changed password");
+
+  const deactivateUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
+    method: "PATCH",
+    token: admin.body.token,
+    body: {
+      userName: managedUserName,
+      role: "admin",
+      active: false
+    }
+  });
+
+  assertStatus(deactivateUser, 200, "admin deactivates managed user");
+  assert(deactivateUser.body.user.active === 0, "managed user is inactive");
+
+  const inactiveLogin = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: managedUserName,
+      password: "secret789"
+    }
+  });
+
+  assertStatus(inactiveLogin, 403, "inactive user cannot log in");
+  assert(inactiveLogin.body.error === "user_inactive", "inactive login error code");
+
+  const reactivateUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
+    method: "PATCH",
+    token: admin.body.token,
+    body: {
+      userName: managedUserName,
+      role: "admin",
+      active: true
+    }
+  });
+
+  assertStatus(reactivateUser, 200, "admin reactivates managed user");
 
   const uniqueName = `Smoke-${Date.now()}`;
   cleanupPrefixes.push(uniqueName);

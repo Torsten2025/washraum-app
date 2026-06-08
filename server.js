@@ -23,6 +23,7 @@ db.exec(`
     user_name TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
+    active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -49,6 +50,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 `);
 
+ensureUserColumns();
 seedDefaultUsers();
 
 app.use(express.json());
@@ -77,6 +79,10 @@ app.post("/api/login", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE user_name = ?").get(userName);
   if (!user || !verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ ok: false, error: "invalid_login" });
+  }
+
+  if (!user.active) {
+    return res.status(403).json({ ok: false, error: "user_inactive" });
   }
 
   const token = crypto.randomBytes(32).toString("hex");
@@ -209,7 +215,7 @@ app.get("/api/admin/users", (req, res) => {
   }
 
   const users = db
-    .prepare("SELECT id, user_name, role, created_at FROM users ORDER BY user_name ASC")
+    .prepare("SELECT id, user_name, role, active, created_at FROM users ORDER BY user_name ASC")
     .all();
 
   res.json({ users });
@@ -224,6 +230,7 @@ app.post("/api/admin/users", (req, res) => {
   const userName = String(req.body?.userName || "").trim();
   const password = String(req.body?.password || "");
   const role = String(req.body?.role || "user").trim();
+  const active = normalizeActive(req.body?.active);
   const validation = validateUserInput({ userName, password, role, requirePassword: true });
 
   if (!validation.ok) {
@@ -232,10 +239,10 @@ app.post("/api/admin/users", (req, res) => {
 
   try {
     const info = db
-      .prepare("INSERT INTO users (user_name, password_hash, role) VALUES (?, ?, ?)")
-      .run(userName, hashPassword(password), role);
+      .prepare("INSERT INTO users (user_name, password_hash, role, active) VALUES (?, ?, ?, ?)")
+      .run(userName, hashPassword(password), role, active);
     const user = db
-      .prepare("SELECT id, user_name, role, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, created_at FROM users WHERE id = ?")
       .get(info.lastInsertRowid);
 
     res.status(201).json({ ok: true, user });
@@ -264,29 +271,34 @@ app.patch("/api/admin/users/:id", (req, res) => {
   const userName = String(req.body?.userName || existingUser.user_name).trim();
   const password = String(req.body?.password || "");
   const role = String(req.body?.role || existingUser.role).trim();
+  const active = req.body?.active === undefined ? existingUser.active : normalizeActive(req.body.active);
   const validation = validateUserInput({ userName, password, role, requirePassword: false });
 
   if (!validation.ok) {
     return res.status(400).json(validation);
   }
 
-  if (existingUser.role === "admin" && role !== "admin" && countAdmins() <= 1) {
+  if (existingUser.role === "admin" && (role !== "admin" || !active) && countAdmins() <= 1) {
     return res.status(400).json({ ok: false, error: "last_admin_required" });
   }
 
   try {
     if (password) {
       db
-        .prepare("UPDATE users SET user_name = ?, password_hash = ?, role = ? WHERE id = ?")
-        .run(userName, hashPassword(password), role, id);
+        .prepare("UPDATE users SET user_name = ?, password_hash = ?, role = ?, active = ? WHERE id = ?")
+        .run(userName, hashPassword(password), role, active, id);
     } else {
       db
-        .prepare("UPDATE users SET user_name = ?, role = ? WHERE id = ?")
-        .run(userName, role, id);
+        .prepare("UPDATE users SET user_name = ?, role = ?, active = ? WHERE id = ?")
+        .run(userName, role, active, id);
+    }
+
+    if (!active) {
+      db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
     }
 
     const user = db
-      .prepare("SELECT id, user_name, role, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, created_at FROM users WHERE id = ?")
       .get(id);
 
     res.json({ ok: true, user });
@@ -367,6 +379,15 @@ function seedDefaultUsers() {
   insert.run(process.env.SEED_USER_NAME || "user", hashPassword(process.env.SEED_USER_PASSWORD || "user123"), "user");
 }
 
+function ensureUserColumns() {
+  const columns = db.prepare("PRAGMA table_info(users)").all();
+  const hasActive = columns.some((column) => column.name === "active");
+
+  if (!hasActive) {
+    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  }
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${hash}`;
@@ -405,6 +426,7 @@ function getAuth(req) {
       FROM sessions
       JOIN users ON users.id = sessions.user_id
       WHERE sessions.token = ?
+        AND users.active = 1
     `)
     .get(token);
 
@@ -442,7 +464,11 @@ function getAdminAuth(req) {
 }
 
 function countAdmins() {
-  return db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").get().count;
+  return db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
+}
+
+function normalizeActive(value) {
+  return value === false || value === 0 || value === "0" || value === "false" ? 0 : 1;
 }
 
 function validateUserInput({ userName, password, role, requirePassword }) {

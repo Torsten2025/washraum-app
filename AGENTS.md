@@ -14,6 +14,7 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - Buchung von Trockenraeumen
 - Loeschen eigener Buchungen
 - Admin-Funktion zum Hinzufuegen und Loeschen von Buchungen
+- Admin-Funktion zum Aktivieren und Deaktivieren von Nutzern
 - Persistenz der Buchungsdaten per SQLite
 - Render-Deployment mit persistentem Disk-Pfad
 

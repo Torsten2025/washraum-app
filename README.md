@@ -48,6 +48,7 @@ http://localhost:3000
 Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sind gehasht gespeichert.
 Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
+Admins koennen Nutzer deaktivieren, ohne deren Buchungshistorie zu loeschen.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
 
