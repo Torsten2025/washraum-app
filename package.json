@@ -1,0 +1,20 @@
+{
+  "name": "washraum-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web-App zur Verwaltung von Waschmaschinen- und Trockenraum-Buchungen.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "health": "node -e \"fetch('http://localhost:3000/api/health').then(r=>r.json()).then(console.log).catch(err=>{console.error(err);process.exit(1)})\"",
+    "bookings": "node -e \"fetch('http://localhost:3000/api/bookings').then(r=>r.json()).then(console.log).catch(err=>{console.error(err);process.exit(1)})\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "express": "^4.18.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

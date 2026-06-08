@@ -1,0 +1,145 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f6f8;
+  color: #1f2933;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  background: #1967d2;
+  color: #fff;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+}
+
+button:hover {
+  background: #1558b5;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.login-shell {
+  width: min(100%, 420px);
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.login-form,
+.booking-form {
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid #b7c2d0;
+  border-radius: 6px;
+  padding: 0.7rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #d7dee8;
+}
+
+.app-header h1,
+.booking-panel h2,
+.calendar-panel h2 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0.25rem 0 0;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.booking-panel,
+.calendar-panel {
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.bookings-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.booking-item {
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.booking-item h3,
+.booking-item p {
+  margin: 0 0 0.5rem;
+}
+
+.message {
+  min-height: 1.5rem;
+  margin: 0;
+  color: #8a3b12;
+}
+
+@media (max-width: 760px) {
+  .app-header,
+  .calendar-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+}

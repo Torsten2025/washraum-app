@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Waschraum Buchungen</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>Waschraum</h1>
+        <p id="sessionLabel"></p>
+      </div>
+      <button id="logoutButton" type="button">Abmelden</button>
+    </header>
+
+    <main class="app-layout">
+      <section class="booking-panel">
+        <h2>Buchung eintragen</h2>
+        <form id="bookingForm" class="booking-form">
+          <label>
+            Bereich
+            <select id="resourceType" name="resourceType">
+              <option value="washer">Waschmaschine</option>
+              <option value="drying_room">Trockenraum</option>
+            </select>
+          </label>
+
+          <label>
+            Maschine / Raum
+            <select id="resourceId" name="resourceId"></select>
+          </label>
+
+          <label>
+            Start
+            <input id="startAt" name="startAt" type="datetime-local" required>
+          </label>
+
+          <label>
+            Ende
+            <input id="endAt" name="endAt" type="datetime-local" required>
+          </label>
+
+          <button type="submit">Buchen</button>
+          <p id="formMessage" class="message" role="status"></p>
+        </form>
+      </section>
+
+      <section class="calendar-panel">
+        <div class="calendar-toolbar">
+          <h2>Buchungen</h2>
+          <select id="bookingFilter">
+            <option value="all">Alle anzeigen</option>
+            <option value="washer">Waschmaschinen</option>
+            <option value="drying_room">Trockenraeume</option>
+          </select>
+        </div>
+        <div id="bookingsList" class="bookings-list"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
