@@ -16,14 +16,12 @@
         </label>
 
         <label>
-          Rolle
-          <select id="userRole" name="userRole">
-            <option value="user">Nutzer</option>
-            <option value="admin">Admin</option>
-          </select>
+          Passwort
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
         </label>
 
         <button type="submit">Einloggen</button>
+        <p id="loginMessage" class="message" role="status"></p>
       </form>
     </main>
 

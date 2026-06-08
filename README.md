@@ -38,12 +38,12 @@ http://localhost:3000
 - Render SQLite-Pfad: `/var/data/washraum.sqlite`
 - Projektregeln fuer Codex: `AGENTS.md`
 
-## Demo-Login
+## Test-Login
 
-- Nutzer: beliebiger Name
-- Rolle: Nutzer oder Admin im Login auswaehlen
+- Admin: `admin` / `admin123`
+- Nutzer: `user` / `user123`
 
-Die Demo-Login-Logik ist bewusst einfach gehalten und sollte vor echtem Betrieb gehaertet werden.
+Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sind gehasht gespeichert.
 
 ## Render
 

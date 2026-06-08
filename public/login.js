@@ -1,19 +1,37 @@
 const loginForm = document.getElementById("loginForm");
 const userNameInput = document.getElementById("userName");
-const userRoleInput = document.getElementById("userRole");
+const passwordInput = document.getElementById("password");
+const loginMessage = document.getElementById("loginMessage");
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  loginMessage.textContent = "";
 
   const userName = userNameInput.value.trim();
-  const role = userRoleInput.value;
+  const password = passwordInput.value;
 
-  if (!userName) {
+  if (!userName || !password) {
     userNameInput.focus();
     return;
   }
 
-  sessionStorage.setItem("washraumUserName", userName);
-  sessionStorage.setItem("washraumUserRole", role);
+  const response = await fetch("/api/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ userName, password })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    loginMessage.textContent = "Name oder Passwort stimmt nicht.";
+    return;
+  }
+
+  sessionStorage.setItem("washraumAuthToken", data.token);
+  sessionStorage.setItem("washraumUserName", data.user.userName);
+  sessionStorage.setItem("washraumUserRole", data.user.role);
   window.location.href = "/index.html";
 });

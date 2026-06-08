@@ -14,18 +14,22 @@ const resources = {
   drying_room: ["TR-1", "TR-2"]
 };
 
-const userName = sessionStorage.getItem("washraumUserName");
-const role = sessionStorage.getItem("washraumUserRole") || "user";
+let authToken = sessionStorage.getItem("washraumAuthToken");
+let userName = sessionStorage.getItem("washraumUserName");
+let role = sessionStorage.getItem("washraumUserRole") || "user";
 
-if (!userName) {
+if (!authToken) {
   window.location.href = "/login.html";
 }
 
-sessionLabel.textContent = `${userName} (${role})`;
-
-logoutButton.addEventListener("click", () => {
+logoutButton.addEventListener("click", async () => {
+  await fetch("/api/logout", {
+    method: "POST",
+    headers: authHeaders()
+  });
   sessionStorage.removeItem("washraumUserName");
   sessionStorage.removeItem("washraumUserRole");
+  sessionStorage.removeItem("washraumAuthToken");
   window.location.href = "/login.html";
 });
 
@@ -37,8 +41,6 @@ bookingForm.addEventListener("submit", async (event) => {
   formMessage.textContent = "";
 
   const body = {
-    userName,
-    role,
     resourceType: resourceTypeInput.value,
     resourceId: resourceIdInput.value,
     startAt: startAtInput.value,
@@ -47,9 +49,7 @@ bookingForm.addEventListener("submit", async (event) => {
 
   const response = await fetch(role === "admin" ? "/api/admin/addBooking" : "/api/bookings", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(),
     body: JSON.stringify(body)
   });
 
@@ -120,10 +120,8 @@ async function loadBookings() {
 async function deleteBooking(id) {
   const response = await fetch("/api/user/deleteBooking", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ id, userName, role })
+    headers: authHeaders(),
+    body: JSON.stringify({ id })
   });
 
   const data = await response.json();
@@ -140,6 +138,36 @@ function resourceLabel(type) {
   return type === "washer" ? "Waschmaschine" : "Trockenraum";
 }
 
+function authHeaders() {
+  return {
+    "Authorization": `Bearer ${authToken}`,
+    "Content-Type": "application/json"
+  };
+}
+
+async function loadSession() {
+  const response = await fetch("/api/session", {
+    headers: authHeaders()
+  });
+
+  if (!response.ok) {
+    sessionStorage.removeItem("washraumUserName");
+    sessionStorage.removeItem("washraumUserRole");
+    sessionStorage.removeItem("washraumAuthToken");
+    window.location.href = "/login.html";
+    return false;
+  }
+
+  const data = await response.json();
+  userName = data.user.userName;
+  role = data.user.role;
+  sessionStorage.setItem("washraumUserName", userName);
+  sessionStorage.setItem("washraumUserRole", role);
+  sessionLabel.textContent = `${userName} (${role})`;
+
+  return true;
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat("de-CH", {
     dateStyle: "medium",
@@ -150,6 +178,10 @@ function formatDate(value) {
 function messageForError(error) {
   const messages = {
     missing_required_fields: "Bitte alle Felder ausfuellen.",
+    missing_login_fields: "Bitte Name und Passwort eingeben.",
+    invalid_login: "Name oder Passwort stimmt nicht.",
+    not_authenticated: "Bitte neu einloggen.",
+    admin_required: "Diese Aktion ist nur fuer Admins moeglich.",
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
@@ -163,5 +195,14 @@ function messageForError(error) {
   return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";
 }
 
-updateResourceOptions();
-loadBookings();
+async function boot() {
+  const validSession = await loadSession();
+  if (!validSession) {
+    return;
+  }
+
+  updateResourceOptions();
+  await loadBookings();
+}
+
+boot();
