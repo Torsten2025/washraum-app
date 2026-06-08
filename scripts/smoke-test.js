@@ -6,6 +6,7 @@ run().catch((error) => {
 });
 
 async function run() {
+  const cleanupPrefixes = [];
   const admin = await request("/api/login", {
     method: "POST",
     body: {
@@ -23,6 +24,7 @@ async function run() {
   assert(resources.body.resources.drying_room.includes("TR-1"), "resources include TR-1");
 
   const managedUserName = `Managed-${Date.now()}`;
+  cleanupPrefixes.push(managedUserName);
   const users = await request("/api/admin/users", {
     token: admin.body.token
   });
@@ -68,6 +70,7 @@ async function run() {
   assert(managedLogin.body.user.role === "admin", "managed user updated role is effective");
 
   const uniqueName = `Smoke-${Date.now()}`;
+  cleanupPrefixes.push(uniqueName);
   const startAt = nextBookableIso();
   const endAt = new Date(new Date(startAt).getTime() + 1000 * 60 * 90).toISOString();
 
@@ -131,6 +134,18 @@ async function run() {
 
   assertStatus(sundayBooking, 400, "sunday booking is blocked");
   assert(sundayBooking.body.error === "sunday_not_allowed", "sunday error code");
+
+  const cleanup = await request("/api/dev/cleanup", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      prefixes: cleanupPrefixes
+    }
+  });
+
+  if (![200, 404].includes(cleanup.status)) {
+    assertStatus(cleanup, 200, "dev cleanup");
+  }
 
   console.log("Smoke test passed");
 }

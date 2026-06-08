@@ -22,6 +22,7 @@ Wenn der Server laeuft:
 ```bash
 npm run health
 npm run bookings
+npm run smoke
 ```
 
 Oder im Browser oeffnen:
@@ -54,6 +55,8 @@ Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebu
 - `SEED_ADMIN_PASSWORD`
 - `SEED_USER_NAME`
 - `SEED_USER_PASSWORD`
+
+Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wieder auf. Diese Route ist in Produktion deaktiviert.
 
 ## Render
 

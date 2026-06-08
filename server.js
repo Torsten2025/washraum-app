@@ -131,6 +131,51 @@ app.get("/api/bookings", (_req, res) => {
   res.json({ bookings });
 });
 
+if (process.env.NODE_ENV !== "production") {
+  app.post("/api/dev/cleanup", (req, res) => {
+    const auth = getAdminAuth(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json(auth.body);
+    }
+
+    const prefixes = Array.isArray(req.body?.prefixes) ? req.body.prefixes : [];
+    const safePrefixes = prefixes
+      .map((prefix) => String(prefix || "").trim())
+      .filter((prefix) => prefix.length >= 4);
+
+    if (safePrefixes.length === 0) {
+      return res.status(400).json({ ok: false, error: "cleanup_prefix_required" });
+    }
+
+    const deleteBookings = db.prepare("DELETE FROM bookings WHERE user_name LIKE ?");
+    const deleteUserSessions = db.prepare(`
+      DELETE FROM sessions
+      WHERE user_id IN (
+        SELECT id FROM users WHERE user_name LIKE ?
+      )
+    `);
+    const deleteUsers = db.prepare("DELETE FROM users WHERE user_name LIKE ?");
+
+    const cleanup = db.transaction(() => {
+      let bookingsDeleted = 0;
+      let usersDeleted = 0;
+
+      for (const prefix of safePrefixes) {
+        deleteUserSessions.run(`${prefix}%`);
+        bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
+        usersDeleted += deleteUsers.run(`${prefix}%`).changes;
+      }
+
+      return {
+        bookingsDeleted,
+        usersDeleted
+      };
+    });
+
+    res.json({ ok: true, ...cleanup() });
+  });
+}
+
 app.get("/api/admin/users", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {
