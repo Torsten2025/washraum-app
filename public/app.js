@@ -65,6 +65,10 @@ todayButton.addEventListener("click", () => {
 });
 nextWeekButton.addEventListener("click", () => moveWeek(1));
 
+startAtInput.addEventListener("change", () => {
+  updateEndAfterStart({ force: !endAtInput.value });
+});
+
 passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   passwordMessage.textContent = "";
@@ -157,6 +161,7 @@ bookingForm.addEventListener("submit", async (event) => {
   bookingForm.reset();
   updateResourceOptions();
   updateAdminControls();
+  setDefaultBookingTimes();
   formMessage.textContent = "Buchung gespeichert.";
   await loadBookings();
 });
@@ -177,6 +182,26 @@ function updateDateInputMinimums() {
   const minValue = formatDateTimeInputValue(new Date());
   startAtInput.min = minValue;
   endAtInput.min = minValue;
+}
+
+function setDefaultBookingTimes() {
+  const start = nextDefaultStart();
+  startAtInput.value = formatDateTimeInputValue(start);
+  updateEndAfterStart({ force: true });
+}
+
+function updateEndAfterStart({ force = false } = {}) {
+  if (!startAtInput.value) {
+    return;
+  }
+
+  const start = new Date(startAtInput.value);
+  const suggestedEnd = new Date(start.getTime() + 1000 * 60 * 120);
+  endAtInput.min = formatDateTimeInputValue(start);
+
+  if (force || !endAtInput.value || new Date(endAtInput.value) <= start) {
+    endAtInput.value = formatDateTimeInputValue(suggestedEnd);
+  }
 }
 
 async function loadBookings() {
@@ -294,7 +319,7 @@ function renderUsers() {
     title.textContent = user.user_name;
 
     const meta = document.createElement("p");
-    meta.textContent = `${user.role === "admin" ? "Admin" : "Nutzer"} · ${user.active ? "aktiv" : "inaktiv"}`;
+    meta.textContent = `${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
 
     details.append(title, meta);
 
@@ -420,6 +445,19 @@ function formatDateTimeInputValue(value) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function nextDefaultStart() {
+  const date = new Date();
+  date.setMinutes(0, 0, 0);
+  date.setHours(date.getHours() + 1);
+
+  if (date.getDay() === 0) {
+    date.setDate(date.getDate() + 1);
+    date.setHours(8, 0, 0, 0);
+  }
+
+  return date;
+}
+
 function startOfWeek(value) {
   const date = new Date(value);
   date.setHours(0, 0, 0, 0);
@@ -489,6 +527,7 @@ async function boot() {
   await loadResources();
   updateResourceOptions();
   updateDateInputMinimums();
+  setDefaultBookingTimes();
   await loadUsers();
   await loadBookings();
 }
