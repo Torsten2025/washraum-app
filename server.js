@@ -106,10 +106,18 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS pilot_feedback_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_name TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
   CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_machine_log_entries_created_at ON machine_log_entries(created_at);
+  CREATE INDEX IF NOT EXISTS idx_pilot_feedback_entries_created_at ON pilot_feedback_entries(created_at);
 `);
 
 ensureBookingSchema();
@@ -269,6 +277,7 @@ if (!isProduction) {
     const deleteBookings = db.prepare("DELETE FROM bookings WHERE user_name LIKE ?");
     const deleteLogsByUser = db.prepare("DELETE FROM machine_log_entries WHERE user_name LIKE ?");
     const deleteLogsByResource = db.prepare("DELETE FROM machine_log_entries WHERE resource_id LIKE ?");
+    const deleteFeedbackByUser = db.prepare("DELETE FROM pilot_feedback_entries WHERE user_name LIKE ?");
     const deleteUserSessions = db.prepare(`
       DELETE FROM sessions
       WHERE user_id IN (
@@ -286,6 +295,7 @@ if (!isProduction) {
         deleteUserSessions.run(`${prefix}%`);
         deleteLogsByUser.run(`${prefix}%`);
         deleteLogsByResource.run(`${prefix}%`);
+        deleteFeedbackByUser.run(`${prefix}%`);
         bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
         usersDeleted += deleteUsers.run(`${prefix}%`).changes;
         deleteResources.run(`${prefix}%`);
@@ -331,6 +341,7 @@ app.get("/api/admin/overview", (req, res) => {
   const inactiveUsers = db.prepare("SELECT COUNT(*) AS count FROM users WHERE active = 0").get().count;
   const admins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
   const bookings = db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count;
+  const pilotFeedback = db.prepare("SELECT COUNT(*) AS count FROM pilot_feedback_entries").get().count;
   const futureBookings = db
     .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
     .get(new Date().toISOString()).count;
@@ -389,6 +400,7 @@ app.get("/api/admin/overview", (req, res) => {
       inactiveUsers,
       admins,
       bookings,
+      pilotFeedback,
       futureBookings,
       blockedDates: blockedDatesCount,
       seededParties,
@@ -541,6 +553,53 @@ app.post("/api/machine-logs", (req, res) => {
     .get(info.lastInsertRowid);
 
   res.status(201).json({ ok: true, logEntry });
+});
+
+app.get("/api/pilot-feedback", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const ownOnly = auth.role !== "admin";
+  const query = `
+    SELECT
+      pilot_feedback_entries.*,
+      users.display_name AS user_display_name,
+      users.apartment_label AS apartment_label
+    FROM pilot_feedback_entries
+    LEFT JOIN users ON users.user_name = pilot_feedback_entries.user_name
+    ${ownOnly ? "WHERE pilot_feedback_entries.user_name = ?" : ""}
+    ORDER BY pilot_feedback_entries.created_at DESC, pilot_feedback_entries.id DESC
+    LIMIT 100
+  `;
+  const feedback = ownOnly
+    ? db.prepare(query).all(auth.user_name)
+    : db.prepare(query).all();
+
+  res.json({ ok: true, feedback });
+});
+
+app.post("/api/pilot-feedback", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const message = String(req.body?.message || "").trim();
+  const validation = validatePilotFeedback({ message });
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  const info = db
+    .prepare("INSERT INTO pilot_feedback_entries (user_name, message) VALUES (?, ?)")
+    .run(auth.user_name, message);
+  const feedbackEntry = db
+    .prepare("SELECT * FROM pilot_feedback_entries WHERE id = ?")
+    .get(info.lastInsertRowid);
+
+  res.status(201).json({ ok: true, feedbackEntry });
 });
 
 app.post("/api/admin/users", (req, res) => {
@@ -1232,6 +1291,18 @@ function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) 
 
   if (note.length < 3 || note.length > 1200) {
     return { ok: false, error: "invalid_machine_log_note" };
+  }
+
+  return { ok: true };
+}
+
+function validatePilotFeedback({ message }) {
+  if (!message) {
+    return { ok: false, error: "missing_pilot_feedback" };
+  }
+
+  if (message.length < 5 || message.length > 1200) {
+    return { ok: false, error: "invalid_pilot_feedback" };
   }
 
   return { ok: true };

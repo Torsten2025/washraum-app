@@ -16,6 +16,7 @@ const featureCatalog = [
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
+  "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
   "WhatsApp-Freimeldung: gebuchte Maschine frueher frei melden",
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
   "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check"
@@ -66,6 +67,7 @@ async function checkStaticPages() {
   assert(indexHtml.includes("seedPartiesButton"), "admin 20-party onboarding exists");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
+  assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");
   assert(indexHtml.includes("adminPilotPanel"), "pilot readiness panel exists");
   assert(indexHtml.includes("monthlyPlanGrid"), "monthly plan exists");
@@ -78,14 +80,22 @@ async function checkLiveReadiness() {
   console.log("\n==> Live-Readiness");
   const health = await jsonRequest(`${liveUrl}/api/health`);
   assert(health.ok === true, "live health endpoint returns ok");
-  assert(health.sqlitePath === "/var/data/washraum.sqlite", "live app uses persistent Render SQLite path");
+  if (!isLocalUrl(liveUrl)) {
+    assert(health.sqlitePath === "/var/data/washraum.sqlite", "live app uses persistent Render SQLite path");
+  }
 
   const liveIndex = await textRequest(`${liveUrl}/index.html`);
   assert(liveIndex.includes("adminPilotPanel"), "live app contains pilot readiness panel");
   assert(liveIndex.includes("adminResourcesPanel"), "live app contains resource management panel");
   assert(liveIndex.includes("machineLogForm"), "live app contains machine logbook");
+  assert(liveIndex.includes("pilotFeedbackForm"), "live app contains pilot feedback form");
 
   console.log("OK Live-App ist bereit");
+}
+
+function isLocalUrl(value) {
+  const url = new URL(value);
+  return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
 }
 
 async function jsonRequest(url) {

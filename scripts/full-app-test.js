@@ -96,6 +96,27 @@ async function run() {
   assertStatus(logs, 200, "machine logs load");
   assert(logs.body.logs.some((entry) => entry.resource_id === testWasher && entry.note.includes("vibrierte")), "machine log appears in logbook");
 
+  const createFeedback = await request("/api/pilot-feedback", {
+    method: "POST",
+    token: user.token,
+    body: {
+      message: "FullTest-Feedback: Buchung war verstaendlich, Monatsplan bitte weiter gut sichtbar lassen."
+    }
+  });
+  assertStatus(createFeedback, 201, "user creates pilot feedback");
+
+  const ownFeedback = await request("/api/pilot-feedback", {
+    token: user.token
+  });
+  assertStatus(ownFeedback, 200, "user pilot feedback loads");
+  assert(ownFeedback.body.feedback.some((entry) => entry.message.includes("Monatsplan")), "own feedback appears for user");
+
+  const adminFeedback = await request("/api/pilot-feedback", {
+    token: admin.token
+  });
+  assertStatus(adminFeedback, 200, "admin pilot feedback loads");
+  assert(adminFeedback.body.feedback.some((entry) => entry.user_name === userName), "admin sees pilot feedback");
+
   const duplicate = await request("/api/bookings", {
     method: "POST",
     token: user.token,

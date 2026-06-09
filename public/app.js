@@ -23,6 +23,10 @@ const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
 const newPasswordInput = document.getElementById("newPassword");
 const passwordMessage = document.getElementById("passwordMessage");
+const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
+const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
+const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
+const pilotFeedbackList = document.getElementById("pilotFeedbackList");
 const adminUsersPanel = document.getElementById("adminUsersPanel");
 const seedPartiesButton = document.getElementById("seedPartiesButton");
 const partyCredentialsPanel = document.getElementById("partyCredentialsPanel");
@@ -59,6 +63,7 @@ const opsWarningsList = document.getElementById("opsWarningsList");
 const opsMessage = document.getElementById("opsMessage");
 const adminPilotPanel = document.getElementById("adminPilotPanel");
 const pilotReadinessList = document.getElementById("pilotReadinessList");
+const adminPilotFeedbackList = document.getElementById("adminPilotFeedbackList");
 const pilotInviteText = document.getElementById("pilotInviteText");
 const copyPilotInviteButton = document.getElementById("copyPilotInviteButton");
 const printPilotGuideButton = document.getElementById("printPilotGuideButton");
@@ -95,6 +100,7 @@ let role = sessionStorage.getItem("washraumUserRole") || "user";
 let allBookings = [];
 let allUsers = [];
 let allMachineLogs = [];
+let allPilotFeedback = [];
 let blockedDates = [];
 let latestPartyCredentials = [];
 let visibleWeekStart = startOfWeek(new Date());
@@ -267,6 +273,29 @@ passwordForm.addEventListener("submit", async (event) => {
 
   passwordForm.reset();
   passwordMessage.textContent = "Passwort aktualisiert.";
+});
+
+pilotFeedbackForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  pilotFeedbackMessageStatus.textContent = "";
+
+  const response = await fetch("/api/pilot-feedback", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      message: pilotFeedbackMessageInput.value.trim()
+    })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    pilotFeedbackMessageStatus.textContent = messageForError(data.error);
+    return;
+  }
+
+  pilotFeedbackForm.reset();
+  pilotFeedbackMessageStatus.textContent = "Danke, Feedback gespeichert.";
+  await loadPilotFeedback();
 });
 
 userForm.addEventListener("submit", async (event) => {
@@ -581,6 +610,21 @@ async function loadMachineLogs() {
 
   allMachineLogs = data.logs || [];
   renderMachineLogs();
+}
+
+async function loadPilotFeedback() {
+  const response = await fetch("/api/pilot-feedback", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    pilotFeedbackMessageStatus.textContent = messageForError(data.error);
+    return;
+  }
+
+  allPilotFeedback = data.feedback || [];
+  renderPilotFeedback();
 }
 
 async function loadOperations() {
@@ -968,6 +1012,42 @@ function renderMachineLogs() {
   }
 }
 
+function renderPilotFeedback() {
+  pilotFeedbackList.innerHTML = "";
+  adminPilotFeedbackList.innerHTML = "";
+
+  if (allPilotFeedback.length === 0) {
+    pilotFeedbackList.textContent = "Noch keine Rueckmeldungen.";
+    adminPilotFeedbackList.textContent = "Noch keine Rueckmeldungen.";
+    return;
+  }
+
+  for (const entry of allPilotFeedback) {
+    const item = pilotFeedbackItem(entry);
+    pilotFeedbackList.append(item);
+
+    if (role === "admin") {
+      adminPilotFeedbackList.append(pilotFeedbackItem(entry));
+    }
+  }
+}
+
+function pilotFeedbackItem(entry) {
+  const item = document.createElement("article");
+  item.className = "pilot-feedback-item";
+
+  const title = document.createElement("h3");
+  title.textContent = partyLabel(entry);
+  const meta = document.createElement("p");
+  meta.textContent = formatDate(entry.created_at);
+  const message = document.createElement("p");
+  message.className = "pilot-feedback-note";
+  message.textContent = entry.message;
+
+  item.append(title, meta, message);
+  return item;
+}
+
 function renderUsers() {
   usersList.innerHTML = "";
 
@@ -1037,6 +1117,7 @@ function renderOperations(status, warnings) {
     ["Admins", String(status.admins)],
     ["Buchungen", String(status.bookings)],
     ["Zukunftsbuchungen", String(status.futureBookings)],
+    ["Pilot-Feedback", String(status.pilotFeedback || 0)],
     ["Parteien", `${status.seededParties}/20`],
     ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
     ["WhatsApp", whatsappStatusLabel(status.whatsapp)]
@@ -1536,6 +1617,8 @@ function messageForError(error) {
     missing_machine_log_fields: "Bitte Ressource, Datum und Eintrag ausfuellen.",
     invalid_machine_log_date: "Bitte ein gueltiges Protokolldatum waehlen.",
     invalid_machine_log_note: "Der Protokolleintrag muss 3 bis 1200 Zeichen lang sein.",
+    missing_pilot_feedback: "Bitte eine Rueckmeldung eintragen.",
+    invalid_pilot_feedback: "Die Rueckmeldung muss 5 bis 1200 Zeichen lang sein.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
     washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
@@ -1614,6 +1697,7 @@ async function boot() {
   setDefaultBookingTimes();
   await loadUsers();
   await loadMachineLogs();
+  await loadPilotFeedback();
   await loadBlockedDates();
   await loadOperations();
   await loadBookings();

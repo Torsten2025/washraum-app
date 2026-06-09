@@ -65,6 +65,7 @@ Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
 Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
 Eigene Buchungen koennen ueber "Frueher frei melden" per WhatsApp API an eine hinterlegte Nummer gemeldet werden.
 Admins sehen im Bereich "Pilotstart" eine Vorbereitungsliste und eine Kurzanleitung fuer die erste Testrunde.
+Testpersonen koennen im Bereich "Pilot-Feedback" direkt Rueckmeldungen hinterlassen; Admins sehen alle Rueckmeldungen gesammelt im Pilotstart-Bereich.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 
@@ -137,6 +138,7 @@ Empfohlener Ablauf fuer die erste Testrunde:
 - Vor dem Einladen im Bereich "Betrieb" ein Backup herunterladen
 - Im Bereich "Pilotstart" die Checkliste pruefen und den Einladungstext kopieren oder drucken
 - Jede Testperson prueft Login, freie Buchung, Monatsplan, Loeschen eigener Buchungen und Protokolltagebuch
+- Jede Testperson hinterlaesst mindestens eine Rueckmeldung ueber "Pilot-Feedback", auch wenn nur "alles klar" gemeldet wird
 - Nach 5 bis 7 Tagen Feedback sammeln und dann erst alle Parteien freischalten
 
 Der Pilot-Check mutiert keine Produktionsdaten:

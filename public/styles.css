@@ -277,6 +277,7 @@ input[readonly] {
 
 .account-panel,
 .logbook-panel,
+.feedback-panel,
 .admin-panel {
   border-top: 1px solid var(--line);
   margin-top: 1.6rem;
@@ -285,6 +286,7 @@ input[readonly] {
 
 .account-panel h2,
 .logbook-panel h2,
+.feedback-panel h2,
 .admin-panel h2 {
   font-size: 1.15rem;
   margin: 0;
@@ -814,7 +816,8 @@ input[readonly] {
 .users-list,
 .blocked-dates-list,
 .resources-list,
-.machine-logs-list {
+.machine-logs-list,
+.pilot-feedback-list {
   display: grid;
   gap: 0.75rem;
   margin-top: 1rem;
@@ -823,7 +826,8 @@ input[readonly] {
 .user-item,
 .blocked-date-item,
 .resource-item,
-.machine-log-item {
+.machine-log-item,
+.pilot-feedback-item {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -843,18 +847,22 @@ input[readonly] {
 .resource-item h3,
 .resource-item p,
 .machine-log-item h3,
-.machine-log-item p {
+.machine-log-item p,
+.pilot-feedback-item h3,
+.pilot-feedback-item p {
   margin: 0;
 }
 
 .blocked-date-item p,
 .resource-item p,
-.machine-log-item p {
+.machine-log-item p,
+.pilot-feedback-item p {
   color: var(--muted);
   margin-top: 0.35rem;
 }
 
-.machine-log-note {
+.machine-log-note,
+.pilot-feedback-note {
   color: var(--text) !important;
   line-height: 1.45;
   white-space: pre-wrap;
