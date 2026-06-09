@@ -20,11 +20,16 @@
       </div>
     </header>
 
-    <a class="notice-bar" href="#bookingForm">Waschraum buchen und Eintrag prüfen</a>
+    <a class="notice-bar" href="#bookingForm">Waschraum buchen und Eintrag pruefen</a>
 
     <main class="app-layout">
       <section class="booking-panel">
         <h2>Buchung eintragen</h2>
+        <div class="rule-strip" aria-label="Buchungsregeln">
+          <span>WM: max. 3 pro Tag</span>
+          <span>TR/Tumbler: 1x im Voraus</span>
+          <span>Sonntag und Sperrtage geschlossen</span>
+        </div>
         <form id="bookingForm" class="booking-form">
           <label>
             Bereich
@@ -119,6 +124,25 @@
             <p id="userMessage" class="message" role="status"></p>
           </form>
           <div id="usersList" class="users-list"></div>
+        </div>
+
+        <div id="adminBlockedDatesPanel" class="admin-panel hidden">
+          <h2>Sperrtage verwalten</h2>
+          <form id="blockedDateForm" class="booking-form">
+            <label>
+              Datum
+              <input id="blockedDateInput" name="blockedDate" type="date" required>
+            </label>
+
+            <label>
+              Bezeichnung
+              <input id="blockedDateLabelInput" name="blockedDateLabel" maxlength="80" placeholder="z. B. Feiertag" required>
+            </label>
+
+            <button type="submit">Sperrtag speichern</button>
+            <p id="blockedDateMessage" class="message" role="status"></p>
+          </form>
+          <div id="blockedDatesList" class="blocked-dates-list"></div>
         </div>
       </section>
 

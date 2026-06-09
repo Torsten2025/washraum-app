@@ -22,7 +22,7 @@ const slots = {
   drying_room: fixedSlots,
   tumbler: fixedSlots
 };
-const blockedDates = [
+const defaultBlockedDates = [
   "2026-01-01",
   "2026-04-03",
   "2026-04-06",
@@ -32,7 +32,7 @@ const blockedDates = [
   "2026-08-01",
   "2026-12-25",
   "2026-12-26"
-];
+].map((date) => ({ date, label: defaultBlockedDateLabel(date) }));
 
 fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
 
@@ -67,6 +67,12 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS blocked_dates (
+    date TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
   CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
@@ -74,6 +80,7 @@ db.exec(`
 
 ensureBookingSchema();
 ensureUserColumns();
+seedDefaultBlockedDates();
 seedDefaultUsers();
 
 app.use(express.json());
@@ -87,11 +94,15 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     sqlitePath,
-    users: db.prepare("SELECT COUNT(*) AS count FROM users").get().count
+    users: db.prepare("SELECT COUNT(*) AS count FROM users").get().count,
+    bookings: db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count,
+    blockedDates: db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count,
+    production: process.env.NODE_ENV === "production"
   });
 });
 
 app.post("/api/login", (req, res) => {
+  cleanupExpiredSessions();
   const userName = String(req.body?.userName || "").trim();
   const password = String(req.body?.password || "");
 
@@ -149,7 +160,7 @@ app.get("/api/session", (req, res) => {
 });
 
 app.get("/api/resources", (_req, res) => {
-  res.json({ resources, slots, blockedDates });
+  res.json({ resources, slots, blockedDates: listBlockedDates() });
 });
 
 app.get("/api/bookings", (_req, res) => {
@@ -278,6 +289,62 @@ app.post("/api/admin/users", (req, res) => {
   }
 });
 
+app.get("/api/admin/blocked-dates", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  res.json({ blockedDates: listBlockedDates() });
+});
+
+app.post("/api/admin/blocked-dates", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const date = String(req.body?.date || "").trim();
+  const label = String(req.body?.label || "").trim() || "Sperrtag";
+  const validation = validateBlockedDate({ date, label });
+
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  try {
+    db.prepare("INSERT INTO blocked_dates (date, label) VALUES (?, ?)").run(date, label);
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
+      return res.status(409).json({ ok: false, error: "blocked_date_already_exists" });
+    }
+
+    throw error;
+  }
+
+  const blockedDate = db.prepare("SELECT date, label, created_at FROM blocked_dates WHERE date = ?").get(date);
+  res.status(201).json({ ok: true, blockedDate });
+});
+
+app.delete("/api/admin/blocked-dates/:date", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const date = String(req.params.date || "").trim();
+  if (!isDateKey(date)) {
+    return res.status(400).json({ ok: false, error: "invalid_blocked_date" });
+  }
+
+  const result = db.prepare("DELETE FROM blocked_dates WHERE date = ?").run(date);
+  if (result.changes === 0) {
+    return res.status(404).json({ ok: false, error: "blocked_date_not_found" });
+  }
+
+  res.json({ ok: true });
+});
+
 app.patch("/api/admin/users/:id", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {
@@ -402,6 +469,13 @@ function seedDefaultUsers() {
   insert.run(process.env.SEED_USER_NAME || "user", hashPassword(process.env.SEED_USER_PASSWORD || "user123"), "user");
 }
 
+function seedDefaultBlockedDates() {
+  const insert = db.prepare("INSERT OR IGNORE INTO blocked_dates (date, label) VALUES (?, ?)");
+  for (const blockedDate of defaultBlockedDates) {
+    insert.run(blockedDate.date, blockedDate.label);
+  }
+}
+
 function ensureUserColumns() {
   const columns = db.prepare("PRAGMA table_info(users)").all();
   const hasActive = columns.some((column) => column.name === "active");
@@ -465,6 +539,10 @@ function getAuth(req) {
   return session;
 }
 
+function cleanupExpiredSessions() {
+  db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(new Date().toISOString());
+}
+
 function getAdminAuth(req) {
   const auth = getAuth(req);
   if (!auth) {
@@ -509,6 +587,22 @@ function validateUserInput({ userName, password, role, requirePassword }) {
 
   if (password && password.length < 6) {
     return { ok: false, error: "password_too_short" };
+  }
+
+  return { ok: true };
+}
+
+function validateBlockedDate({ date, label }) {
+  if (!date || !label) {
+    return { ok: false, error: "missing_blocked_date_fields" };
+  }
+
+  if (!isDateKey(date)) {
+    return { ok: false, error: "invalid_blocked_date" };
+  }
+
+  if (label.length < 2 || label.length > 80) {
+    return { ok: false, error: "invalid_blocked_date_label" };
   }
 
   return { ok: true };
@@ -628,7 +722,7 @@ function timeKey(date) {
 }
 
 function isBlockedDate(date) {
-  return blockedDates.includes(dateKey(date));
+  return Boolean(db.prepare("SELECT date FROM blocked_dates WHERE date = ?").get(dateKey(date)));
 }
 
 function dateKey(date) {
@@ -637,6 +731,40 @@ function dateKey(date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")
   ].join("-");
+}
+
+function listBlockedDates() {
+  return db
+    .prepare("SELECT date, label, created_at FROM blocked_dates ORDER BY date ASC")
+    .all();
+}
+
+function isDateKey(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year
+    && date.getMonth() === month - 1
+    && date.getDate() === day;
+}
+
+function defaultBlockedDateLabel(date) {
+  const labels = {
+    "2026-01-01": "Neujahr",
+    "2026-04-03": "Karfreitag",
+    "2026-04-06": "Ostermontag",
+    "2026-05-01": "Tag der Arbeit",
+    "2026-05-14": "Auffahrt",
+    "2026-05-25": "Pfingstmontag",
+    "2026-08-01": "Bundesfeier",
+    "2026-12-25": "Weihnachten",
+    "2026-12-26": "Stephanstag"
+  };
+
+  return labels[date] || "Sperrtag";
 }
 
 function ensureBookingSchema() {

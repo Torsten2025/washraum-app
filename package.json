@@ -2,7 +2,7 @@
   "name": "washraum-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Web-App zur Verwaltung von Waschmaschinen- und Trockenraum-Buchungen.",
+  "description": "Web-App zur Verwaltung von Waschraum-Buchungen.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

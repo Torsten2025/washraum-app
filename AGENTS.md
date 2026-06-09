@@ -16,6 +16,7 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - Loeschen eigener Buchungen
 - Admin-Funktion zum Hinzufuegen und Loeschen von Buchungen
 - Admin-Funktion zum Aktivieren und Deaktivieren von Nutzern
+- Admin-Funktion zum Pflegen von Sperrtagen und Feiertagen
 - Persistenz der Buchungsdaten per SQLite
 - Render-Deployment mit persistentem Disk-Pfad
 
@@ -32,6 +33,9 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/:id`
+- `GET /api/admin/blocked-dates`
+- `POST /api/admin/blocked-dates`
+- `DELETE /api/admin/blocked-dates/:date`
 - `POST /api/bookings`
 - `POST /api/admin/addBooking`
 - `POST /api/user/deleteBooking`

@@ -24,6 +24,12 @@ const managedUserPasswordInput = document.getElementById("managedUserPassword");
 const cancelUserEditButton = document.getElementById("cancelUserEditButton");
 const userMessage = document.getElementById("userMessage");
 const usersList = document.getElementById("usersList");
+const adminBlockedDatesPanel = document.getElementById("adminBlockedDatesPanel");
+const blockedDateForm = document.getElementById("blockedDateForm");
+const blockedDateInput = document.getElementById("blockedDateInput");
+const blockedDateLabelInput = document.getElementById("blockedDateLabelInput");
+const blockedDateMessage = document.getElementById("blockedDateMessage");
+const blockedDatesList = document.getElementById("blockedDatesList");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
 const calendarGrid = document.getElementById("calendarGrid");
@@ -47,6 +53,7 @@ let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
 let allBookings = [];
 let allUsers = [];
+let blockedDates = [];
 let visibleWeekStart = startOfWeek(new Date());
 
 if (!authToken) {
@@ -144,6 +151,31 @@ userForm.addEventListener("submit", async (event) => {
 
 cancelUserEditButton.addEventListener("click", () => {
   resetUserForm();
+});
+
+blockedDateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  blockedDateMessage.textContent = "";
+
+  const response = await fetch("/api/admin/blocked-dates", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      date: blockedDateInput.value,
+      label: blockedDateLabelInput.value.trim()
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    blockedDateMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  blockedDateForm.reset();
+  blockedDateMessage.textContent = "Sperrtag gespeichert.";
+  await loadBlockedDates();
 });
 
 bookingForm.addEventListener("submit", async (event) => {
@@ -283,6 +315,7 @@ async function loadResources() {
   const data = await response.json();
   resources = data.resources;
   slotConfig = data.slots || {};
+  blockedDates = data.blockedDates || [];
 }
 
 async function loadUsers() {
@@ -296,6 +329,20 @@ async function loadUsers() {
   const data = await response.json();
   allUsers = data.users;
   renderUsers();
+}
+
+async function loadBlockedDates() {
+  if (role !== "admin") {
+    return;
+  }
+
+  const response = await fetch("/api/admin/blocked-dates", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+  blockedDates = data.blockedDates || [];
+  renderBlockedDates();
+  renderBookings();
 }
 
 function renderBookings() {
@@ -349,12 +396,25 @@ function renderCalendar(bookings) {
   for (const day of weekDays) {
     const column = document.createElement("section");
     column.className = "calendar-day";
+    if (day.getDay() === 0 || blockedDateForDay(day)) {
+      column.classList.add("calendar-day-closed");
+    }
 
     const heading = document.createElement("h3");
     heading.textContent = formatDayHeading(day);
     column.append(heading);
 
-    const dayBookings = bookings.filter((booking) => isSameDay(new Date(booking.start_at), day));
+    const blockedDate = blockedDateForDay(day);
+    if (day.getDay() === 0 || blockedDate) {
+      const closed = document.createElement("p");
+      closed.className = "calendar-closed";
+      closed.textContent = blockedDate ? `Gesperrt: ${blockedDate.label}` : "Sonntag geschlossen";
+      column.append(closed);
+    }
+
+    const dayBookings = bookings
+      .filter((booking) => isSameDay(new Date(booking.start_at), day))
+      .sort((left, right) => new Date(left.start_at) - new Date(right.start_at));
 
     if (dayBookings.length === 0) {
       const empty = document.createElement("p");
@@ -366,11 +426,48 @@ function renderCalendar(bookings) {
     for (const booking of dayBookings) {
       const item = document.createElement("article");
       item.className = `calendar-booking calendar-booking-${booking.resource_type}`;
-      item.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)} ${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
+
+      const time = document.createElement("strong");
+      time.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)}`;
+      const resource = document.createElement("span");
+      resource.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
+      const user = document.createElement("small");
+      user.textContent = booking.user_name;
+
+      item.append(time, resource, user);
       column.append(item);
     }
 
     calendarGrid.append(column);
+  }
+}
+
+function renderBlockedDates() {
+  blockedDatesList.innerHTML = "";
+
+  if (blockedDates.length === 0) {
+    blockedDatesList.textContent = "Keine Sperrtage gepflegt.";
+    return;
+  }
+
+  for (const blockedDate of blockedDates) {
+    const item = document.createElement("article");
+    item.className = "blocked-date-item";
+
+    const details = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = blockedDate.label;
+    const meta = document.createElement("p");
+    meta.textContent = formatDateKey(blockedDate.date);
+    details.append(title, meta);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "Entfernen";
+    deleteButton.addEventListener("click", () => deleteBlockedDate(blockedDate.date));
+
+    item.append(details, deleteButton);
+    blockedDatesList.append(item);
   }
 }
 
@@ -436,6 +533,22 @@ async function deleteBooking(id) {
   await loadBookings();
 }
 
+async function deleteBlockedDate(date) {
+  const response = await fetch(`/api/admin/blocked-dates/${date}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    blockedDateMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  blockedDateMessage.textContent = "Sperrtag entfernt.";
+  await loadBlockedDates();
+}
+
 function resourceLabel(type) {
   const labels = {
     washer: "Waschmaschine",
@@ -481,6 +594,7 @@ function updateAdminControls() {
   const isAdmin = role === "admin";
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
   adminUsersPanel.classList.toggle("hidden", !isAdmin);
+  adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
 }
@@ -496,6 +610,11 @@ function formatDateOnly(value) {
   return new Intl.DateTimeFormat("de-CH", {
     dateStyle: "medium"
   }).format(value);
+}
+
+function formatDateKey(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return formatDateOnly(new Date(year, month - 1, day));
 }
 
 function formatTime(value) {
@@ -540,7 +659,7 @@ function nextDefaultSlotSelection(resourceType) {
 
   for (let dayOffset = 0; dayOffset < 14; dayOffset += 1) {
     const date = addDays(candidate, dayOffset);
-    if (date.getDay() === 0) {
+    if (date.getDay() === 0 || blockedDateForDay(date)) {
       continue;
     }
 
@@ -586,6 +705,19 @@ function isSameDay(left, right) {
     && left.getDate() === right.getDate();
 }
 
+function blockedDateForDay(day) {
+  const key = dateKey(day);
+  return blockedDates.find((blockedDate) => blockedDate.date === key);
+}
+
+function dateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
 function moveWeek(direction) {
   visibleWeekStart = addDays(visibleWeekStart, direction * 7);
   renderBookings();
@@ -607,6 +739,11 @@ function messageForError(error) {
     last_admin_required: "Mindestens ein Admin muss bestehen bleiben.",
     user_already_exists: "Dieser Nutzer existiert bereits.",
     user_not_found: "Nutzer nicht gefunden.",
+    missing_blocked_date_fields: "Bitte Datum und Bezeichnung ausfuellen.",
+    invalid_blocked_date: "Bitte ein gueltiges Datum waehlen.",
+    invalid_blocked_date_label: "Die Bezeichnung muss 2 bis 80 Zeichen lang sein.",
+    blocked_date_already_exists: "Dieser Sperrtag existiert bereits.",
+    blocked_date_not_found: "Sperrtag nicht gefunden.",
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
@@ -637,6 +774,7 @@ async function boot() {
   updateDateInputMinimums();
   setDefaultBookingTimes();
   await loadUsers();
+  await loadBlockedDates();
   await loadBookings();
 }
 

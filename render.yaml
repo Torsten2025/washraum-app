@@ -13,11 +13,11 @@ services:
       - key: SEED_ADMIN_NAME
         value: admin
       - key: SEED_ADMIN_PASSWORD
-        value: change-me-before-production
+        sync: false
       - key: SEED_USER_NAME
         value: user
       - key: SEED_USER_PASSWORD
-        value: change-me-before-production
+        sync: false
     disk:
       name: washraum-data
       mountPath: /var/data

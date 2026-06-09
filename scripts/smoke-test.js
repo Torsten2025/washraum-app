@@ -21,6 +21,7 @@ async function run() {
   const resources = await request("/api/resources");
   assertStatus(resources, 200, "resources");
   const blockedDates = resources.body.blockedDates || [];
+  const blockedDateKeys = blockedDates.map((blockedDate) => blockedDate.date);
   assert(resources.body.resources.washer.includes("WM 1"), "resources include WM 1");
   assert(resources.body.resources.washer.includes("WM 2"), "resources include WM 2");
   assert(resources.body.resources.washer.includes("WM 3"), "resources include WM 3");
@@ -32,6 +33,7 @@ async function run() {
   assert(resources.body.resources.tumbler.includes("Tumbler 1"), "resources include Tumbler 1");
   assert(resources.body.resources.tumbler.includes("Tumbler 2"), "resources include Tumbler 2");
   assert(resources.body.slots.tumbler.length === 3, "tumbler has three configured slots");
+  assert(blockedDateKeys.includes("2026-08-01"), "resources include seeded blocked dates");
 
   const managedUserName = `Managed-${Date.now()}`;
   cleanupPrefixes.push(managedUserName);
@@ -41,6 +43,32 @@ async function run() {
 
   assertStatus(users, 200, "admin lists users");
   assert(Array.isArray(users.body.users), "admin users response is an array");
+
+  const listedBlockedDates = await request("/api/admin/blocked-dates", {
+    token: admin.body.token
+  });
+
+  assertStatus(listedBlockedDates, 200, "admin lists blocked dates");
+  assert(Array.isArray(listedBlockedDates.body.blockedDates), "blocked dates response is an array");
+
+  const smokeBlockedDate = nextBookableDate(blockedDateKeys, 120);
+  const smokeBlockedDateKey = dateKey(smokeBlockedDate);
+  await request(`/api/admin/blocked-dates/${smokeBlockedDateKey}`, {
+    method: "DELETE",
+    token: admin.body.token
+  });
+
+  const createBlockedDate = await request("/api/admin/blocked-dates", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      date: smokeBlockedDateKey,
+      label: "Smoke Sperrtag"
+    }
+  });
+
+  assertStatus(createBlockedDate, 201, "admin creates blocked date");
+  assert(createBlockedDate.body.blockedDate.date === smokeBlockedDateKey, "blocked date uses submitted date");
 
   const createUser = await request("/api/admin/users", {
     method: "POST",
@@ -140,7 +168,7 @@ async function run() {
 
   const uniqueName = `Smoke-${Date.now()}`;
   cleanupPrefixes.push(uniqueName);
-  const bookingDate = nextBookableDate(blockedDates);
+  const bookingDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey]);
   const slotOne = rangeForDate(bookingDate, "07:00", "12:00");
 
   const create = await request("/api/admin/addBooking", {
@@ -217,7 +245,7 @@ async function run() {
   assertStatus(fourthWasherForUser, 400, "fourth washer booking on same day is blocked");
   assert(fourthWasherForUser.body.error === "washer_daily_limit_reached", "washer daily limit error code");
 
-  const dryingRange = rangeForDate(nextBookableDate(blockedDates, 35), "07:00", "12:00");
+  const dryingRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 35), "07:00", "12:00");
   const dryingAfterWasher = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -233,7 +261,7 @@ async function run() {
   assertStatus(dryingAfterWasher, 201, "drying room booking after washer booking is allowed");
 
   const dryingName = `${uniqueName}-drying`;
-  const dryingDate = nextBookableDate(blockedDates, 40);
+  const dryingDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 40);
   const dryingSlotOne = rangeForDate(dryingDate, "07:00", "12:00");
   const firstDrying = await request("/api/admin/addBooking", {
     method: "POST",
@@ -278,7 +306,7 @@ async function run() {
   assertStatus(duplicateDryingRoom, 400, "same drying room same slot is blocked");
   assert(duplicateDryingRoom.body.error === "time_range_already_booked", "duplicate drying room error code");
 
-  const secondDryingRange = rangeForDate(nextBookableDate(blockedDates, 41), "12:00", "17:00");
+  const secondDryingRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 41), "12:00", "17:00");
   const secondDryingForUser = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -295,7 +323,7 @@ async function run() {
   assert(secondDryingForUser.body.error === "only_one_future_booking_allowed", "drying future booking error code");
 
   const tumblerName = `${uniqueName}-tumbler`;
-  const tumblerDate = nextBookableDate(blockedDates, 45);
+  const tumblerDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 45);
   const tumblerSlotOne = rangeForDate(tumblerDate, "07:00", "12:00");
   const firstTumbler = await request("/api/admin/addBooking", {
     method: "POST",
@@ -325,7 +353,7 @@ async function run() {
 
   assertStatus(sameSlotOtherTumbler, 201, "same tumbler slot on another resource is allowed");
 
-  const secondTumblerRange = rangeForDate(nextBookableDate(blockedDates, 46), "12:00", "17:00");
+  const secondTumblerRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 46), "12:00", "17:00");
   const secondTumblerForUser = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -388,7 +416,7 @@ async function run() {
   assertStatus(sundayBooking, 400, "sunday booking is blocked");
   assert(sundayBooking.body.error === "sunday_not_allowed", "sunday error code");
 
-  const holidayRange = nextBlockedDateRange(blockedDates);
+  const holidayRange = rangeForDate(smokeBlockedDate, "07:00", "12:00");
   const holidayBooking = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -403,6 +431,13 @@ async function run() {
 
   assertStatus(holidayBooking, 400, "blocked holiday booking is blocked");
   assert(holidayBooking.body.error === "blocked_date", "blocked holiday error code");
+
+  const deleteBlockedDate = await request(`/api/admin/blocked-dates/${smokeBlockedDateKey}`, {
+    method: "DELETE",
+    token: admin.body.token
+  });
+
+  assertStatus(deleteBlockedDate, 200, "admin deletes blocked date");
 
   const cleanup = await request("/api/dev/cleanup", {
     method: "POST",

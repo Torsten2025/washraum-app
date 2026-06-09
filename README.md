@@ -49,6 +49,7 @@ Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sin
 Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 Admins koennen Nutzer deaktivieren, ohne deren Buchungshistorie zu loeschen.
+Admins koennen Sperrtage und Feiertage pflegen.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
 Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
@@ -63,6 +64,17 @@ Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebu
 
 Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wieder auf. Diese Route ist in Produktion deaktiviert.
 
+## Livegang-Checkliste
+
+- Lokalen Smoke-Test ausfuehren: `npm run smoke`
+- Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
+- In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
+- Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
+- Nutzerkonten fuer echte Bewohnerinnen und Bewohner anlegen
+- Sperrtage/Feiertage im Admin-Bereich kontrollieren und ergaenzen
+- `/api/health` pruefen: `sqlitePath` muss `/var/data/washraum.sqlite` sein
+- Eine Testbuchung erstellen, Render-Service neu starten und Persistenz pruefen
+
 ## Render
 
 Die Datei `render.yaml` enthaelt eine Web-Service-Konfiguration mit persistentem Disk-Mount:
@@ -76,3 +88,16 @@ Die Produktionsdatenbank soll dort liegen:
 ```text
 /var/data/washraum.sqlite
 ```
+
+Die Seed-Passwoerter werden nicht im Repository gespeichert. Sie muessen in Render als Secret-Umgebungsvariablen gesetzt werden:
+
+- `SEED_ADMIN_PASSWORD`
+- `SEED_USER_PASSWORD`
+
+## Backup
+
+SQLite liegt auf dem persistenten Render-Disk-Mount. Fuer den Betrieb gilt:
+
+- Vor groesseren Aenderungen Render-Disk bzw. SQLite-Datei sichern
+- Nach Deployments `/api/health` und eine vorhandene Buchung kontrollieren
+- Keine lokalen Testdaten ungeprueft als Produktionsdaten uebernehmen
