@@ -6,14 +6,21 @@
     <title>Waschraum Buchungen</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
+  <body class="app-page">
     <header class="app-header">
-      <div>
-        <h1>Waschraum</h1>
-        <p id="sessionLabel"></p>
+      <a class="brand" href="/index.html" aria-label="GBMZ Waschraum">GBMZ</a>
+      <nav class="main-nav" aria-label="Hauptnavigation">
+        <a href="/index.html">WASCHRAUM</a>
+        <a href="/index.html">BUCHUNGEN</a>
+        <a href="/index.html">REGELN</a>
+      </nav>
+      <div class="header-actions">
+        <span id="sessionLabel" class="session-pill"></span>
+        <button id="logoutButton" type="button">Abmelden</button>
       </div>
-      <button id="logoutButton" type="button">Abmelden</button>
     </header>
+
+    <a class="notice-bar" href="#bookingForm">Waschraum buchen und Eintrag prüfen</a>
 
     <main class="app-layout">
       <section class="booking-panel">
