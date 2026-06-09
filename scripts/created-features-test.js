@@ -17,6 +17,7 @@ const featureCatalog = [
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
+  "Ressourcen: Standardbetrieb mit 3 Waschmaschinen, 3 Trockenraeumen und 2 Tumblern",
   "Ressourcensperre: defekte Maschine oder Raum sperren und wieder freigeben",
   "Protokoll-Sperre: Admin sperrt oder gibt Ressourcen direkt aus dem Protokolltagebuch frei",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
@@ -69,12 +70,15 @@ async function checkStaticPages() {
   const indexHtml = await textRequest(`${appUrl}/index.html`);
   const loginHtml = await textRequest(`${appUrl}/login.html`);
   const appJs = await textRequest(`${appUrl}/app.js`);
+  const resources = await jsonRequest(`${appUrl}/api/resources`);
 
   assert(loginHtml.includes("GBMZ"), "login page shows GBMZ branding");
   assert(loginHtml.includes("Maneggplatz 18"), "login page shows Maneggplatz 18");
   assert(!loginHtml.includes("myGBMZ"), "login page does not contain old myGBMZ navigation");
   assert(indexHtml.includes("seedPartiesButton"), "admin 20-party onboarding exists");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
+  assert(resources.resources.tumbler.length === 2, "two tumblers are configured");
+  assert(!resources.resources.tumbler.includes("Tumbler 3"), "retired Tumbler 3 is not bookable");
   assert(appJs.includes("/api/admin/resources/") && appJs.includes("/availability"), "admin resource availability action exists");
   assert(appJs.includes("availability-slot-unavailable"), "unavailable resource slots are marked");
   assert(appJs.includes("resource_unavailable"), "unavailable resource error is handled");

@@ -25,6 +25,9 @@ async function run() {
   assert(resources.resources.washer.includes("WM 1"), "resources include washers");
   assert(resources.resources.drying_room.includes("Trockenraum 1"), "resources include drying rooms");
   assert(resources.resources.tumbler.includes("Tumbler 1"), "resources include tumblers");
+  assert(resources.resources.tumbler.includes("Tumbler 2"), "resources include second tumbler");
+  assert(resources.resources.tumbler.length === 2, "production has two tumblers");
+  assert(!resources.resources.tumbler.includes("Tumbler 3"), "production does not expose retired Tumbler 3");
   assert(Array.isArray(resources.blockedDates), "resources include blocked dates");
 
   const login = await jsonRequest("/api/login", {

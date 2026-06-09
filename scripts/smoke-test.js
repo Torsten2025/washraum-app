@@ -40,8 +40,8 @@ async function run() {
   assert(resources.body.slots.drying_room.length === 3, "drying room has three configured slots");
   assert(resources.body.resources.tumbler.includes("Tumbler 1"), "resources include Tumbler 1");
   assert(resources.body.resources.tumbler.includes("Tumbler 2"), "resources include Tumbler 2");
-  assert(resources.body.resources.tumbler.includes("Tumbler 3"), "resources include Tumbler 3");
-  assert(resources.body.resources.tumbler.length === 3, "three tumblers configured");
+  assert(!resources.body.resources.tumbler.includes("Tumbler 3"), "resources do not include retired Tumbler 3");
+  assert(resources.body.resources.tumbler.length === 2, "two tumblers configured");
   assert(resources.body.slots.tumbler.length === 3, "tumbler has three configured slots");
   assert(blockedDateKeys.includes("2026-08-01"), "resources include seeded blocked dates");
 

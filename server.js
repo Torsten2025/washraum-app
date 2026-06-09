@@ -21,8 +21,11 @@ const whatsappConfig = {
 const defaultResources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
-  tumbler: ["Tumbler 1", "Tumbler 2", "Tumbler 3"]
+  tumbler: ["Tumbler 1", "Tumbler 2"]
 };
+const retiredDefaultResources = [
+  { resourceType: "tumbler", resourceId: "Tumbler 3" }
+];
 const fixedSlots = [
   { id: "slot-1", label: "07:00-12:00", start: "07:00", end: "12:00" },
   { id: "slot-2", label: "12:00-17:00", start: "12:00", end: "17:00" },
@@ -143,6 +146,7 @@ ensureActivitySchema();
 ensureUserColumns();
 ensureResourceColumns();
 seedDefaultResources();
+deactivateRetiredDefaultResources();
 seedDefaultBlockedDates();
 seedDefaultUsers();
 
@@ -1257,6 +1261,18 @@ function seedDefaultResources() {
     resourceIds.forEach((resourceId, index) => {
       insert.run(resourceType, resourceId, index + 1);
     });
+  }
+}
+
+function deactivateRetiredDefaultResources() {
+  const deactivate = db.prepare(`
+    UPDATE resource_entries
+    SET active = 0, unavailable_reason = NULL, unavailable_since = NULL
+    WHERE resource_type = ? AND resource_id = ?
+  `);
+
+  for (const resource of retiredDefaultResources) {
+    deactivate.run(resource.resourceType, resource.resourceId);
   }
 }
 

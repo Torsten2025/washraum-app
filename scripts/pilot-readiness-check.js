@@ -22,7 +22,7 @@ async function run() {
   const resources = await jsonRequest("/api/resources");
   results.push(["three default washers are available", ["WM 1", "WM 2", "WM 3"].every((id) => resources.resources.washer.includes(id))]);
   results.push(["default drying rooms are available", ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"].every((id) => resources.resources.drying_room.includes(id))]);
-  results.push(["default tumblers are available", ["Tumbler 1", "Tumbler 2", "Tumbler 3"].every((id) => resources.resources.tumbler.includes(id))]);
+  results.push(["default tumblers are available", ["Tumbler 1", "Tumbler 2"].every((id) => resources.resources.tumbler.includes(id)) && !resources.resources.tumbler.includes("Tumbler 3")]);
   results.push(["blocked dates are exposed", Array.isArray(resources.blockedDates)]);
 
   if (adminPassword) {
