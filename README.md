@@ -22,6 +22,7 @@ Wenn der Server laeuft:
 ```bash
 npm run health
 npm run bookings
+npm run verify
 npm run smoke
 npm run hosting:check
 ```
@@ -69,8 +70,10 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 ## Livegang-Checkliste
 
 - Lokalen Smoke-Test ausfuehren: `npm run smoke`
+- Lokalen Verify-Check ausfuehren: `npm run verify`
 - Hosting-Vorcheck ausfuehren: `npm run hosting:check`
 - Code in ein Git-Repository pushen, das Render verbinden kann
+- GitHub Actions CI muss nach dem Push gruen sein
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
 - Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
@@ -81,6 +84,14 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 - Nach dem Deploy ausfuehren: `APP_URL=https://deine-render-url ADMIN_PASSWORD=... npm run production:check`
 
 ## Render
+
+Empfohlene Reihenfolge:
+
+1. GitHub-Repository erstellen und diesen Ordner pushen.
+2. In Render "New Blueprint" oder "New Web Service" mit dem GitHub-Repo verbinden.
+3. Wenn Render `render.yaml` erkennt, die vorgeschlagenen Werte uebernehmen.
+4. `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als Secret-Werte setzen.
+5. Deploy starten und danach `npm run production:check` mit der Render-URL ausfuehren.
 
 Die Datei `render.yaml` enthaelt eine Web-Service-Konfiguration mit persistentem Disk-Mount:
 
