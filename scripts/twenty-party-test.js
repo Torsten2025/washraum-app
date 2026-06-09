@@ -160,6 +160,10 @@ async function exerciseFutureLimits({ parties, partyTokens, blockedDateKeys }) {
   const drying = await bookingFor(partyTokens[1], "drying_room", "Trockenraum 1", dates[0], "07:00", "12:00");
   assertStatus(drying, 201, "same-day drying room belongs to the active wash sequence");
 
+  const parallelDrying = await bookingFor(partyTokens[1], "drying_room", "Trockenraum 2", dates[0], "07:00", "12:00");
+  assertStatus(parallelDrying, 400, "same party cannot book two drying rooms at the same time");
+  assert(parallelDrying.body.error === "drying_room_parallel_limit_reached", "parallel drying room error");
+
   const secondDrying = await bookingFor(partyTokens[1], "drying_room", "Trockenraum 2", dates[1], "12:00", "17:00");
   assertStatus(secondDrying, 400, "second future drying room booking blocked");
   assert(secondDrying.body.error === "only_one_future_sequence_allowed", "drying future limit error");

@@ -2057,6 +2057,7 @@ function messageForError(error) {
     invalid_pilot_feedback: "Die Rueckmeldung muss 5 bis 1200 Zeichen lang sein.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
     washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
+    drying_room_parallel_limit_reached: "Du kannst zur gleichen Zeit nur einen Trockenraum buchen.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",

@@ -1690,6 +1690,10 @@ function createBooking(input) {
     return { ok: false, error: "time_range_already_booked" };
   }
 
+  if (resourceType === "drying_room" && hasUserOverlappingDryingRoomBooking(userName, start, end)) {
+    return { ok: false, error: "drying_room_parallel_limit_reached" };
+  }
+
   if (resourceType === "washer" && countUserWasherBookingsForDate(userName, start) >= 3) {
     return { ok: false, error: "washer_daily_limit_reached" };
   }
@@ -1808,6 +1812,21 @@ function countUserWasherBookingsForDate(userName, date) {
         AND start_at < ?
     `)
     .get(userName, dayStart.toISOString(), dayEnd.toISOString()).count;
+}
+
+function hasUserOverlappingDryingRoomBooking(userName, start, end) {
+  return Boolean(db
+    .prepare(`
+      SELECT id
+      FROM bookings
+      WHERE user_name = ?
+        AND resource_type = 'drying_room'
+        AND start_at < ?
+        AND end_at > ?
+        AND released_at IS NULL
+      LIMIT 1
+    `)
+    .get(userName, end.toISOString(), start.toISOString()));
 }
 
 function hasOtherFutureSequence(userName, start) {

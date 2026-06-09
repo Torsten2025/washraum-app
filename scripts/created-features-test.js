@@ -13,6 +13,7 @@ const featureCatalog = [
   "Buchungsmaske: Bereich, Ressource, Datum, feste Slots und freie Slots",
   "Aktivitaeten: Buchung, Loeschung und frueher freie Slots werden bestaetigt",
   "Regelwerk: eine aktive Waschsequenz im Voraus, Sonntage und Sperrtage blockiert",
+  "Regelwerk: pro Partei nur ein Trockenraum gleichzeitig",
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
@@ -110,6 +111,8 @@ async function checkStaticPages() {
   assert(appJs.includes("showOnboarding"), "onboarding display logic exists");
   assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
+  assert(appJs.includes("drying_room_parallel_limit_reached"), "parallel drying room error is handled");
+  assert(appJs.includes("nur einen Trockenraum"), "parallel drying room message is specific");
 
   console.log("OK UI-Funktionsmarker vorhanden");
 }
