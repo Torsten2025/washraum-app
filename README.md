@@ -70,6 +70,7 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 
 - Lokalen Smoke-Test ausfuehren: `npm run smoke`
 - Hosting-Vorcheck ausfuehren: `npm run hosting:check`
+- Code in ein Git-Repository pushen, das Render verbinden kann
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
 - Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
@@ -77,6 +78,7 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 - Sperrtage/Feiertage im Admin-Bereich kontrollieren und ergaenzen
 - `/api/health` pruefen: `sqlitePath` muss `/var/data/washraum.sqlite` sein
 - Eine Testbuchung erstellen, Render-Service neu starten und Persistenz pruefen
+- Nach dem Deploy ausfuehren: `APP_URL=https://deine-render-url ADMIN_PASSWORD=... npm run production:check`
 
 ## Render
 
@@ -98,6 +100,14 @@ Die Seed-Passwoerter werden nicht im Repository gespeichert. Sie muessen in Rend
 - `SEED_USER_PASSWORD`
 
 Wenn die Produktionsdatenbank noch leer ist und diese Passwoerter fehlen, startet der Server absichtlich nicht. Lokal gibt es weiterhin die Test-Fallbacks aus dem Abschnitt "Test-Login".
+
+Nach dem Deploy kann die Live-App ohne Testdatenmutation geprueft werden:
+
+```bash
+APP_URL=https://deine-render-url ADMIN_PASSWORD=dein-admin-passwort npm run production:check
+```
+
+Der lokale Smoke-Test ist nicht fuer Produktion gedacht, weil er Testbuchungen und Testnutzer anlegt.
 
 ## Backup
 

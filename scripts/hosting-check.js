@@ -20,12 +20,20 @@ const checks = [
     ok: fileIncludes("render.yaml", "mountPath: /var/data") && fileIncludes("render.yaml", "sizeGB: 1")
   },
   {
+    label: "render.yaml exposes /api/health as health check",
+    ok: fileIncludes("render.yaml", "healthCheckPath: /api/health")
+  },
+  {
     label: "Render seed passwords are configured as secrets",
     ok: renderSecret("SEED_ADMIN_PASSWORD") && renderSecret("SEED_USER_PASSWORD")
   },
   {
     label: "Production server requires explicit seed passwords",
     ok: fileIncludes("server.js", "must be set before starting production with an empty database")
+  },
+  {
+    label: "production acceptance check exists",
+    ok: fileIncludes("package.json", "\"production:check\"") && fs.existsSync(path.join(root, "scripts", "production-check.js"))
   }
 ];
 
