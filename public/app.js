@@ -565,11 +565,22 @@ function renderBookingsList(bookings) {
     item.append(title, meta);
 
     if (role === "admin" || booking.user_name === userName) {
+      const actions = document.createElement("div");
+      actions.className = "booking-actions";
+
+      const shareButton = document.createElement("button");
+      shareButton.type = "button";
+      shareButton.className = "whatsapp-share-button";
+      shareButton.textContent = "WhatsApp: frueher frei";
+      shareButton.addEventListener("click", () => shareEarlyRelease(booking));
+
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.textContent = "Loeschen";
       deleteButton.addEventListener("click", () => deleteBooking(booking.id));
-      item.append(deleteButton);
+
+      actions.append(shareButton, deleteButton);
+      item.append(actions);
     }
 
     bookingsList.append(item);
@@ -901,6 +912,16 @@ async function deleteBooking(id) {
 
   await loadBookings();
   await loadOperations();
+}
+
+function shareEarlyRelease(booking) {
+  const text = [
+    "Info Waschraum Maneggplatz 18:",
+    `${resourceLabel(booking.resource_type)} ${booking.resource_id} ist frueher frei.`,
+    `Gebucht war bis ${formatTime(booking.end_at)} am ${formatDateOnly(new Date(booking.start_at))}.`
+  ].join(" ");
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 async function resetUserPassword(user) {

@@ -705,6 +705,24 @@ input[readonly] {
   margin-bottom: 1rem;
 }
 
+.booking-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.whatsapp-share-button {
+  background: #25d366;
+  border-color: #25d366;
+  color: #10271a;
+}
+
+.whatsapp-share-button:hover {
+  background: #1fb85a;
+  border-color: #1fb85a;
+}
+
 .booking-item,
 .user-item,
 .blocked-date-item {
