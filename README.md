@@ -25,6 +25,7 @@ npm run bookings
 npm run verify
 npm run smoke
 npm run hosting:check
+npm run publish:check
 ```
 
 Oder im Browser oeffnen:
@@ -73,6 +74,7 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 - Lokalen Verify-Check ausfuehren: `npm run verify`
 - Hosting-Vorcheck ausfuehren: `npm run hosting:check`
 - Code in ein Git-Repository pushen, das Render verbinden kann
+- Nach dem Einrichten des Git-Remotes `npm run publish:check` ausfuehren
 - GitHub Actions CI muss nach dem Push gruen sein
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
@@ -82,6 +84,23 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 - `/api/health` pruefen: `sqlitePath` muss `/var/data/washraum.sqlite` sein
 - Eine Testbuchung erstellen, Render-Service neu starten und Persistenz pruefen
 - Nach dem Deploy ausfuehren: `APP_URL=https://deine-render-url ADMIN_PASSWORD=... npm run production:check`
+
+## GitHub-Push vorbereiten
+
+Dieses lokale Repository hat erst dann einen Remote, wenn ein GitHub-Repository verbunden wurde.
+
+```bash
+git remote add origin https://github.com/DEIN-NAME/washraum-app.git
+git push -u origin master
+npm run publish:check
+```
+
+Falls dein GitHub-Standardbranch `main` heissen soll:
+
+```bash
+git branch -M main
+git push -u origin main
+```
 
 ## Render
 

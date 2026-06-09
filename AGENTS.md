@@ -82,6 +82,7 @@ Das bedeutet:
 - `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` muessen in Produktion als Secrets gesetzt sein.
 - Eine leere Produktionsdatenbank darf nicht mit lokalen Default-Passwoertern starten.
 - Vor Deployments `npm run verify`, `npm run smoke` und `npm run hosting:check` ausfuehren.
+- Nach dem Verbinden eines GitHub-Remotes `npm run publish:check` ausfuehren.
 - Nach Push zu GitHub muss die CI in `.github/workflows/ci.yml` gruen sein.
 - Nach Render-Deployments mit `APP_URL=... ADMIN_PASSWORD=... npm run production:check` pruefen.
 - Bei Render-Problemen zuerst Logs, Startkommando, Port und SQLite-Pfad pruefen.

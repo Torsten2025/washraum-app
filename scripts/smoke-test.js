@@ -18,6 +18,14 @@ async function run() {
   assertStatus(admin, 200, "admin login");
   assert(admin.body.token, "admin login returns token");
 
+  await request("/api/dev/cleanup", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      prefixes: ["Smoke-", "Managed-"]
+    }
+  });
+
   const resources = await request("/api/resources");
   assertStatus(resources, 200, "resources");
   const blockedDates = resources.body.blockedDates || [];
