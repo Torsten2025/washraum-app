@@ -9,6 +9,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
 const isProduction = process.env.NODE_ENV === "production";
+const appTimeZone = process.env.APP_TIME_ZONE || "Europe/Zurich";
 const whatsappConfig = {
   accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
   phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
@@ -991,8 +992,8 @@ function createBooking(input) {
     return { ok: false, error: "invalid_resource_id" };
   }
 
-  const start = new Date(startAt);
-  const end = new Date(endAt);
+  const start = parseBookingDateTime(startAt);
+  const end = parseBookingDateTime(endAt);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
     return { ok: false, error: "invalid_time_range" };
@@ -1002,7 +1003,7 @@ function createBooking(input) {
     return { ok: false, error: "booking_must_be_in_future" };
   }
 
-  if (start.getDay() === 0) {
+  if (zonedWeekday(start) === 0) {
     return { ok: false, error: "sunday_not_allowed" };
   }
 
@@ -1064,10 +1065,8 @@ function isConfiguredSlot(resourceType, start, end) {
 }
 
 function countUserWasherBookingsForDate(userName, date) {
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  const dayStart = startOfZonedDay(date);
+  const dayEnd = addZonedDays(dayStart, 1);
 
   return db
     .prepare(`
@@ -1082,7 +1081,7 @@ function countUserWasherBookingsForDate(userName, date) {
 }
 
 function timeKey(date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return zonedParts(date).time;
 }
 
 function isBlockedDate(date) {
@@ -1090,11 +1089,7 @@ function isBlockedDate(date) {
 }
 
 function dateKey(date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0")
-  ].join("-");
+  return zonedParts(date).date;
 }
 
 function listBlockedDates() {
@@ -1113,6 +1108,86 @@ function isDateKey(value) {
   return date.getFullYear() === year
     && date.getMonth() === month - 1
     && date.getDate() === day;
+}
+
+function parseBookingDateTime(value) {
+  const input = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input)) {
+    return parseZonedDateTime(input);
+  }
+
+  return new Date(input);
+}
+
+function parseZonedDateTime(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) {
+    return new Date(value);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  const assumedUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+  const offsetMinutes = zonedOffsetMinutes(assumedUtc);
+  return new Date(assumedUtc.getTime() - offsetMinutes * 60 * 1000);
+}
+
+function zonedOffsetMinutes(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: appTimeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit"
+  }).formatToParts(date);
+  const value = parts.find((part) => part.type === "timeZoneName")?.value || "GMT";
+  const match = value.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) {
+    return 0;
+  }
+
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3] || 0));
+}
+
+function zonedParts(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: appTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const weekdays = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    time: `${values.hour}:${values.minute}`,
+    weekday: weekdays[values.weekday] ?? date.getUTCDay()
+  };
+}
+
+function zonedWeekday(date) {
+  return zonedParts(date).weekday;
+}
+
+function startOfZonedDay(date) {
+  return parseZonedDateTime(`${dateKey(date)}T00:00`);
+}
+
+function addZonedDays(date, days) {
+  const [year, month, day] = dateKey(date).split("-").map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days, 0, 0, 0, 0));
+  const key = [
+    utc.getUTCFullYear(),
+    String(utc.getUTCMonth() + 1).padStart(2, "0"),
+    String(utc.getUTCDate()).padStart(2, "0")
+  ].join("-");
+  return parseZonedDateTime(`${key}T00:00`);
 }
 
 function defaultBlockedDateLabel(date) {

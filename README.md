@@ -24,6 +24,7 @@ npm run health
 npm run bookings
 npm run verify
 npm run smoke
+npm run test:full
 npm run hosting:check
 npm run publish:check
 ```

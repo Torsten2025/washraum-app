@@ -1272,11 +1272,26 @@ function isBookingInSlot({ entry, resourceType, resourceId, day, slot }) {
 
   const start = new Date(entry.start_at);
   const end = new Date(entry.end_at);
-  return isSameDay(start, day) && timeKey(start) === slot.start && timeKey(end) === slot.end;
+  const sameCalendarDay = isSameDay(start, day) || utcDateKey(start) === dateKey(day);
+  const sameLocalSlot = timeKey(start) === slot.start && timeKey(end) === slot.end;
+  const sameUtcSlot = utcTimeKey(start) === slot.start && utcTimeKey(end) === slot.end;
+  return sameCalendarDay && (sameLocalSlot || sameUtcSlot);
 }
 
 function timeKey(date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function utcDateKey(date) {
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function utcTimeKey(date) {
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 async function boot() {
