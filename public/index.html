@@ -10,9 +10,9 @@
     <header class="app-header">
       <a class="brand" href="/index.html" aria-label="GBMZ Waschraum">GBMZ</a>
       <nav class="main-nav" aria-label="Hauptnavigation">
-        <a href="/index.html">WASCHRAUM</a>
-        <a href="/index.html">BUCHUNGEN</a>
-        <a href="/index.html">REGELN</a>
+        <a href="#bookingForm">WASCHRAUM</a>
+        <a href="#bookingsSection">BUCHUNGEN</a>
+        <a href="#rulesPanel">REGELN</a>
       </nav>
       <div class="header-actions">
         <span id="sessionLabel" class="session-pill"></span>
@@ -30,6 +30,16 @@
           <span>TR/Tumbler: 1x im Voraus</span>
           <span>Sonntag und Sperrtage geschlossen</span>
         </div>
+        <section id="rulesPanel" class="rules-panel" aria-labelledby="rulesHeading">
+          <h3 id="rulesHeading">Regeln</h3>
+          <ul>
+            <li>Waschmaschinen koennen pro Partei bis zu drei Mal pro Tag gebucht werden.</li>
+            <li>Trockenraum und Tumbler duerfen jeweils nur einmal im Voraus gebucht sein.</li>
+            <li>Sonntag und gepflegte Sperrtage sind geschlossen.</li>
+            <li>Eintragen, waschen, danach erst wieder neu eintragen.</li>
+            <li>Eigene Buchungen koennen geloescht werden; fremde Buchungen nur durch Admin.</li>
+          </ul>
+        </section>
         <form id="bookingForm" class="booking-form">
           <label>
             Bereich
@@ -185,7 +195,7 @@
         </div>
       </section>
 
-      <section class="calendar-panel">
+      <section id="bookingsSection" class="calendar-panel">
         <div class="calendar-toolbar">
           <div>
             <h2>Buchungen</h2>

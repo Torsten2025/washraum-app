@@ -27,6 +27,10 @@ body {
   min-height: 100vh;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 a {
   color: inherit;
 }
@@ -128,6 +132,14 @@ button[type="button"]:hover {
   white-space: nowrap;
 }
 
+.site-address {
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 800;
+  justify-self: end;
+  white-space: nowrap;
+}
+
 .notice-bar {
   align-items: center;
   background: var(--yellow);
@@ -192,6 +204,30 @@ button[type="button"]:hover {
   font-size: 0.78rem;
   font-weight: 800;
   padding: 0.42rem 0.7rem;
+}
+
+.rules-panel {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: 0.95rem;
+}
+
+.rules-panel h3 {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+
+.rules-panel ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.rules-panel li {
+  line-height: 1.35;
 }
 
 .login-form {
@@ -731,7 +767,7 @@ input[readonly] {
 }
 
 .login-header {
-  grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr);
+  grid-template-columns: 1fr auto;
 }
 
 .login-shell {
@@ -752,6 +788,10 @@ input[readonly] {
 
   .header-actions {
     justify-content: center;
+  }
+
+  .site-address {
+    justify-self: center;
   }
 
   .main-nav {
