@@ -90,6 +90,24 @@ Ohne `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` und eine Zielnummer fue
 
 Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren nur innerhalb der von WhatsApp erlaubten Messaging-Regeln. Fuer business-initiierte Nachrichten ausserhalb des erlaubten Fensters kann eine von Meta freigegebene Nachrichtenvorlage notwendig sein. Direkte Nachrichten in normale private WhatsApp-Gruppen sind mit der offiziellen Cloud API nicht der einfache Standardweg; fuer den Pilot wird deshalb an eine einzelne Testnummer gesendet.
 
+### Meta-Daten finden
+
+1. Meta for Developers oeffnen und eine Business-App erstellen.
+2. Produkt "WhatsApp" zur App hinzufuegen.
+3. Unter "WhatsApp" -> "API Setup" stehen:
+   - Temporary access token fuer erste Tests
+   - Phone Number ID
+   - WhatsApp Business Account ID
+4. Die eigene Test-Empfaengernummer im API-Setup als Recipient/To hinzufuegen und bestaetigen.
+5. In Render setzen:
+   - `WHATSAPP_ACCESS_TOKEN`
+   - `WHATSAPP_PHONE_NUMBER_ID`
+   - `WHATSAPP_RELEASE_MODE=test`
+   - `WHATSAPP_TEST_TO`
+6. Nach dem Speichern in Render im Adminbereich "Betrieb" auf "WhatsApp testen" klicken.
+
+Fuer laengeren Betrieb sollte statt des temporaeren Tokens ein dauerhaftes System-User-Token mit `whatsapp_business_messaging` genutzt werden.
+
 ## Livegang-Checkliste
 
 - Lokalen Smoke-Test ausfuehren: `npm run smoke`

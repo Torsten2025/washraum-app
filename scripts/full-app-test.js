@@ -114,11 +114,18 @@ async function run() {
     token: user.token,
     body: { id: savedWasher.id }
   });
+  const adminWhatsappTest = await request("/api/admin/whatsapp-test", {
+    method: "POST",
+    token: admin.token
+  });
   if (whatsappConfiguredForTest()) {
     assertStatus(release, 200, "WhatsApp release sends when configured");
+    assertStatus(adminWhatsappTest, 200, "admin WhatsApp test sends when configured");
   } else {
     assertStatus(release, 503, "WhatsApp release reports missing configuration");
     assert(release.body.error === "whatsapp_not_configured", "WhatsApp missing config error code");
+    assertStatus(adminWhatsappTest, 503, "admin WhatsApp test reports missing configuration");
+    assert(adminWhatsappTest.body.error === "whatsapp_not_configured", "admin WhatsApp missing config error code");
   }
 
   const otherUserName = `${testPrefix}${Date.now()}-other`;

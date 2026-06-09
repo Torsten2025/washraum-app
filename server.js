@@ -685,6 +685,28 @@ app.delete("/api/admin/blocked-dates/:date", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/admin/whatsapp-test", async (req, res, next) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  try {
+    const result = await sendWhatsAppText([
+      "Test Waschraum Maneggplatz 18:",
+      "Der WhatsApp-Versand aus der App ist verbunden."
+    ].join(" "));
+
+    if (!result.ok) {
+      return res.status(result.status || 400).json(result);
+    }
+
+    res.json({ ok: true, status: whatsappRuntimeStatus() });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.patch("/api/admin/users/:id", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {
@@ -890,12 +912,15 @@ function generateInitialPassword() {
 }
 
 async function sendWhatsAppReleaseMessage(booking) {
+  return sendWhatsAppText(buildReleaseMessage(booking));
+}
+
+async function sendWhatsAppText(text) {
   const releaseTarget = whatsappReleaseTarget();
   if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !releaseTarget) {
     return { ok: false, status: 503, error: "whatsapp_not_configured" };
   }
 
-  const text = buildReleaseMessage(booking);
   const response = await fetch(`https://graph.facebook.com/${whatsappConfig.apiVersion}/${whatsappConfig.phoneNumberId}/messages`, {
     method: "POST",
     headers: {

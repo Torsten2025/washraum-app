@@ -53,6 +53,7 @@ const resourceMessage = document.getElementById("resourceMessage");
 const resourcesList = document.getElementById("resourcesList");
 const adminOpsPanel = document.getElementById("adminOpsPanel");
 const downloadBackupButton = document.getElementById("downloadBackupButton");
+const sendWhatsappTestButton = document.getElementById("sendWhatsappTestButton");
 const opsStatusGrid = document.getElementById("opsStatusGrid");
 const opsWarningsList = document.getElementById("opsWarningsList");
 const opsMessage = document.getElementById("opsMessage");
@@ -356,6 +357,23 @@ downloadBackupButton.addEventListener("click", async () => {
   link.remove();
   URL.revokeObjectURL(url);
   opsMessage.textContent = "Backup wurde vorbereitet.";
+});
+
+sendWhatsappTestButton.addEventListener("click", async () => {
+  opsMessage.textContent = "";
+  const response = await fetch("/api/admin/whatsapp-test", {
+    method: "POST",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    opsMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  opsMessage.textContent = "WhatsApp-Testnachricht wurde uebergeben.";
+  await loadOperations();
 });
 
 copyPilotInviteButton.addEventListener("click", async () => {
