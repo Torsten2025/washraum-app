@@ -30,7 +30,6 @@ const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
 const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
 const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
 const pilotFeedbackList = document.getElementById("pilotFeedbackList");
-const vacationNoticeButton = document.getElementById("vacationNoticeButton");
 const adminUsersPanel = document.getElementById("adminUsersPanel");
 const seedPartiesButton = document.getElementById("seedPartiesButton");
 const partyCredentialsPanel = document.getElementById("partyCredentialsPanel");
@@ -309,12 +308,6 @@ pilotFeedbackForm.addEventListener("submit", async (event) => {
   pilotFeedbackForm.reset();
   pilotFeedbackMessageStatus.textContent = "Danke, Feedback gespeichert.";
   await loadPilotFeedback();
-});
-
-vacationNoticeButton.addEventListener("click", () => {
-  pilotFeedbackMessageInput.value = "Abwesenheit / Urlaub: Ich pruefe meine bestehenden Buchungen und loesche nicht benoetigte Slots.";
-  pilotFeedbackMessageInput.focus();
-  pilotFeedbackMessageStatus.textContent = "Bitte Zeitraum ergaenzen und Feedback senden.";
 });
 
 userForm.addEventListener("submit", async (event) => {
