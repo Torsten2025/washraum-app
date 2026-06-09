@@ -69,6 +69,7 @@ Fuer Alltagsstoerungen gibt es eine Schnellaktion fuer vergessene Waesche.
 Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
 Eigene Buchungen koennen ueber "Frueher frei melden" per WhatsApp API an eine hinterlegte Nummer gemeldet werden.
 Admins sehen im Bereich "Pilotstart" eine Vorbereitungsliste und eine Kurzanleitung fuer die erste Testrunde.
+Bewohnerinnen und Bewohner sehen in der App den Bereich "Hilfe" mit kurzer Buchungsanleitung, Regeln und Test-Guide.
 Testpersonen koennen im Bereich "Pilot-Feedback" direkt Rueckmeldungen hinterlassen; Admins sehen alle Rueckmeldungen gesammelt im Pilotstart-Bereich.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:

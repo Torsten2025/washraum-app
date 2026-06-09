@@ -346,6 +346,60 @@ button[type="button"]:hover {
   line-height: 1.35;
 }
 
+.help-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: 0.95rem;
+}
+
+.help-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.help-heading h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.help-heading span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.help-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.help-grid article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.help-grid strong {
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.help-grid ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.help-grid li {
+  line-height: 1.35;
+}
+
 .login-form {
   display: grid;
   gap: 1rem;
@@ -1078,6 +1132,11 @@ input[readonly] {
 
   .main-nav {
     flex-wrap: wrap;
+  }
+
+  .help-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .app-layout {

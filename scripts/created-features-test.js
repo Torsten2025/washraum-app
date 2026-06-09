@@ -20,7 +20,8 @@ const featureCatalog = [
   "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
   "WhatsApp-Freimeldung: gebuchte Maschine frueher frei melden",
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
-  "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check"
+  "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check",
+  "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App"
 ];
 
 run().catch((error) => {
@@ -76,6 +77,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("actionToast"), "action confirmation toast exists");
   assert(indexHtml.includes("monthlyPlanGrid"), "monthly plan exists");
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
+  assert(indexHtml.includes("helpPanel"), "resident help panel exists");
+  assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
   const appJs = await textRequest(`${appUrl}/app.js`);
   assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
