@@ -1689,6 +1689,10 @@ function createBooking(input) {
     return { ok: false, error: "only_one_future_sequence_allowed" };
   }
 
+  if (resourceType === "tumbler" && !hasUserWasherBookingForRange(userName, start, end)) {
+    return { ok: false, error: "tumbler_requires_washer_slot" };
+  }
+
   const overlappingBooking = db
     .prepare(`
       SELECT id
@@ -1843,6 +1847,21 @@ function hasUserOverlappingDryingRoomBooking(userName, start, end) {
       LIMIT 1
     `)
     .get(userName, end.toISOString(), start.toISOString()));
+}
+
+function hasUserWasherBookingForRange(userName, start, end) {
+  return Boolean(db
+    .prepare(`
+      SELECT id
+      FROM bookings
+      WHERE user_name = ?
+        AND resource_type = 'washer'
+        AND start_at <= ?
+        AND end_at >= ?
+        AND released_at IS NULL
+      LIMIT 1
+    `)
+    .get(userName, start.toISOString(), end.toISOString()));
 }
 
 function hasOtherFutureSequence(userName, start) {

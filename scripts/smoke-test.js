@@ -367,6 +367,35 @@ async function run() {
   const tumblerName = `${uniqueName}-tumbler`;
   const tumblerDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 45);
   const tumblerSlotOne = rangeForDate(tumblerDate, "07:00", "12:00");
+  const tumblerWithoutWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: tumblerName,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 1",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(tumblerWithoutWasher, 400, "tumbler without washer slot is blocked");
+  assert(tumblerWithoutWasher.body.error === "tumbler_requires_washer_slot", "tumbler requires washer slot error code");
+
+  const tumblerWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: tumblerName,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(tumblerWasher, 201, "washer slot for tumbler booking is allowed");
+
   const firstTumbler = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -381,11 +410,11 @@ async function run() {
 
   assertStatus(firstTumbler, 201, "first tumbler booking is allowed");
 
-  const sameSlotOtherTumbler = await request("/api/admin/addBooking", {
+  const secondSameSlotTumblerForUser = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
     body: {
-      userName: `${tumblerName}-other`,
+      userName: tumblerName,
       resourceType: "tumbler",
       resourceId: "Tumbler 2",
       startAt: tumblerSlotOne.startAt,
@@ -393,7 +422,36 @@ async function run() {
     }
   });
 
-  assertStatus(sameSlotOtherTumbler, 201, "same tumbler slot on another resource is allowed");
+  assertStatus(secondSameSlotTumblerForUser, 201, "same user can book both tumblers during washer slot");
+
+  const otherTumblerWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${tumblerName}-other`,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(otherTumblerWasher, 201, "other user washer slot for tumbler is allowed");
+
+  const sameSlotOtherTumbler = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${tumblerName}-other`,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 1",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(sameSlotOtherTumbler, 400, "same tumbler resource slot is blocked even with washer");
+  assert(sameSlotOtherTumbler.body.error === "time_range_already_booked", "same tumbler duplicate error code");
 
   const secondTumblerRange = rangeForDate(nextBookableDateAfter(tumblerDate, [...blockedDateKeys, smokeBlockedDateKey]), "12:00", "17:00");
   const secondTumblerForUser = await request("/api/admin/addBooking", {

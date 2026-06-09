@@ -14,6 +14,7 @@ const featureCatalog = [
   "Aktivitaeten: Buchung, Loeschung und frueher freie Slots werden bestaetigt",
   "Regelwerk: eine aktive Waschsequenz im Voraus, Sonntage und Sperrtage blockiert",
   "Regelwerk: pro Partei nur ein Trockenraum gleichzeitig",
+  "Regelwerk: Tumbler nur waehrend eigener Waschmaschinen-Slots",
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
@@ -117,6 +118,9 @@ async function checkStaticPages() {
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
   assert(appJs.includes("drying_room_parallel_limit_reached"), "parallel drying room error is handled");
   assert(appJs.includes("nur einen Trockenraum"), "parallel drying room message is specific");
+  assert(appJs.includes("tumbler_requires_washer_slot"), "tumbler washer-slot error is handled");
+  assert(appJs.includes("Nur mit eigenem WM-Slot"), "tumbler availability UI marks missing washer slot");
+  assert(appJs.includes("userHasWasherSlotForSlot"), "tumbler availability checks washer slots");
 
   console.log("OK UI-Funktionsmarker vorhanden");
 }

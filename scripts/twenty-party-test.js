@@ -173,7 +173,14 @@ async function exerciseFutureLimits({ parties, partyTokens, blockedDateKeys }) {
   assert(tumbler.body.error === "only_one_future_sequence_allowed", "tumbler different-day sequence error");
 
   const sameDayTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 1", dates[0], "12:00", "17:00");
-  assertStatus(sameDayTumbler, 201, "same-day tumbler belongs to the active wash sequence");
+  assertStatus(sameDayTumbler, 400, "tumbler outside own washer slot is blocked");
+  assert(sameDayTumbler.body.error === "tumbler_requires_washer_slot", "tumbler requires washer slot error");
+
+  const sameSlotTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 1", dates[0], "07:00", "12:00");
+  assertStatus(sameSlotTumbler, 201, "tumbler during own washer slot is allowed");
+
+  const secondSameSlotTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 2", dates[0], "07:00", "12:00");
+  assertStatus(secondSameSlotTumbler, 201, "same party may book all tumblers during own washer slot");
 
   const secondTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 2", dates[3], "12:00", "17:00");
   assertStatus(secondTumbler, 400, "second future tumbler booking blocked");

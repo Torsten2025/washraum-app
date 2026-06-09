@@ -174,6 +174,7 @@ resourceTypeInput.addEventListener("change", () => {
   renderAvailability();
 });
 resourceIdInput.addEventListener("change", renderAvailability);
+adminTargetUserNameInput.addEventListener("input", renderAvailability);
 machineLogResourceTypeInput.addEventListener("change", () => {
   updateMachineLogResourceOptions();
   updateMachineLogActionOptions();
@@ -835,6 +836,7 @@ function renderAvailability() {
 
   const resourceType = resourceTypeInput.value;
   const selectedDate = dateFromInputDate(bookingDateInput.value);
+  const bookingUserName = currentBookingUserName();
   const blockedDate = blockedDateForDay(selectedDate);
   availabilityPanel.innerHTML = "";
 
@@ -863,6 +865,7 @@ function renderAvailability() {
       const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
       const isReleased = Boolean(booking?.released_at);
       const isPast = isPastSlot(selectedDate, slot);
+      const hasRequiredWasherSlot = resourceType !== "tumbler" || userHasWasherSlotForSlot(bookingUserName, selectedDate, slot);
       const button = document.createElement("button");
       button.type = "button";
       button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
@@ -875,7 +878,10 @@ function renderAvailability() {
       if (isPast) {
         button.classList.add("availability-slot-past");
       }
-      button.disabled = Boolean(unavailable || isPast || (booking && !isReleased));
+      if (!hasRequiredWasherSlot) {
+        button.classList.add("availability-slot-unavailable");
+      }
+      button.disabled = Boolean(unavailable || isPast || !hasRequiredWasherSlot || (booking && !isReleased));
 
       const resource = document.createElement("strong");
       resource.textContent = resourceId;
@@ -886,12 +892,14 @@ function renderAvailability() {
         ? `Gesperrt: ${unavailable.unavailable_reason}`
         : isPast
         ? "Vorbei"
+        : !hasRequiredWasherSlot
+        ? "Nur mit eigenem WM-Slot"
         : booking
         ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
         : "Frei";
 
       button.append(resource, time, state);
-      if (!unavailable && !isPast && (!booking || isReleased)) {
+      if (!unavailable && !isPast && hasRequiredWasherSlot && (!booking || isReleased)) {
         button.addEventListener("click", () => {
           resourceIdInput.value = resourceId;
           bookingSlotInput.value = slot.id;
@@ -1487,7 +1495,7 @@ function pilotInviteTemplate(namedActiveUsers) {
     "Bitte testet in den naechsten 5 bis 7 Tagen:",
     "1. Login mit eurem Konto",
     "2. freie Waschmaschine buchen",
-    "3. Tumbler oder Trockenraum am gleichen Waschtag ergaenzen",
+    "3. Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen",
     "4. Monatsplan kontrollieren",
     "5. eigene Buchung loeschen, falls ihr sie nicht braucht",
     "6. bewusst eine zweite Zukunftsbuchung versuchen und die Meldung pruefen",
@@ -1495,7 +1503,8 @@ function pilotInviteTemplate(namedActiveUsers) {
     "",
     "Wichtige Regeln:",
     "- Bitte nur eine Waschsequenz im Voraus buchen.",
-    "- Am gleichen Waschtag duerfen Waschmaschine, Tumbler und Trockenraum zusammen genutzt werden.",
+    "- Tumbler duerfen nur waehrend des eigenen Waschmaschinen-Slots gebucht werden.",
+    "- Trockenraeume duerfen am gleichen Waschtag ergaenzt werden.",
     "- Sonntag, Sperrtage und vergangene Slots sind nicht buchbar.",
     "- Wer eine Buchung nicht braucht, loescht sie bitte selbst wieder.",
     "",
@@ -1746,6 +1755,33 @@ function resourceUnavailable(resourceType, resourceId) {
     return entry.resource_type === resourceType
       && entry.resource_id === resourceId
       && entry.unavailable_reason;
+  });
+}
+
+function currentBookingUserName() {
+  if (role === "admin" && adminTargetUserNameInput.value.trim()) {
+    return adminTargetUserNameInput.value.trim();
+  }
+
+  return userName;
+}
+
+function userHasWasherSlotForSlot(targetUserName, day, slot) {
+  if (!targetUserName) {
+    return false;
+  }
+
+  const slotStart = withTime(day, slot.start);
+  const slotEnd = withTime(day, slot.end);
+  return allBookings.some((entry) => {
+    if (entry.user_name !== targetUserName || entry.resource_type !== "washer" || entry.released_at) {
+      return false;
+    }
+
+    const start = new Date(entry.start_at);
+    const end = new Date(entry.end_at);
+    const sameCalendarDay = isSameDay(start, day) || utcDateKey(start) === dateKey(day);
+    return sameCalendarDay && start <= slotStart && end >= slotEnd;
   });
 }
 
@@ -2058,6 +2094,7 @@ function messageForError(error) {
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
     washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
     drying_room_parallel_limit_reached: "Du kannst zur gleichen Zeit nur einen Trockenraum buchen.",
+    tumbler_requires_washer_slot: "Tumbler koennen nur waehrend deines gebuchten Waschmaschinen-Slots gebucht werden.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
