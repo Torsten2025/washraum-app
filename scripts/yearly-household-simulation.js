@@ -1,7 +1,7 @@
 const resources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
-  tumbler: ["Tumbler 1", "Tumbler 2"]
+  tumbler: ["Tumbler 1", "Tumbler 2", "Tumbler 3"]
 };
 
 const slots = [

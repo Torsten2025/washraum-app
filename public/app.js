@@ -21,6 +21,7 @@ const machineLogDateInput = document.getElementById("machineLogDate");
 const machineLogNoteInput = document.getElementById("machineLogNote");
 const machineLogMessage = document.getElementById("machineLogMessage");
 const machineLogsList = document.getElementById("machineLogsList");
+const forgottenLaundryButton = document.getElementById("forgottenLaundryButton");
 const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
 const newPasswordInput = document.getElementById("newPassword");
@@ -29,6 +30,7 @@ const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
 const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
 const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
 const pilotFeedbackList = document.getElementById("pilotFeedbackList");
+const vacationNoticeButton = document.getElementById("vacationNoticeButton");
 const adminUsersPanel = document.getElementById("adminUsersPanel");
 const seedPartiesButton = document.getElementById("seedPartiesButton");
 const partyCredentialsPanel = document.getElementById("partyCredentialsPanel");
@@ -131,6 +133,14 @@ resourceTypeInput.addEventListener("change", () => {
 });
 resourceIdInput.addEventListener("change", renderAvailability);
 machineLogResourceTypeInput.addEventListener("change", updateMachineLogResourceOptions);
+forgottenLaundryButton.addEventListener("click", () => {
+  machineLogResourceTypeInput.value = "drying_room";
+  updateMachineLogResourceOptions();
+  machineLogDateInput.value = dateKey(new Date());
+  machineLogNoteInput.value = "Waesche wurde nach Ablauf des Slots nicht abgehaengt.";
+  machineLogNoteInput.focus();
+  machineLogMessage.textContent = "Bitte Raum pruefen und Eintrag speichern.";
+});
 bookingDateInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
@@ -299,6 +309,12 @@ pilotFeedbackForm.addEventListener("submit", async (event) => {
   pilotFeedbackForm.reset();
   pilotFeedbackMessageStatus.textContent = "Danke, Feedback gespeichert.";
   await loadPilotFeedback();
+});
+
+vacationNoticeButton.addEventListener("click", () => {
+  pilotFeedbackMessageInput.value = "Abwesenheit / Urlaub: Ich pruefe meine bestehenden Buchungen und loesche nicht benoetigte Slots.";
+  pilotFeedbackMessageInput.focus();
+  pilotFeedbackMessageStatus.textContent = "Bitte Zeitraum ergaenzen und Feedback senden.";
 });
 
 userForm.addEventListener("submit", async (event) => {
@@ -754,25 +770,33 @@ function renderAvailability() {
   for (const resourceId of resources[resourceType] || []) {
     for (const slot of slotConfig[resourceType] || []) {
       const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
+      const isReleased = Boolean(booking?.released_at);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = booking ? "availability-slot availability-slot-booked" : "availability-slot";
-      button.disabled = Boolean(booking);
+      button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
+      if (isReleased) {
+        button.classList.add("availability-slot-released");
+      }
+      button.disabled = Boolean(booking && !isReleased);
 
       const resource = document.createElement("strong");
       resource.textContent = resourceId;
       const time = document.createElement("span");
       time.textContent = slot.label;
       const state = document.createElement("small");
-      state.textContent = booking ? `Belegt: ${partyLabel(booking)}` : "Frei";
+      state.textContent = booking
+        ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
+        : "Frei";
 
       button.append(resource, time, state);
-      if (!booking) {
+      if (!booking || isReleased) {
         button.addEventListener("click", () => {
           resourceIdInput.value = resourceId;
           bookingSlotInput.value = slot.id;
           applySelectedSlot();
-          formMessage.textContent = `${resourceId} ${slot.label} ausgewaehlt.`;
+          formMessage.textContent = isReleased
+            ? `${resourceId} ${slot.label} ausgewaehlt. Dieser Slot wurde frueher frei gemeldet.`
+            : `${resourceId} ${slot.label} ausgewaehlt.`;
         });
       }
       grid.append(button);
@@ -801,6 +825,13 @@ function renderBookingsList(bookings) {
     meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${partyLabel(booking)}`;
 
     item.append(title, meta);
+    if (booking.released_at) {
+      item.classList.add("booking-item-released");
+      const released = document.createElement("p");
+      released.className = "release-note";
+      released.textContent = `Frueher frei gemeldet am ${formatDate(booking.released_at)}.`;
+      item.append(released);
+    }
 
     if (role === "admin" || booking.user_name === userName) {
       const actions = document.createElement("div");
@@ -810,6 +841,7 @@ function renderBookingsList(bookings) {
       shareButton.type = "button";
       shareButton.className = "whatsapp-share-button";
       shareButton.textContent = "Frueher frei melden";
+      shareButton.disabled = Boolean(booking.released_at);
       shareButton.addEventListener("click", () => shareEarlyRelease(booking));
 
       const deleteButton = document.createElement("button");
@@ -864,13 +896,16 @@ function renderCalendar(bookings) {
     for (const booking of dayBookings) {
       const item = document.createElement("article");
       item.className = `calendar-booking calendar-booking-${booking.resource_type}`;
+      if (booking.released_at) {
+        item.classList.add("calendar-booking-released");
+      }
 
       const time = document.createElement("strong");
       time.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)}`;
       const resource = document.createElement("span");
       resource.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
       const user = document.createElement("small");
-      user.textContent = partyLabel(booking);
+      user.textContent = booking.released_at ? `Frueher frei: ${partyLabel(booking)}` : partyLabel(booking);
 
       item.append(time, resource, user);
       column.append(item);
@@ -974,6 +1009,9 @@ function monthDayRow({ bookings, resourceType, resourceId, day }) {
     if (isClosed) {
       cell.className = "month-slot-closed";
       cell.textContent = blockedDate ? blockedDate.label : "So";
+    } else if (booking?.released_at) {
+      cell.className = "month-slot-released";
+      cell.textContent = `frei: ${partyLabel(booking)}`;
     } else if (booking) {
       cell.className = "month-slot-booked";
       cell.textContent = partyLabel(booking);

@@ -21,7 +21,7 @@ const whatsappConfig = {
 const defaultResources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
-  tumbler: ["Tumbler 1", "Tumbler 2"]
+  tumbler: ["Tumbler 1", "Tumbler 2", "Tumbler 3"]
 };
 const fixedSlots = [
   { id: "slot-1", label: "07:00-12:00", start: "07:00", end: "12:00" },
@@ -77,6 +77,7 @@ db.exec(`
     resource_id TEXT NOT NULL,
     start_at TEXT NOT NULL,
     end_at TEXT NOT NULL,
+    released_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -134,6 +135,7 @@ db.exec(`
 `);
 
 ensureBookingSchema();
+ensureBookingColumns();
 ensureUserColumns();
 seedDefaultResources();
 seedDefaultBlockedDates();
@@ -958,6 +960,9 @@ app.post("/api/user/releaseBooking", async (req, res, next) => {
       return res.status(result.status || 400).json(result);
     }
 
+    const releasedAt = new Date().toISOString();
+    db.prepare("UPDATE bookings SET released_at = ? WHERE id = ?").run(releasedAt, id);
+    booking.released_at = releasedAt;
     logBookingActivity("booking_released", booking);
     res.json({ ok: true, activity: latestActivityForBooking("booking_released", booking) });
   } catch (error) {
@@ -1164,6 +1169,15 @@ function ensureUserColumns() {
 
   if (!hasApartmentLabel) {
     db.exec("ALTER TABLE users ADD COLUMN apartment_label TEXT");
+  }
+}
+
+function ensureBookingColumns() {
+  const columns = db.prepare("PRAGMA table_info(bookings)").all();
+  const hasReleasedAt = columns.some((column) => column.name === "released_at");
+
+  if (!hasReleasedAt) {
+    db.exec("ALTER TABLE bookings ADD COLUMN released_at TEXT");
   }
 }
 
@@ -1405,6 +1419,7 @@ function createBooking(input) {
         AND resource_id = ?
         AND start_at < ?
         AND end_at > ?
+        AND released_at IS NULL
       LIMIT 1
     `)
     .get(resourceType, resourceId, end.toISOString(), start.toISOString());

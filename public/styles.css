@@ -487,10 +487,27 @@ input[readonly] {
   color: var(--warning);
 }
 
+.availability-slot-released,
+.availability-slot-released:hover {
+  background: #e7f2ff;
+  border-color: #7fb7e8;
+}
+
+.availability-slot-released small {
+  color: #15588d;
+}
+
 .availability-closed {
   color: var(--warning);
   font-weight: 800;
   margin: 0;
+}
+
+.quick-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
 }
 
 .onboarding-box {
@@ -815,6 +832,12 @@ input[readonly] {
   font-weight: 800;
 }
 
+.month-slot-released {
+  background: #e7f2ff;
+  color: #15588d;
+  font-weight: 800;
+}
+
 .calendar-day {
   background: var(--surface-soft);
   border: 1px solid var(--line);
@@ -882,6 +905,11 @@ input[readonly] {
   border-left-color: #d4a800;
 }
 
+.calendar-booking-released {
+  background: #f3f9ff;
+  border-left-color: #2f86d1;
+}
+
 .bookings-list {
   display: grid;
   gap: 0.75rem;
@@ -926,6 +954,16 @@ input[readonly] {
 .user-item p {
   color: var(--muted);
   margin-top: 0.35rem;
+}
+
+.booking-item-released {
+  border-color: #bed8f4;
+  background: #f8fbff;
+}
+
+.release-note {
+  color: #15588d !important;
+  font-weight: 800;
 }
 
 .users-list,

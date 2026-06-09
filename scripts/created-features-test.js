@@ -69,6 +69,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
+  assert(indexHtml.includes("forgottenLaundryButton"), "forgotten laundry quick action exists");
+  assert(indexHtml.includes("vacationNoticeButton"), "vacation notice quick action exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");
   assert(indexHtml.includes("adminPilotPanel"), "pilot readiness panel exists");
   assert(indexHtml.includes("activityList"), "activity feed exists");

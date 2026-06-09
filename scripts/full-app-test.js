@@ -15,7 +15,7 @@ async function run() {
   assertStatus(resources, 200, "resources load");
   assert(resources.body.resources.washer.length === 3, "three washers");
   assert(resources.body.resources.drying_room.length === 3, "three drying rooms");
-  assert(resources.body.resources.tumbler.length === 2, "two tumblers");
+  assert(resources.body.resources.tumbler.length === 3, "three tumblers");
 
   const blockedDateKeys = (resources.body.blockedDates || []).map((entry) => entry.date);
   const testWasher = `${testPrefix}WM-${Date.now()}`;
@@ -151,6 +151,7 @@ async function run() {
   });
   if (whatsappConfiguredForTest()) {
     assertStatus(release, 200, "WhatsApp release sends when configured");
+    assert(release.body.activity.message.includes("frueher frei"), "release confirmation is returned");
     assertStatus(adminWhatsappTest, 200, "admin WhatsApp test sends when configured");
   } else {
     assertStatus(release, 503, "WhatsApp release reports missing configuration");

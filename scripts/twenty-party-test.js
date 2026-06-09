@@ -25,7 +25,7 @@ async function run() {
   assertStatus(resources, 200, "resources");
   assert(resources.body.resources.washer.length === 3, "three washers configured");
   assert(resources.body.resources.drying_room.length === 3, "three drying rooms configured");
-  assert(resources.body.resources.tumbler.length === 2, "two tumblers configured");
+  assert(resources.body.resources.tumbler.length === 3, "three tumblers configured");
   assert(resources.body.slots.washer.length === 3, "three washer slots configured");
 
   const blockedDateKeys = (resources.body.blockedDates || []).map((blockedDate) => blockedDate.date);
