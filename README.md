@@ -77,16 +77,18 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 
 ## WhatsApp-Versand
 
-Die App kann eine "frueher frei"-Nachricht serverseitig ueber die WhatsApp Cloud API versenden. Dafuer braucht der Render-Service diese Umgebungsvariablen:
+Die App kann eine "frueher frei"-Nachricht serverseitig ueber die WhatsApp Cloud API versenden. Im Pilot laeuft der Versand im Testmodus an eine einzelne Testnummer. Fuer spaeter kann per Umgebungsschalter auf ein separates Produktivziel umgestellt werden.
 
 - `WHATSAPP_ACCESS_TOKEN`: Meta/WhatsApp Cloud API Access Token
 - `WHATSAPP_PHONE_NUMBER_ID`: Phone Number ID des WhatsApp-Business-Absenders
-- `WHATSAPP_RELEASE_TO`: Zielnummer im internationalen Format, aktuell `41788328223`
+- `WHATSAPP_RELEASE_MODE`: `test` fuer Pilot, spaeter `production`
+- `WHATSAPP_TEST_TO`: Testnummer im internationalen Format, z. B. `4178...`
+- `WHATSAPP_PRODUCTION_TO`: spaeteres Produktivziel, falls die WhatsApp-Loesung dafuer bereit ist
 - `WHATSAPP_API_VERSION`: optional, Standard `v20.0`
 
-Ohne `WHATSAPP_ACCESS_TOKEN` und `WHATSAPP_PHONE_NUMBER_ID` bleibt der Button sichtbar, meldet aber "WhatsApp-Versand ist noch nicht konfiguriert".
+Ohne `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` und eine Zielnummer fuer den aktiven Modus bleibt der Button sichtbar, meldet aber "WhatsApp-Versand ist noch nicht konfiguriert". Im Adminbereich "Betrieb" wird der aktuelle WhatsApp-Modus mit maskiertem Ziel angezeigt.
 
-Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren nur innerhalb der von WhatsApp erlaubten Messaging-Regeln. Fuer business-initiierte Nachrichten ausserhalb des erlaubten Fensters kann eine von Meta freigegebene Nachrichtenvorlage notwendig sein.
+Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren nur innerhalb der von WhatsApp erlaubten Messaging-Regeln. Fuer business-initiierte Nachrichten ausserhalb des erlaubten Fensters kann eine von Meta freigegebene Nachrichtenvorlage notwendig sein. Direkte Nachrichten in normale private WhatsApp-Gruppen sind mit der offiziellen Cloud API nicht der einfache Standardweg; fuer den Pilot wird deshalb an eine einzelne Testnummer gesendet.
 
 ## Livegang-Checkliste
 
@@ -99,7 +101,7 @@ Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren
 - GitHub Actions CI muss nach dem Push gruen sein
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
-- In Render bei Bedarf `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` und `WHATSAPP_RELEASE_TO` setzen
+- In Render bei Bedarf `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_RELEASE_MODE=test` und `WHATSAPP_TEST_TO` setzen
 - Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
 - Nutzerkonten fuer echte Bewohnerinnen und Bewohner anlegen
 - Sperrtage/Feiertage im Admin-Bereich kontrollieren und ergaenzen

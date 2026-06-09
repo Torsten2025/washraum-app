@@ -114,7 +114,7 @@ async function run() {
     token: user.token,
     body: { id: savedWasher.id }
   });
-  if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+  if (whatsappConfiguredForTest()) {
     assertStatus(release, 200, "WhatsApp release sends when configured");
   } else {
     assertStatus(release, 503, "WhatsApp release reports missing configuration");
@@ -296,6 +296,15 @@ function dateKey(date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")
   ].join("-");
+}
+
+function whatsappConfiguredForTest() {
+  const mode = process.env.WHATSAPP_RELEASE_MODE === "production" ? "production" : "test";
+  const testTarget = process.env.WHATSAPP_TEST_TO || process.env.WHATSAPP_RELEASE_TO || "";
+  const productionTarget = process.env.WHATSAPP_PRODUCTION_TO || process.env.WHATSAPP_GROUP_TO || "";
+  const target = mode === "production" ? productionTarget : testTarget;
+
+  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && target);
 }
 
 function assertStatus(result, expectedStatus, label) {

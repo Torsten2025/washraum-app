@@ -14,7 +14,9 @@ const whatsappConfig = {
   accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
   phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
   apiVersion: process.env.WHATSAPP_API_VERSION || "v20.0",
-  releaseTarget: normalizePhoneNumber(process.env.WHATSAPP_RELEASE_TO || "41788328223")
+  releaseMode: process.env.WHATSAPP_RELEASE_MODE || "test",
+  testTarget: normalizePhoneNumber(process.env.WHATSAPP_TEST_TO || process.env.WHATSAPP_RELEASE_TO || ""),
+  productionTarget: normalizePhoneNumber(process.env.WHATSAPP_PRODUCTION_TO || process.env.WHATSAPP_GROUP_TO || "")
 };
 const defaultResources = {
   washer: ["WM 1", "WM 2", "WM 3"],
@@ -334,6 +336,7 @@ app.get("/api/admin/overview", (req, res) => {
     .get(new Date().toISOString()).count;
   const blockedDatesCount = db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count;
   const currentResources = listResources();
+  const whatsappStatus = whatsappRuntimeStatus();
   const seededParties = db
     .prepare("SELECT COUNT(*) AS count FROM users WHERE user_name LIKE 'partei-%' OR apartment_label LIKE 'Partei %'")
     .get().count;
@@ -370,6 +373,12 @@ app.get("/api/admin/overview", (req, res) => {
       message: "Es gibt keinen aktiven Admin."
     });
   }
+  if (!whatsappStatus.configured) {
+    warnings.push({
+      code: "whatsapp_not_configured",
+      message: "WhatsApp-Versand ist noch nicht vollstaendig konfiguriert."
+    });
+  }
 
   res.json({
     ok: true,
@@ -388,7 +397,8 @@ app.get("/api/admin/overview", (req, res) => {
         dryingRooms: currentResources.drying_room.length,
         tumblers: currentResources.tumbler.length,
         slotsPerResource: fixedSlots.length
-      }
+      },
+      whatsapp: whatsappStatus
     },
     warnings
   });
@@ -880,7 +890,8 @@ function generateInitialPassword() {
 }
 
 async function sendWhatsAppReleaseMessage(booking) {
-  if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !whatsappConfig.releaseTarget) {
+  const releaseTarget = whatsappReleaseTarget();
+  if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !releaseTarget) {
     return { ok: false, status: 503, error: "whatsapp_not_configured" };
   }
 
@@ -894,7 +905,7 @@ async function sendWhatsAppReleaseMessage(booking) {
     body: JSON.stringify({
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to: whatsappConfig.releaseTarget,
+      to: releaseTarget,
       type: "text",
       text: {
         preview_url: false,
@@ -912,6 +923,26 @@ async function sendWhatsAppReleaseMessage(booking) {
   return { ok: true };
 }
 
+function whatsappReleaseTarget() {
+  return whatsappConfig.releaseMode === "production"
+    ? whatsappConfig.productionTarget
+    : whatsappConfig.testTarget;
+}
+
+function whatsappRuntimeStatus() {
+  const mode = whatsappConfig.releaseMode === "production" ? "production" : "test";
+  const target = whatsappReleaseTarget();
+
+  return {
+    mode,
+    configured: Boolean(whatsappConfig.accessToken && whatsappConfig.phoneNumberId && target),
+    hasAccessToken: Boolean(whatsappConfig.accessToken),
+    hasPhoneNumberId: Boolean(whatsappConfig.phoneNumberId),
+    hasTarget: Boolean(target),
+    targetMasked: maskPhoneNumber(target)
+  };
+}
+
 function buildReleaseMessage(booking) {
   return [
     "Info Waschraum Maneggplatz 18:",
@@ -927,6 +958,19 @@ function normalizePhoneNumber(value) {
   }
 
   return digits;
+}
+
+function maskPhoneNumber(value) {
+  const digits = String(value || "");
+  if (!digits) {
+    return "";
+  }
+
+  if (digits.length <= 4) {
+    return "****";
+  }
+
+  return `${"*".repeat(digits.length - 4)}${digits.slice(-4)}`;
 }
 
 function seedDefaultResources() {

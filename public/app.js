@@ -1020,7 +1020,8 @@ function renderOperations(status, warnings) {
     ["Buchungen", String(status.bookings)],
     ["Zukunftsbuchungen", String(status.futureBookings)],
     ["Parteien", `${status.seededParties}/20`],
-    ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`]
+    ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
+    ["WhatsApp", whatsappStatusLabel(status.whatsapp)]
   ];
 
   for (const [label, value] of entries) {
@@ -1255,6 +1256,16 @@ function resourceLabel(type) {
   };
 
   return labels[type] || type;
+}
+
+function whatsappStatusLabel(status) {
+  if (!status) {
+    return "nicht konfiguriert";
+  }
+
+  const mode = status.mode === "production" ? "Produktiv" : "Test";
+  const target = status.targetMasked ? ` -> ${status.targetMasked}` : "";
+  return status.configured ? `${mode}${target}` : `${mode}: unvollstaendig`;
 }
 
 function authHeaders() {
