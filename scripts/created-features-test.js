@@ -24,7 +24,8 @@ const featureCatalog = [
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
   "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check",
   "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
-  "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto"
+  "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto",
+  "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken"
 ];
 
 run().catch((error) => {
@@ -89,6 +90,15 @@ async function checkStaticPages() {
   assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
   assert(indexHtml.includes("onboardingOverlay"), "one-time onboarding landing page exists");
   assert(indexHtml.includes("Hallo und willkommen im Haus"), "onboarding welcomes neighbors");
+  assert(indexHtml.includes("role=\"tablist\""), "main navigation behaves as tabs");
+  assert(indexHtml.includes("data-view=\"washraum\""), "washroom tab exists");
+  assert(indexHtml.includes("data-view=\"bookings\""), "bookings tab exists");
+  assert(indexHtml.includes("data-view=\"rules\""), "rules tab exists");
+  assert(indexHtml.includes("data-view=\"help\""), "help tab exists");
+  assert(!indexHtml.includes("href=\"#bookingForm\""), "old washroom jump link is removed");
+  assert(!indexHtml.includes("href=\"#rulesPanel\""), "old rules jump link is removed");
+  assert(appJs.includes("setActiveView"), "tab view switching logic exists");
+  assert(appJs.includes("initialViewFromHash"), "old hashes are mapped to clear views");
   assert(appJs.includes("/api/me/onboarding-seen"), "onboarding completion endpoint is used");
   assert(appJs.includes("showOnboarding"), "onboarding display logic exists");
   assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");

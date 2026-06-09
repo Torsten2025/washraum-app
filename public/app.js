@@ -88,6 +88,8 @@ const previousMonthButton = document.getElementById("previousMonthButton");
 const currentMonthButton = document.getElementById("currentMonthButton");
 const nextMonthButton = document.getElementById("nextMonthButton");
 const printMonthButton = document.getElementById("printMonthButton");
+const viewControls = Array.from(document.querySelectorAll("[data-view]"));
+const navTabs = Array.from(document.querySelectorAll(".nav-tab[data-view]"));
 
 let resources = {
   washer: [],
@@ -121,6 +123,15 @@ let visibleMonth = startOfMonth(new Date());
 
 if (!authToken) {
   window.location.href = "/login.html";
+}
+
+setActiveView(initialViewFromHash(), { replaceHash: true });
+
+for (const control of viewControls) {
+  control.addEventListener("click", (event) => {
+    event.preventDefault();
+    setActiveView(control.dataset.view);
+  });
 }
 
 logoutButton.addEventListener("click", async () => {
@@ -1612,6 +1623,38 @@ function showActionToast(message, tone = "neutral") {
   showActionToast.timeoutId = window.setTimeout(() => {
     actionToast.classList.add("hidden");
   }, 5200);
+}
+
+function initialViewFromHash() {
+  const hash = window.location.hash.replace("#", "");
+  const hashMap = {
+    bookingForm: "washraum",
+    bookingsSection: "bookings",
+    rulesPanel: "rules",
+    helpPanel: "help",
+    washraum: "washraum",
+    bookings: "bookings",
+    rules: "rules",
+    help: "help"
+  };
+
+  return hashMap[hash] || "washraum";
+}
+
+function setActiveView(view, options = {}) {
+  const allowedViews = ["washraum", "bookings", "rules", "help"];
+  const selectedView = allowedViews.includes(view) ? view : "washraum";
+  document.body.dataset.activeView = selectedView;
+
+  for (const tab of navTabs) {
+    const isActive = tab.dataset.view === selectedView;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  }
+
+  if (options.replaceHash && window.location.hash) {
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
 }
 
 function bookingSummary(booking) {

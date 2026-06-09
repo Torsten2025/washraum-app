@@ -9,11 +9,11 @@
   <body class="app-page">
     <header class="app-header">
       <a class="brand" href="/index.html" aria-label="GBMZ Waschraum">GBMZ</a>
-      <nav class="main-nav" aria-label="Hauptnavigation">
-        <a href="#bookingForm">WASCHRAUM</a>
-        <a href="#bookingsSection">BUCHUNGEN</a>
-        <a href="#rulesPanel">REGELN</a>
-        <a href="#helpPanel">HILFE</a>
+      <nav class="main-nav" aria-label="Hauptnavigation" role="tablist">
+        <button class="nav-tab is-active" type="button" role="tab" aria-selected="true" data-view="washraum">WASCHRAUM</button>
+        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="bookings">BUCHUNGEN</button>
+        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="rules">REGELN</button>
+        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="help">HILFE</button>
       </nav>
       <div class="header-actions">
         <span id="sessionLabel" class="session-pill"></span>
@@ -21,7 +21,7 @@
       </div>
     </header>
 
-    <a class="notice-bar" href="#bookingForm">Waschraum buchen und Eintrag pruefen</a>
+    <button class="notice-bar" type="button" data-view="washraum">Waschraum buchen und Eintrag pruefen</button>
 
     <div id="actionToast" class="action-toast hidden" role="status" aria-live="polite"></div>
 
