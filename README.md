@@ -1,6 +1,6 @@
 # Waschraum-App
 
-Web-App zur Verwaltung von Buchungen fuer Waschmaschinen und Trockenraeume.
+Web-App zur Verwaltung von Buchungen fuer Waschmaschinen, Trockenraeume und Tumbler.
 
 ## Lokal starten
 
@@ -38,7 +38,7 @@ http://localhost:3000
 - Lokale SQLite-Datenbank: `data/washraum.sqlite`
 - Render SQLite-Pfad: `/var/data/washraum.sqlite`
 - Projektregeln fuer Codex: `AGENTS.md`
-- Ressourcen-Konfiguration aktuell in `server.js`
+- Ressourcen-, Slot- und Sperrtage-Konfiguration aktuell in `server.js`
 
 ## Test-Login
 
@@ -51,6 +51,8 @@ Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 Admins koennen Nutzer deaktivieren, ohne deren Buchungshistorie zu loeschen.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
+Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
+Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 

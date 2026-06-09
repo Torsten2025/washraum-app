@@ -24,12 +24,18 @@
             <select id="resourceType" name="resourceType">
               <option value="washer">Waschmaschine</option>
               <option value="drying_room">Trockenraum</option>
+              <option value="tumbler">Tumbler</option>
             </select>
           </label>
 
           <label>
             Maschine / Raum
             <select id="resourceId" name="resourceId"></select>
+          </label>
+
+          <label id="slotGroup">
+            Zeitfenster
+            <select id="bookingSlot" name="bookingSlot"></select>
           </label>
 
           <label id="adminTargetGroup" class="hidden">
@@ -123,6 +129,7 @@
               <option value="all">Alle anzeigen</option>
               <option value="washer">Waschmaschinen</option>
               <option value="drying_room">Trockenraeume</option>
+              <option value="tumbler">Tumbler</option>
             </select>
           </div>
         </div>

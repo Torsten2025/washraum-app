@@ -2,7 +2,7 @@
 
 ## Projektkontext
 
-Dieses Projekt ist eine Web-App zur Verwaltung von Buchungen fuer Waschmaschinen und Trockenraeume.
+Dieses Projekt ist eine Web-App zur Verwaltung von Buchungen fuer Waschmaschinen, Trockenraeume und Tumbler.
 
 Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverwaltung. Buchungsregeln sind zentrale Fachlogik und duerfen bei Aenderungen nicht nebenbei entfernt oder geschwaecht werden.
 
@@ -12,6 +12,7 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - Anzeige bestehender Buchungen
 - Buchung von Waschmaschinen
 - Buchung von Trockenraeumen
+- Buchung von Tumblern
 - Loeschen eigener Buchungen
 - Admin-Funktion zum Hinzufuegen und Loeschen von Buchungen
 - Admin-Funktion zum Aktivieren und Deaktivieren von Nutzern
@@ -45,11 +46,17 @@ Die wichtigste Regel lautet:
 
 Das bedeutet:
 
-- Eine Person darf nur eine offene zukuenftige Buchung haben.
-- Erst nach Ablauf der Buchung darf erneut gebucht werden.
+- Die analogen Ressourcen sind `WM 1` bis `WM 3`, `Trockenraum 1` bis `Trockenraum 3` und `Tumbler 1` bis `Tumbler 2`.
+- Alle Ressourcen verwenden die Slots `07:00-12:00`, `12:00-17:00` und `17:00-21:00`.
+- Die Voraus-Regel gilt pro Vorgang: Waschen, Trockenraum und Tumbler werden getrennt bewertet.
+- Pro Person und Kalendertag sind maximal drei Waschmaschinen-Buchungen erlaubt.
+- Pro Person ist maximal eine offene zukuenftige Trockenraum-Buchung erlaubt.
+- Pro Person ist maximal eine offene zukuenftige Tumbler-Buchung erlaubt.
 - Keine Buchungen am Sonntag.
-- Eine Buchung muss eindeutig einer Waschmaschine oder einem Trockenraum zugeordnet sein.
+- Manuell gepflegte Feiertage/Sperrtage sind nicht buchbar.
+- Eine Buchung muss eindeutig einer Waschmaschine, einem Trockenraum oder einem Tumbler zugeordnet sein.
 - Bereits belegte Zeitraeume duerfen fuer dieselbe Ressource nicht doppelt gebucht werden.
+- Gleicher Tag und gleicher Slot auf einer anderen Ressource ist erlaubt, sofern die Nutzerregel nicht verletzt wird.
 - Buchungen in der Vergangenheit sind nicht erlaubt.
 - Kalender-/Listenanzeige muss mit den gespeicherten Daten uebereinstimmen.
 

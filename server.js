@@ -8,9 +8,31 @@ const app = express();
 const port = process.env.PORT || 3000;
 const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
 const resources = {
-  washer: ["WM-1", "WM-2"],
-  drying_room: ["TR-1", "TR-2"]
+  washer: ["WM 1", "WM 2", "WM 3"],
+  drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
+  tumbler: ["Tumbler 1", "Tumbler 2"]
 };
+const fixedSlots = [
+  { id: "slot-1", label: "07:00-12:00", start: "07:00", end: "12:00" },
+  { id: "slot-2", label: "12:00-17:00", start: "12:00", end: "17:00" },
+  { id: "slot-3", label: "17:00-21:00", start: "17:00", end: "21:00" }
+];
+const slots = {
+  washer: fixedSlots,
+  drying_room: fixedSlots,
+  tumbler: fixedSlots
+};
+const blockedDates = [
+  "2026-01-01",
+  "2026-04-03",
+  "2026-04-06",
+  "2026-05-01",
+  "2026-05-14",
+  "2026-05-25",
+  "2026-08-01",
+  "2026-12-25",
+  "2026-12-26"
+];
 
 fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
 
@@ -38,7 +60,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_name TEXT NOT NULL,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room')),
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
     resource_id TEXT NOT NULL,
     start_at TEXT NOT NULL,
     end_at TEXT NOT NULL,
@@ -50,6 +72,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 `);
 
+ensureBookingSchema();
 ensureUserColumns();
 seedDefaultUsers();
 
@@ -126,7 +149,7 @@ app.get("/api/session", (req, res) => {
 });
 
 app.get("/api/resources", (_req, res) => {
-  res.json({ resources });
+  res.json({ resources, slots, blockedDates });
 });
 
 app.get("/api/bookings", (_req, res) => {
@@ -502,7 +525,7 @@ function createBooking(input) {
     return { ok: false, error: "missing_required_fields" };
   }
 
-  if (!["washer", "drying_room"].includes(resourceType)) {
+  if (!Object.prototype.hasOwnProperty.call(resources, resourceType)) {
     return { ok: false, error: "invalid_resource_type" };
   }
 
@@ -525,13 +548,23 @@ function createBooking(input) {
     return { ok: false, error: "sunday_not_allowed" };
   }
 
-  const nowIso = new Date().toISOString();
-  const openFutureBooking = db
-    .prepare("SELECT id FROM bookings WHERE user_name = ? AND end_at > ? LIMIT 1")
-    .get(userName, nowIso);
+  if (isBlockedDate(start)) {
+    return { ok: false, error: "blocked_date" };
+  }
 
-  if (openFutureBooking) {
-    return { ok: false, error: "only_one_future_booking_allowed" };
+  if (!isConfiguredSlot(resourceType, start, end)) {
+    return { ok: false, error: "invalid_booking_slot" };
+  }
+
+  if (resourceType === "drying_room" || resourceType === "tumbler") {
+    const nowIso = new Date().toISOString();
+    const openFutureBooking = db
+      .prepare("SELECT id FROM bookings WHERE user_name = ? AND resource_type = ? AND end_at > ? LIMIT 1")
+      .get(userName, resourceType, nowIso);
+
+    if (openFutureBooking) {
+      return { ok: false, error: "only_one_future_booking_allowed" };
+    }
   }
 
   const overlappingBooking = db
@@ -550,6 +583,10 @@ function createBooking(input) {
     return { ok: false, error: "time_range_already_booked" };
   }
 
+  if (resourceType === "washer" && countUserWasherBookingsForDate(userName, start) >= 3) {
+    return { ok: false, error: "washer_daily_limit_reached" };
+  }
+
   const info = db
     .prepare(`
       INSERT INTO bookings (user_name, resource_type, resource_id, start_at, end_at)
@@ -559,6 +596,77 @@ function createBooking(input) {
 
   const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(info.lastInsertRowid);
   return { ok: true, booking };
+}
+
+function isConfiguredSlot(resourceType, start, end) {
+  const startTime = timeKey(start);
+  const endTime = timeKey(end);
+
+  return (slots[resourceType] || []).some((slot) => slot.start === startTime && slot.end === endTime);
+}
+
+function countUserWasherBookingsForDate(userName, date) {
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  return db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM bookings
+      WHERE user_name = ?
+        AND resource_type = 'washer'
+        AND start_at >= ?
+        AND start_at < ?
+    `)
+    .get(userName, dayStart.toISOString(), dayEnd.toISOString()).count;
+}
+
+function timeKey(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function isBlockedDate(date) {
+  return blockedDates.includes(dateKey(date));
+}
+
+function dateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function ensureBookingSchema() {
+  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'bookings'").get();
+  if (!table || table.sql.includes("'tumbler'")) {
+    return;
+  }
+
+  db.exec(`
+    ALTER TABLE bookings RENAME TO bookings_old;
+
+    CREATE TABLE bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_name TEXT NOT NULL,
+      resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+      resource_id TEXT NOT NULL,
+      start_at TEXT NOT NULL,
+      end_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO bookings (id, user_name, resource_type, resource_id, start_at, end_at, created_at)
+    SELECT id, user_name, resource_type, resource_id, start_at, end_at, created_at
+    FROM bookings_old;
+
+    DROP TABLE bookings_old;
+
+    CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
+    CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
+  `);
 }
 
 app.listen(port, () => {

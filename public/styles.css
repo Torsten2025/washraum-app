@@ -195,6 +195,10 @@ select {
   border-left-color: #16815d;
 }
 
+.calendar-booking-tumbler {
+  border-left-color: #a05a00;
+}
+
 .bookings-list {
   display: grid;
   gap: 0.75rem;

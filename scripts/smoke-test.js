@@ -20,8 +20,18 @@ async function run() {
 
   const resources = await request("/api/resources");
   assertStatus(resources, 200, "resources");
-  assert(resources.body.resources.washer.includes("WM-1"), "resources include WM-1");
-  assert(resources.body.resources.drying_room.includes("TR-1"), "resources include TR-1");
+  const blockedDates = resources.body.blockedDates || [];
+  assert(resources.body.resources.washer.includes("WM 1"), "resources include WM 1");
+  assert(resources.body.resources.washer.includes("WM 2"), "resources include WM 2");
+  assert(resources.body.resources.washer.includes("WM 3"), "resources include WM 3");
+  assert(resources.body.slots.washer.length === 3, "washer has three configured slots");
+  assert(resources.body.resources.drying_room.includes("Trockenraum 1"), "resources include Trockenraum 1");
+  assert(resources.body.resources.drying_room.includes("Trockenraum 2"), "resources include Trockenraum 2");
+  assert(resources.body.resources.drying_room.includes("Trockenraum 3"), "resources include Trockenraum 3");
+  assert(resources.body.slots.drying_room.length === 3, "drying room has three configured slots");
+  assert(resources.body.resources.tumbler.includes("Tumbler 1"), "resources include Tumbler 1");
+  assert(resources.body.resources.tumbler.includes("Tumbler 2"), "resources include Tumbler 2");
+  assert(resources.body.slots.tumbler.length === 3, "tumbler has three configured slots");
 
   const managedUserName = `Managed-${Date.now()}`;
   cleanupPrefixes.push(managedUserName);
@@ -130,8 +140,8 @@ async function run() {
 
   const uniqueName = `Smoke-${Date.now()}`;
   cleanupPrefixes.push(uniqueName);
-  const startAt = nextBookableIso();
-  const endAt = new Date(new Date(startAt).getTime() + 1000 * 60 * 90).toISOString();
+  const bookingDate = nextBookableDate(blockedDates);
+  const slotOne = rangeForDate(bookingDate, "07:00", "12:00");
 
   const create = await request("/api/admin/addBooking", {
     method: "POST",
@@ -139,29 +149,197 @@ async function run() {
     body: {
       userName: uniqueName,
       resourceType: "washer",
-      resourceId: "WM-1",
-      startAt,
-      endAt
+      resourceId: "WM 1",
+      startAt: slotOne.startAt,
+      endAt: slotOne.endAt
     }
   });
 
   assertStatus(create, 201, "admin creates booking");
   assert(create.body.booking.user_name === uniqueName, "admin booking uses target user name");
 
-  const second = await request("/api/admin/addBooking", {
+  const sameSlotOtherWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: uniqueName,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: slotOne.startAt,
+      endAt: slotOne.endAt
+    }
+  });
+
+  assertStatus(sameSlotOtherWasher, 201, "same washer slot on another resource is allowed");
+
+  const sameSlotThirdWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: uniqueName,
+      resourceType: "washer",
+      resourceId: "WM 3",
+      startAt: slotOne.startAt,
+      endAt: slotOne.endAt
+    }
+  });
+
+  assertStatus(sameSlotThirdWasher, 201, "third washer on same day is allowed");
+
+  const duplicateSameWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${uniqueName}-other`,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: slotOne.startAt,
+      endAt: slotOne.endAt
+    }
+  });
+
+  assertStatus(duplicateSameWasher, 400, "same washer same date same slot is blocked");
+  assert(duplicateSameWasher.body.error === "time_range_already_booked", "duplicate washer slot error code");
+
+  const slotTwo = rangeForDate(bookingDate, "12:00", "17:00");
+  const fourthWasherForUser = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: uniqueName,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: slotTwo.startAt,
+      endAt: slotTwo.endAt
+    }
+  });
+
+  assertStatus(fourthWasherForUser, 400, "fourth washer booking on same day is blocked");
+  assert(fourthWasherForUser.body.error === "washer_daily_limit_reached", "washer daily limit error code");
+
+  const dryingRange = rangeForDate(nextBookableDate(blockedDates, 35), "07:00", "12:00");
+  const dryingAfterWasher = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
     body: {
       userName: uniqueName,
       resourceType: "drying_room",
-      resourceId: "TR-1",
-      startAt: new Date(new Date(startAt).getTime() + 1000 * 60 * 60 * 3).toISOString(),
-      endAt: new Date(new Date(startAt).getTime() + 1000 * 60 * 60 * 4).toISOString()
+      resourceId: "Trockenraum 1",
+      startAt: dryingRange.startAt,
+      endAt: dryingRange.endAt
     }
   });
 
-  assertStatus(second, 400, "second future booking is blocked");
-  assert(second.body.error === "only_one_future_booking_allowed", "second booking error code");
+  assertStatus(dryingAfterWasher, 201, "drying room booking after washer booking is allowed");
+
+  const dryingName = `${uniqueName}-drying`;
+  const dryingDate = nextBookableDate(blockedDates, 40);
+  const dryingSlotOne = rangeForDate(dryingDate, "07:00", "12:00");
+  const firstDrying = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: dryingName,
+      resourceType: "drying_room",
+      resourceId: "Trockenraum 1",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+
+  assertStatus(firstDrying, 201, "first drying room booking is allowed");
+
+  const sameSlotOtherDryingRoom = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${dryingName}-other-room`,
+      resourceType: "drying_room",
+      resourceId: "Trockenraum 2",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+
+  assertStatus(sameSlotOtherDryingRoom, 201, "same drying slot on another resource is allowed");
+
+  const duplicateDryingRoom = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${dryingName}-duplicate`,
+      resourceType: "drying_room",
+      resourceId: "Trockenraum 1",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+
+  assertStatus(duplicateDryingRoom, 400, "same drying room same slot is blocked");
+  assert(duplicateDryingRoom.body.error === "time_range_already_booked", "duplicate drying room error code");
+
+  const secondDryingRange = rangeForDate(nextBookableDate(blockedDates, 41), "12:00", "17:00");
+  const secondDryingForUser = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: dryingName,
+      resourceType: "drying_room",
+      resourceId: "Trockenraum 3",
+      startAt: secondDryingRange.startAt,
+      endAt: secondDryingRange.endAt
+    }
+  });
+
+  assertStatus(secondDryingForUser, 400, "second future drying room booking is blocked");
+  assert(secondDryingForUser.body.error === "only_one_future_booking_allowed", "drying future booking error code");
+
+  const tumblerName = `${uniqueName}-tumbler`;
+  const tumblerDate = nextBookableDate(blockedDates, 45);
+  const tumblerSlotOne = rangeForDate(tumblerDate, "07:00", "12:00");
+  const firstTumbler = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: tumblerName,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 1",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(firstTumbler, 201, "first tumbler booking is allowed");
+
+  const sameSlotOtherTumbler = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${tumblerName}-other`,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 2",
+      startAt: tumblerSlotOne.startAt,
+      endAt: tumblerSlotOne.endAt
+    }
+  });
+
+  assertStatus(sameSlotOtherTumbler, 201, "same tumbler slot on another resource is allowed");
+
+  const secondTumblerRange = rangeForDate(nextBookableDate(blockedDates, 46), "12:00", "17:00");
+  const secondTumblerForUser = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: tumblerName,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 2",
+      startAt: secondTumblerRange.startAt,
+      endAt: secondTumblerRange.endAt
+    }
+  });
+
+  assertStatus(secondTumblerForUser, 400, "second future tumbler booking is blocked");
+  assert(secondTumblerForUser.body.error === "only_one_future_booking_allowed", "tumbler future booking error code");
 
   const invalidResource = await request("/api/admin/addBooking", {
     method: "POST",
@@ -170,8 +348,8 @@ async function run() {
       userName: `${uniqueName}-invalid`,
       resourceType: "washer",
       resourceId: "WM-99",
-      startAt,
-      endAt
+      startAt: slotOne.startAt,
+      endAt: slotOne.endAt
     }
   });
 
@@ -185,7 +363,7 @@ async function run() {
     body: {
       userName: `${uniqueName}-past`,
       resourceType: "washer",
-      resourceId: "WM-2",
+      resourceId: "WM 2",
       startAt: past.startAt,
       endAt: past.endAt
     }
@@ -201,7 +379,7 @@ async function run() {
     body: {
       userName: `${uniqueName}-sunday`,
       resourceType: "drying_room",
-      resourceId: "TR-1",
+      resourceId: "Trockenraum 1",
       startAt: sunday.startAt,
       endAt: sunday.endAt
     }
@@ -209,6 +387,22 @@ async function run() {
 
   assertStatus(sundayBooking, 400, "sunday booking is blocked");
   assert(sundayBooking.body.error === "sunday_not_allowed", "sunday error code");
+
+  const holidayRange = nextBlockedDateRange(blockedDates);
+  const holidayBooking = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${uniqueName}-holiday`,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 1",
+      startAt: holidayRange.startAt,
+      endAt: holidayRange.endAt
+    }
+  });
+
+  assertStatus(holidayBooking, 400, "blocked holiday booking is blocked");
+  assert(holidayBooking.body.error === "blocked_date", "blocked holiday error code");
 
   const cleanup = await request("/api/dev/cleanup", {
     method: "POST",
@@ -247,16 +441,63 @@ async function request(path, options = {}) {
   };
 }
 
-function nextBookableIso() {
+function nextBookableDate(blockedDates = [], baseOffset = 30) {
   const date = new Date();
-  date.setDate(date.getDate() + 30 + (Date.now() % 23));
-  date.setHours(8 + (Date.now() % 8), Date.now() % 60, 0, 0);
+  date.setDate(date.getDate() + baseOffset + (Date.now() % 7));
+  date.setHours(0, 0, 0, 0);
 
-  if (date.getDay() === 0) {
+  while (date.getDay() === 0 || blockedDates.includes(dateKey(date))) {
     date.setDate(date.getDate() + 1);
   }
 
-  return date.toISOString();
+  return date;
+}
+
+function rangeForDate(date, startTime, endTime) {
+  return {
+    startAt: withTime(date, startTime).toISOString(),
+    endAt: withTime(date, endTime).toISOString()
+  };
+}
+
+function withTime(date, time) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const value = new Date(date);
+  value.setHours(hours, minutes, 0, 0);
+  return value;
+}
+
+function addDays(date, days) {
+  const value = new Date(date);
+  value.setDate(value.getDate() + days);
+  return value;
+}
+
+function nextBlockedDateRange(blockedDates) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const blockedDate of blockedDates) {
+    const date = dateFromKey(blockedDate);
+    if (date > today && date.getDay() !== 0) {
+      return rangeForDate(date, "07:00", "12:00");
+    }
+  }
+
+  throw new Error("no future non-sunday blocked date configured for smoke test");
+}
+
+function dateFromKey(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
 }
 
 function nextSundayRange() {

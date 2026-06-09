@@ -3,6 +3,8 @@ const logoutButton = document.getElementById("logoutButton");
 const bookingForm = document.getElementById("bookingForm");
 const resourceTypeInput = document.getElementById("resourceType");
 const resourceIdInput = document.getElementById("resourceId");
+const slotGroup = document.getElementById("slotGroup");
+const bookingSlotInput = document.getElementById("bookingSlot");
 const adminTargetGroup = document.getElementById("adminTargetGroup");
 const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
 const startAtInput = document.getElementById("startAt");
@@ -32,7 +34,13 @@ const nextWeekButton = document.getElementById("nextWeekButton");
 
 let resources = {
   washer: [],
-  drying_room: []
+  drying_room: [],
+  tumbler: []
+};
+let slotConfig = {
+  washer: [],
+  drying_room: [],
+  tumbler: []
 };
 let authToken = sessionStorage.getItem("washraumAuthToken");
 let userName = sessionStorage.getItem("washraumUserName");
@@ -56,7 +64,10 @@ logoutButton.addEventListener("click", async () => {
   window.location.href = "/login.html";
 });
 
-resourceTypeInput.addEventListener("change", updateResourceOptions);
+resourceTypeInput.addEventListener("change", () => {
+  updateResourceOptions();
+  updateSlotControls();
+});
 bookingFilter.addEventListener("change", renderBookings);
 previousWeekButton.addEventListener("click", () => moveWeek(-1));
 todayButton.addEventListener("click", () => {
@@ -66,7 +77,12 @@ todayButton.addEventListener("click", () => {
 nextWeekButton.addEventListener("click", () => moveWeek(1));
 
 startAtInput.addEventListener("change", () => {
+  applySelectedSlot();
   updateEndAfterStart({ force: !endAtInput.value });
+});
+
+bookingSlotInput.addEventListener("change", () => {
+  applySelectedSlot();
 });
 
 passwordForm.addEventListener("submit", async (event) => {
@@ -160,6 +176,7 @@ bookingForm.addEventListener("submit", async (event) => {
 
   bookingForm.reset();
   updateResourceOptions();
+  updateSlotControls();
   updateAdminControls();
   setDefaultBookingTimes();
   formMessage.textContent = "Buchung gespeichert.";
@@ -178,6 +195,27 @@ function updateResourceOptions() {
   }
 }
 
+function updateSlotControls() {
+  const resourceType = resourceTypeInput.value;
+  const configuredSlots = slotConfig[resourceType] || [];
+  const hasSlots = configuredSlots.length > 0;
+  slotGroup.classList.toggle("hidden", !hasSlots);
+  bookingSlotInput.innerHTML = "";
+
+  for (const slot of configuredSlots) {
+    const option = document.createElement("option");
+    option.value = slot.id;
+    option.textContent = slot.label;
+    bookingSlotInput.append(option);
+  }
+
+  startAtInput.readOnly = hasSlots;
+  endAtInput.readOnly = hasSlots;
+  if (hasSlots) {
+    applySelectedSlot();
+  }
+}
+
 function updateDateInputMinimums() {
   const minValue = formatDateTimeInputValue(new Date());
   startAtInput.min = minValue;
@@ -185,6 +223,16 @@ function updateDateInputMinimums() {
 }
 
 function setDefaultBookingTimes() {
+  if ((slotConfig[resourceTypeInput.value] || []).length > 0) {
+    const selection = nextDefaultSlotSelection(resourceTypeInput.value);
+    if (selection) {
+      startAtInput.value = formatDateTimeInputValue(selection.date);
+      bookingSlotInput.value = selection.slot.id;
+      applySelectedSlot();
+      return;
+    }
+  }
+
   const start = nextDefaultStart();
   startAtInput.value = formatDateTimeInputValue(start);
   updateEndAfterStart({ force: true });
@@ -204,6 +252,25 @@ function updateEndAfterStart({ force = false } = {}) {
   }
 }
 
+function applySelectedSlot() {
+  const resourceType = resourceTypeInput.value;
+  if (!bookingSlotInput.value) {
+    return;
+  }
+
+  const slot = (slotConfig[resourceType] || []).find((entry) => entry.id === bookingSlotInput.value);
+  if (!slot) {
+    return;
+  }
+
+  const baseDate = startAtInput.value ? new Date(startAtInput.value) : nextDefaultStart();
+  const start = withTime(baseDate, slot.start);
+  const end = withTime(baseDate, slot.end);
+  startAtInput.value = formatDateTimeInputValue(start);
+  endAtInput.value = formatDateTimeInputValue(end);
+  endAtInput.min = startAtInput.value;
+}
+
 async function loadBookings() {
   const response = await fetch("/api/bookings");
   const data = await response.json();
@@ -215,6 +282,7 @@ async function loadResources() {
   const response = await fetch("/api/resources");
   const data = await response.json();
   resources = data.resources;
+  slotConfig = data.slots || {};
 }
 
 async function loadUsers() {
@@ -369,7 +437,13 @@ async function deleteBooking(id) {
 }
 
 function resourceLabel(type) {
-  return type === "washer" ? "Waschmaschine" : "Trockenraum";
+  const labels = {
+    washer: "Waschmaschine",
+    drying_room: "Trockenraum",
+    tumbler: "Tumbler"
+  };
+
+  return labels[type] || type;
 }
 
 function authHeaders() {
@@ -458,6 +532,36 @@ function nextDefaultStart() {
   return date;
 }
 
+function nextDefaultSlotSelection(resourceType) {
+  const configuredSlots = slotConfig[resourceType] || [];
+  const now = new Date();
+  const candidate = new Date(now);
+  candidate.setHours(0, 0, 0, 0);
+
+  for (let dayOffset = 0; dayOffset < 14; dayOffset += 1) {
+    const date = addDays(candidate, dayOffset);
+    if (date.getDay() === 0) {
+      continue;
+    }
+
+    for (const slot of configuredSlots) {
+      const slotStart = withTime(date, slot.start);
+      if (slotStart > now) {
+        return { date: slotStart, slot };
+      }
+    }
+  }
+
+  return configuredSlots[0] ? { date: nextDefaultStart(), slot: configuredSlots[0] } : null;
+}
+
+function withTime(date, time) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const value = new Date(date);
+  value.setHours(hours, minutes, 0, 0);
+  return value;
+}
+
 function startOfWeek(value) {
   const date = new Date(value);
   date.setHours(0, 0, 0, 0);
@@ -505,9 +609,12 @@ function messageForError(error) {
     user_not_found: "Nutzer nicht gefunden.",
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
+    invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
+    washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
+    blocked_date: "An diesem Feiertag sind keine Buchungen moeglich.",
     only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
     booking_id_required: "Keine Buchung ausgewaehlt.",
@@ -526,6 +633,7 @@ async function boot() {
 
   await loadResources();
   updateResourceOptions();
+  updateSlotControls();
   updateDateInputMinimums();
   setDefaultBookingTimes();
   await loadUsers();
