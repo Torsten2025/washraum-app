@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const os = require("os");
 const express = require("express");
 const Database = require("better-sqlite3");
 
@@ -331,6 +332,30 @@ app.post("/api/admin/blocked-dates", (req, res) => {
 
   const blockedDate = db.prepare("SELECT date, label, created_at FROM blocked_dates WHERE date = ?").get(date);
   res.status(201).json({ ok: true, blockedDate });
+});
+
+app.get("/api/admin/backup", async (req, res, next) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const backupName = `washraum-backup-${dateTimeStamp(new Date())}.sqlite`;
+  const backupPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${backupName}`);
+
+  try {
+    await db.backup(backupPath);
+    res.setHeader("Cache-Control", "no-store");
+    res.download(backupPath, backupName, (error) => {
+      fs.rm(backupPath, { force: true }, () => {});
+      if (error && !res.headersSent) {
+        next(error);
+      }
+    });
+  } catch (error) {
+    fs.rm(backupPath, { force: true }, () => {});
+    next(error);
+  }
 });
 
 app.delete("/api/admin/blocked-dates/:date", (req, res) => {
@@ -788,6 +813,17 @@ function defaultBlockedDateLabel(date) {
   };
 
   return labels[date] || "Sperrtag";
+}
+
+function dateTimeStamp(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+    String(date.getSeconds()).padStart(2, "0")
+  ].join("");
 }
 
 function ensureBookingSchema() {

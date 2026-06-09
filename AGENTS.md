@@ -36,6 +36,7 @@ Ziel der App ist eine uebersichtliche, stabile und alltagstaugliche Buchungsverw
 - `GET /api/admin/blocked-dates`
 - `POST /api/admin/blocked-dates`
 - `DELETE /api/admin/blocked-dates/:date`
+- `GET /api/admin/backup`
 - `POST /api/bookings`
 - `POST /api/admin/addBooking`
 - `POST /api/user/deleteBooking`

@@ -244,6 +244,12 @@ input[readonly] {
   margin: 0;
 }
 
+.panel-note {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0.65rem 0 1rem;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;

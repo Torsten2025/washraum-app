@@ -51,6 +51,7 @@ Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 Admins koennen Nutzer deaktivieren, ohne deren Buchungshistorie zu loeschen.
 Admins koennen Sperrtage und Feiertage pflegen.
+Admins koennen im Bereich "Betrieb" ein SQLite-Backup herunterladen.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
 Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
@@ -103,5 +104,6 @@ Wenn die Produktionsdatenbank noch leer ist und diese Passwoerter fehlen, starte
 SQLite liegt auf dem persistenten Render-Disk-Mount. Fuer den Betrieb gilt:
 
 - Vor groesseren Aenderungen Render-Disk bzw. SQLite-Datei sichern
+- Alternativ im Admin-Bereich "Betrieb" ein SQLite-Backup herunterladen
 - Nach Deployments `/api/health` und eine vorhandene Buchung kontrollieren
 - Keine lokalen Testdaten ungeprueft als Produktionsdaten uebernehmen

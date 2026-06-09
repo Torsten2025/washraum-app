@@ -144,6 +144,13 @@
           </form>
           <div id="blockedDatesList" class="blocked-dates-list"></div>
         </div>
+
+        <div id="adminOpsPanel" class="admin-panel hidden">
+          <h2>Betrieb</h2>
+          <p class="panel-note">SQLite-Backup vor groesseren Aenderungen herunterladen.</p>
+          <button id="downloadBackupButton" type="button">Backup herunterladen</button>
+          <p id="opsMessage" class="message" role="status"></p>
+        </div>
       </section>
 
       <section class="calendar-panel">

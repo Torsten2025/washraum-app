@@ -30,6 +30,9 @@ const blockedDateInput = document.getElementById("blockedDateInput");
 const blockedDateLabelInput = document.getElementById("blockedDateLabelInput");
 const blockedDateMessage = document.getElementById("blockedDateMessage");
 const blockedDatesList = document.getElementById("blockedDatesList");
+const adminOpsPanel = document.getElementById("adminOpsPanel");
+const downloadBackupButton = document.getElementById("downloadBackupButton");
+const opsMessage = document.getElementById("opsMessage");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
 const calendarGrid = document.getElementById("calendarGrid");
@@ -176,6 +179,31 @@ blockedDateForm.addEventListener("submit", async (event) => {
   blockedDateForm.reset();
   blockedDateMessage.textContent = "Sperrtag gespeichert.";
   await loadBlockedDates();
+});
+
+downloadBackupButton.addEventListener("click", async () => {
+  opsMessage.textContent = "";
+
+  const response = await fetch("/api/admin/backup", {
+    headers: authHeaders()
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    opsMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = backupFileName(response.headers.get("Content-Disposition"));
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  opsMessage.textContent = "Backup wurde vorbereitet.";
 });
 
 bookingForm.addEventListener("submit", async (event) => {
@@ -549,6 +577,12 @@ async function deleteBlockedDate(date) {
   await loadBlockedDates();
 }
 
+function backupFileName(contentDisposition) {
+  const fallback = `washraum-backup-${dateKey(new Date())}.sqlite`;
+  const match = String(contentDisposition || "").match(/filename="?([^"]+)"?/);
+  return match ? match[1] : fallback;
+}
+
 function resourceLabel(type) {
   const labels = {
     washer: "Waschmaschine",
@@ -595,6 +629,7 @@ function updateAdminControls() {
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
   adminUsersPanel.classList.toggle("hidden", !isAdmin);
   adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
+  adminOpsPanel.classList.toggle("hidden", !isAdmin);
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
 }

@@ -51,6 +51,14 @@ async function run() {
   assertStatus(listedBlockedDates, 200, "admin lists blocked dates");
   assert(Array.isArray(listedBlockedDates.body.blockedDates), "blocked dates response is an array");
 
+  const backup = await rawRequest("/api/admin/backup", {
+    token: admin.body.token
+  });
+
+  assertStatus(backup, 200, "admin downloads backup");
+  assert(backup.headers.get("content-disposition").includes("washraum-backup"), "backup has download filename");
+  assert((await backup.body.arrayBuffer()).byteLength > 0, "backup is not empty");
+
   const smokeBlockedDate = nextBookableDate(blockedDateKeys, 120);
   const smokeBlockedDateKey = dateKey(smokeBlockedDate);
   await request(`/api/admin/blocked-dates/${smokeBlockedDateKey}`, {
@@ -455,6 +463,16 @@ async function run() {
 }
 
 async function request(path, options = {}) {
+  const response = await rawRequest(path, options);
+  const body = await response.body.json();
+  return {
+    status: response.status,
+    body,
+    headers: response.headers
+  };
+}
+
+async function rawRequest(path, options = {}) {
   const headers = {
     "Content-Type": "application/json"
   };
@@ -469,10 +487,10 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
-  const body = await response.json();
   return {
     status: response.status,
-    body
+    body: response,
+    headers: response.headers
   };
 }
 
