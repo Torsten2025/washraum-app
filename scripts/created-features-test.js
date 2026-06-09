@@ -17,6 +17,8 @@ const featureCatalog = [
   "Regelwerk: Tumbler nur waehrend eigener Waschmaschinen-Slots",
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
+  "Betrieb: alle Buchungen mit Tipp-Bestaetigung zuruecksetzen",
+  "Auswertung: Nutzung, Auslastung, Spitzenzeiten und inaktive Parteien",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
   "Ressourcen: Standardbetrieb mit 3 Waschmaschinen, 3 Trockenraeumen und 2 Tumblern",
   "Ressourcensperre: defekte Maschine oder Raum sperren und wieder freigeben",
@@ -94,6 +96,13 @@ async function checkStaticPages() {
   assert(!indexHtml.includes("forgottenLaundryButton"), "old forgotten laundry logbook shortcut is removed");
   assert(appJs.includes("reportLaundryLeft"), "laundry-left booking action exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");
+  assert(indexHtml.includes("resetBookingsButton"), "admin booking reset button exists");
+  assert(indexHtml.includes("resetBookingsConfirmation"), "admin booking reset confirmation exists");
+  assert(indexHtml.includes("adminAnalyticsPanel"), "admin analytics panel exists");
+  assert(indexHtml.includes("analyticsRange"), "admin analytics range selector exists");
+  assert(appJs.includes("/api/admin/bookings/reset"), "admin booking reset endpoint is used");
+  assert(appJs.includes("/api/admin/analytics"), "admin analytics endpoint is used");
+  assert(appJs.includes("renderAnalytics"), "admin analytics renderer exists");
   assert(indexHtml.includes("adminPilotPanel"), "pilot readiness panel exists");
   assert(indexHtml.includes("activityList"), "activity feed exists");
   assert(indexHtml.includes("actionToast"), "action confirmation toast exists");

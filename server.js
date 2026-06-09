@@ -489,6 +489,45 @@ app.get("/api/admin/overview", (req, res) => {
   });
 });
 
+app.get("/api/admin/analytics", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const days = normalizeAnalyticsDays(req.query.days);
+  res.json({
+    ok: true,
+    analytics: buildAdminAnalytics(days)
+  });
+});
+
+app.post("/api/admin/bookings/reset", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const confirmation = String(req.body.confirmation || "").trim();
+  if (confirmation !== "ZURUECKSETZEN") {
+    return res.status(400).json({ ok: false, error: "invalid_reset_confirmation" });
+  }
+
+  const resetBookings = db.transaction(() => {
+    const deletedBookings = db.prepare("DELETE FROM bookings").run().changes;
+    const deletedActivities = db.prepare("DELETE FROM activity_entries").run().changes;
+    return {
+      deletedBookings,
+      deletedActivities
+    };
+  });
+
+  res.json({
+    ok: true,
+    ...resetBookings()
+  });
+});
+
 app.post("/api/admin/resources", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {
@@ -1322,6 +1361,169 @@ function listResourceEntries() {
       ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
     `)
     .all();
+}
+
+function normalizeAnalyticsDays(value) {
+  const days = Number(value);
+  if ([30, 90, 365].includes(days)) {
+    return days;
+  }
+
+  return 30;
+}
+
+function buildAdminAnalytics(days) {
+  const now = new Date();
+  const periodStart = addZonedDays(startOfZonedDay(now), -days + 1);
+  const periodEnd = now;
+  const periodStartIso = periodStart.toISOString();
+  const periodEndIso = periodEnd.toISOString();
+  const periodStartKey = dateKey(periodStart);
+  const periodEndKey = dateKey(periodEnd);
+  const resources = listAllResources();
+  const unavailableResources = listResourceEntries().filter((resource) => resource.unavailable_reason);
+  const bookings = db
+    .prepare(`
+      SELECT
+        bookings.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM bookings
+      LEFT JOIN users ON users.user_name = bookings.user_name
+      WHERE bookings.start_at >= ?
+        AND bookings.start_at <= ?
+      ORDER BY bookings.start_at ASC
+    `)
+    .all(periodStartIso, periodEndIso);
+  const activeParties = db
+    .prepare(`
+      SELECT user_name, display_name, apartment_label
+      FROM users
+      WHERE active = 1
+        AND role = 'user'
+      ORDER BY apartment_label ASC, user_name ASC
+    `)
+    .all();
+  const machineLogs = db
+    .prepare(`
+      SELECT resource_type, resource_id, event_date
+      FROM machine_log_entries
+      WHERE event_date >= ?
+        AND event_date <= ?
+    `)
+    .all(periodStartKey, periodEndKey);
+  const bookableDays = countBookableDays(periodStart, periodEnd);
+  const bookingsByType = countBy(bookings, (booking) => booking.resource_type);
+  const bookingUsers = countBy(bookings, (booking) => booking.user_name);
+  const partiesWithBookings = activeParties.filter((party) => (bookingUsers.get(party.user_name) || 0) > 0);
+
+  return {
+    period: {
+      days,
+      start: periodStartIso,
+      end: periodEndIso,
+      label: `${formatServerDate(periodStartIso)} bis ${formatServerDate(periodEndIso)}`
+    },
+    totals: {
+      bookings: bookings.length,
+      activeParties: activeParties.length,
+      partiesWithBookings: partiesWithBookings.length,
+      averagePerActiveParty: activeParties.length ? roundOne(bookings.length / activeParties.length) : 0,
+      machineLogs: machineLogs.length,
+      unavailableResources: unavailableResources.length,
+      bookableDays
+    },
+    usage: ["washer", "drying_room", "tumbler"].map((resourceType) => {
+      const capacity = bookableDays * (resources[resourceType]?.length || 0) * fixedSlots.length;
+      const count = bookingsByType.get(resourceType) || 0;
+      return {
+        resourceType,
+        label: resourceType === "washer" ? "Waschmaschinen" : resourceType === "drying_room" ? "Trockenraeume" : "Tumbler",
+        bookings: count,
+        capacity,
+        utilizationPercent: capacity ? roundOne((count / capacity) * 100) : 0
+      };
+    }),
+    insights: {
+      busiestWeekday: topEntry(countBy(bookings, (booking) => weekdayLabel(booking.start_at))),
+      busiestSlot: topEntry(countBy(bookings, (booking) => `${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)}`)),
+      busiestResource: topEntry(countBy(bookings, (booking) => `${resourceLabel(booking.resource_type)} ${booking.resource_id}`)),
+      topParties: topEntries(bookingUsers, 5).map((entry) => ({
+        label: partyAnalyticsLabel(activeParties.find((party) => party.user_name === entry.label) || { user_name: entry.label }),
+        count: entry.count
+      })),
+      inactiveParties: activeParties
+        .filter((party) => !bookingUsers.get(party.user_name))
+        .slice(0, 8)
+        .map(partyAnalyticsLabel),
+      machineLogsByResource: topEntries(countBy(machineLogs, (entry) => `${resourceLabel(entry.resource_type)} ${entry.resource_id}`), 5),
+      unavailableResources: unavailableResources.map((resource) => ({
+        label: `${resourceLabel(resource.resource_type)} ${resource.resource_id}`,
+        reason: resource.unavailable_reason
+      }))
+    }
+  };
+}
+
+function countBookableDays(start, end) {
+  let count = 0;
+  for (let day = startOfZonedDay(start); day <= end; day = addZonedDays(day, 1)) {
+    if (zonedWeekday(day) !== 0 && !isBlockedDate(day)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function countBy(items, getKey) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = getKey(item);
+    if (!key) {
+      continue;
+    }
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  return counts;
+}
+
+function topEntry(counts) {
+  return topEntries(counts, 1)[0] || null;
+}
+
+function topEntries(counts, limit) {
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, limit);
+}
+
+function partyAnalyticsLabel(party) {
+  const parts = [];
+  if (party.apartment_label) {
+    parts.push(party.apartment_label);
+  }
+  if (party.display_name) {
+    parts.push(party.display_name);
+  }
+  if (parts.length === 0) {
+    parts.push(party.user_name);
+  }
+
+  return parts.join(" - ");
+}
+
+function weekdayLabel(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    weekday: "long",
+    timeZone: appTimeZone
+  }).format(new Date(value));
+}
+
+function roundOne(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function isKnownResource(resourceType, resourceId) {

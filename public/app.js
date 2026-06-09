@@ -68,6 +68,13 @@ const sendWhatsappTestButton = document.getElementById("sendWhatsappTestButton")
 const opsStatusGrid = document.getElementById("opsStatusGrid");
 const opsWarningsList = document.getElementById("opsWarningsList");
 const opsMessage = document.getElementById("opsMessage");
+const resetBookingsConfirmationInput = document.getElementById("resetBookingsConfirmation");
+const resetBookingsButton = document.getElementById("resetBookingsButton");
+const adminAnalyticsPanel = document.getElementById("adminAnalyticsPanel");
+const analyticsRangeInput = document.getElementById("analyticsRange");
+const analyticsSummaryGrid = document.getElementById("analyticsSummaryGrid");
+const analyticsUsageGrid = document.getElementById("analyticsUsageGrid");
+const analyticsInsightsList = document.getElementById("analyticsInsightsList");
 const adminPilotPanel = document.getElementById("adminPilotPanel");
 const pilotReadinessList = document.getElementById("pilotReadinessList");
 const adminPilotFeedbackList = document.getElementById("adminPilotFeedbackList");
@@ -214,6 +221,7 @@ resourceForm.addEventListener("submit", async (event) => {
   renderBookings();
   renderAvailability();
   await loadOperations();
+  await loadAnalytics();
 });
 
 machineLogForm.addEventListener("submit", async (event) => {
@@ -255,6 +263,7 @@ machineLogForm.addEventListener("submit", async (event) => {
     renderAvailability();
     renderBookings();
     await loadOperations();
+    await loadAnalytics();
   }
 });
 bookingFilter.addEventListener("change", renderBookings);
@@ -311,6 +320,7 @@ seedPartiesButton.addEventListener("click", async () => {
   userMessage.textContent = `${created} Parteien angelegt, ${existing} bereits vorhanden.`;
   await loadUsers();
   await loadOperations();
+  await loadAnalytics();
 });
 
 printCredentialsButton.addEventListener("click", () => {
@@ -400,6 +410,7 @@ userForm.addEventListener("submit", async (event) => {
   resetUserForm();
   await loadUsers();
   await loadOperations();
+  await loadAnalytics();
 });
 
 cancelUserEditButton.addEventListener("click", () => {
@@ -429,6 +440,8 @@ blockedDateForm.addEventListener("submit", async (event) => {
   blockedDateForm.reset();
   blockedDateMessage.textContent = "Sperrtag gespeichert.";
   await loadBlockedDates();
+  await loadOperations();
+  await loadAnalytics();
 });
 
 downloadBackupButton.addEventListener("click", async () => {
@@ -472,6 +485,14 @@ sendWhatsappTestButton.addEventListener("click", async () => {
   opsMessage.textContent = "WhatsApp-Testnachricht wurde uebergeben.";
   await loadOperations();
 });
+
+analyticsRangeInput.addEventListener("change", loadAnalytics);
+
+resetBookingsConfirmationInput.addEventListener("input", () => {
+  resetBookingsButton.disabled = resetBookingsConfirmationInput.value.trim() !== "ZURUECKSETZEN";
+});
+
+resetBookingsButton.addEventListener("click", resetAllBookings);
 
 copyPilotInviteButton.addEventListener("click", async () => {
   pilotMessage.textContent = "";
@@ -529,6 +550,7 @@ bookingForm.addEventListener("submit", async (event) => {
   await loadBookings();
   await loadActivity();
   await loadOperations();
+  await loadAnalytics();
 });
 
 function updateResourceOptions() {
@@ -770,6 +792,25 @@ async function loadOperations() {
   }
 
   renderOperations(data.status, data.warnings || []);
+}
+
+async function loadAnalytics() {
+  if (role !== "admin") {
+    return;
+  }
+
+  const days = analyticsRangeInput.value || "30";
+  const response = await fetch(`/api/admin/analytics?days=${encodeURIComponent(days)}`, {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    opsMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  renderAnalytics(data.analytics);
 }
 
 async function loadBlockedDates() {
@@ -1420,6 +1461,90 @@ function renderOperations(status, warnings) {
   renderPilotReadiness(status, warnings);
 }
 
+function renderAnalytics(analytics) {
+  analyticsSummaryGrid.innerHTML = "";
+  analyticsUsageGrid.innerHTML = "";
+  analyticsInsightsList.innerHTML = "";
+
+  const summaryEntries = [
+    ["Zeitraum", analytics.period.label],
+    ["Buchungen", String(analytics.totals.bookings)],
+    ["Aktive Parteien", String(analytics.totals.activeParties)],
+    ["Mit Buchung", String(analytics.totals.partiesWithBookings)],
+    ["Schnitt / Partei", String(analytics.totals.averagePerActiveParty)],
+    ["Buchbare Tage", String(analytics.totals.bookableDays)],
+    ["Protokolle", String(analytics.totals.machineLogs)],
+    ["Aktuell gesperrt", String(analytics.totals.unavailableResources)]
+  ];
+
+  for (const [label, value] of summaryEntries) {
+    const item = document.createElement("div");
+    item.className = "ops-status-item";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const detail = document.createElement("strong");
+    detail.textContent = value;
+    item.append(name, detail);
+    analyticsSummaryGrid.append(item);
+  }
+
+  for (const usage of analytics.usage || []) {
+    const item = document.createElement("article");
+    item.className = "analytics-card";
+    const heading = document.createElement("strong");
+    heading.textContent = usage.label;
+    const meta = document.createElement("span");
+    meta.textContent = `${usage.bookings} von ${usage.capacity} moeglichen Slots`;
+    const bar = document.createElement("div");
+    bar.className = "analytics-bar";
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.min(100, usage.utilizationPercent)}%`;
+    bar.append(fill);
+    const percent = document.createElement("small");
+    percent.textContent = `${usage.utilizationPercent}% Auslastung`;
+    item.append(heading, meta, bar, percent);
+    analyticsUsageGrid.append(item);
+  }
+
+  const insights = analytics.insights || {};
+  const insightRows = [
+    ["Staerkster Wochentag", analyticsInsightText(insights.busiestWeekday)],
+    ["Staerkstes Zeitfenster", analyticsInsightText(insights.busiestSlot)],
+    ["Meistgenutzte Ressource", analyticsInsightText(insights.busiestResource)],
+    ["Aktivste Parteien", analyticsListText(insights.topParties, (entry) => `${entry.label}: ${entry.count}`)],
+    ["Ohne Buchung im Zeitraum", (insights.inactiveParties || []).join(", ") || "Keine"],
+    ["Protokoll-Schwerpunkte", analyticsListText(insights.machineLogsByResource, (entry) => `${entry.label}: ${entry.count}`)],
+    ["Aktuell gesperrt", analyticsListText(insights.unavailableResources, (entry) => `${entry.label}: ${entry.reason}`)]
+  ];
+
+  for (const [label, detail] of insightRows) {
+    const item = document.createElement("div");
+    item.className = detail === "Keine Daten" || detail === "Keine" ? "pilot-readiness-item pilot-readiness-ok" : "pilot-readiness-item";
+    const title = document.createElement("strong");
+    title.textContent = label;
+    const body = document.createElement("span");
+    body.textContent = detail;
+    item.append(title, body);
+    analyticsInsightsList.append(item);
+  }
+}
+
+function analyticsInsightText(entry) {
+  if (!entry) {
+    return "Keine Daten";
+  }
+
+  return `${entry.label}: ${entry.count}`;
+}
+
+function analyticsListText(entries, formatEntry) {
+  if (!entries || entries.length === 0) {
+    return "Keine";
+  }
+
+  return entries.map(formatEntry).join(", ");
+}
+
 function renderPilotReadiness(status, warnings) {
   if (!pilotReadinessList) {
     return;
@@ -1558,6 +1683,36 @@ async function deleteBooking(id) {
   await loadBookings();
   await loadActivity();
   await loadOperations();
+  await loadAnalytics();
+}
+
+async function resetAllBookings() {
+  opsMessage.textContent = "";
+  resetBookingsButton.disabled = true;
+
+  const response = await fetch("/api/admin/bookings/reset", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      confirmation: resetBookingsConfirmationInput.value.trim()
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    resetBookingsButton.disabled = resetBookingsConfirmationInput.value.trim() !== "ZURUECKSETZEN";
+    opsMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  resetBookingsConfirmationInput.value = "";
+  opsMessage.textContent = `${data.deletedBookings} Buchungen und ${data.deletedActivities} Aktivitaeten geloescht.`;
+  showActionToast("Alle Buchungen wurden zurueckgesetzt.", "neutral");
+  await loadBookings();
+  await loadActivity();
+  await loadOperations();
+  await loadAnalytics();
+  renderAvailability();
 }
 
 async function shareEarlyRelease(booking) {
@@ -1578,6 +1733,7 @@ async function shareEarlyRelease(booking) {
   showActionToast(data.activity?.message || "Slot wurde frueher frei gemeldet.", "success");
   await loadActivity();
   await loadOperations();
+  await loadAnalytics();
 }
 
 async function reportLaundryLeft(booking) {
@@ -1626,6 +1782,7 @@ async function setResourceAvailability(resource, unavailable, reason = "") {
   setDefaultBookingTimes();
   renderAvailability();
   await loadOperations();
+  await loadAnalytics();
 }
 
 async function resetUserPassword(user) {
@@ -1668,6 +1825,7 @@ async function deleteBlockedDate(date) {
   blockedDateMessage.textContent = "Sperrtag entfernt.";
   await loadBlockedDates();
   await loadOperations();
+  await loadAnalytics();
 }
 
 function backupFileName(contentDisposition) {
@@ -1865,6 +2023,7 @@ function updateAdminControls() {
   adminResourcesPanel.classList.toggle("hidden", !isAdmin);
   adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
   adminOpsPanel.classList.toggle("hidden", !isAdmin);
+  adminAnalyticsPanel.classList.toggle("hidden", !isAdmin);
   adminPilotPanel.classList.toggle("hidden", !isAdmin);
   machineLogActionGroup.classList.toggle("hidden", !isAdmin);
   if (!isAdmin) {
@@ -2107,6 +2266,7 @@ function messageForError(error) {
     booking_already_released: "Diese Buchung wurde bereits frueher frei gemeldet.",
     not_allowed: "Diese Buchung kann nicht geloescht werden.",
     invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen.",
+    invalid_reset_confirmation: "Bitte zur Bestaetigung genau ZURUECKSETZEN eingeben.",
     whatsapp_not_configured: "WhatsApp-Versand ist noch nicht konfiguriert.",
     whatsapp_send_failed: "WhatsApp konnte die Nachricht nicht senden."
   };
@@ -2176,6 +2336,7 @@ async function boot() {
   await loadActivity();
   await loadBlockedDates();
   await loadOperations();
+  await loadAnalytics();
   await loadBookings();
 }
 

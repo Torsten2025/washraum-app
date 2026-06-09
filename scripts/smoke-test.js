@@ -348,21 +348,20 @@ async function run() {
   assertStatus(duplicateDryingRoom, 400, "same drying room same slot is blocked");
   assert(duplicateDryingRoom.body.error === "time_range_already_booked", "duplicate drying room error code");
 
-  const secondDryingRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 41), "12:00", "17:00");
-  const secondDryingForUser = await request("/api/admin/addBooking", {
+  const parallelDryingForUser = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
     body: {
       userName: dryingName,
       resourceType: "drying_room",
       resourceId: "Trockenraum 3",
-      startAt: secondDryingRange.startAt,
-      endAt: secondDryingRange.endAt
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
     }
   });
 
-  assertStatus(secondDryingForUser, 400, "second future drying room booking is blocked");
-  assert(secondDryingForUser.body.error === "only_one_future_sequence_allowed", "drying future booking error code");
+  assertStatus(parallelDryingForUser, 400, "parallel drying room booking for same user is blocked");
+  assert(parallelDryingForUser.body.error === "drying_room_parallel_limit_reached", "parallel drying room error code");
 
   const tumblerName = `${uniqueName}-tumbler`;
   const tumblerDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 45);

@@ -299,6 +299,49 @@ async function run() {
   assert(overview.body.status.resources.washers >= 4, "overview includes additional washer count");
   assert(overview.body.status.activities >= 2, "overview includes activity count");
 
+  const analytics = await request("/api/admin/analytics?days=365", {
+    token: admin.token
+  });
+  assertStatus(analytics, 200, "admin analytics loads");
+  assert(analytics.body.analytics.usage.some((entry) => entry.resourceType === "washer"), "analytics includes washer usage");
+  assert(analytics.body.analytics.totals.activeParties >= 1, "analytics includes active party count");
+
+  const resetCandidate = await request("/api/bookings", {
+    method: "POST",
+    token: user.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher,
+      startAt: washerRange.startAt,
+      endAt: washerRange.endAt
+    }
+  });
+  assertStatus(resetCandidate, 201, "user creates booking for admin reset test");
+
+  const invalidReset = await request("/api/admin/bookings/reset", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      confirmation: "RESET"
+    }
+  });
+  assertStatus(invalidReset, 400, "admin reset requires exact confirmation");
+  assert(invalidReset.body.error === "invalid_reset_confirmation", "reset confirmation error code");
+
+  const resetAllBookings = await request("/api/admin/bookings/reset", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      confirmation: "ZURUECKSETZEN"
+    }
+  });
+  assertStatus(resetAllBookings, 200, "admin resets all bookings");
+  assert(resetAllBookings.body.deletedBookings >= 1, "admin reset reports deleted bookings");
+
+  const bookingsAfterReset = await request("/api/bookings");
+  assertStatus(bookingsAfterReset, 200, "bookings load after admin reset");
+  assert(!bookingsAfterReset.body.bookings.some((entry) => entry.resource_id === testWasher), "admin reset removed test bookings");
+
   const backup = await rawRequest("/api/admin/backup", {
     token: admin.token
   });

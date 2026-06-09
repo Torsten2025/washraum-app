@@ -74,6 +74,15 @@ button[type="button"]:hover {
   border-color: #aebbb2;
 }
 
+button:disabled,
+button:disabled:hover {
+  background: #eef1ef;
+  border-color: var(--line);
+  color: #9aa39e;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .app-header {
   align-items: center;
   background: rgba(255, 255, 255, 0.96);
@@ -906,6 +915,89 @@ input[readonly] {
 .ops-clean {
   background: var(--green-soft);
   color: var(--green-dark);
+}
+
+.danger-zone {
+  background: #fff7f4;
+  border: 1px solid #f0c7bd;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  padding: 0.95rem;
+}
+
+.danger-zone h3,
+.danger-zone p {
+  margin: 0;
+}
+
+.danger-zone p {
+  color: #765046;
+  line-height: 1.42;
+}
+
+button.danger-button[type="button"] {
+  background: #7a1b12;
+  border-color: #7a1b12;
+  color: #fff;
+  justify-self: start;
+}
+
+button.danger-button[type="button"]:hover {
+  background: #5f130d;
+  border-color: #5f130d;
+}
+
+button.danger-button[type="button"]:disabled,
+button.danger-button[type="button"]:disabled:hover {
+  background: #f2e4e1;
+  border-color: #ead0ca;
+  color: #9d7c75;
+}
+
+.analytics-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 1rem;
+}
+
+.analytics-toolbar label {
+  min-width: 220px;
+}
+
+.analytics-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin: 0.9rem 0 1rem;
+}
+
+.analytics-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+}
+
+.analytics-card span,
+.analytics-card small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.analytics-bar {
+  background: #edf1ee;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.analytics-bar span {
+  background: var(--green);
+  display: block;
+  height: 100%;
 }
 
 .pilot-readiness-list {

@@ -369,7 +369,34 @@
             <button id="downloadBackupButton" type="button">Backup herunterladen</button>
             <button id="sendWhatsappTestButton" type="button">WhatsApp testen</button>
           </div>
+          <div class="danger-zone">
+            <h3>Alle Buchungen zuruecksetzen</h3>
+            <p>Loescht alle Buchungen und die aktuelle Aktivitaetsliste. Nutzer, Ressourcen, Sperrtage, Protokolltagebuch und Feedback bleiben erhalten.</p>
+            <label>
+              Zur Bestaetigung ZURUECKSETZEN eingeben
+              <input id="resetBookingsConfirmation" autocomplete="off" placeholder="ZURUECKSETZEN">
+            </label>
+            <button id="resetBookingsButton" class="danger-button" type="button" disabled>Alle Buchungen zuruecksetzen</button>
+          </div>
           <p id="opsMessage" class="message" role="status"></p>
+        </div>
+
+        <div id="adminAnalyticsPanel" class="admin-panel hidden">
+          <h2>Auswertung</h2>
+          <p class="panel-note">Ueberblick ueber Auslastung, Spitzenzeiten und Parteien ohne Buchungen. Gedacht fuer den Pilot und fuer faire Anpassungen am Betrieb.</p>
+          <div class="analytics-toolbar">
+            <label>
+              Zeitraum
+              <select id="analyticsRange">
+                <option value="30">Letzte 30 Tage</option>
+                <option value="90">Letzte 90 Tage</option>
+                <option value="365">Letztes Jahr</option>
+              </select>
+            </label>
+          </div>
+          <div id="analyticsSummaryGrid" class="ops-status-grid"></div>
+          <div id="analyticsUsageGrid" class="analytics-grid"></div>
+          <div id="analyticsInsightsList" class="pilot-readiness-list"></div>
         </div>
 
         <div id="adminPilotPanel" class="admin-panel hidden">
