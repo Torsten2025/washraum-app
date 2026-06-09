@@ -5,16 +5,22 @@ const resourceTypeInput = document.getElementById("resourceType");
 const resourceIdInput = document.getElementById("resourceId");
 const slotGroup = document.getElementById("slotGroup");
 const bookingSlotInput = document.getElementById("bookingSlot");
+const bookingDateInput = document.getElementById("bookingDate");
 const adminTargetGroup = document.getElementById("adminTargetGroup");
 const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
 const startAtInput = document.getElementById("startAt");
 const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
+const availabilityPanel = document.getElementById("availabilityPanel");
 const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
 const newPasswordInput = document.getElementById("newPassword");
 const passwordMessage = document.getElementById("passwordMessage");
 const adminUsersPanel = document.getElementById("adminUsersPanel");
+const seedPartiesButton = document.getElementById("seedPartiesButton");
+const partyCredentialsPanel = document.getElementById("partyCredentialsPanel");
+const partyCredentialsList = document.getElementById("partyCredentialsList");
+const printCredentialsButton = document.getElementById("printCredentialsButton");
 const userForm = document.getElementById("userForm");
 const editingUserIdInput = document.getElementById("editingUserId");
 const managedUserNameInput = document.getElementById("managedUserName");
@@ -34,6 +40,8 @@ const blockedDateMessage = document.getElementById("blockedDateMessage");
 const blockedDatesList = document.getElementById("blockedDatesList");
 const adminOpsPanel = document.getElementById("adminOpsPanel");
 const downloadBackupButton = document.getElementById("downloadBackupButton");
+const opsStatusGrid = document.getElementById("opsStatusGrid");
+const opsWarningsList = document.getElementById("opsWarningsList");
 const opsMessage = document.getElementById("opsMessage");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
@@ -43,6 +51,8 @@ const previousWeekButton = document.getElementById("previousWeekButton");
 const todayButton = document.getElementById("todayButton");
 const nextWeekButton = document.getElementById("nextWeekButton");
 const monthlyPlanGrid = document.getElementById("monthlyPlanGrid");
+const monthPlanHeading = document.getElementById("monthPlanHeading");
+const monthPlanSubtitle = document.getElementById("monthPlanSubtitle");
 const planMonthInput = document.getElementById("planMonthInput");
 const previousMonthButton = document.getElementById("previousMonthButton");
 const currentMonthButton = document.getElementById("currentMonthButton");
@@ -65,6 +75,7 @@ let role = sessionStorage.getItem("washraumUserRole") || "user";
 let allBookings = [];
 let allUsers = [];
 let blockedDates = [];
+let latestPartyCredentials = [];
 let visibleWeekStart = startOfWeek(new Date());
 let visibleMonth = startOfMonth(new Date());
 
@@ -86,6 +97,12 @@ logoutButton.addEventListener("click", async () => {
 resourceTypeInput.addEventListener("change", () => {
   updateResourceOptions();
   updateSlotControls();
+  renderAvailability();
+});
+resourceIdInput.addEventListener("change", renderAvailability);
+bookingDateInput.addEventListener("change", () => {
+  applySelectedSlot();
+  renderAvailability();
 });
 bookingFilter.addEventListener("change", renderBookings);
 previousWeekButton.addEventListener("click", () => moveWeek(-1));
@@ -116,6 +133,37 @@ startAtInput.addEventListener("change", () => {
 
 bookingSlotInput.addEventListener("change", () => {
   applySelectedSlot();
+  renderAvailability();
+});
+
+seedPartiesButton.addEventListener("click", async () => {
+  userMessage.textContent = "";
+  const response = await fetch("/api/admin/seed-parties", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ count: 20, displayNameMode: "schema" })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  latestPartyCredentials = data.parties || [];
+  renderPartyCredentials();
+  partyCredentialsPanel.classList.remove("hidden");
+  const created = latestPartyCredentials.filter((party) => party.status === "created").length;
+  const existing = latestPartyCredentials.filter((party) => party.status === "exists").length;
+  userMessage.textContent = `${created} Parteien angelegt, ${existing} bereits vorhanden.`;
+  await loadUsers();
+  await loadOperations();
+});
+
+printCredentialsButton.addEventListener("click", () => {
+  document.body.classList.add("print-credentials");
+  window.print();
+  window.setTimeout(() => document.body.classList.remove("print-credentials"), 200);
 });
 
 passwordForm.addEventListener("submit", async (event) => {
@@ -175,6 +223,7 @@ userForm.addEventListener("submit", async (event) => {
   userMessage.textContent = editingUserId ? "Nutzer aktualisiert." : "Nutzer angelegt.";
   resetUserForm();
   await loadUsers();
+  await loadOperations();
 });
 
 cancelUserEditButton.addEventListener("click", () => {
@@ -266,6 +315,7 @@ bookingForm.addEventListener("submit", async (event) => {
   setDefaultBookingTimes();
   formMessage.textContent = "Buchung gespeichert.";
   await loadBookings();
+  await loadOperations();
 });
 
 function updateResourceOptions() {
@@ -303,6 +353,7 @@ function updateSlotControls() {
 
 function updateDateInputMinimums() {
   const minValue = formatDateTimeInputValue(new Date());
+  bookingDateInput.min = dateKey(new Date());
   startAtInput.min = minValue;
   endAtInput.min = minValue;
 }
@@ -311,16 +362,20 @@ function setDefaultBookingTimes() {
   if ((slotConfig[resourceTypeInput.value] || []).length > 0) {
     const selection = nextDefaultSlotSelection(resourceTypeInput.value);
     if (selection) {
+      bookingDateInput.value = dateKey(selection.date);
       startAtInput.value = formatDateTimeInputValue(selection.date);
       bookingSlotInput.value = selection.slot.id;
       applySelectedSlot();
+      renderAvailability();
       return;
     }
   }
 
   const start = nextDefaultStart();
+  bookingDateInput.value = dateKey(start);
   startAtInput.value = formatDateTimeInputValue(start);
   updateEndAfterStart({ force: true });
+  renderAvailability();
 }
 
 function updateEndAfterStart({ force = false } = {}) {
@@ -348,7 +403,7 @@ function applySelectedSlot() {
     return;
   }
 
-  const baseDate = startAtInput.value ? new Date(startAtInput.value) : nextDefaultStart();
+  const baseDate = bookingDateInput.value ? dateFromInputDate(bookingDateInput.value) : startAtInput.value ? new Date(startAtInput.value) : nextDefaultStart();
   const start = withTime(baseDate, slot.start);
   const end = withTime(baseDate, slot.end);
   startAtInput.value = formatDateTimeInputValue(start);
@@ -361,6 +416,7 @@ async function loadBookings() {
   const data = await response.json();
   allBookings = data.bookings;
   renderBookings();
+  renderAvailability();
 }
 
 async function loadResources() {
@@ -384,6 +440,24 @@ async function loadUsers() {
   renderUsers();
 }
 
+async function loadOperations() {
+  if (role !== "admin") {
+    return;
+  }
+
+  const response = await fetch("/api/admin/overview", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    opsMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  renderOperations(data.status, data.warnings || []);
+}
+
 async function loadBlockedDates() {
   if (role !== "admin") {
     return;
@@ -396,6 +470,7 @@ async function loadBlockedDates() {
   blockedDates = data.blockedDates || [];
   renderBlockedDates();
   renderBookings();
+  renderAvailability();
 }
 
 function renderBookings() {
@@ -407,6 +482,66 @@ function renderBookings() {
   renderBookingsList(bookings);
   renderCalendar(bookings);
   renderMonthlyPlan(allBookings);
+}
+
+function renderAvailability() {
+  if (!availabilityPanel || !bookingDateInput.value) {
+    return;
+  }
+
+  const resourceType = resourceTypeInput.value;
+  const selectedDate = dateFromInputDate(bookingDateInput.value);
+  const blockedDate = blockedDateForDay(selectedDate);
+  availabilityPanel.innerHTML = "";
+
+  const heading = document.createElement("div");
+  heading.className = "availability-heading";
+  const title = document.createElement("strong");
+  title.textContent = `Freie Slots am ${formatDateOnly(selectedDate)}`;
+  const hint = document.createElement("span");
+  hint.textContent = resourceLabel(resourceType);
+  heading.append(title, hint);
+  availabilityPanel.append(heading);
+
+  if (selectedDate.getDay() === 0 || blockedDate) {
+    const closed = document.createElement("p");
+    closed.className = "availability-closed";
+    closed.textContent = blockedDate ? `Geschlossen: ${blockedDate.label}` : "Sonntag ist geschlossen.";
+    availabilityPanel.append(closed);
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "availability-grid";
+  for (const resourceId of resources[resourceType] || []) {
+    for (const slot of slotConfig[resourceType] || []) {
+      const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = booking ? "availability-slot availability-slot-booked" : "availability-slot";
+      button.disabled = Boolean(booking);
+
+      const resource = document.createElement("strong");
+      resource.textContent = resourceId;
+      const time = document.createElement("span");
+      time.textContent = slot.label;
+      const state = document.createElement("small");
+      state.textContent = booking ? `Belegt: ${partyLabel(booking)}` : "Frei";
+
+      button.append(resource, time, state);
+      if (!booking) {
+        button.addEventListener("click", () => {
+          resourceIdInput.value = resourceId;
+          bookingSlotInput.value = slot.id;
+          applySelectedSlot();
+          formMessage.textContent = `${resourceId} ${slot.label} ausgewaehlt.`;
+        });
+      }
+      grid.append(button);
+    }
+  }
+
+  availabilityPanel.append(grid);
 }
 
 function renderBookingsList(bookings) {
@@ -498,18 +633,34 @@ function renderCalendar(bookings) {
 
 function renderMonthlyPlan(bookings) {
   planMonthInput.value = monthInputValue(visibleMonth);
+  monthPlanHeading.textContent = `Waschplan ${monthName(visibleMonth)} ${visibleMonth.getFullYear()}`;
+  monthPlanSubtitle.textContent = "Maneggplatz 18";
   monthlyPlanGrid.innerHTML = "";
 
-  const resourceTypes = ["washer", "drying_room", "tumbler"];
+  const resourceTypes = [
+    { type: "washer", label: "Waschmaschinen" },
+    { type: "drying_room", label: "Trockenraeume" },
+    { type: "tumbler", label: "Tumbler" }
+  ];
   for (const resourceType of resourceTypes) {
-    for (const resourceId of resources[resourceType] || []) {
-      monthlyPlanGrid.append(monthResourceTable({
+    const group = document.createElement("section");
+    group.className = "month-resource-group";
+    const groupHeading = document.createElement("h3");
+    groupHeading.textContent = resourceType.label;
+    const groupGrid = document.createElement("div");
+    groupGrid.className = "month-resource-group-grid";
+
+    for (const resourceId of resources[resourceType.type] || []) {
+      groupGrid.append(monthResourceTable({
         bookings,
-        resourceType,
+        resourceType: resourceType.type,
         resourceId,
         month: visibleMonth
       }));
     }
+
+    group.append(groupHeading, groupGrid);
+    monthlyPlanGrid.append(group);
   }
 }
 
@@ -639,8 +790,78 @@ function renderUsers() {
     editButton.textContent = "Bearbeiten";
     editButton.addEventListener("click", () => editUser(user));
 
-    item.append(details, editButton);
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.textContent = "Passwort neu";
+    resetButton.addEventListener("click", () => resetUserPassword(user));
+
+    const actions = document.createElement("div");
+    actions.className = "item-actions";
+    actions.append(editButton, resetButton);
+
+    item.append(details, actions);
     usersList.append(item);
+  }
+}
+
+function renderPartyCredentials() {
+  partyCredentialsList.innerHTML = "";
+
+  for (const party of latestPartyCredentials) {
+    const item = document.createElement("article");
+    item.className = party.status === "created" ? "credential-item" : "credential-item credential-item-existing";
+
+    const title = document.createElement("strong");
+    title.textContent = `${party.apartmentLabel}: ${party.userName}`;
+    const password = document.createElement("span");
+    password.textContent = party.password ? `Passwort: ${party.password}` : "Bereits vorhanden";
+    const note = document.createElement("small");
+    note.textContent = party.displayName ? `Anzeigename: ${party.displayName}` : "Anzeigename leer";
+
+    item.append(title, password, note);
+    partyCredentialsList.append(item);
+  }
+}
+
+function renderOperations(status, warnings) {
+  opsStatusGrid.innerHTML = "";
+  opsWarningsList.innerHTML = "";
+
+  const entries = [
+    ["Datenbank", status.sqlitePath],
+    ["Aktive Nutzer", String(status.activeUsers)],
+    ["Inaktive Nutzer", String(status.inactiveUsers)],
+    ["Admins", String(status.admins)],
+    ["Buchungen", String(status.bookings)],
+    ["Zukunftsbuchungen", String(status.futureBookings)],
+    ["Parteien", `${status.seededParties}/20`],
+    ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`]
+  ];
+
+  for (const [label, value] of entries) {
+    const item = document.createElement("div");
+    item.className = "ops-status-item";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const detail = document.createElement("strong");
+    detail.textContent = value;
+    item.append(name, detail);
+    opsStatusGrid.append(item);
+  }
+
+  if (warnings.length === 0) {
+    const clean = document.createElement("p");
+    clean.className = "ops-clean";
+    clean.textContent = "Keine Produktionswarnungen.";
+    opsWarningsList.append(clean);
+    return;
+  }
+
+  for (const warning of warnings) {
+    const item = document.createElement("p");
+    item.className = "ops-warning";
+    item.textContent = warning.message;
+    opsWarningsList.append(item);
   }
 }
 
@@ -679,6 +900,32 @@ async function deleteBooking(id) {
   }
 
   await loadBookings();
+  await loadOperations();
+}
+
+async function resetUserPassword(user) {
+  userMessage.textContent = "";
+  const response = await fetch(`/api/admin/users/${user.id}/reset-password`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  latestPartyCredentials = [{
+    status: "created",
+    userName: data.userName,
+    displayName: user.display_name || "",
+    apartmentLabel: user.apartment_label || data.userName,
+    password: data.password
+  }];
+  renderPartyCredentials();
+  partyCredentialsPanel.classList.remove("hidden");
+  userMessage.textContent = `Neues Passwort fuer ${data.userName} erzeugt.`;
 }
 
 async function deleteBlockedDate(date) {
@@ -695,6 +942,7 @@ async function deleteBlockedDate(date) {
 
   blockedDateMessage.textContent = "Sperrtag entfernt.";
   await loadBlockedDates();
+  await loadOperations();
 }
 
 function backupFileName(contentDisposition) {
@@ -726,6 +974,7 @@ async function loadSession() {
   });
 
   if (!response.ok) {
+    sessionStorage.setItem("washraumSessionNotice", "Sitzung abgelaufen. Bitte neu einloggen.");
     sessionStorage.removeItem("washraumUserName");
     sessionStorage.removeItem("washraumUserRole");
     sessionStorage.removeItem("washraumAuthToken");
@@ -918,6 +1167,17 @@ function monthInputDate(value) {
   return new Date(year, month - 1, 1);
 }
 
+function dateFromInputDate(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function monthName(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    month: "long"
+  }).format(value);
+}
+
 function messageForError(error) {
   const messages = {
     missing_required_fields: "Bitte alle Felder ausfuellen.",
@@ -953,7 +1213,8 @@ function messageForError(error) {
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
     booking_id_required: "Keine Buchung ausgewaehlt.",
     booking_not_found: "Buchung nicht gefunden.",
-    not_allowed: "Diese Buchung kann nicht geloescht werden."
+    not_allowed: "Diese Buchung kann nicht geloescht werden.",
+    invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen."
   };
 
   return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";
@@ -1001,6 +1262,7 @@ async function boot() {
   setDefaultBookingTimes();
   await loadUsers();
   await loadBlockedDates();
+  await loadOperations();
   await loadBookings();
 }
 

@@ -50,6 +50,11 @@
             <select id="bookingSlot" name="bookingSlot"></select>
           </label>
 
+          <label>
+            Datum
+            <input id="bookingDate" name="bookingDate" type="date" required>
+          </label>
+
           <label id="adminTargetGroup" class="hidden">
             Buchen fuer
             <input id="adminTargetUserName" name="adminTargetUserName" autocomplete="name">
@@ -68,6 +73,7 @@
           <button type="submit">Buchen</button>
           <p id="formMessage" class="message" role="status"></p>
         </form>
+        <div id="availabilityPanel" class="availability-panel" aria-live="polite"></div>
 
         <div class="account-panel">
           <h2>Passwort aendern</h2>
@@ -89,6 +95,20 @@
 
         <div id="adminUsersPanel" class="admin-panel hidden">
           <h2>Nutzer verwalten</h2>
+          <div class="onboarding-box">
+            <div>
+              <h3>20 Parteien anlegen</h3>
+              <p>Erstellt Partei 01 bis Partei 20 mit sicheren Erstpasswoertern. Bestehende Konten bleiben unveraendert.</p>
+            </div>
+            <button id="seedPartiesButton" type="button">20 Parteien anlegen</button>
+          </div>
+          <div id="partyCredentialsPanel" class="credentials-panel hidden">
+            <div class="credentials-toolbar">
+              <strong>Uebergabeliste</strong>
+              <button id="printCredentialsButton" type="button">Liste drucken</button>
+            </div>
+            <div id="partyCredentialsList" class="credentials-list"></div>
+          </div>
           <form id="userForm" class="booking-form">
             <input id="editingUserId" type="hidden">
             <label>
@@ -158,6 +178,8 @@
         <div id="adminOpsPanel" class="admin-panel hidden">
           <h2>Betrieb</h2>
           <p class="panel-note">SQLite-Backup vor groesseren Aenderungen herunterladen.</p>
+          <div id="opsStatusGrid" class="ops-status-grid"></div>
+          <div id="opsWarningsList" class="ops-warnings-list"></div>
           <button id="downloadBackupButton" type="button">Backup herunterladen</button>
           <p id="opsMessage" class="message" role="status"></p>
         </div>
@@ -188,7 +210,7 @@
           <div class="calendar-toolbar month-plan-toolbar">
             <div>
               <h2 id="monthPlanHeading">Monatsplan</h2>
-              <p class="week-label">Ansicht wie am analogen Aushang.</p>
+              <p id="monthPlanSubtitle" class="week-label">Maneggplatz 18</p>
             </div>
             <div class="calendar-actions">
               <button id="previousMonthButton" type="button">Monat zurueck</button>
@@ -198,6 +220,7 @@
               <button id="printMonthButton" type="button">Drucken</button>
             </div>
           </div>
+          <div class="month-plan-notice">Bitte nur 1x im Voraus eintragen: eintragen, waschen, wieder eintragen.</div>
           <div id="monthlyPlanGrid" class="monthly-plan-grid"></div>
         </section>
       </section>

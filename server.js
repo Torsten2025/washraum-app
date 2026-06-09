@@ -284,6 +284,134 @@ app.get("/api/admin/users", (req, res) => {
   res.json({ users });
 });
 
+app.get("/api/admin/overview", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const activeUsers = db.prepare("SELECT COUNT(*) AS count FROM users WHERE active = 1").get().count;
+  const inactiveUsers = db.prepare("SELECT COUNT(*) AS count FROM users WHERE active = 0").get().count;
+  const admins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
+  const bookings = db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count;
+  const futureBookings = db
+    .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
+    .get(new Date().toISOString()).count;
+  const blockedDatesCount = db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count;
+  const seededParties = db
+    .prepare("SELECT COUNT(*) AS count FROM users WHERE user_name LIKE 'partei-%' OR apartment_label LIKE 'Partei %'")
+    .get().count;
+  const testUsers = db
+    .prepare(`
+      SELECT user_name
+      FROM users
+      WHERE user_name IN ('user')
+        OR user_name LIKE 'PartyTest-%'
+        OR user_name LIKE 'Smoke-%'
+        OR user_name LIKE 'Managed-%'
+      ORDER BY user_name ASC
+      LIMIT 8
+    `)
+    .all()
+    .map((user) => user.user_name);
+
+  const warnings = [];
+  if (testUsers.length > 0) {
+    warnings.push({
+      code: "test_users_present",
+      message: `Test-/Standardnutzer vorhanden: ${testUsers.join(", ")}`
+    });
+  }
+  if (seededParties < 20) {
+    warnings.push({
+      code: "parties_incomplete",
+      message: `Es sind erst ${seededParties} von 20 Parteien nach Standardschema angelegt.`
+    });
+  }
+  if (admins < 1) {
+    warnings.push({
+      code: "no_active_admin",
+      message: "Es gibt keinen aktiven Admin."
+    });
+  }
+
+  res.json({
+    ok: true,
+    status: {
+      sqlitePath,
+      production: isProduction,
+      activeUsers,
+      inactiveUsers,
+      admins,
+      bookings,
+      futureBookings,
+      blockedDates: blockedDatesCount,
+      seededParties,
+      resources: {
+        washers: resources.washer.length,
+        dryingRooms: resources.drying_room.length,
+        tumblers: resources.tumbler.length,
+        slotsPerResource: fixedSlots.length
+      }
+    },
+    warnings
+  });
+});
+
+app.post("/api/admin/seed-parties", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const count = Number(req.body?.count || 20);
+  const displayNameMode = String(req.body?.displayNameMode || "schema");
+  if (!Number.isInteger(count) || count < 1 || count > 60) {
+    return res.status(400).json({ ok: false, error: "invalid_party_count" });
+  }
+
+  const lookupUser = db.prepare("SELECT id, user_name, display_name, apartment_label FROM users WHERE user_name = ?");
+  const insertUser = db.prepare(`
+    INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
+    VALUES (?, ?, 'user', 1, ?, ?)
+  `);
+  const createdParties = [];
+
+  const createParties = db.transaction(() => {
+    for (let index = 1; index <= count; index += 1) {
+      const suffix = String(index).padStart(2, "0");
+      const userName = `partei-${suffix}`;
+      const apartmentLabel = `Partei ${suffix}`;
+      const existing = lookupUser.get(userName);
+
+      if (existing) {
+        createdParties.push({
+          status: "exists",
+          userName: existing.user_name,
+          displayName: existing.display_name || "",
+          apartmentLabel: existing.apartment_label || apartmentLabel,
+          password: ""
+        });
+        continue;
+      }
+
+      const password = generateInitialPassword();
+      const displayName = displayNameMode === "empty" ? "" : apartmentLabel;
+      insertUser.run(userName, hashPassword(password), displayName, apartmentLabel);
+      createdParties.push({
+        status: "created",
+        userName,
+        displayName,
+        apartmentLabel,
+        password
+      });
+    }
+  });
+
+  createParties();
+  res.status(201).json({ ok: true, parties: createdParties });
+});
+
 app.post("/api/admin/users", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {
@@ -321,6 +449,29 @@ app.post("/api/admin/users", (req, res) => {
 
     throw error;
   }
+});
+
+app.post("/api/admin/users/:id/reset-password", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existingUser = db.prepare("SELECT id, user_name FROM users WHERE id = ?").get(id);
+  if (!existingUser) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  const password = generateInitialPassword();
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(password), id);
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
+
+  res.json({
+    ok: true,
+    userName: existingUser.user_name,
+    password
+  });
 });
 
 app.get("/api/admin/blocked-dates", (req, res) => {
@@ -558,6 +709,10 @@ function seedPassword(envName, localFallback) {
   }
 
   return localFallback;
+}
+
+function generateInitialPassword() {
+  return `Wp-${crypto.randomBytes(6).toString("base64url")}`;
 }
 
 function seedDefaultBlockedDates() {

@@ -3,6 +3,12 @@ const userNameInput = document.getElementById("userName");
 const passwordInput = document.getElementById("password");
 const loginMessage = document.getElementById("loginMessage");
 
+const sessionNotice = sessionStorage.getItem("washraumSessionNotice");
+if (sessionNotice) {
+  loginMessage.textContent = sessionNotice;
+  sessionStorage.removeItem("washraumSessionNotice");
+}
+
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   loginMessage.textContent = "";

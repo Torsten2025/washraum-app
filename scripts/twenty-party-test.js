@@ -36,6 +36,10 @@ async function run() {
   await exerciseWasherCapacity({ parties, partyTokens, blockedDateKeys });
   await exerciseFutureLimits({ parties, partyTokens, blockedDateKeys });
   await exerciseClosedDays({ partyToken: partyTokens[0], blockedDateKeys });
+  await exerciseDeletePermissions({ partyTokens, blockedDateKeys });
+  await exerciseAdminBooking({ adminToken: admin.body.token, parties, blockedDateKeys });
+  await exerciseInactiveUser({ adminToken: admin.body.token, party: parties[8], partyToken: partyTokens[8], blockedDateKeys });
+  await exercisePasswordSessionInvalidation({ party: parties[9], blockedDateKeys });
 
   const bookings = await request("/api/bookings");
   assertStatus(bookings, 200, "bookings list");
@@ -212,6 +216,131 @@ async function exerciseClosedDays({ partyToken, blockedDateKeys }) {
   }
 }
 
+async function exerciseDeletePermissions({ partyTokens, blockedDateKeys }) {
+  const date = bookableDates(blockedDateKeys, 1, 110)[0];
+  const booking = await bookingFor(partyTokens[5], "washer", "WM 1", date, "07:00", "12:00");
+  assertStatus(booking, 201, "booking for delete permission test");
+
+  const foreignDelete = await deleteBooking(partyTokens[6], booking.body.booking.id);
+  assertStatus(foreignDelete, 403, "foreign user cannot delete booking");
+  assert(foreignDelete.body.error === "not_allowed", "foreign delete error");
+
+  const ownDelete = await deleteBooking(partyTokens[5], booking.body.booking.id);
+  assertStatus(ownDelete, 200, "owner can delete own booking");
+}
+
+async function exerciseAdminBooking({ adminToken, parties, blockedDateKeys }) {
+  const date = bookableDates(blockedDateKeys, 1, 120)[0];
+  const range = rangeForDate(date, "12:00", "17:00");
+  const booking = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: adminToken,
+    body: {
+      userName: parties[7].userName,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: range.startAt,
+      endAt: range.endAt
+    }
+  });
+
+  assertStatus(booking, 201, "admin books for another party");
+  assert(booking.body.booking.user_name === parties[7].userName, "admin booking belongs to target party");
+}
+
+async function exerciseInactiveUser({ adminToken, party, partyToken, blockedDateKeys }) {
+  const users = await request("/api/admin/users", {
+    token: adminToken
+  });
+  const target = users.body.users.find((user) => user.user_name === party.userName);
+  assert(target, "inactive test user exists");
+
+  const deactivate = await request(`/api/admin/users/${target.id}`, {
+    method: "PATCH",
+    token: adminToken,
+    body: {
+      userName: party.userName,
+      displayName: party.displayName,
+      apartmentLabel: party.apartmentLabel,
+      role: "user",
+      active: false
+    }
+  });
+  assertStatus(deactivate, 200, "deactivate user");
+
+  const login = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: party.userName,
+      password
+    }
+  });
+  assertStatus(login, 403, "inactive user cannot login");
+  assert(login.body.error === "user_inactive", "inactive login error");
+
+  const date = bookableDates(blockedDateKeys, 1, 130)[0];
+  const booking = await bookingFor(partyToken, "washer", "WM 3", date, "07:00", "12:00");
+  assertStatus(booking, 401, "inactive user's old session cannot book");
+}
+
+async function exercisePasswordSessionInvalidation({ party, blockedDateKeys }) {
+  const firstLogin = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: party.userName,
+      password
+    }
+  });
+  assertStatus(firstLogin, 200, "first password-session login");
+
+  const secondLogin = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: party.userName,
+      password
+    }
+  });
+  assertStatus(secondLogin, 200, "second password-session login");
+
+  const newPassword = "secret456";
+  const change = await request("/api/me/password", {
+    method: "POST",
+    token: secondLogin.body.token,
+    body: {
+      currentPassword: password,
+      newPassword
+    }
+  });
+  assertStatus(change, 200, "password change");
+
+  const oldSession = await request("/api/session", {
+    token: firstLogin.body.token
+  });
+  assertStatus(oldSession, 401, "older session invalidated");
+
+  const loginWithOldPassword = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: party.userName,
+      password
+    }
+  });
+  assertStatus(loginWithOldPassword, 401, "old password rejected");
+
+  const loginWithNewPassword = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: party.userName,
+      password: newPassword
+    }
+  });
+  assertStatus(loginWithNewPassword, 200, "new password accepted");
+
+  const date = bookableDates(blockedDateKeys, 1, 140)[0];
+  const booking = await bookingFor(loginWithNewPassword.body.token, "washer", "WM 1", date, "17:00", "21:00");
+  assertStatus(booking, 201, "new password session can book");
+}
+
 async function bookingFor(token, resourceType, resourceId, date, start, end) {
   const range = rangeForDate(date, start, end);
   return request("/api/bookings", {
@@ -223,6 +352,14 @@ async function bookingFor(token, resourceType, resourceId, date, start, end) {
       startAt: range.startAt,
       endAt: range.endAt
     }
+  });
+}
+
+async function deleteBooking(token, id) {
+  return request("/api/user/deleteBooking", {
+    method: "POST",
+    token,
+    body: { id }
   });
 }
 
