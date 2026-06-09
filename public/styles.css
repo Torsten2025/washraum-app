@@ -290,6 +290,100 @@ input[readonly] {
   padding-bottom: 0.25rem;
 }
 
+.month-plan-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.month-plan-toolbar {
+  align-items: end;
+}
+
+.month-plan-toolbar input[type="month"] {
+  min-width: 160px;
+  width: auto;
+}
+
+.monthly-plan-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.month-resource {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.month-resource h3 {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.95rem;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+}
+
+.month-table {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.month-table th,
+.month-table td {
+  border: 1px solid var(--line);
+  height: 30px;
+  overflow: hidden;
+  padding: 0.25rem 0.35rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.month-table thead th {
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.month-table tbody th {
+  background: #fff;
+  width: 34px;
+}
+
+.month-table tbody td:first-of-type {
+  color: var(--muted);
+  text-align: center;
+  width: 42px;
+}
+
+.month-row-closed th,
+.month-row-closed td {
+  background: #ecefec;
+  color: #555f5a;
+}
+
+.month-slot-closed {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(38, 50, 45, 0.18),
+    rgba(38, 50, 45, 0.18) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  font-weight: 800;
+  text-align: center;
+}
+
+.month-slot-booked {
+  background: #fff8d6;
+  color: #222;
+  font-weight: 800;
+}
+
 .calendar-day {
   background: var(--surface-soft);
   border: 1px solid var(--line);
@@ -493,5 +587,50 @@ input[readonly] {
   .header-actions button,
   .session-pill {
     width: 100%;
+  }
+}
+
+@media print {
+  .app-header,
+  .notice-bar,
+  .booking-panel,
+  .bookings-list,
+  .calendar-grid,
+  .calendar-toolbar:not(.month-plan-toolbar) {
+    display: none;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .app-layout,
+  .calendar-panel {
+    display: block;
+    max-width: none;
+    padding: 0;
+  }
+
+  .calendar-panel {
+    border: 0;
+    box-shadow: none;
+  }
+
+  .month-plan-panel {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .month-plan-toolbar button {
+    display: none;
+  }
+
+  .monthly-plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .month-resource {
+    break-inside: avoid;
   }
 }

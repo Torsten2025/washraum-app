@@ -42,6 +42,12 @@ const weekLabel = document.getElementById("weekLabel");
 const previousWeekButton = document.getElementById("previousWeekButton");
 const todayButton = document.getElementById("todayButton");
 const nextWeekButton = document.getElementById("nextWeekButton");
+const monthlyPlanGrid = document.getElementById("monthlyPlanGrid");
+const planMonthInput = document.getElementById("planMonthInput");
+const previousMonthButton = document.getElementById("previousMonthButton");
+const currentMonthButton = document.getElementById("currentMonthButton");
+const nextMonthButton = document.getElementById("nextMonthButton");
+const printMonthButton = document.getElementById("printMonthButton");
 
 let resources = {
   washer: [],
@@ -60,6 +66,7 @@ let allBookings = [];
 let allUsers = [];
 let blockedDates = [];
 let visibleWeekStart = startOfWeek(new Date());
+let visibleMonth = startOfMonth(new Date());
 
 if (!authToken) {
   window.location.href = "/login.html";
@@ -87,6 +94,20 @@ todayButton.addEventListener("click", () => {
   renderBookings();
 });
 nextWeekButton.addEventListener("click", () => moveWeek(1));
+previousMonthButton.addEventListener("click", () => moveMonth(-1));
+currentMonthButton.addEventListener("click", () => {
+  visibleMonth = startOfMonth(new Date());
+  renderBookings();
+});
+nextMonthButton.addEventListener("click", () => moveMonth(1));
+planMonthInput.addEventListener("change", () => {
+  const selectedMonth = monthInputDate(planMonthInput.value);
+  if (selectedMonth) {
+    visibleMonth = selectedMonth;
+    renderBookings();
+  }
+});
+printMonthButton.addEventListener("click", () => window.print());
 
 startAtInput.addEventListener("change", () => {
   applySelectedSlot();
@@ -385,6 +406,7 @@ function renderBookings() {
 
   renderBookingsList(bookings);
   renderCalendar(bookings);
+  renderMonthlyPlan(allBookings);
 }
 
 function renderBookingsList(bookings) {
@@ -474,6 +496,95 @@ function renderCalendar(bookings) {
   }
 }
 
+function renderMonthlyPlan(bookings) {
+  planMonthInput.value = monthInputValue(visibleMonth);
+  monthlyPlanGrid.innerHTML = "";
+
+  const resourceTypes = ["washer", "drying_room", "tumbler"];
+  for (const resourceType of resourceTypes) {
+    for (const resourceId of resources[resourceType] || []) {
+      monthlyPlanGrid.append(monthResourceTable({
+        bookings,
+        resourceType,
+        resourceId,
+        month: visibleMonth
+      }));
+    }
+  }
+}
+
+function monthResourceTable({ bookings, resourceType, resourceId, month }) {
+  const section = document.createElement("section");
+  section.className = "month-resource";
+
+  const heading = document.createElement("h3");
+  heading.textContent = `${resourceLabel(resourceType)} ${resourceId}`;
+  section.append(heading);
+
+  const table = document.createElement("table");
+  table.className = "month-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  headerRow.append(monthHeaderCell("Tag"), monthHeaderCell("WT"));
+  for (const slot of slotConfig[resourceType] || []) {
+    headerRow.append(monthHeaderCell(slot.label));
+  }
+  thead.append(headerRow);
+  table.append(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const day of daysInMonth(month)) {
+    tbody.append(monthDayRow({ bookings, resourceType, resourceId, day }));
+  }
+  table.append(tbody);
+  section.append(table);
+
+  return section;
+}
+
+function monthHeaderCell(text) {
+  const cell = document.createElement("th");
+  cell.scope = "col";
+  cell.textContent = text;
+  return cell;
+}
+
+function monthDayRow({ bookings, resourceType, resourceId, day }) {
+  const row = document.createElement("tr");
+  const blockedDate = blockedDateForDay(day);
+  const isClosed = day.getDay() === 0 || Boolean(blockedDate);
+  if (isClosed) {
+    row.className = "month-row-closed";
+  }
+
+  const dayCell = document.createElement("th");
+  dayCell.scope = "row";
+  dayCell.textContent = String(day.getDate());
+  row.append(dayCell);
+
+  const weekdayCell = document.createElement("td");
+  weekdayCell.textContent = shortWeekday(day);
+  row.append(weekdayCell);
+
+  for (const slot of slotConfig[resourceType] || []) {
+    const cell = document.createElement("td");
+    const booking = bookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day, slot }));
+
+    if (isClosed) {
+      cell.className = "month-slot-closed";
+      cell.textContent = blockedDate ? blockedDate.label : "So";
+    } else if (booking) {
+      cell.className = "month-slot-booked";
+      cell.textContent = partyLabel(booking);
+    }
+
+    row.append(cell);
+  }
+
+  return row;
+}
+
 function renderBlockedDates() {
   blockedDatesList.innerHTML = "";
 
@@ -514,11 +625,11 @@ function renderUsers() {
 
     const title = document.createElement("h3");
     title.textContent = user.apartment_label
-      ? `${user.apartment_label} · ${user.user_name}`
+      ? `${user.apartment_label} - ${user.user_name}`
       : user.user_name;
 
     const meta = document.createElement("p");
-    const displayName = user.display_name ? `${user.display_name} · ` : "";
+    const displayName = user.display_name ? `${user.display_name} - ` : "";
     meta.textContent = `${displayName}${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
 
     details.append(title, meta);
@@ -676,6 +787,12 @@ function formatDayHeading(value) {
   }).format(value);
 }
 
+function shortWeekday(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    weekday: "short"
+  }).format(value).replace(".", "");
+}
+
 function formatDateTimeInputValue(value) {
   const date = new Date(value);
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
@@ -733,10 +850,26 @@ function startOfWeek(value) {
   return date;
 }
 
+function startOfMonth(value) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
 function addDays(value, days) {
   const date = new Date(value);
   date.setDate(date.getDate() + days);
   return date;
+}
+
+function daysInMonth(value) {
+  const days = [];
+  const date = startOfMonth(value);
+
+  while (date.getMonth() === value.getMonth()) {
+    days.push(new Date(date));
+    date.setDate(date.getDate() + 1);
+  }
+
+  return days;
 }
 
 function getWeekDays(weekStart) {
@@ -765,6 +898,24 @@ function dateKey(date) {
 function moveWeek(direction) {
   visibleWeekStart = addDays(visibleWeekStart, direction * 7);
   renderBookings();
+}
+
+function moveMonth(direction) {
+  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + direction, 1);
+  renderBookings();
+}
+
+function monthInputValue(value) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthInputDate(value) {
+  if (!/^\d{4}-\d{2}$/.test(value || "")) {
+    return null;
+  }
+
+  const [year, month] = value.split("-").map(Number);
+  return new Date(year, month - 1, 1);
 }
 
 function messageForError(error) {
@@ -820,7 +971,21 @@ function partyLabel(booking) {
     parts.push(booking.user_name);
   }
 
-  return parts.join(" · ");
+  return parts.join(" - ");
+}
+
+function isBookingInSlot({ entry, resourceType, resourceId, day, slot }) {
+  if (entry.resource_type !== resourceType || entry.resource_id !== resourceId) {
+    return false;
+  }
+
+  const start = new Date(entry.start_at);
+  const end = new Date(entry.end_at);
+  return isSameDay(start, day) && timeKey(start) === slot.start && timeKey(end) === slot.end;
+}
+
+function timeKey(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 async function boot() {

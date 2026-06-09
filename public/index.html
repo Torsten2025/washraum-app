@@ -183,6 +183,23 @@
         </div>
         <div id="bookingsList" class="bookings-list"></div>
         <div id="calendarGrid" class="calendar-grid"></div>
+
+        <section class="month-plan-panel" aria-labelledby="monthPlanHeading">
+          <div class="calendar-toolbar month-plan-toolbar">
+            <div>
+              <h2 id="monthPlanHeading">Monatsplan</h2>
+              <p class="week-label">Ansicht wie am analogen Aushang.</p>
+            </div>
+            <div class="calendar-actions">
+              <button id="previousMonthButton" type="button">Monat zurueck</button>
+              <input id="planMonthInput" type="month" aria-label="Monat fuer Monatsplan">
+              <button id="currentMonthButton" type="button">Aktueller Monat</button>
+              <button id="nextMonthButton" type="button">Monat vor</button>
+              <button id="printMonthButton" type="button">Drucken</button>
+            </div>
+          </div>
+          <div id="monthlyPlanGrid" class="monthly-plan-grid"></div>
+        </section>
       </section>
     </main>
 

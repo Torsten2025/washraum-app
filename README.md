@@ -59,6 +59,7 @@ Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
 Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
 Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
+Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 
