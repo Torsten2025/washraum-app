@@ -77,6 +77,9 @@ async function checkStaticPages() {
   assert(indexHtml.includes("actionToast"), "action confirmation toast exists");
   assert(indexHtml.includes("monthlyPlanGrid"), "monthly plan exists");
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
+  const appJs = await textRequest(`${appUrl}/app.js`);
+  assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");
+  assert(appJs.includes("isPastSlot"), "past slot helper exists");
 
   console.log("OK UI-Funktionsmarker vorhanden");
 }

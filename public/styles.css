@@ -497,6 +497,19 @@ input[readonly] {
   color: #15588d;
 }
 
+.availability-slot-past,
+.availability-slot-past:hover {
+  background: #f0f2f1;
+  border-color: var(--line);
+  color: #8c9691;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.availability-slot-past small {
+  color: #8c9691;
+}
+
 .availability-closed {
   color: var(--warning);
   font-weight: 800;

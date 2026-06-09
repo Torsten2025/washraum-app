@@ -771,25 +771,31 @@ function renderAvailability() {
     for (const slot of slotConfig[resourceType] || []) {
       const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
       const isReleased = Boolean(booking?.released_at);
+      const isPast = isPastSlot(selectedDate, slot);
       const button = document.createElement("button");
       button.type = "button";
       button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
       if (isReleased) {
         button.classList.add("availability-slot-released");
       }
-      button.disabled = Boolean(booking && !isReleased);
+      if (isPast) {
+        button.classList.add("availability-slot-past");
+      }
+      button.disabled = Boolean(isPast || (booking && !isReleased));
 
       const resource = document.createElement("strong");
       resource.textContent = resourceId;
       const time = document.createElement("span");
       time.textContent = slot.label;
       const state = document.createElement("small");
-      state.textContent = booking
+      state.textContent = isPast
+        ? "Vorbei"
+        : booking
         ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
         : "Frei";
 
       button.append(resource, time, state);
-      if (!booking || isReleased) {
+      if (!isPast && (!booking || isReleased)) {
         button.addEventListener("click", () => {
           resourceIdInput.value = resourceId;
           bookingSlotInput.value = slot.id;
@@ -1624,6 +1630,10 @@ function withTime(date, time) {
   const value = new Date(date);
   value.setHours(hours, minutes, 0, 0);
   return value;
+}
+
+function isPastSlot(day, slot) {
+  return withTime(day, slot.end) <= new Date();
 }
 
 function startOfWeek(value) {
