@@ -58,6 +58,7 @@ const previousMonthButton = document.getElementById("previousMonthButton");
 const currentMonthButton = document.getElementById("currentMonthButton");
 const nextMonthButton = document.getElementById("nextMonthButton");
 const printMonthButton = document.getElementById("printMonthButton");
+const whatsappReleaseTarget = "41788328223";
 
 let resources = {
   washer: [],
@@ -920,7 +921,7 @@ function shareEarlyRelease(booking) {
     `${resourceLabel(booking.resource_type)} ${booking.resource_id} ist frueher frei.`,
     `Gebucht war bis ${formatTime(booking.end_at)} am ${formatDateOnly(new Date(booking.start_at))}.`
   ].join(" ");
-  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const url = `https://wa.me/${whatsappReleaseTarget}?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
