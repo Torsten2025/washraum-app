@@ -62,6 +62,7 @@ Angemeldete Nutzer koennen ihr eigenes Passwort aendern.
 Buchungen in der Vergangenheit werden serverseitig blockiert.
 Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
 Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
+Die App zeigt eine Aktivitaetsleiste fuer neue Buchungen, geloeschte Buchungen und erfolgreich frueher frei gemeldete Slots.
 Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
 Eigene Buchungen koennen ueber "Frueher frei melden" per WhatsApp API an eine hinterlegte Nummer gemeldet werden.
 Admins sehen im Bereich "Pilotstart" eine Vorbereitungsliste und eine Kurzanleitung fuer die erste Testrunde.

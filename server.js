@@ -113,11 +113,24 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS activity_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released')),
+    user_name TEXT NOT NULL,
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+    resource_id TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
   CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_machine_log_entries_created_at ON machine_log_entries(created_at);
   CREATE INDEX IF NOT EXISTS idx_pilot_feedback_entries_created_at ON pilot_feedback_entries(created_at);
+  CREATE INDEX IF NOT EXISTS idx_activity_entries_created_at ON activity_entries(created_at);
 `);
 
 ensureBookingSchema();
@@ -232,6 +245,28 @@ app.get("/api/bookings", (_req, res) => {
   res.json({ bookings });
 });
 
+app.get("/api/activity", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const activities = db
+    .prepare(`
+      SELECT
+        activity_entries.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM activity_entries
+      LEFT JOIN users ON users.user_name = activity_entries.user_name
+      ORDER BY activity_entries.created_at DESC, activity_entries.id DESC
+      LIMIT 30
+    `)
+    .all();
+
+  res.json({ ok: true, activities });
+});
+
 app.post("/api/me/password", (req, res) => {
   const auth = getAuth(req);
   if (!auth) {
@@ -278,6 +313,8 @@ if (!isProduction) {
     const deleteLogsByUser = db.prepare("DELETE FROM machine_log_entries WHERE user_name LIKE ?");
     const deleteLogsByResource = db.prepare("DELETE FROM machine_log_entries WHERE resource_id LIKE ?");
     const deleteFeedbackByUser = db.prepare("DELETE FROM pilot_feedback_entries WHERE user_name LIKE ?");
+    const deleteActivityByUser = db.prepare("DELETE FROM activity_entries WHERE user_name LIKE ?");
+    const deleteActivityByResource = db.prepare("DELETE FROM activity_entries WHERE resource_id LIKE ?");
     const deleteUserSessions = db.prepare(`
       DELETE FROM sessions
       WHERE user_id IN (
@@ -296,6 +333,8 @@ if (!isProduction) {
         deleteLogsByUser.run(`${prefix}%`);
         deleteLogsByResource.run(`${prefix}%`);
         deleteFeedbackByUser.run(`${prefix}%`);
+        deleteActivityByUser.run(`${prefix}%`);
+        deleteActivityByResource.run(`${prefix}%`);
         bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
         usersDeleted += deleteUsers.run(`${prefix}%`).changes;
         deleteResources.run(`${prefix}%`);
@@ -342,6 +381,7 @@ app.get("/api/admin/overview", (req, res) => {
   const admins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
   const bookings = db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count;
   const pilotFeedback = db.prepare("SELECT COUNT(*) AS count FROM pilot_feedback_entries").get().count;
+  const activities = db.prepare("SELECT COUNT(*) AS count FROM activity_entries").get().count;
   const futureBookings = db
     .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
     .get(new Date().toISOString()).count;
@@ -401,6 +441,7 @@ app.get("/api/admin/overview", (req, res) => {
       admins,
       bookings,
       pilotFeedback,
+      activities,
       futureBookings,
       blockedDates: blockedDatesCount,
       seededParties,
@@ -876,7 +917,8 @@ app.post("/api/user/deleteBooking", (req, res) => {
   }
 
   db.prepare("DELETE FROM bookings WHERE id = ?").run(id);
-  res.json({ ok: true });
+  logBookingActivity("booking_deleted", booking);
+  res.json({ ok: true, activity: latestActivityForBooking("booking_deleted", booking) });
 });
 
 app.post("/api/user/releaseBooking", async (req, res, next) => {
@@ -916,7 +958,8 @@ app.post("/api/user/releaseBooking", async (req, res, next) => {
       return res.status(result.status || 400).json(result);
     }
 
-    res.json({ ok: true });
+    logBookingActivity("booking_released", booking);
+    res.json({ ok: true, activity: latestActivityForBooking("booking_released", booking) });
   } catch (error) {
     next(error);
   }
@@ -1382,7 +1425,57 @@ function createBooking(input) {
     .run(userName, resourceType, resourceId, start.toISOString(), end.toISOString());
 
   const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(info.lastInsertRowid);
+  logBookingActivity("booking_created", booking);
   return { ok: true, booking };
+}
+
+function logBookingActivity(eventType, booking) {
+  db
+    .prepare(`
+      INSERT INTO activity_entries (event_type, user_name, resource_type, resource_id, start_at, end_at, message)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      eventType,
+      booking.user_name,
+      booking.resource_type,
+      booking.resource_id,
+      booking.start_at,
+      booking.end_at,
+      activityMessage(eventType, booking)
+    );
+}
+
+function latestActivityForBooking(eventType, booking) {
+  return db
+    .prepare(`
+      SELECT *
+      FROM activity_entries
+      WHERE event_type = ?
+        AND user_name = ?
+        AND resource_type = ?
+        AND resource_id = ?
+        AND start_at = ?
+        AND end_at = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `)
+    .get(eventType, booking.user_name, booking.resource_type, booking.resource_id, booking.start_at, booking.end_at);
+}
+
+function activityMessage(eventType, booking) {
+  const slot = `${resourceLabel(booking.resource_type)} ${booking.resource_id}, ${formatServerDate(booking.start_at)} ${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)}`;
+  if (eventType === "booking_created") {
+    return `${slot} wurde gebucht.`;
+  }
+  if (eventType === "booking_deleted") {
+    return `${slot} wurde geloescht.`;
+  }
+  if (eventType === "booking_released") {
+    return `${slot} wurde frueher frei gemeldet.`;
+  }
+
+  return slot;
 }
 
 function isConfiguredSlot(resourceType, start, end) {

@@ -1,5 +1,7 @@
 const sessionLabel = document.getElementById("sessionLabel");
 const logoutButton = document.getElementById("logoutButton");
+const actionToast = document.getElementById("actionToast");
+const activityList = document.getElementById("activityList");
 const bookingForm = document.getElementById("bookingForm");
 const resourceTypeInput = document.getElementById("resourceType");
 const resourceIdInput = document.getElementById("resourceId");
@@ -101,6 +103,7 @@ let allBookings = [];
 let allUsers = [];
 let allMachineLogs = [];
 let allPilotFeedback = [];
+let allActivities = [];
 let blockedDates = [];
 let latestPartyCredentials = [];
 let visibleWeekStart = startOfWeek(new Date());
@@ -456,8 +459,10 @@ bookingForm.addEventListener("submit", async (event) => {
   updateSlotControls();
   updateAdminControls();
   setDefaultBookingTimes();
-  formMessage.textContent = "Buchung gespeichert.";
+  formMessage.textContent = "Buchung bestaetigt.";
+  showActionToast(`Buchung bestaetigt: ${bookingSummary(data.booking)}`, "success");
   await loadBookings();
+  await loadActivity();
   await loadOperations();
 });
 
@@ -575,6 +580,21 @@ async function loadBookings() {
   renderAvailability();
 }
 
+async function loadActivity() {
+  const response = await fetch("/api/activity", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    activityList.textContent = messageForError(data.error);
+    return;
+  }
+
+  allActivities = data.activities || [];
+  renderActivity();
+}
+
 async function loadResources() {
   const response = await fetch("/api/resources");
   const data = await response.json();
@@ -669,6 +689,37 @@ function renderBookings() {
   renderBookingsList(bookings);
   renderCalendar(bookings);
   renderMonthlyPlan(allBookings);
+}
+
+function renderActivity() {
+  activityList.innerHTML = "";
+
+  if (allActivities.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "activity-empty";
+    empty.textContent = "Noch keine Aktivitaet.";
+    activityList.append(empty);
+    return;
+  }
+
+  for (const activity of allActivities.slice(0, 8)) {
+    const item = document.createElement("article");
+    item.className = `activity-item activity-item-${activity.event_type}`;
+
+    const marker = document.createElement("span");
+    marker.className = "activity-marker";
+    marker.textContent = activityEventLabel(activity.event_type);
+
+    const body = document.createElement("div");
+    const text = document.createElement("strong");
+    text.textContent = activity.message;
+    const meta = document.createElement("small");
+    meta.textContent = `${formatDate(activity.created_at)} - ${partyLabel(activity)}`;
+    body.append(text, meta);
+
+    item.append(marker, body);
+    activityList.append(item);
+  }
 }
 
 function renderAvailability() {
@@ -1117,6 +1168,7 @@ function renderOperations(status, warnings) {
     ["Admins", String(status.admins)],
     ["Buchungen", String(status.bookings)],
     ["Zukunftsbuchungen", String(status.futureBookings)],
+    ["Aktivitaeten", String(status.activities || 0)],
     ["Pilot-Feedback", String(status.pilotFeedback || 0)],
     ["Parteien", `${status.seededParties}/20`],
     ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
@@ -1278,7 +1330,10 @@ async function deleteBooking(id) {
     return;
   }
 
+  formMessage.textContent = "Buchung geloescht.";
+  showActionToast(data.activity?.message || "Buchung wurde geloescht.", "neutral");
   await loadBookings();
+  await loadActivity();
   await loadOperations();
 }
 
@@ -1296,7 +1351,10 @@ async function shareEarlyRelease(booking) {
     return;
   }
 
-  formMessage.textContent = "Nachricht wurde an WhatsApp uebergeben.";
+  formMessage.textContent = "Frueher frei gemeldet.";
+  showActionToast(data.activity?.message || "Slot wurde frueher frei gemeldet.", "success");
+  await loadActivity();
+  await loadOperations();
 }
 
 async function resetUserPassword(user) {
@@ -1345,6 +1403,37 @@ function backupFileName(contentDisposition) {
   const fallback = `washraum-backup-${dateKey(new Date())}.sqlite`;
   const match = String(contentDisposition || "").match(/filename="?([^"]+)"?/);
   return match ? match[1] : fallback;
+}
+
+function showActionToast(message, tone = "neutral") {
+  if (!actionToast) {
+    return;
+  }
+
+  actionToast.textContent = message;
+  actionToast.className = `action-toast action-toast-${tone}`;
+  window.clearTimeout(showActionToast.timeoutId);
+  showActionToast.timeoutId = window.setTimeout(() => {
+    actionToast.classList.add("hidden");
+  }, 5200);
+}
+
+function bookingSummary(booking) {
+  if (!booking) {
+    return "Buchung gespeichert";
+  }
+
+  return `${resourceLabel(booking.resource_type)} ${booking.resource_id}, ${formatDate(booking.start_at)}-${formatTime(booking.end_at)}`;
+}
+
+function activityEventLabel(eventType) {
+  const labels = {
+    booking_created: "Gebucht",
+    booking_deleted: "Geloescht",
+    booking_released: "Frei"
+  };
+
+  return labels[eventType] || "Info";
 }
 
 function resourceLabel(type) {
@@ -1698,6 +1787,7 @@ async function boot() {
   await loadUsers();
   await loadMachineLogs();
   await loadPilotFeedback();
+  await loadActivity();
   await loadBlockedDates();
   await loadOperations();
   await loadBookings();

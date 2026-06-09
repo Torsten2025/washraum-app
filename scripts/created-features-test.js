@@ -11,6 +11,7 @@ const featureCatalog = [
   "Admin-Onboarding: 20 Parteien mit Uebergabeliste und Erstpasswoertern",
   "Nutzerverwaltung: echte Anzeigenamen, Partei/Wohnung, Aktiv/Inaktiv, Passwort neu",
   "Buchungsmaske: Bereich, Ressource, Datum, feste Slots und freie Slots",
+  "Aktivitaeten: Buchung, Loeschung und frueher freie Slots werden bestaetigt",
   "Regelwerk: eine aktive Waschsequenz im Voraus, Sonntage und Sperrtage blockiert",
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
@@ -70,6 +71,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");
   assert(indexHtml.includes("adminPilotPanel"), "pilot readiness panel exists");
+  assert(indexHtml.includes("activityList"), "activity feed exists");
+  assert(indexHtml.includes("actionToast"), "action confirmation toast exists");
   assert(indexHtml.includes("monthlyPlanGrid"), "monthly plan exists");
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
 
@@ -89,6 +92,7 @@ async function checkLiveReadiness() {
   assert(liveIndex.includes("adminResourcesPanel"), "live app contains resource management panel");
   assert(liveIndex.includes("machineLogForm"), "live app contains machine logbook");
   assert(liveIndex.includes("pilotFeedbackForm"), "live app contains pilot feedback form");
+  assert(liveIndex.includes("activityList"), "live app contains activity feed");
 
   console.log("OK Live-App ist bereit");
 }

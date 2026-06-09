@@ -78,6 +78,16 @@ async function run() {
   assert(zonedTimeKey(savedWasher.end_at) === "12:00", "saved washer ends at 12:00 in Zurich time");
   assert(monthProjectionHasBooking(savedWasher, testWasher, bookingDate, "07:00", "12:00"), "monthly plan projection contains washer booking");
 
+  const activityAfterBooking = await request("/api/activity", {
+    token: user.token
+  });
+  assertStatus(activityAfterBooking, 200, "activity loads after booking");
+  assert(activityAfterBooking.body.activities.some((entry) => {
+    return entry.event_type === "booking_created"
+      && entry.resource_id === testWasher
+      && entry.message.includes("wurde gebucht");
+  }), "booking confirmation appears in activity feed");
+
   const createLog = await request("/api/machine-logs", {
     method: "POST",
     token: user.token,
@@ -178,12 +188,24 @@ async function run() {
     body: { id: savedWasher.id }
   });
   assertStatus(ownDelete, 200, "owner deletes washer booking");
+  assert(ownDelete.body.activity.message.includes("wurde geloescht"), "delete confirmation is returned");
+
+  const activityAfterDelete = await request("/api/activity", {
+    token: user.token
+  });
+  assertStatus(activityAfterDelete, 200, "activity loads after delete");
+  assert(activityAfterDelete.body.activities.some((entry) => {
+    return entry.event_type === "booking_deleted"
+      && entry.resource_id === testWasher
+      && entry.message.includes("wurde geloescht");
+  }), "delete confirmation appears in activity feed");
 
   const overview = await request("/api/admin/overview", {
     token: admin.token
   });
   assertStatus(overview, 200, "admin overview loads");
   assert(overview.body.status.resources.washers >= 4, "overview includes additional washer count");
+  assert(overview.body.status.activities >= 2, "overview includes activity count");
 
   const backup = await rawRequest("/api/admin/backup", {
     token: admin.token
