@@ -1,6 +1,9 @@
 const sessionLabel = document.getElementById("sessionLabel");
 const logoutButton = document.getElementById("logoutButton");
 const actionToast = document.getElementById("actionToast");
+const onboardingOverlay = document.getElementById("onboardingOverlay");
+const finishOnboardingButton = document.getElementById("finishOnboardingButton");
+const onboardingMessage = document.getElementById("onboardingMessage");
 const activityList = document.getElementById("activityList");
 const bookingForm = document.getElementById("bookingForm");
 const resourceTypeInput = document.getElementById("resourceType");
@@ -99,6 +102,7 @@ let slotConfig = {
 let authToken = sessionStorage.getItem("washraumAuthToken");
 let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
+let onboardingSeenAt = "";
 let allBookings = [];
 let allUsers = [];
 let allMachineLogs = [];
@@ -122,6 +126,27 @@ logoutButton.addEventListener("click", async () => {
   sessionStorage.removeItem("washraumUserRole");
   sessionStorage.removeItem("washraumAuthToken");
   window.location.href = "/login.html";
+});
+
+finishOnboardingButton.addEventListener("click", async () => {
+  onboardingMessage.textContent = "";
+  finishOnboardingButton.disabled = true;
+
+  const response = await fetch("/api/me/onboarding-seen", {
+    method: "POST",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    finishOnboardingButton.disabled = false;
+    onboardingMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  onboardingSeenAt = data.onboardingSeenAt || new Date().toISOString();
+  sessionStorage.setItem("washraumOnboardingSeenAt", onboardingSeenAt);
+  hideOnboarding();
 });
 
 resourceTypeInput.addEventListener("change", () => {
@@ -1546,12 +1571,36 @@ async function loadSession() {
   const data = await response.json();
   userName = data.user.userName;
   role = data.user.role;
+  onboardingSeenAt = data.user.onboardingSeenAt || "";
   sessionStorage.setItem("washraumUserName", userName);
   sessionStorage.setItem("washraumUserRole", role);
+  sessionStorage.setItem("washraumOnboardingSeenAt", onboardingSeenAt);
   sessionLabel.textContent = `${userName} (${role})`;
   updateAdminControls();
+  if (!onboardingSeenAt) {
+    showOnboarding();
+  }
 
   return true;
+}
+
+function showOnboarding() {
+  if (!onboardingOverlay) {
+    return;
+  }
+
+  onboardingOverlay.classList.remove("hidden");
+  document.body.classList.add("onboarding-open");
+  finishOnboardingButton.focus();
+}
+
+function hideOnboarding() {
+  if (!onboardingOverlay) {
+    return;
+  }
+
+  onboardingOverlay.classList.add("hidden");
+  document.body.classList.remove("onboarding-open");
 }
 
 function updateAdminControls() {

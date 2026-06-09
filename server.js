@@ -59,6 +59,7 @@ db.exec(`
     active INTEGER NOT NULL DEFAULT 1,
     display_name TEXT,
     apartment_label TEXT,
+    onboarding_seen_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -197,7 +198,8 @@ app.post("/api/login", (req, res) => {
       userName: user.user_name,
       role: user.role,
       displayName: user.display_name || "",
-      apartmentLabel: user.apartment_label || ""
+      apartmentLabel: user.apartment_label || "",
+      onboardingSeenAt: user.onboarding_seen_at || ""
     }
   });
 });
@@ -223,9 +225,21 @@ app.get("/api/session", (req, res) => {
       userName: auth.user_name,
       role: auth.role,
       displayName: auth.display_name || "",
-      apartmentLabel: auth.apartment_label || ""
+      apartmentLabel: auth.apartment_label || "",
+      onboardingSeenAt: auth.onboarding_seen_at || ""
     }
   });
+});
+
+app.post("/api/me/onboarding-seen", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const seenAt = new Date().toISOString();
+  db.prepare("UPDATE users SET onboarding_seen_at = ? WHERE user_name = ?").run(seenAt, auth.user_name);
+  res.json({ ok: true, onboardingSeenAt: seenAt });
 });
 
 app.get("/api/resources", (_req, res) => {
@@ -361,7 +375,7 @@ app.get("/api/admin/users", (req, res) => {
 
   const users = db
     .prepare(`
-      SELECT id, user_name, role, active, display_name, apartment_label, created_at
+      SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at
       FROM users
       ORDER BY
         CASE WHEN apartment_label IS NULL OR apartment_label = '' THEN 1 ELSE 0 END,
@@ -672,7 +686,7 @@ app.post("/api/admin/users", (req, res) => {
       `)
       .run(userName, hashPassword(password), role, active, displayName, apartmentLabel);
     const user = db
-      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at FROM users WHERE id = ?")
       .get(info.lastInsertRowid);
 
     res.status(201).json({ ok: true, user });
@@ -867,7 +881,7 @@ app.patch("/api/admin/users/:id", (req, res) => {
     }
 
     const user = db
-      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at FROM users WHERE id = ?")
       .get(id);
 
     res.json({ ok: true, user });
@@ -1192,6 +1206,7 @@ function ensureUserColumns() {
   const hasActive = columns.some((column) => column.name === "active");
   const hasDisplayName = columns.some((column) => column.name === "display_name");
   const hasApartmentLabel = columns.some((column) => column.name === "apartment_label");
+  const hasOnboardingSeenAt = columns.some((column) => column.name === "onboarding_seen_at");
 
   if (!hasActive) {
     db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
@@ -1203,6 +1218,10 @@ function ensureUserColumns() {
 
   if (!hasApartmentLabel) {
     db.exec("ALTER TABLE users ADD COLUMN apartment_label TEXT");
+  }
+
+  if (!hasOnboardingSeenAt) {
+    db.exec("ALTER TABLE users ADD COLUMN onboarding_seen_at TEXT");
   }
 }
 
@@ -1281,7 +1300,7 @@ function getAuth(req) {
   const session = db
     .prepare(`
       SELECT users.user_name, users.role, sessions.expires_at
-        , users.display_name, users.apartment_label
+        , users.display_name, users.apartment_label, users.onboarding_seen_at
       FROM sessions
       JOIN users ON users.id = sessions.user_id
       WHERE sessions.token = ?

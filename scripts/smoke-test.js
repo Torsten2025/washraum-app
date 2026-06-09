@@ -395,7 +395,7 @@ async function run() {
 
   assertStatus(sameSlotOtherTumbler, 201, "same tumbler slot on another resource is allowed");
 
-  const secondTumblerRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 46), "12:00", "17:00");
+  const secondTumblerRange = rangeForDate(nextBookableDateAfter(tumblerDate, [...blockedDateKeys, smokeBlockedDateKey]), "12:00", "17:00");
   const secondTumblerForUser = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -531,6 +531,17 @@ async function rawRequest(path, options = {}) {
 function nextBookableDate(blockedDates = [], baseOffset = 30) {
   const date = new Date();
   date.setDate(date.getDate() + baseOffset + (Date.now() % 7));
+  date.setHours(0, 0, 0, 0);
+
+  while (date.getDay() === 0 || blockedDates.includes(dateKey(date))) {
+    date.setDate(date.getDate() + 1);
+  }
+
+  return date;
+}
+
+function nextBookableDateAfter(value, blockedDates = []) {
+  const date = addDays(value, 1);
   date.setHours(0, 0, 0, 0);
 
   while (date.getDay() === 0 || blockedDates.includes(dateKey(date))) {

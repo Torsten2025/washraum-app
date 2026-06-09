@@ -25,6 +25,45 @@
 
     <div id="actionToast" class="action-toast hidden" role="status" aria-live="polite"></div>
 
+    <section id="onboardingOverlay" class="onboarding-overlay hidden" aria-labelledby="onboardingHeading" aria-modal="true" role="dialog">
+      <div class="onboarding-card">
+        <p class="onboarding-kicker">GBMZ, Maneggplatz 18</p>
+        <h1 id="onboardingHeading">Hallo und willkommen im Haus</h1>
+        <p class="onboarding-intro">Hier kannst du Waschmaschine, Trockenraum und Tumbler eintragen. Kurz, fair und so nah wie moeglich am Aushang im Waschraum.</p>
+
+        <div class="onboarding-sections">
+          <article>
+            <h2>So buchst du</h2>
+            <ol>
+              <li>Bereich waehlen: Waschmaschine, Trockenraum oder Tumbler.</li>
+              <li>Datum und freies Zeitfenster auswaehlen.</li>
+              <li>Buchen druecken und die Bestaetigung abwarten.</li>
+            </ol>
+          </article>
+          <article>
+            <h2>Die wichtigsten Regeln</h2>
+            <ul>
+              <li>Bitte nur 1x im Voraus eintragen.</li>
+              <li>Eintragen - waschen - wieder eintragen.</li>
+              <li>Sonntag, Feiertage und vergangene Zeiten sind gesperrt.</li>
+              <li>Wer frueher fertig ist, meldet den Slot frei.</li>
+            </ul>
+          </article>
+          <article>
+            <h2>Fair bleiben</h2>
+            <ul>
+              <li>Eigene Buchungen loeschen, wenn sie nicht gebraucht werden.</li>
+              <li>Wenn Waesche haengen bleibt, den Hinweis an der Buchung nutzen.</li>
+              <li>Bei Stoerungen das Protokolltagebuch verwenden.</li>
+            </ul>
+          </article>
+        </div>
+
+        <button id="finishOnboardingButton" type="button">Verstanden, weiter zur App</button>
+        <p id="onboardingMessage" class="message" role="status"></p>
+      </div>
+    </section>
+
     <section class="activity-panel" aria-labelledby="activityHeading">
       <div class="activity-heading">
         <h2 id="activityHeading">Aktuell</h2>

@@ -22,7 +22,8 @@ const featureCatalog = [
   "WhatsApp-Freimeldung: gebuchte Maschine frueher frei melden",
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
   "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check",
-  "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App"
+  "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
+  "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto"
 ];
 
 run().catch((error) => {
@@ -82,6 +83,10 @@ async function checkStaticPages() {
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
   assert(indexHtml.includes("helpPanel"), "resident help panel exists");
   assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
+  assert(indexHtml.includes("onboardingOverlay"), "one-time onboarding landing page exists");
+  assert(indexHtml.includes("Hallo und willkommen im Haus"), "onboarding welcomes neighbors");
+  assert(appJs.includes("/api/me/onboarding-seen"), "onboarding completion endpoint is used");
+  assert(appJs.includes("showOnboarding"), "onboarding display logic exists");
   assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
 

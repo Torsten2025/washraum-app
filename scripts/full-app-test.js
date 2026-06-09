@@ -56,6 +56,21 @@ async function run() {
   assert(resetPassword.body.password.length >= 6, "reset password returned once");
 
   const user = await login(userName, resetPassword.body.password);
+  assert(user.user.onboardingSeenAt === "", "new user has not seen onboarding");
+
+  const markOnboardingSeen = await request("/api/me/onboarding-seen", {
+    method: "POST",
+    token: user.token
+  });
+  assertStatus(markOnboardingSeen, 200, "user completes onboarding");
+  assert(markOnboardingSeen.body.onboardingSeenAt, "onboarding completion timestamp returned");
+
+  const sessionAfterOnboarding = await request("/api/session", {
+    token: user.token
+  });
+  assertStatus(sessionAfterOnboarding, 200, "session loads after onboarding");
+  assert(sessionAfterOnboarding.body.user.onboardingSeenAt, "session reports onboarding as seen");
+
   const bookingDate = nextBookableDate(blockedDateKeys, 35);
   const washerRange = localRangeForDate(bookingDate, "07:00", "12:00");
   const washerBooking = await request("/api/bookings", {
