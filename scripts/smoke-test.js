@@ -269,7 +269,23 @@ async function run() {
   assertStatus(fourthWasherForUser, 400, "fourth washer booking on same day is blocked");
   assert(fourthWasherForUser.body.error === "washer_daily_limit_reached", "washer daily limit error code");
 
-  const dryingRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 35), "07:00", "12:00");
+  const secondSequenceRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 36), "07:00", "12:00");
+  const secondFutureSequence = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: uniqueName,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: secondSequenceRange.startAt,
+      endAt: secondSequenceRange.endAt
+    }
+  });
+
+  assertStatus(secondFutureSequence, 400, "second future wash sequence is blocked");
+  assert(secondFutureSequence.body.error === "only_one_future_sequence_allowed", "future sequence error code");
+
+  const dryingRange = rangeForDate(bookingDate, "12:00", "17:00");
   const dryingAfterWasher = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -344,7 +360,7 @@ async function run() {
   });
 
   assertStatus(secondDryingForUser, 400, "second future drying room booking is blocked");
-  assert(secondDryingForUser.body.error === "only_one_future_booking_allowed", "drying future booking error code");
+  assert(secondDryingForUser.body.error === "only_one_future_sequence_allowed", "drying future booking error code");
 
   const tumblerName = `${uniqueName}-tumbler`;
   const tumblerDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 45);
@@ -391,7 +407,7 @@ async function run() {
   });
 
   assertStatus(secondTumblerForUser, 400, "second future tumbler booking is blocked");
-  assert(secondTumblerForUser.body.error === "only_one_future_booking_allowed", "tumbler future booking error code");
+  assert(secondTumblerForUser.body.error === "only_one_future_sequence_allowed", "tumbler future booking error code");
 
   const invalidResource = await request("/api/admin/addBooking", {
     method: "POST",

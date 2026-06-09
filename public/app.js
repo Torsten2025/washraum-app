@@ -1395,6 +1395,7 @@ function messageForError(error) {
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
     blocked_date: "An diesem Feiertag sind keine Buchungen moeglich.",
     only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
+    only_one_future_sequence_allowed: "Du hast bereits eine Waschsequenz im Voraus gebucht.",
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
     booking_id_required: "Keine Buchung ausgewaehlt.",
     booking_not_found: "Buchung nicht gefunden.",

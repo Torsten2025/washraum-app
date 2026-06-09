@@ -115,9 +115,26 @@ async function exerciseWasherCapacity({ parties, partyTokens, blockedDateKeys })
   const washerSlots = ["07:00|12:00", "12:00|17:00", "17:00|21:00"];
   const washers = ["WM 1", "WM 2", "WM 3"];
 
-  for (let index = 0; index < parties.length; index += 1) {
-    const date = dates[Math.floor(index / 9)];
-    const slotIndex = index % 9;
+  const dailyLimitDate = bookableDates(blockedDateKeys, 1, 70)[0];
+  const first = await bookingFor(partyTokens[0], "washer", "WM 1", dailyLimitDate, "07:00", "12:00");
+  const second = await bookingFor(partyTokens[0], "washer", "WM 2", dailyLimitDate, "12:00", "17:00");
+  const third = await bookingFor(partyTokens[0], "washer", "WM 3", dailyLimitDate, "17:00", "21:00");
+  assertStatus(first, 201, "first daily washer booking");
+  assertStatus(second, 201, "second daily washer booking");
+  assertStatus(third, 201, "third daily washer booking");
+
+  const duplicate = await bookingFor(partyTokens[1], "washer", "WM 1", dailyLimitDate, "07:00", "12:00");
+  assertStatus(duplicate, 400, "duplicate washer slot blocked");
+  assert(duplicate.body.error === "time_range_already_booked", "duplicate washer error");
+
+  const fourth = await bookingFor(partyTokens[0], "washer", "WM 1", dailyLimitDate, "17:00", "21:00");
+  assertStatus(fourth, 400, "fourth daily washer booking blocked");
+  assert(fourth.body.error === "washer_daily_limit_reached", "washer daily limit error");
+
+  for (let index = 1; index < parties.length; index += 1) {
+    const bookingIndex = index - 1;
+    const date = dates[Math.floor(bookingIndex / 9)];
+    const slotIndex = bookingIndex % 9;
     const [start, end] = washerSlots[Math.floor(slotIndex / 3)].split("|");
     const resourceId = washers[slotIndex % 3];
     const range = rangeForDate(date, start, end);
@@ -135,62 +152,28 @@ async function exerciseWasherCapacity({ parties, partyTokens, blockedDateKeys })
 
     assertStatus(booking, 201, `${parties[index].userName} washer booking`);
   }
-
-  const duplicateRange = rangeForDate(dates[0], "07:00", "12:00");
-  const duplicate = await request("/api/bookings", {
-    method: "POST",
-    token: partyTokens[19],
-    body: {
-      resourceType: "washer",
-      resourceId: "WM 1",
-      startAt: duplicateRange.startAt,
-      endAt: duplicateRange.endAt
-    }
-  });
-
-  assertStatus(duplicate, 400, "duplicate washer slot blocked");
-  assert(duplicate.body.error === "time_range_already_booked", "duplicate washer error");
-
-  const dailyLimitDate = bookableDates(blockedDateKeys, 1, 70)[0];
-  const first = await bookingFor(partyTokens[0], "washer", "WM 1", dailyLimitDate, "07:00", "12:00");
-  const second = await bookingFor(partyTokens[0], "washer", "WM 2", dailyLimitDate, "12:00", "17:00");
-  const third = await bookingFor(partyTokens[0], "washer", "WM 3", dailyLimitDate, "17:00", "21:00");
-  assertStatus(first, 201, "first daily washer booking");
-  assertStatus(second, 201, "second daily washer booking");
-  assertStatus(third, 201, "third daily washer booking");
-
-  const fourthDateRange = rangeForDate(dailyLimitDate, "17:00", "21:00");
-  const fourth = await request("/api/bookings", {
-    method: "POST",
-    token: partyTokens[0],
-    body: {
-      resourceType: "washer",
-      resourceId: "WM 1",
-      startAt: fourthDateRange.startAt,
-      endAt: fourthDateRange.endAt
-    }
-  });
-
-  assertStatus(fourth, 400, "fourth daily washer booking blocked");
-  assert(fourth.body.error === "washer_daily_limit_reached", "washer daily limit error");
 }
 
 async function exerciseFutureLimits({ parties, partyTokens, blockedDateKeys }) {
-  const dates = bookableDates(blockedDateKeys, 4, 90);
+  const dates = bookableDates(blockedDateKeys, 4, 30);
 
   const drying = await bookingFor(partyTokens[1], "drying_room", "Trockenraum 1", dates[0], "07:00", "12:00");
-  assertStatus(drying, 201, "first future drying room booking");
+  assertStatus(drying, 201, "same-day drying room belongs to the active wash sequence");
 
   const secondDrying = await bookingFor(partyTokens[1], "drying_room", "Trockenraum 2", dates[1], "12:00", "17:00");
   assertStatus(secondDrying, 400, "second future drying room booking blocked");
-  assert(secondDrying.body.error === "only_one_future_booking_allowed", "drying future limit error");
+  assert(secondDrying.body.error === "only_one_future_sequence_allowed", "drying future limit error");
 
   const tumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 1", dates[2], "07:00", "12:00");
-  assertStatus(tumbler, 201, "first future tumbler booking");
+  assertStatus(tumbler, 400, "tumbler on another future date is blocked by active sequence");
+  assert(tumbler.body.error === "only_one_future_sequence_allowed", "tumbler different-day sequence error");
+
+  const sameDayTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 1", dates[0], "12:00", "17:00");
+  assertStatus(sameDayTumbler, 201, "same-day tumbler belongs to the active wash sequence");
 
   const secondTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 2", dates[3], "12:00", "17:00");
   assertStatus(secondTumbler, 400, "second future tumbler booking blocked");
-  assert(secondTumbler.body.error === "only_one_future_booking_allowed", "tumbler future limit error");
+  assert(secondTumbler.body.error === "only_one_future_sequence_allowed", "tumbler future limit error");
 
   const sameSlotOtherDrying = await bookingFor(partyTokens[3], "drying_room", "Trockenraum 2", dates[0], "07:00", "12:00");
   assertStatus(sameSlotOtherDrying, 201, "same drying slot on another room allowed for another party");
@@ -217,8 +200,8 @@ async function exerciseClosedDays({ partyToken, blockedDateKeys }) {
 }
 
 async function exerciseDeletePermissions({ partyTokens, blockedDateKeys }) {
-  const date = bookableDates(blockedDateKeys, 1, 110)[0];
-  const booking = await bookingFor(partyTokens[5], "washer", "WM 1", date, "07:00", "12:00");
+  const date = bookableDates(blockedDateKeys, 1, 30)[0];
+  const booking = await bookingFor(partyTokens[5], "drying_room", "Trockenraum 3", date, "17:00", "21:00");
   assertStatus(booking, 201, "booking for delete permission test");
 
   const foreignDelete = await deleteBooking(partyTokens[6], booking.body.booking.id);
@@ -230,15 +213,15 @@ async function exerciseDeletePermissions({ partyTokens, blockedDateKeys }) {
 }
 
 async function exerciseAdminBooking({ adminToken, parties, blockedDateKeys }) {
-  const date = bookableDates(blockedDateKeys, 1, 120)[0];
+  const date = bookableDates(blockedDateKeys, 1, 30)[0];
   const range = rangeForDate(date, "12:00", "17:00");
   const booking = await request("/api/admin/addBooking", {
     method: "POST",
     token: adminToken,
     body: {
       userName: parties[7].userName,
-      resourceType: "washer",
-      resourceId: "WM 2",
+      resourceType: "drying_room",
+      resourceId: "Trockenraum 1",
       startAt: range.startAt,
       endAt: range.endAt
     }
@@ -278,8 +261,8 @@ async function exerciseInactiveUser({ adminToken, party, partyToken, blockedDate
   assertStatus(login, 403, "inactive user cannot login");
   assert(login.body.error === "user_inactive", "inactive login error");
 
-  const date = bookableDates(blockedDateKeys, 1, 130)[0];
-  const booking = await bookingFor(partyToken, "washer", "WM 3", date, "07:00", "12:00");
+  const date = bookableDates(blockedDateKeys, 1, 30)[0];
+  const booking = await bookingFor(partyToken, "drying_room", "Trockenraum 2", date, "17:00", "21:00");
   assertStatus(booking, 401, "inactive user's old session cannot book");
 }
 
@@ -336,8 +319,8 @@ async function exercisePasswordSessionInvalidation({ party, blockedDateKeys }) {
   });
   assertStatus(loginWithNewPassword, 200, "new password accepted");
 
-  const date = bookableDates(blockedDateKeys, 1, 140)[0];
-  const booking = await bookingFor(loginWithNewPassword.body.token, "washer", "WM 1", date, "17:00", "21:00");
+  const date = bookableDates(blockedDateKeys, 1, 30)[0];
+  const booking = await bookingFor(loginWithNewPassword.body.token, "tumbler", "Tumbler 2", date, "17:00", "21:00");
   assertStatus(booking, 201, "new password session can book");
 }
 

@@ -1210,15 +1210,8 @@ function createBooking(input) {
     return { ok: false, error: "invalid_booking_slot" };
   }
 
-  if (resourceType === "drying_room" || resourceType === "tumbler") {
-    const nowIso = new Date().toISOString();
-    const openFutureBooking = db
-      .prepare("SELECT id FROM bookings WHERE user_name = ? AND resource_type = ? AND end_at > ? LIMIT 1")
-      .get(userName, resourceType, nowIso);
-
-    if (openFutureBooking) {
-      return { ok: false, error: "only_one_future_booking_allowed" };
-    }
+  if (hasOtherFutureSequence(userName, start)) {
+    return { ok: false, error: "only_one_future_sequence_allowed" };
   }
 
   const overlappingBooking = db
@@ -1273,6 +1266,24 @@ function countUserWasherBookingsForDate(userName, date) {
         AND start_at < ?
     `)
     .get(userName, dayStart.toISOString(), dayEnd.toISOString()).count;
+}
+
+function hasOtherFutureSequence(userName, start) {
+  const sequenceDate = dateKey(start);
+  const nowIso = new Date().toISOString();
+  const openFutureBookings = db
+    .prepare(`
+      SELECT start_at
+      FROM bookings
+      WHERE user_name = ?
+        AND end_at > ?
+    `)
+    .all(userName, nowIso);
+
+  return openFutureBookings.some((booking) => {
+    const bookingStart = new Date(booking.start_at);
+    return dateKey(bookingStart) !== sequenceDate;
+  });
 }
 
 function timeKey(date) {
