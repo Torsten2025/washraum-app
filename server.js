@@ -859,51 +859,6 @@ app.post("/api/admin/users/:id/reset-password", (req, res) => {
   });
 });
 
-app.delete("/api/admin/users/:id", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingUser = db
-    .prepare("SELECT id, user_name, role, active FROM users WHERE id = ?")
-    .get(id);
-  if (!existingUser) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
-  }
-
-  if (existingUser.role === "admin" && existingUser.active) {
-    const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
-    if (activeAdmins <= 1) {
-      return res.status(400).json({ ok: false, error: "last_admin_required" });
-    }
-  }
-
-  const deleteUser = db.transaction(() => {
-    const userName = existingUser.user_name;
-    const sessionsDeleted = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id).changes;
-    const bookingsDeleted = db.prepare("DELETE FROM bookings WHERE user_name = ?").run(userName).changes;
-    const logsDeleted = db.prepare("DELETE FROM machine_log_entries WHERE user_name = ?").run(userName).changes;
-    const feedbackDeleted = db.prepare("DELETE FROM pilot_feedback_entries WHERE user_name = ?").run(userName).changes;
-    const activitiesDeleted = db.prepare("DELETE FROM activity_entries WHERE user_name = ?").run(userName).changes;
-    db.prepare("DELETE FROM users WHERE id = ?").run(id);
-    return {
-      userName,
-      sessionsDeleted,
-      bookingsDeleted,
-      logsDeleted,
-      feedbackDeleted,
-      activitiesDeleted
-    };
-  });
-
-  res.json({
-    ok: true,
-    ...deleteUser()
-  });
-});
-
 app.get("/api/admin/blocked-dates", (req, res) => {
   const auth = getAdminAuth(req);
   if (!auth.ok) {

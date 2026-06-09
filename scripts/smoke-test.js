@@ -538,24 +538,6 @@ async function run() {
 
   assertStatus(deleteBlockedDate, 200, "admin deletes blocked date");
 
-  const deleteManagedUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
-    method: "DELETE",
-    token: admin.body.token
-  });
-
-  assertStatus(deleteManagedUser, 200, "admin deletes managed user");
-  assert(deleteManagedUser.body.userName === managedUserName, "deleted user name returned");
-
-  const loginDeletedUser = await request("/api/login", {
-    method: "POST",
-    body: {
-      userName: managedUserName,
-      password: "secret789"
-    }
-  });
-
-  assertStatus(loginDeletedUser, 401, "deleted user cannot log in");
-
   const cleanup = await request("/api/dev/cleanup", {
     method: "POST",
     token: admin.body.token,

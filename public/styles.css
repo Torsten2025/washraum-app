@@ -967,6 +967,17 @@ button.danger-text-button[type="button"]:hover {
   color: #5f130d;
 }
 
+button.status-toggle-button[type="button"] {
+  border-color: rgba(8, 191, 114, 0.35);
+  color: var(--green-dark);
+}
+
+button.status-toggle-button[type="button"]:hover {
+  background: var(--green-soft);
+  border-color: rgba(8, 191, 114, 0.48);
+  color: var(--green-dark);
+}
+
 .analytics-toolbar {
   display: flex;
   justify-content: flex-start;

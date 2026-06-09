@@ -1384,15 +1384,15 @@ function renderUsers() {
     resetButton.textContent = "Passwort neu";
     resetButton.addEventListener("click", () => resetUserPassword(user));
 
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-text-button";
-    deleteButton.textContent = "Loeschen";
-    deleteButton.addEventListener("click", () => deleteUser(user));
+    const toggleActiveButton = document.createElement("button");
+    toggleActiveButton.type = "button";
+    toggleActiveButton.className = user.active ? "danger-text-button" : "status-toggle-button";
+    toggleActiveButton.textContent = user.active ? "Deaktivieren" : "Aktivieren";
+    toggleActiveButton.addEventListener("click", () => toggleUserActive(user));
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    actions.append(editButton, resetButton, deleteButton);
+    actions.append(editButton, resetButton, toggleActiveButton);
 
     item.append(details, actions);
     usersList.append(item);
@@ -1816,19 +1816,23 @@ async function resetUserPassword(user) {
   userMessage.textContent = `Neues Passwort fuer ${data.userName} erzeugt.`;
 }
 
-async function deleteUser(user) {
+async function toggleUserActive(user) {
   userMessage.textContent = "";
   const label = user.apartment_label
     ? `${user.apartment_label} - ${user.user_name}`
     : user.user_name;
-  const confirmed = window.confirm(`${label} wirklich loeschen? Zugehoerige Buchungen, Aktivitaeten, Feedback und Protokolleintraege werden ebenfalls entfernt.`);
-  if (!confirmed) {
-    return;
-  }
+  const nextActive = !user.active;
 
   const response = await fetch(`/api/admin/users/${user.id}`, {
-    method: "DELETE",
-    headers: authHeaders()
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      userName: user.user_name,
+      displayName: user.display_name || "",
+      apartmentLabel: user.apartment_label || "",
+      role: user.role,
+      active: nextActive
+    })
   });
   const data = await response.json().catch(() => ({}));
 
@@ -1837,15 +1841,12 @@ async function deleteUser(user) {
     return;
   }
 
-  userMessage.textContent = `${label} geloescht. ${data.bookingsDeleted || 0} Buchungen entfernt.`;
+  userMessage.textContent = nextActive
+    ? `${label} aktiviert. Bestehende Eintraege bleiben erhalten.`
+    : `${label} deaktiviert. Login ist gesperrt, bestehende Eintraege bleiben erhalten.`;
   await loadUsers();
-  await loadBookings();
-  await loadActivity();
-  await loadMachineLogs();
-  await loadPilotFeedback();
   await loadOperations();
   await loadAnalytics();
-  renderAvailability();
 }
 
 async function deleteBlockedDate(date) {
