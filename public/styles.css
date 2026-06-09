@@ -37,7 +37,8 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -245,7 +246,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   background: #fff;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -256,10 +258,16 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(8, 191, 114, 0.14);
   outline: none;
+}
+
+textarea {
+  line-height: 1.45;
+  resize: vertical;
 }
 
 input[readonly] {
@@ -268,6 +276,7 @@ input[readonly] {
 }
 
 .account-panel,
+.logbook-panel,
 .admin-panel {
   border-top: 1px solid var(--line);
   margin-top: 1.6rem;
@@ -275,6 +284,7 @@ input[readonly] {
 }
 
 .account-panel h2,
+.logbook-panel h2,
 .admin-panel h2 {
   font-size: 1.15rem;
   margin: 0;
@@ -746,10 +756,22 @@ input[readonly] {
 }
 
 .users-list,
-.blocked-dates-list {
+.blocked-dates-list,
+.resources-list,
+.machine-logs-list {
   display: grid;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.user-item,
+.blocked-date-item,
+.resource-item,
+.machine-log-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.95rem;
 }
 
 .user-item,
@@ -761,13 +783,25 @@ input[readonly] {
 }
 
 .blocked-date-item h3,
-.blocked-date-item p {
+.blocked-date-item p,
+.resource-item h3,
+.resource-item p,
+.machine-log-item h3,
+.machine-log-item p {
   margin: 0;
 }
 
-.blocked-date-item p {
+.blocked-date-item p,
+.resource-item p,
+.machine-log-item p {
   color: var(--muted);
   margin-top: 0.35rem;
+}
+
+.machine-log-note {
+  color: var(--text) !important;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .message {

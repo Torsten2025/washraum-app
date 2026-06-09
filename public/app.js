@@ -12,6 +12,13 @@ const startAtInput = document.getElementById("startAt");
 const endAtInput = document.getElementById("endAt");
 const formMessage = document.getElementById("formMessage");
 const availabilityPanel = document.getElementById("availabilityPanel");
+const machineLogForm = document.getElementById("machineLogForm");
+const machineLogResourceTypeInput = document.getElementById("machineLogResourceType");
+const machineLogResourceIdInput = document.getElementById("machineLogResourceId");
+const machineLogDateInput = document.getElementById("machineLogDate");
+const machineLogNoteInput = document.getElementById("machineLogNote");
+const machineLogMessage = document.getElementById("machineLogMessage");
+const machineLogsList = document.getElementById("machineLogsList");
 const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
 const newPasswordInput = document.getElementById("newPassword");
@@ -38,6 +45,12 @@ const blockedDateInput = document.getElementById("blockedDateInput");
 const blockedDateLabelInput = document.getElementById("blockedDateLabelInput");
 const blockedDateMessage = document.getElementById("blockedDateMessage");
 const blockedDatesList = document.getElementById("blockedDatesList");
+const adminResourcesPanel = document.getElementById("adminResourcesPanel");
+const resourceForm = document.getElementById("resourceForm");
+const managedResourceTypeInput = document.getElementById("managedResourceType");
+const managedResourceIdInput = document.getElementById("managedResourceId");
+const resourceMessage = document.getElementById("resourceMessage");
+const resourcesList = document.getElementById("resourcesList");
 const adminOpsPanel = document.getElementById("adminOpsPanel");
 const downloadBackupButton = document.getElementById("downloadBackupButton");
 const opsStatusGrid = document.getElementById("opsStatusGrid");
@@ -74,6 +87,7 @@ let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
 let allBookings = [];
 let allUsers = [];
+let allMachineLogs = [];
 let blockedDates = [];
 let latestPartyCredentials = [];
 let visibleWeekStart = startOfWeek(new Date());
@@ -100,9 +114,67 @@ resourceTypeInput.addEventListener("change", () => {
   renderAvailability();
 });
 resourceIdInput.addEventListener("change", renderAvailability);
+machineLogResourceTypeInput.addEventListener("change", updateMachineLogResourceOptions);
 bookingDateInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
+});
+
+resourceForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  resourceMessage.textContent = "";
+
+  const response = await fetch("/api/admin/resources", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      resourceType: managedResourceTypeInput.value,
+      resourceId: managedResourceIdInput.value.trim()
+    })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    resourceMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  resourceForm.reset();
+  resourceMessage.textContent = "Ressource hinzugefuegt.";
+  await loadResources();
+  updateResourceOptions();
+  updateSlotControls();
+  updateMachineLogResourceOptions();
+  renderResources();
+  renderBookings();
+  renderAvailability();
+  await loadOperations();
+});
+
+machineLogForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  machineLogMessage.textContent = "";
+
+  const response = await fetch("/api/machine-logs", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      resourceType: machineLogResourceTypeInput.value,
+      resourceId: machineLogResourceIdInput.value,
+      eventDate: machineLogDateInput.value,
+      note: machineLogNoteInput.value.trim()
+    })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    machineLogMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  machineLogNoteInput.value = "";
+  machineLogMessage.textContent = "Protokolleintrag gespeichert.";
+  await loadMachineLogs();
 });
 bookingFilter.addEventListener("change", renderBookings);
 previousWeekButton.addEventListener("click", () => moveWeek(-1));
@@ -330,6 +402,18 @@ function updateResourceOptions() {
   }
 }
 
+function updateMachineLogResourceOptions() {
+  const selectedType = machineLogResourceTypeInput.value;
+  machineLogResourceIdInput.innerHTML = "";
+
+  for (const resourceId of resources[selectedType] || []) {
+    const option = document.createElement("option");
+    option.value = resourceId;
+    option.textContent = resourceId;
+    machineLogResourceIdInput.append(option);
+  }
+}
+
 function updateSlotControls() {
   const resourceType = resourceTypeInput.value;
   const configuredSlots = slotConfig[resourceType] || [];
@@ -354,6 +438,7 @@ function updateSlotControls() {
 function updateDateInputMinimums() {
   const minValue = formatDateTimeInputValue(new Date());
   bookingDateInput.min = dateKey(new Date());
+  machineLogDateInput.value = dateKey(new Date());
   startAtInput.min = minValue;
   endAtInput.min = minValue;
 }
@@ -425,6 +510,7 @@ async function loadResources() {
   resources = data.resources;
   slotConfig = data.slots || {};
   blockedDates = data.blockedDates || [];
+  renderResources();
 }
 
 async function loadUsers() {
@@ -438,6 +524,21 @@ async function loadUsers() {
   const data = await response.json();
   allUsers = data.users;
   renderUsers();
+}
+
+async function loadMachineLogs() {
+  const response = await fetch("/api/machine-logs", {
+    headers: authHeaders()
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    machineLogMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  allMachineLogs = data.logs || [];
+  renderMachineLogs();
 }
 
 async function loadOperations() {
@@ -776,6 +877,55 @@ function renderBlockedDates() {
   }
 }
 
+function renderResources() {
+  if (!resourcesList) {
+    return;
+  }
+
+  resourcesList.innerHTML = "";
+  const entries = [
+    ["washer", "Waschmaschinen"],
+    ["drying_room", "Trockenraeume"],
+    ["tumbler", "Tumbler"]
+  ];
+
+  for (const [resourceType, label] of entries) {
+    const item = document.createElement("article");
+    item.className = "resource-item";
+    const title = document.createElement("h3");
+    title.textContent = label;
+    const values = document.createElement("p");
+    values.textContent = (resources[resourceType] || []).join(", ") || "Keine Ressourcen";
+    item.append(title, values);
+    resourcesList.append(item);
+  }
+}
+
+function renderMachineLogs() {
+  machineLogsList.innerHTML = "";
+
+  if (allMachineLogs.length === 0) {
+    machineLogsList.textContent = "Noch keine Protokolleintraege.";
+    return;
+  }
+
+  for (const logEntry of allMachineLogs) {
+    const item = document.createElement("article");
+    item.className = "machine-log-item";
+
+    const title = document.createElement("h3");
+    title.textContent = `${resourceLabel(logEntry.resource_type)} ${logEntry.resource_id}`;
+    const meta = document.createElement("p");
+    meta.textContent = `${formatDateKey(logEntry.event_date)} - ${partyLabel(logEntry)}`;
+    const note = document.createElement("p");
+    note.className = "machine-log-note";
+    note.textContent = logEntry.note;
+
+    item.append(title, meta, note);
+    machineLogsList.append(item);
+  }
+}
+
 function renderUsers() {
   usersList.innerHTML = "";
 
@@ -1025,6 +1175,7 @@ function updateAdminControls() {
   const isAdmin = role === "admin";
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
   adminUsersPanel.classList.toggle("hidden", !isAdmin);
+  adminResourcesPanel.classList.toggle("hidden", !isAdmin);
   adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
   adminOpsPanel.classList.toggle("hidden", !isAdmin);
   adminTargetUserNameInput.required = false;
@@ -1231,6 +1382,12 @@ function messageForError(error) {
     blocked_date_not_found: "Sperrtag nicht gefunden.",
     invalid_resource_type: "Unbekannter Bereich.",
     invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
+    missing_resource_fields: "Bitte Bereich und Ressourcenname ausfuellen.",
+    invalid_resource_name: "Der Ressourcenname muss 2 bis 60 Zeichen lang sein.",
+    resource_already_exists: "Diese Ressource existiert bereits.",
+    missing_machine_log_fields: "Bitte Ressource, Datum und Eintrag ausfuellen.",
+    invalid_machine_log_date: "Bitte ein gueltiges Protokolldatum waehlen.",
+    invalid_machine_log_note: "Der Protokolleintrag muss 3 bis 1200 Zeichen lang sein.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
     washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
@@ -1302,10 +1459,12 @@ async function boot() {
 
   await loadResources();
   updateResourceOptions();
+  updateMachineLogResourceOptions();
   updateSlotControls();
   updateDateInputMinimums();
   setDefaultBookingTimes();
   await loadUsers();
+  await loadMachineLogs();
   await loadBlockedDates();
   await loadOperations();
   await loadBookings();

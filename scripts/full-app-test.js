@@ -18,6 +18,21 @@ async function run() {
   assert(resources.body.resources.tumbler.length === 2, "two tumblers");
 
   const blockedDateKeys = (resources.body.blockedDates || []).map((entry) => entry.date);
+  const testWasher = `${testPrefix}WM-${Date.now()}`;
+  const createResource = await request("/api/admin/resources", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher
+    }
+  });
+  assertStatus(createResource, 201, "admin creates additional washer");
+
+  const resourcesAfterCreate = await request("/api/resources");
+  assertStatus(resourcesAfterCreate, 200, "resources reload after additional washer");
+  assert(resourcesAfterCreate.body.resources.washer.includes(testWasher), "additional washer appears in resources");
+
   const userName = `${testPrefix}${Date.now()}`;
   const createUser = await request("/api/admin/users", {
     method: "POST",
@@ -48,7 +63,7 @@ async function run() {
     token: user.token,
     body: {
       resourceType: "washer",
-      resourceId: "WM 1",
+      resourceId: testWasher,
       startAt: washerRange.startAt,
       endAt: washerRange.endAt
     }
@@ -61,14 +76,32 @@ async function run() {
   assert(savedWasher, "saved washer booking appears in /api/bookings");
   assert(zonedTimeKey(savedWasher.start_at) === "07:00", "saved washer starts at 07:00 in Zurich time");
   assert(zonedTimeKey(savedWasher.end_at) === "12:00", "saved washer ends at 12:00 in Zurich time");
-  assert(monthProjectionHasBooking(savedWasher, bookingDate, "07:00", "12:00"), "monthly plan projection contains washer booking");
+  assert(monthProjectionHasBooking(savedWasher, testWasher, bookingDate, "07:00", "12:00"), "monthly plan projection contains washer booking");
+
+  const createLog = await request("/api/machine-logs", {
+    method: "POST",
+    token: user.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher,
+      eventDate: dateKey(bookingDate),
+      note: "FullTest-Protokoll: Maschine vibrierte stark beim Schleudern."
+    }
+  });
+  assertStatus(createLog, 201, "user creates machine log entry");
+
+  const logs = await request("/api/machine-logs", {
+    token: user.token
+  });
+  assertStatus(logs, 200, "machine logs load");
+  assert(logs.body.logs.some((entry) => entry.resource_id === testWasher && entry.note.includes("vibrierte")), "machine log appears in logbook");
 
   const duplicate = await request("/api/bookings", {
     method: "POST",
     token: user.token,
     body: {
       resourceType: "washer",
-      resourceId: "WM 1",
+      resourceId: testWasher,
       startAt: washerRange.startAt,
       endAt: washerRange.endAt
     }
@@ -122,7 +155,7 @@ async function run() {
     token: admin.token
   });
   assertStatus(overview, 200, "admin overview loads");
-  assert(overview.body.status.resources.washers === 3, "overview has washer count");
+  assert(overview.body.status.resources.washers >= 4, "overview includes additional washer count");
 
   const backup = await rawRequest("/api/admin/backup", {
     token: admin.token
@@ -227,9 +260,9 @@ function localRangeForDate(date, startTime, endTime) {
   };
 }
 
-function monthProjectionHasBooking(booking, date, startTime, endTime) {
+function monthProjectionHasBooking(booking, resourceId, date, startTime, endTime) {
   return booking.resource_type === "washer"
-    && booking.resource_id === "WM 1"
+    && booking.resource_id === resourceId
     && (dateKey(new Date(booking.start_at)) === dateKey(date) || utcDateKey(new Date(booking.start_at)) === dateKey(date))
     && (zonedTimeKey(booking.start_at) === startTime || utcTimeKey(booking.start_at) === startTime)
     && (zonedTimeKey(booking.end_at) === endTime || utcTimeKey(booking.end_at) === endTime);

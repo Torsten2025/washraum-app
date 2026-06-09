@@ -16,7 +16,7 @@ const whatsappConfig = {
   apiVersion: process.env.WHATSAPP_API_VERSION || "v20.0",
   releaseTarget: normalizePhoneNumber(process.env.WHATSAPP_RELEASE_TO || "41788328223")
 };
-const resources = {
+const defaultResources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
   tumbler: ["Tumbler 1", "Tumbler 2"]
@@ -84,13 +84,35 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS resource_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+    resource_id TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (resource_type, resource_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS machine_log_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_name TEXT NOT NULL,
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+    resource_id TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    note TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
   CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_machine_log_entries_created_at ON machine_log_entries(created_at);
 `);
 
 ensureBookingSchema();
 ensureUserColumns();
+seedDefaultResources();
 seedDefaultBlockedDates();
 seedDefaultUsers();
 
@@ -181,7 +203,7 @@ app.get("/api/session", (req, res) => {
 });
 
 app.get("/api/resources", (_req, res) => {
-  res.json({ resources, slots, blockedDates: listBlockedDates() });
+  res.json({ resources: listResources(), slots, blockedDates: listBlockedDates() });
 });
 
 app.get("/api/bookings", (_req, res) => {
@@ -243,6 +265,8 @@ if (!isProduction) {
     }
 
     const deleteBookings = db.prepare("DELETE FROM bookings WHERE user_name LIKE ?");
+    const deleteLogsByUser = db.prepare("DELETE FROM machine_log_entries WHERE user_name LIKE ?");
+    const deleteLogsByResource = db.prepare("DELETE FROM machine_log_entries WHERE resource_id LIKE ?");
     const deleteUserSessions = db.prepare(`
       DELETE FROM sessions
       WHERE user_id IN (
@@ -250,6 +274,7 @@ if (!isProduction) {
       )
     `);
     const deleteUsers = db.prepare("DELETE FROM users WHERE user_name LIKE ?");
+    const deleteResources = db.prepare("DELETE FROM resource_entries WHERE resource_id LIKE ?");
 
     const cleanup = db.transaction(() => {
       let bookingsDeleted = 0;
@@ -257,8 +282,11 @@ if (!isProduction) {
 
       for (const prefix of safePrefixes) {
         deleteUserSessions.run(`${prefix}%`);
+        deleteLogsByUser.run(`${prefix}%`);
+        deleteLogsByResource.run(`${prefix}%`);
         bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
         usersDeleted += deleteUsers.run(`${prefix}%`).changes;
+        deleteResources.run(`${prefix}%`);
       }
 
       return {
@@ -305,6 +333,7 @@ app.get("/api/admin/overview", (req, res) => {
     .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
     .get(new Date().toISOString()).count;
   const blockedDatesCount = db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count;
+  const currentResources = listResources();
   const seededParties = db
     .prepare("SELECT COUNT(*) AS count FROM users WHERE user_name LIKE 'partei-%' OR apartment_label LIKE 'Partei %'")
     .get().count;
@@ -355,14 +384,49 @@ app.get("/api/admin/overview", (req, res) => {
       blockedDates: blockedDatesCount,
       seededParties,
       resources: {
-        washers: resources.washer.length,
-        dryingRooms: resources.drying_room.length,
-        tumblers: resources.tumbler.length,
+        washers: currentResources.washer.length,
+        dryingRooms: currentResources.drying_room.length,
+        tumblers: currentResources.tumbler.length,
         slotsPerResource: fixedSlots.length
       }
     },
     warnings
   });
+});
+
+app.post("/api/admin/resources", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const resourceType = String(req.body?.resourceType || "").trim();
+  const resourceId = String(req.body?.resourceId || "").trim();
+  const validation = validateResourceInput({ resourceType, resourceId });
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  try {
+    const sortOrder = nextResourceSortOrder(resourceType);
+    const info = db
+      .prepare(`
+        INSERT INTO resource_entries (resource_type, resource_id, sort_order)
+        VALUES (?, ?, ?)
+      `)
+      .run(resourceType, resourceId, sortOrder);
+    const resource = db
+      .prepare("SELECT id, resource_type, resource_id, active, sort_order, created_at FROM resource_entries WHERE id = ?")
+      .get(info.lastInsertRowid);
+
+    res.status(201).json({ ok: true, resource, resources: listResources() });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ ok: false, error: "resource_already_exists" });
+    }
+
+    throw error;
+  }
 });
 
 app.post("/api/admin/seed-parties", (req, res) => {
@@ -417,6 +481,56 @@ app.post("/api/admin/seed-parties", (req, res) => {
 
   createParties();
   res.status(201).json({ ok: true, parties: createdParties });
+});
+
+app.get("/api/machine-logs", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const logs = db
+    .prepare(`
+      SELECT
+        machine_log_entries.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM machine_log_entries
+      LEFT JOIN users ON users.user_name = machine_log_entries.user_name
+      ORDER BY event_date DESC, created_at DESC, id DESC
+      LIMIT 150
+    `)
+    .all();
+
+  res.json({ ok: true, logs });
+});
+
+app.post("/api/machine-logs", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const resourceType = String(req.body?.resourceType || "").trim();
+  const resourceId = String(req.body?.resourceId || "").trim();
+  const eventDate = String(req.body?.eventDate || dateKey(new Date())).trim();
+  const note = String(req.body?.note || "").trim();
+  const validation = validateMachineLogInput({ resourceType, resourceId, eventDate, note });
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  const info = db
+    .prepare(`
+      INSERT INTO machine_log_entries (user_name, resource_type, resource_id, event_date, note)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .run(auth.user_name, resourceType, resourceId, eventDate, note);
+  const logEntry = db
+    .prepare("SELECT * FROM machine_log_entries WHERE id = ?")
+    .get(info.lastInsertRowid);
+
+  res.status(201).json({ ok: true, logEntry });
 });
 
 app.post("/api/admin/users", (req, res) => {
@@ -815,6 +929,47 @@ function normalizePhoneNumber(value) {
   return digits;
 }
 
+function seedDefaultResources() {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO resource_entries (resource_type, resource_id, sort_order)
+    VALUES (?, ?, ?)
+  `);
+
+  for (const [resourceType, resourceIds] of Object.entries(defaultResources)) {
+    resourceIds.forEach((resourceId, index) => {
+      insert.run(resourceType, resourceId, index + 1);
+    });
+  }
+}
+
+function listResources() {
+  const resources = {
+    washer: [],
+    drying_room: [],
+    tumbler: []
+  };
+  const entries = db
+    .prepare(`
+      SELECT resource_type, resource_id
+      FROM resource_entries
+      WHERE active = 1
+      ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
+    `)
+    .all();
+
+  for (const entry of entries) {
+    resources[entry.resource_type].push(entry.resource_id);
+  }
+
+  return resources;
+}
+
+function nextResourceSortOrder(resourceType) {
+  return db
+    .prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 AS sort_order FROM resource_entries WHERE resource_type = ?")
+    .get(resourceType).sort_order;
+}
+
 function seedDefaultBlockedDates() {
   const insert = db.prepare("INSERT OR IGNORE INTO blocked_dates (date, label) VALUES (?, ?)");
   for (const blockedDate of defaultBlockedDates) {
@@ -973,6 +1128,46 @@ function validateBlockedDate({ date, label }) {
   return { ok: true };
 }
 
+function validateResourceInput({ resourceType, resourceId }) {
+  if (!resourceType || !resourceId) {
+    return { ok: false, error: "missing_resource_fields" };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
+    return { ok: false, error: "invalid_resource_type" };
+  }
+
+  if (resourceId.length < 2 || resourceId.length > 60) {
+    return { ok: false, error: "invalid_resource_name" };
+  }
+
+  return { ok: true };
+}
+
+function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) {
+  if (!resourceType || !resourceId || !eventDate || !note) {
+    return { ok: false, error: "missing_machine_log_fields" };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
+    return { ok: false, error: "invalid_resource_type" };
+  }
+
+  if (!listResources()[resourceType].includes(resourceId)) {
+    return { ok: false, error: "invalid_resource_id" };
+  }
+
+  if (!isDateKey(eventDate)) {
+    return { ok: false, error: "invalid_machine_log_date" };
+  }
+
+  if (note.length < 3 || note.length > 1200) {
+    return { ok: false, error: "invalid_machine_log_note" };
+  }
+
+  return { ok: true };
+}
+
 function createBooking(input) {
   const userName = String(input?.userName || "").trim();
   const resourceType = String(input?.resourceType || "").trim();
@@ -984,11 +1179,11 @@ function createBooking(input) {
     return { ok: false, error: "missing_required_fields" };
   }
 
-  if (!Object.prototype.hasOwnProperty.call(resources, resourceType)) {
+  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
     return { ok: false, error: "invalid_resource_type" };
   }
 
-  if (!resources[resourceType].includes(resourceId)) {
+  if (!listResources()[resourceType].includes(resourceId)) {
     return { ok: false, error: "invalid_resource_id" };
   }
 

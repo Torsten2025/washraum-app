@@ -88,6 +88,40 @@
         </form>
         <div id="availabilityPanel" class="availability-panel" aria-live="polite"></div>
 
+        <div class="logbook-panel">
+          <h2>Protokolltagebuch</h2>
+          <p class="panel-note">Stoerungen, Schaeden oder besondere Vorkommnisse pro Maschine, Trockenraum oder Tumbler dokumentieren.</p>
+          <form id="machineLogForm" class="booking-form">
+            <label>
+              Bereich
+              <select id="machineLogResourceType" name="machineLogResourceType">
+                <option value="washer">Waschmaschine</option>
+                <option value="drying_room">Trockenraum</option>
+                <option value="tumbler">Tumbler</option>
+              </select>
+            </label>
+
+            <label>
+              Maschine / Raum
+              <select id="machineLogResourceId" name="machineLogResourceId"></select>
+            </label>
+
+            <label>
+              Datum
+              <input id="machineLogDate" name="machineLogDate" type="date" required>
+            </label>
+
+            <label>
+              Eintrag
+              <textarea id="machineLogNote" name="machineLogNote" maxlength="1200" rows="4" required></textarea>
+            </label>
+
+            <button type="submit">Eintrag speichern</button>
+            <p id="machineLogMessage" class="message" role="status"></p>
+          </form>
+          <div id="machineLogsList" class="machine-logs-list"></div>
+        </div>
+
         <div class="account-panel">
           <h2>Passwort aendern</h2>
           <form id="passwordForm" class="booking-form">
@@ -167,6 +201,29 @@
             <p id="userMessage" class="message" role="status"></p>
           </form>
           <div id="usersList" class="users-list"></div>
+        </div>
+
+        <div id="adminResourcesPanel" class="admin-panel hidden">
+          <h2>Ressourcen verwalten</h2>
+          <form id="resourceForm" class="booking-form">
+            <label>
+              Bereich
+              <select id="managedResourceType" name="managedResourceType">
+                <option value="washer">Waschmaschine</option>
+                <option value="drying_room">Trockenraum</option>
+                <option value="tumbler">Tumbler</option>
+              </select>
+            </label>
+
+            <label>
+              Name
+              <input id="managedResourceId" name="managedResourceId" maxlength="60" placeholder="z. B. WM 4" required>
+            </label>
+
+            <button type="submit">Ressource hinzufuegen</button>
+            <p id="resourceMessage" class="message" role="status"></p>
+          </form>
+          <div id="resourcesList" class="resources-list"></div>
         </div>
 
         <div id="adminBlockedDatesPanel" class="admin-panel hidden">
