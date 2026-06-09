@@ -25,6 +25,7 @@ npm run bookings
 npm run verify
 npm run smoke
 npm run test:full
+npm run test:created-features
 npm run hosting:check
 npm run pilot:check
 npm run publish:check
@@ -129,6 +130,16 @@ Mit Admin-Backup-Pruefung:
 ```bash
 APP_URL=https://washraum-app.onrender.com ADMIN_PASSWORD=dein-admin-passwort npm run pilot:check
 ```
+
+## Erstellte Funktionen testen
+
+Der zentrale Funktionskatalog mit Gesamttest laeuft ueber:
+
+```bash
+npm run test:created-features
+```
+
+Der Test listet die erstellten Funktionen, fuehrt `verify`, `smoke`, `test:20-parties` und `test:full` aus und prueft zusaetzlich UI-Marker sowie die Live-Readiness.
 
 ## GitHub-Push vorbereiten
 
