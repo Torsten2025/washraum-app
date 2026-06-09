@@ -48,6 +48,8 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
     active INTEGER NOT NULL DEFAULT 1,
+    display_name TEXT,
+    apartment_label TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -138,7 +140,9 @@ app.post("/api/login", (req, res) => {
     token,
     user: {
       userName: user.user_name,
-      role: user.role
+      role: user.role,
+      displayName: user.display_name || "",
+      apartmentLabel: user.apartment_label || ""
     }
   });
 });
@@ -162,7 +166,9 @@ app.get("/api/session", (req, res) => {
     ok: true,
     user: {
       userName: auth.user_name,
-      role: auth.role
+      role: auth.role,
+      displayName: auth.display_name || "",
+      apartmentLabel: auth.apartment_label || ""
     }
   });
 });
@@ -173,7 +179,15 @@ app.get("/api/resources", (_req, res) => {
 
 app.get("/api/bookings", (_req, res) => {
   const bookings = db
-    .prepare("SELECT * FROM bookings ORDER BY start_at ASC")
+    .prepare(`
+      SELECT
+        bookings.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM bookings
+      LEFT JOIN users ON users.user_name = bookings.user_name
+      ORDER BY start_at ASC
+    `)
     .all();
 
   res.json({ bookings });
@@ -257,7 +271,14 @@ app.get("/api/admin/users", (req, res) => {
   }
 
   const users = db
-    .prepare("SELECT id, user_name, role, active, created_at FROM users ORDER BY user_name ASC")
+    .prepare(`
+      SELECT id, user_name, role, active, display_name, apartment_label, created_at
+      FROM users
+      ORDER BY
+        CASE WHEN apartment_label IS NULL OR apartment_label = '' THEN 1 ELSE 0 END,
+        apartment_label ASC,
+        user_name ASC
+    `)
     .all();
 
   res.json({ users });
@@ -272,8 +293,10 @@ app.post("/api/admin/users", (req, res) => {
   const userName = String(req.body?.userName || "").trim();
   const password = String(req.body?.password || "");
   const role = String(req.body?.role || "user").trim();
+  const displayName = String(req.body?.displayName || "").trim();
+  const apartmentLabel = String(req.body?.apartmentLabel || "").trim();
   const active = normalizeActive(req.body?.active);
-  const validation = validateUserInput({ userName, password, role, requirePassword: true });
+  const validation = validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword: true });
 
   if (!validation.ok) {
     return res.status(400).json(validation);
@@ -281,10 +304,13 @@ app.post("/api/admin/users", (req, res) => {
 
   try {
     const info = db
-      .prepare("INSERT INTO users (user_name, password_hash, role, active) VALUES (?, ?, ?, ?)")
-      .run(userName, hashPassword(password), role, active);
+      .prepare(`
+        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(userName, hashPassword(password), role, active, displayName, apartmentLabel);
     const user = db
-      .prepare("SELECT id, user_name, role, active, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, created_at FROM users WHERE id = ?")
       .get(info.lastInsertRowid);
 
     res.status(201).json({ ok: true, user });
@@ -393,8 +419,14 @@ app.patch("/api/admin/users/:id", (req, res) => {
   const userName = String(req.body?.userName || existingUser.user_name).trim();
   const password = String(req.body?.password || "");
   const role = String(req.body?.role || existingUser.role).trim();
+  const displayName = req.body?.displayName === undefined
+    ? String(existingUser.display_name || "")
+    : String(req.body.displayName || "").trim();
+  const apartmentLabel = req.body?.apartmentLabel === undefined
+    ? String(existingUser.apartment_label || "")
+    : String(req.body.apartmentLabel || "").trim();
   const active = req.body?.active === undefined ? existingUser.active : normalizeActive(req.body.active);
-  const validation = validateUserInput({ userName, password, role, requirePassword: false });
+  const validation = validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword: false });
 
   if (!validation.ok) {
     return res.status(400).json(validation);
@@ -407,12 +439,20 @@ app.patch("/api/admin/users/:id", (req, res) => {
   try {
     if (password) {
       db
-        .prepare("UPDATE users SET user_name = ?, password_hash = ?, role = ?, active = ? WHERE id = ?")
-        .run(userName, hashPassword(password), role, active, id);
+        .prepare(`
+          UPDATE users
+          SET user_name = ?, password_hash = ?, role = ?, active = ?, display_name = ?, apartment_label = ?
+          WHERE id = ?
+        `)
+        .run(userName, hashPassword(password), role, active, displayName, apartmentLabel, id);
     } else {
       db
-        .prepare("UPDATE users SET user_name = ?, role = ?, active = ? WHERE id = ?")
-        .run(userName, role, active, id);
+        .prepare(`
+          UPDATE users
+          SET user_name = ?, role = ?, active = ?, display_name = ?, apartment_label = ?
+          WHERE id = ?
+        `)
+        .run(userName, role, active, displayName, apartmentLabel, id);
     }
 
     if (!active) {
@@ -420,7 +460,7 @@ app.patch("/api/admin/users/:id", (req, res) => {
     }
 
     const user = db
-      .prepare("SELECT id, user_name, role, active, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, created_at FROM users WHERE id = ?")
       .get(id);
 
     res.json({ ok: true, user });
@@ -498,9 +538,12 @@ function seedDefaultUsers() {
 
   const seedAdminPassword = seedPassword("SEED_ADMIN_PASSWORD", "admin123");
   const seedUserPassword = seedPassword("SEED_USER_PASSWORD", "user123");
-  const insert = db.prepare("INSERT INTO users (user_name, password_hash, role) VALUES (?, ?, ?)");
-  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(seedAdminPassword), "admin");
-  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(seedUserPassword), "user");
+  const insert = db.prepare(`
+    INSERT INTO users (user_name, password_hash, role, display_name, apartment_label)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(seedAdminPassword), "admin", "Administration", "");
+  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(seedUserPassword), "user", "Testnutzer", "Partei 01");
 }
 
 function seedPassword(envName, localFallback) {
@@ -527,9 +570,19 @@ function seedDefaultBlockedDates() {
 function ensureUserColumns() {
   const columns = db.prepare("PRAGMA table_info(users)").all();
   const hasActive = columns.some((column) => column.name === "active");
+  const hasDisplayName = columns.some((column) => column.name === "display_name");
+  const hasApartmentLabel = columns.some((column) => column.name === "apartment_label");
 
   if (!hasActive) {
     db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  }
+
+  if (!hasDisplayName) {
+    db.exec("ALTER TABLE users ADD COLUMN display_name TEXT");
+  }
+
+  if (!hasApartmentLabel) {
+    db.exec("ALTER TABLE users ADD COLUMN apartment_label TEXT");
   }
 }
 
@@ -568,6 +621,7 @@ function getAuth(req) {
   const session = db
     .prepare(`
       SELECT users.user_name, users.role, sessions.expires_at
+        , users.display_name, users.apartment_label
       FROM sessions
       JOIN users ON users.id = sessions.user_id
       WHERE sessions.token = ?
@@ -620,7 +674,7 @@ function normalizeActive(value) {
   return value === false || value === 0 || value === "0" || value === "false" ? 0 : 1;
 }
 
-function validateUserInput({ userName, password, role, requirePassword }) {
+function validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword }) {
   if (!userName || !role || (requirePassword && !password)) {
     return { ok: false, error: "missing_user_fields" };
   }
@@ -635,6 +689,14 @@ function validateUserInput({ userName, password, role, requirePassword }) {
 
   if (password && password.length < 6) {
     return { ok: false, error: "password_too_short" };
+  }
+
+  if (displayName && displayName.length > 80) {
+    return { ok: false, error: "invalid_display_name" };
+  }
+
+  if (apartmentLabel && apartmentLabel.length > 40) {
+    return { ok: false, error: "invalid_apartment_label" };
   }
 
   return { ok: true };

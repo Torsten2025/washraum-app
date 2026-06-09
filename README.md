@@ -52,6 +52,7 @@ Die Login-Daten werden beim ersten Start in SQLite angelegt. Die Passwoerter sin
 Admins koennen im Buchungsformular optional einen anderen Namen eintragen.
 Admins koennen ausserdem Nutzer anlegen und bestehende Nutzer bearbeiten.
 Admins koennen Nutzer deaktivieren, ohne deren Buchungshistorie zu loeschen.
+Admins koennen pro Nutzer einen Anzeigenamen und eine Partei-/Wohnungsbezeichnung pflegen, z. B. `Partei 12`.
 Admins koennen Sperrtage und Feiertage pflegen.
 Admins koennen im Bereich "Betrieb" ein SQLite-Backup herunterladen.
 Angemeldete Nutzer koennen ihr eigenes Passwort aendern.

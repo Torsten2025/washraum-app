@@ -91,6 +91,8 @@ async function run() {
     token: admin.body.token,
     body: {
       userName: managedUserName,
+      displayName: "Smoke Partei",
+      apartmentLabel: "Partei 20",
       password: "secret123",
       role: "user",
       active: true
@@ -99,12 +101,16 @@ async function run() {
 
   assertStatus(createUser, 201, "admin creates user");
   assert(createUser.body.user.user_name === managedUserName, "created user name");
+  assert(createUser.body.user.display_name === "Smoke Partei", "created user display name");
+  assert(createUser.body.user.apartment_label === "Partei 20", "created user apartment label");
 
   const updateUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
     method: "PATCH",
     token: admin.body.token,
     body: {
       userName: managedUserName,
+      displayName: "Smoke Partei Aktualisiert",
+      apartmentLabel: "Partei 21",
       password: "secret456",
       role: "admin",
       active: true
@@ -113,6 +119,8 @@ async function run() {
 
   assertStatus(updateUser, 200, "admin updates user");
   assert(updateUser.body.user.role === "admin", "updated user role");
+  assert(updateUser.body.user.display_name === "Smoke Partei Aktualisiert", "updated user display name");
+  assert(updateUser.body.user.apartment_label === "Partei 21", "updated user apartment label");
 
   const managedLogin = await request("/api/login", {
     method: "POST",

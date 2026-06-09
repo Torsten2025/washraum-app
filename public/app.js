@@ -18,6 +18,8 @@ const adminUsersPanel = document.getElementById("adminUsersPanel");
 const userForm = document.getElementById("userForm");
 const editingUserIdInput = document.getElementById("editingUserId");
 const managedUserNameInput = document.getElementById("managedUserName");
+const managedDisplayNameInput = document.getElementById("managedDisplayName");
+const managedApartmentLabelInput = document.getElementById("managedApartmentLabel");
 const managedUserRoleInput = document.getElementById("managedUserRole");
 const managedUserActiveInput = document.getElementById("managedUserActive");
 const managedUserPasswordInput = document.getElementById("managedUserPassword");
@@ -126,6 +128,8 @@ userForm.addEventListener("submit", async (event) => {
   const editingUserId = editingUserIdInput.value;
   const body = {
     userName: managedUserNameInput.value.trim(),
+    displayName: managedDisplayNameInput.value.trim(),
+    apartmentLabel: managedApartmentLabelInput.value.trim(),
     role: managedUserRoleInput.value,
     active: managedUserActiveInput.value === "1"
   };
@@ -399,7 +403,7 @@ function renderBookingsList(bookings) {
     title.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
 
     const meta = document.createElement("p");
-    meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${booking.user_name}`;
+    meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${partyLabel(booking)}`;
 
     item.append(title, meta);
 
@@ -460,7 +464,7 @@ function renderCalendar(bookings) {
       const resource = document.createElement("span");
       resource.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
       const user = document.createElement("small");
-      user.textContent = booking.user_name;
+      user.textContent = partyLabel(booking);
 
       item.append(time, resource, user);
       column.append(item);
@@ -509,10 +513,13 @@ function renderUsers() {
     const details = document.createElement("div");
 
     const title = document.createElement("h3");
-    title.textContent = user.user_name;
+    title.textContent = user.apartment_label
+      ? `${user.apartment_label} · ${user.user_name}`
+      : user.user_name;
 
     const meta = document.createElement("p");
-    meta.textContent = `${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
+    const displayName = user.display_name ? `${user.display_name} · ` : "";
+    meta.textContent = `${displayName}${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
 
     details.append(title, meta);
 
@@ -529,6 +536,8 @@ function renderUsers() {
 function editUser(user) {
   editingUserIdInput.value = user.id;
   managedUserNameInput.value = user.user_name;
+  managedDisplayNameInput.value = user.display_name || "";
+  managedApartmentLabelInput.value = user.apartment_label || "";
   managedUserRoleInput.value = user.role;
   managedUserActiveInput.value = user.active ? "1" : "0";
   managedUserPasswordInput.value = "";
@@ -769,6 +778,8 @@ function messageForError(error) {
     missing_user_fields: "Bitte Name, Rolle und Passwort ausfuellen.",
     invalid_user_role: "Unbekannte Rolle.",
     invalid_user_name: "Der Name muss 2 bis 60 Zeichen lang sein.",
+    invalid_display_name: "Der Anzeigename darf maximal 80 Zeichen lang sein.",
+    invalid_apartment_label: "Partei/Wohnung darf maximal 40 Zeichen lang sein.",
     password_too_short: "Das Passwort braucht mindestens 6 Zeichen.",
     invalid_current_password: "Das aktuelle Passwort stimmt nicht.",
     last_admin_required: "Mindestens ein Admin muss bestehen bleiben.",
@@ -795,6 +806,21 @@ function messageForError(error) {
   };
 
   return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";
+}
+
+function partyLabel(booking) {
+  const parts = [];
+  if (booking.apartment_label) {
+    parts.push(booking.apartment_label);
+  }
+  if (booking.user_display_name) {
+    parts.push(booking.user_display_name);
+  }
+  if (parts.length === 0) {
+    parts.push(booking.user_name);
+  }
+
+  return parts.join(" · ");
 }
 
 async function boot() {
