@@ -9,7 +9,8 @@
     "dev": "node server.js",
     "health": "node -e \"fetch('http://localhost:3000/api/health').then(r=>r.json()).then(console.log).catch(err=>{console.error(err);process.exit(1)})\"",
     "bookings": "node -e \"fetch('http://localhost:3000/api/bookings').then(r=>r.json()).then(console.log).catch(err=>{console.error(err);process.exit(1)})\"",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "hosting:check": "node scripts/hosting-check.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",

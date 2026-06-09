@@ -7,6 +7,7 @@ const Database = require("better-sqlite3");
 const app = express();
 const port = process.env.PORT || 3000;
 const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
+const isProduction = process.env.NODE_ENV === "production";
 const resources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
@@ -83,7 +84,13 @@ ensureUserColumns();
 seedDefaultBlockedDates();
 seedDefaultUsers();
 
+app.disable("x-powered-by");
 app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (_req, res) => {
@@ -97,7 +104,7 @@ app.get("/api/health", (_req, res) => {
     users: db.prepare("SELECT COUNT(*) AS count FROM users").get().count,
     bookings: db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count,
     blockedDates: db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count,
-    production: process.env.NODE_ENV === "production"
+    production: isProduction
   });
 });
 
@@ -197,7 +204,7 @@ app.post("/api/me/password", (req, res) => {
   res.json({ ok: true });
 });
 
-if (process.env.NODE_ENV !== "production") {
+if (!isProduction) {
   app.post("/api/dev/cleanup", (req, res) => {
     const auth = getAdminAuth(req);
     if (!auth.ok) {
@@ -464,9 +471,25 @@ function seedDefaultUsers() {
     return;
   }
 
+  const seedAdminPassword = seedPassword("SEED_ADMIN_PASSWORD", "admin123");
+  const seedUserPassword = seedPassword("SEED_USER_PASSWORD", "user123");
   const insert = db.prepare("INSERT INTO users (user_name, password_hash, role) VALUES (?, ?, ?)");
-  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(process.env.SEED_ADMIN_PASSWORD || "admin123"), "admin");
-  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(process.env.SEED_USER_PASSWORD || "user123"), "user");
+  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(seedAdminPassword), "admin");
+  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(seedUserPassword), "user");
+}
+
+function seedPassword(envName, localFallback) {
+  const value = process.env[envName];
+
+  if (value) {
+    return value;
+  }
+
+  if (isProduction) {
+    throw new Error(`${envName} must be set before starting production with an empty database`);
+  }
+
+  return localFallback;
 }
 
 function seedDefaultBlockedDates() {

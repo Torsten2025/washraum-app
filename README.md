@@ -23,6 +23,7 @@ Wenn der Server laeuft:
 npm run health
 npm run bookings
 npm run smoke
+npm run hosting:check
 ```
 
 Oder im Browser oeffnen:
@@ -67,6 +68,7 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 ## Livegang-Checkliste
 
 - Lokalen Smoke-Test ausfuehren: `npm run smoke`
+- Hosting-Vorcheck ausfuehren: `npm run hosting:check`
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
 - Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
@@ -93,6 +95,8 @@ Die Seed-Passwoerter werden nicht im Repository gespeichert. Sie muessen in Rend
 
 - `SEED_ADMIN_PASSWORD`
 - `SEED_USER_PASSWORD`
+
+Wenn die Produktionsdatenbank noch leer ist und diese Passwoerter fehlen, startet der Server absichtlich nicht. Lokal gibt es weiterhin die Test-Fallbacks aus dem Abschnitt "Test-Login".
 
 ## Backup
 
