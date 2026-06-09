@@ -10,6 +10,7 @@ const featureCatalog = [
   "Branding: GBMZ Maneggplatz 18 ohne alte Navigationspunkte",
   "Admin-Onboarding: 20 Parteien mit Uebergabeliste und Erstpasswoertern",
   "Nutzerverwaltung: echte Anzeigenamen, Partei/Wohnung, Aktiv/Inaktiv, Passwort neu",
+  "Nutzerverwaltung: Parteien und Testnutzer sauber loeschen",
   "Buchungsmaske: Bereich, Ressource, Datum, feste Slots und freie Slots",
   "Aktivitaeten: Buchung, Loeschung und frueher freie Slots werden bestaetigt",
   "Regelwerk: eine aktive Waschsequenz im Voraus, Sonntage und Sperrtage blockiert",
@@ -79,6 +80,9 @@ async function checkStaticPages() {
   assert(loginHtml.includes("Maneggplatz 18"), "login page shows Maneggplatz 18");
   assert(!loginHtml.includes("myGBMZ"), "login page does not contain old myGBMZ navigation");
   assert(indexHtml.includes("seedPartiesButton"), "admin 20-party onboarding exists");
+  assert(appJs.includes("deleteUser(user)"), "admin user delete action exists");
+  assert(appJs.includes("/api/admin/users/${user.id}"), "admin user delete endpoint is used");
+  assert(appJs.includes("danger-text-button"), "admin user delete button is styled as destructive action");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(resources.resources.tumbler.length === 2, "two tumblers are configured");
   assert(!resources.resources.tumbler.includes("Tumbler 3"), "retired Tumbler 3 is not bookable");

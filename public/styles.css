@@ -956,6 +956,17 @@ button.danger-button[type="button"]:disabled:hover {
   color: #9d7c75;
 }
 
+button.danger-text-button[type="button"] {
+  border-color: #f0c7bd;
+  color: #7a1b12;
+}
+
+button.danger-text-button[type="button"]:hover {
+  background: #fff7f4;
+  border-color: #d99a8c;
+  color: #5f130d;
+}
+
 .analytics-toolbar {
   display: flex;
   justify-content: flex-start;

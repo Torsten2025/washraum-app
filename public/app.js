@@ -1384,9 +1384,15 @@ function renderUsers() {
     resetButton.textContent = "Passwort neu";
     resetButton.addEventListener("click", () => resetUserPassword(user));
 
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "danger-text-button";
+    deleteButton.textContent = "Loeschen";
+    deleteButton.addEventListener("click", () => deleteUser(user));
+
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    actions.append(editButton, resetButton);
+    actions.append(editButton, resetButton, deleteButton);
 
     item.append(details, actions);
     usersList.append(item);
@@ -1808,6 +1814,38 @@ async function resetUserPassword(user) {
   renderPartyCredentials();
   partyCredentialsPanel.classList.remove("hidden");
   userMessage.textContent = `Neues Passwort fuer ${data.userName} erzeugt.`;
+}
+
+async function deleteUser(user) {
+  userMessage.textContent = "";
+  const label = user.apartment_label
+    ? `${user.apartment_label} - ${user.user_name}`
+    : user.user_name;
+  const confirmed = window.confirm(`${label} wirklich loeschen? Zugehoerige Buchungen, Aktivitaeten, Feedback und Protokolleintraege werden ebenfalls entfernt.`);
+  if (!confirmed) {
+    return;
+  }
+
+  const response = await fetch(`/api/admin/users/${user.id}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  userMessage.textContent = `${label} geloescht. ${data.bookingsDeleted || 0} Buchungen entfernt.`;
+  await loadUsers();
+  await loadBookings();
+  await loadActivity();
+  await loadMachineLogs();
+  await loadPilotFeedback();
+  await loadOperations();
+  await loadAnalytics();
+  renderAvailability();
 }
 
 async function deleteBlockedDate(date) {
