@@ -56,6 +56,12 @@ const downloadBackupButton = document.getElementById("downloadBackupButton");
 const opsStatusGrid = document.getElementById("opsStatusGrid");
 const opsWarningsList = document.getElementById("opsWarningsList");
 const opsMessage = document.getElementById("opsMessage");
+const adminPilotPanel = document.getElementById("adminPilotPanel");
+const pilotReadinessList = document.getElementById("pilotReadinessList");
+const pilotInviteText = document.getElementById("pilotInviteText");
+const copyPilotInviteButton = document.getElementById("copyPilotInviteButton");
+const printPilotGuideButton = document.getElementById("printPilotGuideButton");
+const pilotMessage = document.getElementById("pilotMessage");
 const bookingFilter = document.getElementById("bookingFilter");
 const bookingsList = document.getElementById("bookingsList");
 const calendarGrid = document.getElementById("calendarGrid");
@@ -350,6 +356,24 @@ downloadBackupButton.addEventListener("click", async () => {
   link.remove();
   URL.revokeObjectURL(url);
   opsMessage.textContent = "Backup wurde vorbereitet.";
+});
+
+copyPilotInviteButton.addEventListener("click", async () => {
+  pilotMessage.textContent = "";
+  try {
+    await navigator.clipboard.writeText(pilotInviteText.value);
+    pilotMessage.textContent = "Einladungstext kopiert.";
+  } catch (_error) {
+    pilotInviteText.focus();
+    pilotInviteText.select();
+    pilotMessage.textContent = "Text ist markiert und kann kopiert werden.";
+  }
+});
+
+printPilotGuideButton.addEventListener("click", () => {
+  document.body.classList.add("print-pilot-guide");
+  window.print();
+  window.setTimeout(() => document.body.classList.remove("print-pilot-guide"), 200);
 });
 
 bookingForm.addEventListener("submit", async (event) => {
@@ -1015,6 +1039,7 @@ function renderOperations(status, warnings) {
     clean.className = "ops-clean";
     clean.textContent = "Keine Produktionswarnungen.";
     opsWarningsList.append(clean);
+    renderPilotReadiness(status, warnings);
     return;
   }
 
@@ -1024,6 +1049,99 @@ function renderOperations(status, warnings) {
     item.textContent = warning.message;
     opsWarningsList.append(item);
   }
+
+  renderPilotReadiness(status, warnings);
+}
+
+function renderPilotReadiness(status, warnings) {
+  if (!pilotReadinessList) {
+    return;
+  }
+
+  pilotReadinessList.innerHTML = "";
+  const namedActiveUsers = allUsers.filter((user) => {
+    return user.role === "user"
+      && user.active
+      && user.display_name
+      && !/^Partei\s*\d{1,2}$/i.test(user.display_name.trim());
+  });
+  const productionDb = status.sqlitePath === "/var/data/washraum.sqlite";
+  const readinessItems = [
+    {
+      ok: productionDb,
+      label: "Produktionsdatenbank",
+      detail: productionDb ? "Render-Disk /var/data ist aktiv." : `Aktueller Pfad: ${status.sqlitePath}`
+    },
+    {
+      ok: status.seededParties >= 20,
+      label: "20 Parteien",
+      detail: `${status.seededParties}/20 Parteien sind angelegt.`
+    },
+    {
+      ok: namedActiveUsers.length >= 3 && namedActiveUsers.length <= 5,
+      label: "Pilotkonten",
+      detail: `${namedActiveUsers.length} aktive Nutzer mit echtem Anzeigenamen. Ziel: 3 bis 5.`
+    },
+    {
+      ok: warnings.length === 0,
+      label: "Produktionswarnungen",
+      detail: warnings.length === 0 ? "Keine Warnungen im Betriebspanel." : `${warnings.length} Warnung(en) pruefen.`
+    },
+    {
+      ok: true,
+      label: "Regelwerk",
+      detail: "Eine aktive Waschsequenz, Sonntage und Sperrtage sind technisch abgesichert."
+    },
+    {
+      ok: false,
+      label: "Backup",
+      detail: "Vor dem Einladen manuell Backup herunterladen und sicher ablegen."
+    }
+  ];
+
+  for (const item of readinessItems) {
+    const row = document.createElement("article");
+    row.className = item.ok ? "pilot-readiness-item pilot-readiness-ok" : "pilot-readiness-item pilot-readiness-action";
+    const title = document.createElement("strong");
+    title.textContent = item.label;
+    const detail = document.createElement("span");
+    detail.textContent = item.detail;
+    row.append(title, detail);
+    pilotReadinessList.append(row);
+  }
+
+  pilotInviteText.value = pilotInviteTemplate(namedActiveUsers);
+}
+
+function pilotInviteTemplate(namedActiveUsers) {
+  const names = namedActiveUsers.slice(0, 5).map((user) => {
+    const apartment = user.apartment_label ? ` (${user.apartment_label})` : "";
+    return `- ${user.display_name}${apartment}`;
+  });
+  const selectedPeople = names.length > 0 ? names.join("\n") : "- Name / Partei eintragen";
+
+  return [
+    "Hallo zusammen",
+    "",
+    "wir testen die neue digitale Waschplan-App fuer den Maneggplatz 18 in einer kleinen Pilotgruppe.",
+    "",
+    "Bitte testet in den naechsten Tagen:",
+    "- Login mit eurem Konto",
+    "- freie Waschmaschine buchen",
+    "- Tumbler oder Trockenraum am gleichen Waschtag ergaenzen",
+    "- Monatsplan kontrollieren",
+    "- eigene Buchung loeschen, falls ihr sie nicht braucht",
+    "- kurze Rueckmeldung geben, wenn etwas unklar ist",
+    "",
+    "Wichtige Regel: Bitte nur eine Waschsequenz im Voraus buchen. Am gleichen Waschtag duerfen Waschmaschine, Tumbler und Trockenraum zusammen genutzt werden.",
+    "",
+    "Pilotpersonen:",
+    selectedPeople,
+    "",
+    "Link: https://washraum-app.onrender.com",
+    "",
+    "Danke fuers Testen!"
+  ].join("\n");
 }
 
 function editUser(user) {
@@ -1178,6 +1296,7 @@ function updateAdminControls() {
   adminResourcesPanel.classList.toggle("hidden", !isAdmin);
   adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
   adminOpsPanel.classList.toggle("hidden", !isAdmin);
+  adminPilotPanel.classList.toggle("hidden", !isAdmin);
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
 }

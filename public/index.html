@@ -253,6 +253,28 @@
           <button id="downloadBackupButton" type="button">Backup herunterladen</button>
           <p id="opsMessage" class="message" role="status"></p>
         </div>
+
+        <div id="adminPilotPanel" class="admin-panel hidden">
+          <h2>Pilotstart</h2>
+          <p class="panel-note">Vorbereitung fuer die erste Testrunde mit 3 bis 5 Bewohnerinnen und Bewohnern.</p>
+          <div id="pilotReadinessList" class="pilot-readiness-list"></div>
+          <div class="pilot-guide">
+            <h3>Kurzanleitung fuer Testpersonen</h3>
+            <textarea id="pilotInviteText" rows="9" readonly></textarea>
+            <div class="form-actions">
+              <button id="copyPilotInviteButton" type="button">Text kopieren</button>
+              <button id="printPilotGuideButton" type="button">Anleitung drucken</button>
+            </div>
+            <p id="pilotMessage" class="message" role="status"></p>
+          </div>
+          <ol class="pilot-timeline">
+            <li>Tag 1: Login pruefen und erste Buchung erstellen.</li>
+            <li>Tag 1-2: Jede Testperson bucht mindestens einen freien Waschslot.</li>
+            <li>Tag 2-4: Tumbler oder Trockenraum am gleichen Waschtag ergaenzen.</li>
+            <li>Tag 2-4: Zweite zukuenftige Waschsequenz testen und Fehlermeldung pruefen.</li>
+            <li>Tag 5-7: Feedback sammeln und Entscheid fuer alle 20 Parteien treffen.</li>
+          </ol>
+        </div>
       </section>
 
       <section id="bookingsSection" class="calendar-panel">

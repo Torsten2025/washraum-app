@@ -485,6 +485,62 @@ input[readonly] {
   color: var(--green-dark);
 }
 
+.pilot-readiness-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.pilot-readiness-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+}
+
+.pilot-readiness-item span {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.pilot-readiness-ok {
+  background: var(--green-soft);
+  border-color: rgba(8, 191, 114, 0.25);
+}
+
+.pilot-readiness-action {
+  background: #fff7d8;
+  border-color: #ead99a;
+}
+
+.pilot-guide {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: 0.95rem;
+}
+
+.pilot-guide h3 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.pilot-guide textarea {
+  min-height: 240px;
+}
+
+.pilot-timeline {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.pilot-timeline li {
+  line-height: 1.35;
+}
+
 .calendar-toolbar {
   align-items: center;
   display: flex;
@@ -960,6 +1016,35 @@ input[readonly] {
     box-shadow: none;
     display: block;
     margin: 0;
+    padding: 0;
+  }
+
+  body.print-pilot-guide .app-header,
+  body.print-pilot-guide .notice-bar,
+  body.print-pilot-guide .booking-form,
+  body.print-pilot-guide .account-panel,
+  body.print-pilot-guide .admin-panel:not(#adminPilotPanel),
+  body.print-pilot-guide .calendar-panel,
+  body.print-pilot-guide .pilot-readiness-list,
+  body.print-pilot-guide .pilot-timeline,
+  body.print-pilot-guide .form-actions,
+  body.print-pilot-guide .message {
+    display: none;
+  }
+
+  body.print-pilot-guide .booking-panel,
+  body.print-pilot-guide #adminPilotPanel,
+  body.print-pilot-guide .pilot-guide {
+    border: 0;
+    box-shadow: none;
+    display: block;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.print-pilot-guide .pilot-guide textarea {
+    border: 0;
+    min-height: 0;
     padding: 0;
   }
 }

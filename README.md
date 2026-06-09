@@ -26,6 +26,7 @@ npm run verify
 npm run smoke
 npm run test:full
 npm run hosting:check
+npm run pilot:check
 npm run publish:check
 ```
 
@@ -62,6 +63,7 @@ Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, 
 Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
 Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
 Eigene Buchungen koennen ueber "Frueher frei melden" per WhatsApp API an eine hinterlegte Nummer gemeldet werden.
+Admins sehen im Bereich "Pilotstart" eine Vorbereitungsliste und eine Kurzanleitung fuer die erste Testrunde.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 
@@ -89,6 +91,7 @@ Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren
 
 - Lokalen Smoke-Test ausfuehren: `npm run smoke`
 - Lokalen Verify-Check ausfuehren: `npm run verify`
+- Pilot-Readiness gegen Render pruefen: `npm run pilot:check`
 - Hosting-Vorcheck ausfuehren: `npm run hosting:check`
 - Code in ein Git-Repository pushen, das Render verbinden kann
 - Nach dem Einrichten des Git-Remotes `npm run publish:check` ausfuehren
@@ -102,6 +105,30 @@ Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren
 - `/api/health` pruefen: `sqlitePath` muss `/var/data/washraum.sqlite` sein
 - Eine Testbuchung erstellen, Render-Service neu starten und Persistenz pruefen
 - Nach dem Deploy ausfuehren: `APP_URL=https://deine-render-url ADMIN_PASSWORD=... npm run production:check`
+
+## Pilotstart mit Bewohnern
+
+Empfohlener Ablauf fuer die erste Testrunde:
+
+- Mit 3 bis 5 Personen starten, nicht sofort mit allen 20 Parteien
+- In der Nutzerverwaltung echte Anzeigenamen fuer die Pilotpersonen eintragen
+- Partei-/Wohnungsbezeichnung zusaetzlich setzen, z. B. `Partei 04`
+- Vor dem Einladen im Bereich "Betrieb" ein Backup herunterladen
+- Im Bereich "Pilotstart" die Checkliste pruefen und den Einladungstext kopieren oder drucken
+- Jede Testperson prueft Login, freie Buchung, Monatsplan, Loeschen eigener Buchungen und Protokolltagebuch
+- Nach 5 bis 7 Tagen Feedback sammeln und dann erst alle Parteien freischalten
+
+Der Pilot-Check mutiert keine Produktionsdaten:
+
+```bash
+npm run pilot:check
+```
+
+Mit Admin-Backup-Pruefung:
+
+```bash
+APP_URL=https://washraum-app.onrender.com ADMIN_PASSWORD=dein-admin-passwort npm run pilot:check
+```
 
 ## GitHub-Push vorbereiten
 
