@@ -93,6 +93,8 @@ db.exec(`
     resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
     resource_id TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
+    unavailable_reason TEXT,
+    unavailable_since TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (resource_type, resource_id)
@@ -139,6 +141,7 @@ ensureBookingSchema();
 ensureBookingColumns();
 ensureActivitySchema();
 ensureUserColumns();
+ensureResourceColumns();
 seedDefaultResources();
 seedDefaultBlockedDates();
 seedDefaultUsers();
@@ -243,7 +246,13 @@ app.post("/api/me/onboarding-seen", (req, res) => {
 });
 
 app.get("/api/resources", (_req, res) => {
-  res.json({ resources: listResources(), slots, blockedDates: listBlockedDates() });
+  res.json({
+    resources: listResources(),
+    allResources: listAllResources(),
+    resourceEntries: listResourceEntries(),
+    slots,
+    blockedDates: listBlockedDates()
+  });
 });
 
 app.get("/api/bookings", (_req, res) => {
@@ -403,7 +412,8 @@ app.get("/api/admin/overview", (req, res) => {
     .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
     .get(new Date().toISOString()).count;
   const blockedDatesCount = db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count;
-  const currentResources = listResources();
+  const currentResources = listAllResources();
+  const unavailableResources = listResourceEntries().filter((resource) => resource.unavailable_reason);
   const whatsappStatus = whatsappRuntimeStatus();
   const seededParties = db
     .prepare("SELECT COUNT(*) AS count FROM users WHERE user_name LIKE 'partei-%' OR apartment_label LIKE 'Partei %'")
@@ -466,7 +476,8 @@ app.get("/api/admin/overview", (req, res) => {
         washers: currentResources.washer.length,
         dryingRooms: currentResources.drying_room.length,
         tumblers: currentResources.tumbler.length,
-        slotsPerResource: fixedSlots.length
+        slotsPerResource: fixedSlots.length,
+        unavailable: unavailableResources.length
       },
       whatsapp: whatsappStatus
     },
@@ -496,7 +507,7 @@ app.post("/api/admin/resources", (req, res) => {
       `)
       .run(resourceType, resourceId, sortOrder);
     const resource = db
-      .prepare("SELECT id, resource_type, resource_id, active, sort_order, created_at FROM resource_entries WHERE id = ?")
+      .prepare("SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at FROM resource_entries WHERE id = ?")
       .get(info.lastInsertRowid);
 
     res.status(201).json({ ok: true, resource, resources: listResources() });
@@ -507,6 +518,49 @@ app.post("/api/admin/resources", (req, res) => {
 
     throw error;
   }
+});
+
+app.patch("/api/admin/resources/:id/availability", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existingResource = db
+    .prepare("SELECT id, resource_type, resource_id FROM resource_entries WHERE id = ? AND active = 1")
+    .get(id);
+  if (!existingResource) {
+    return res.status(404).json({ ok: false, error: "resource_not_found" });
+  }
+
+  const unavailable = Boolean(req.body?.unavailable);
+  const reason = String(req.body?.reason || "").trim();
+  if (unavailable && (reason.length < 3 || reason.length > 160)) {
+    return res.status(400).json({ ok: false, error: "invalid_resource_unavailable_reason" });
+  }
+
+  if (unavailable) {
+    db
+      .prepare("UPDATE resource_entries SET unavailable_reason = ?, unavailable_since = ? WHERE id = ?")
+      .run(reason, new Date().toISOString(), id);
+  } else {
+    db
+      .prepare("UPDATE resource_entries SET unavailable_reason = NULL, unavailable_since = NULL WHERE id = ?")
+      .run(id);
+  }
+
+  const resource = db
+    .prepare("SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at FROM resource_entries WHERE id = ?")
+    .get(id);
+
+  res.json({
+    ok: true,
+    resource,
+    resources: listResources(),
+    allResources: listAllResources(),
+    resourceEntries: listResourceEntries()
+  });
 });
 
 app.post("/api/admin/seed-parties", (req, res) => {
@@ -1177,6 +1231,7 @@ function listResources() {
       SELECT resource_type, resource_id
       FROM resource_entries
       WHERE active = 1
+        AND unavailable_reason IS NULL
       ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
     `)
     .all();
@@ -1186,6 +1241,56 @@ function listResources() {
   }
 
   return resources;
+}
+
+function listAllResources() {
+  const resources = {
+    washer: [],
+    drying_room: [],
+    tumbler: []
+  };
+
+  for (const entry of listResourceEntries()) {
+    resources[entry.resource_type].push(entry.resource_id);
+  }
+
+  return resources;
+}
+
+function listResourceEntries() {
+  return db
+    .prepare(`
+      SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at
+      FROM resource_entries
+      WHERE active = 1
+      ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
+    `)
+    .all();
+}
+
+function isKnownResource(resourceType, resourceId) {
+  return Boolean(db
+    .prepare(`
+      SELECT id
+      FROM resource_entries
+      WHERE resource_type = ?
+        AND resource_id = ?
+        AND active = 1
+    `)
+    .get(resourceType, resourceId));
+}
+
+function isResourceBookable(resourceType, resourceId) {
+  return Boolean(db
+    .prepare(`
+      SELECT id
+      FROM resource_entries
+      WHERE resource_type = ?
+        AND resource_id = ?
+        AND active = 1
+        AND unavailable_reason IS NULL
+    `)
+    .get(resourceType, resourceId));
 }
 
 function nextResourceSortOrder(resourceType) {
@@ -1222,6 +1327,20 @@ function ensureUserColumns() {
 
   if (!hasOnboardingSeenAt) {
     db.exec("ALTER TABLE users ADD COLUMN onboarding_seen_at TEXT");
+  }
+}
+
+function ensureResourceColumns() {
+  const columns = db.prepare("PRAGMA table_info(resource_entries)").all();
+  const hasUnavailableReason = columns.some((column) => column.name === "unavailable_reason");
+  const hasUnavailableSince = columns.some((column) => column.name === "unavailable_since");
+
+  if (!hasUnavailableReason) {
+    db.exec("ALTER TABLE resource_entries ADD COLUMN unavailable_reason TEXT");
+  }
+
+  if (!hasUnavailableSince) {
+    db.exec("ALTER TABLE resource_entries ADD COLUMN unavailable_since TEXT");
   }
 }
 
@@ -1422,7 +1541,7 @@ function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) 
     return { ok: false, error: "invalid_resource_type" };
   }
 
-  if (!listResources()[resourceType].includes(resourceId)) {
+  if (!isKnownResource(resourceType, resourceId)) {
     return { ok: false, error: "invalid_resource_id" };
   }
 
@@ -1464,8 +1583,12 @@ function createBooking(input) {
     return { ok: false, error: "invalid_resource_type" };
   }
 
-  if (!listResources()[resourceType].includes(resourceId)) {
+  if (!isKnownResource(resourceType, resourceId)) {
     return { ok: false, error: "invalid_resource_id" };
+  }
+
+  if (!isResourceBookable(resourceType, resourceId)) {
+    return { ok: false, error: "resource_unavailable" };
   }
 
   const start = parseBookingDateTime(startAt);

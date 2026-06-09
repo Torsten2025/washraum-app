@@ -16,6 +16,7 @@ const featureCatalog = [
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
+  "Ressourcensperre: defekte Maschine oder Raum sperren und wieder freigeben",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
   "Alltagshinweis: Waesche haengt noch direkt an einer Buchung melden",
   "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
@@ -71,6 +72,9 @@ async function checkStaticPages() {
   assert(!loginHtml.includes("myGBMZ"), "login page does not contain old myGBMZ navigation");
   assert(indexHtml.includes("seedPartiesButton"), "admin 20-party onboarding exists");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
+  assert(appJs.includes("/api/admin/resources/") && appJs.includes("/availability"), "admin resource availability action exists");
+  assert(appJs.includes("availability-slot-unavailable"), "unavailable resource slots are marked");
+  assert(appJs.includes("resource_unavailable"), "unavailable resource error is handled");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
   assert(!indexHtml.includes("forgottenLaundryButton"), "old forgotten laundry logbook shortcut is removed");

@@ -94,6 +94,12 @@ let resources = {
   drying_room: [],
   tumbler: []
 };
+let allResources = {
+  washer: [],
+  drying_room: [],
+  tumbler: []
+};
+let resourceEntries = [];
 let slotConfig = {
   washer: [],
   drying_room: [],
@@ -501,13 +507,20 @@ function updateResourceOptions() {
     option.textContent = resourceId;
     resourceIdInput.append(option);
   }
+
+  if (resourceIdInput.options.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Keine verfuegbare Ressource";
+    resourceIdInput.append(option);
+  }
 }
 
 function updateMachineLogResourceOptions() {
   const selectedType = machineLogResourceTypeInput.value;
   machineLogResourceIdInput.innerHTML = "";
 
-  for (const resourceId of resources[selectedType] || []) {
+  for (const resourceId of allResources[selectedType] || []) {
     const option = document.createElement("option");
     option.value = resourceId;
     option.textContent = resourceId;
@@ -623,7 +636,9 @@ async function loadActivity() {
 async function loadResources() {
   const response = await fetch("/api/resources");
   const data = await response.json();
-  resources = data.resources;
+  resources = data.resources || { washer: [], drying_room: [], tumbler: [] };
+  allResources = data.allResources || resources;
+  resourceEntries = data.resourceEntries || [];
   slotConfig = data.slots || {};
   blockedDates = data.blockedDates || [];
   renderResources();
@@ -776,7 +791,8 @@ function renderAvailability() {
 
   const grid = document.createElement("div");
   grid.className = "availability-grid";
-  for (const resourceId of resources[resourceType] || []) {
+  for (const resourceId of allResources[resourceType] || []) {
+    const unavailable = resourceUnavailable(resourceType, resourceId);
     for (const slot of slotConfig[resourceType] || []) {
       const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
       const isReleased = Boolean(booking?.released_at);
@@ -784,27 +800,32 @@ function renderAvailability() {
       const button = document.createElement("button");
       button.type = "button";
       button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
+      if (unavailable) {
+        button.classList.add("availability-slot-unavailable");
+      }
       if (isReleased) {
         button.classList.add("availability-slot-released");
       }
       if (isPast) {
         button.classList.add("availability-slot-past");
       }
-      button.disabled = Boolean(isPast || (booking && !isReleased));
+      button.disabled = Boolean(unavailable || isPast || (booking && !isReleased));
 
       const resource = document.createElement("strong");
       resource.textContent = resourceId;
       const time = document.createElement("span");
       time.textContent = slot.label;
       const state = document.createElement("small");
-      state.textContent = isPast
+      state.textContent = unavailable
+        ? `Gesperrt: ${unavailable.unavailable_reason}`
+        : isPast
         ? "Vorbei"
         : booking
         ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
         : "Frei";
 
       button.append(resource, time, state);
-      if (!isPast && (!booking || isReleased)) {
+      if (!unavailable && !isPast && (!booking || isReleased)) {
         button.addEventListener("click", () => {
           resourceIdInput.value = resourceId;
           bookingSlotInput.value = slot.id;
@@ -960,7 +981,7 @@ function renderMonthlyPlan(bookings) {
     const groupGrid = document.createElement("div");
     groupGrid.className = "month-resource-group-grid";
 
-    for (const resourceId of resources[resourceType.type] || []) {
+    for (const resourceId of allResources[resourceType.type] || []) {
       groupGrid.append(monthResourceTable({
         bookings,
         resourceType: resourceType.type,
@@ -977,9 +998,15 @@ function renderMonthlyPlan(bookings) {
 function monthResourceTable({ bookings, resourceType, resourceId, month }) {
   const section = document.createElement("section");
   section.className = "month-resource";
+  const unavailable = resourceUnavailable(resourceType, resourceId);
+  if (unavailable) {
+    section.classList.add("month-resource-unavailable");
+  }
 
   const heading = document.createElement("h3");
-  heading.textContent = `${resourceLabel(resourceType)} ${resourceId}`;
+  heading.textContent = unavailable
+    ? `${resourceLabel(resourceType)} ${resourceId} - gesperrt`
+    : `${resourceLabel(resourceType)} ${resourceId}`;
   section.append(heading);
 
   const table = document.createElement("table");
@@ -996,7 +1023,7 @@ function monthResourceTable({ bookings, resourceType, resourceId, month }) {
 
   const tbody = document.createElement("tbody");
   for (const day of daysInMonth(month)) {
-    tbody.append(monthDayRow({ bookings, resourceType, resourceId, day }));
+    tbody.append(monthDayRow({ bookings, resourceType, resourceId, day, unavailable }));
   }
   table.append(tbody);
   section.append(table);
@@ -1011,7 +1038,7 @@ function monthHeaderCell(text) {
   return cell;
 }
 
-function monthDayRow({ bookings, resourceType, resourceId, day }) {
+function monthDayRow({ bookings, resourceType, resourceId, day, unavailable }) {
   const row = document.createElement("tr");
   const blockedDate = blockedDateForDay(day);
   const isClosed = day.getDay() === 0 || Boolean(blockedDate);
@@ -1035,6 +1062,9 @@ function monthDayRow({ bookings, resourceType, resourceId, day }) {
     if (isClosed) {
       cell.className = "month-slot-closed";
       cell.textContent = blockedDate ? blockedDate.label : "So";
+    } else if (unavailable) {
+      cell.className = "month-slot-unavailable";
+      cell.textContent = "Gesperrt";
     } else if (booking?.released_at) {
       cell.className = "month-slot-released";
       cell.textContent = `frei: ${partyLabel(booking)}`;
@@ -1084,20 +1114,66 @@ function renderResources() {
   }
 
   resourcesList.innerHTML = "";
-  const entries = [
+  const groups = [
     ["washer", "Waschmaschinen"],
     ["drying_room", "Trockenraeume"],
     ["tumbler", "Tumbler"]
   ];
 
-  for (const [resourceType, label] of entries) {
+  for (const [resourceType, label] of groups) {
     const item = document.createElement("article");
     item.className = "resource-item";
     const title = document.createElement("h3");
     title.textContent = label;
-    const values = document.createElement("p");
-    values.textContent = (resources[resourceType] || []).join(", ") || "Keine Ressourcen";
-    item.append(title, values);
+    const entries = resourceEntries.filter((entry) => entry.resource_type === resourceType);
+    if (entries.length === 0) {
+      const values = document.createElement("p");
+      values.textContent = "Keine Ressourcen";
+      item.append(title, values);
+      resourcesList.append(item);
+      continue;
+    }
+
+    const list = document.createElement("div");
+    list.className = "resource-admin-list";
+    for (const entry of entries) {
+      const row = document.createElement("div");
+      row.className = entry.unavailable_reason ? "resource-admin-row resource-admin-row-unavailable" : "resource-admin-row";
+
+      const info = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = entry.resource_id;
+      const status = document.createElement("span");
+      status.textContent = entry.unavailable_reason
+        ? `Gesperrt: ${entry.unavailable_reason}`
+        : "Verfuegbar";
+      info.append(name, status);
+
+      const actions = document.createElement("div");
+      actions.className = "resource-admin-actions";
+      if (entry.unavailable_reason) {
+        const releaseButton = document.createElement("button");
+        releaseButton.type = "button";
+        releaseButton.textContent = "Freigeben";
+        releaseButton.addEventListener("click", () => setResourceAvailability(entry, false));
+        actions.append(releaseButton);
+      } else {
+        const reasonInput = document.createElement("input");
+        reasonInput.type = "text";
+        reasonInput.maxLength = 160;
+        reasonInput.placeholder = "Grund, z. B. defekt";
+        const blockButton = document.createElement("button");
+        blockButton.type = "button";
+        blockButton.textContent = "Sperren";
+        blockButton.addEventListener("click", () => setResourceAvailability(entry, true, reasonInput.value));
+        actions.append(reasonInput, blockButton);
+      }
+
+      row.append(info, actions);
+      list.append(row);
+    }
+
+    item.append(title, list);
     resourcesList.append(item);
   }
 }
@@ -1236,6 +1312,7 @@ function renderOperations(status, warnings) {
     ["Pilot-Feedback", String(status.pilotFeedback || 0)],
     ["Parteien", `${status.seededParties}/20`],
     ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
+    ["Gesperrt", String(status.resources.unavailable || 0)],
     ["WhatsApp", whatsappStatusLabel(status.whatsapp)]
   ];
 
@@ -1447,6 +1524,35 @@ async function reportLaundryLeft(booking) {
   await loadActivity();
 }
 
+async function setResourceAvailability(resource, unavailable, reason = "") {
+  resourceMessage.textContent = "";
+  const response = await fetch(`/api/admin/resources/${resource.id}/availability`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      unavailable,
+      reason: reason.trim()
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    resourceMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  resourceMessage.textContent = unavailable
+    ? `${resource.resource_id} wurde gesperrt.`
+    : `${resource.resource_id} wurde freigegeben.`;
+  await loadResources();
+  updateResourceOptions();
+  updateMachineLogResourceOptions();
+  updateSlotControls();
+  setDefaultBookingTimes();
+  renderAvailability();
+  await loadOperations();
+}
+
 async function resetUserPassword(user) {
   userMessage.textContent = "";
   const response = await fetch(`/api/admin/users/${user.id}/reset-password`, {
@@ -1535,6 +1641,14 @@ function resourceLabel(type) {
   };
 
   return labels[type] || type;
+}
+
+function resourceUnavailable(resourceType, resourceId) {
+  return resourceEntries.find((entry) => {
+    return entry.resource_type === resourceType
+      && entry.resource_id === resourceId
+      && entry.unavailable_reason;
+  });
 }
 
 function whatsappStatusLabel(status) {
@@ -1822,6 +1936,9 @@ function messageForError(error) {
     missing_resource_fields: "Bitte Bereich und Ressourcenname ausfuellen.",
     invalid_resource_name: "Der Ressourcenname muss 2 bis 60 Zeichen lang sein.",
     resource_already_exists: "Diese Ressource existiert bereits.",
+    resource_not_found: "Diese Ressource wurde nicht gefunden.",
+    invalid_resource_unavailable_reason: "Bitte einen Sperrgrund mit 3 bis 160 Zeichen eintragen.",
+    resource_unavailable: "Diese Maschine oder dieser Raum ist aktuell gesperrt.",
     missing_machine_log_fields: "Bitte Ressource, Datum und Eintrag ausfuellen.",
     invalid_machine_log_date: "Bitte ein gueltiges Protokolldatum waehlen.",
     invalid_machine_log_note: "Der Protokolleintrag muss 3 bis 1200 Zeichen lang sein.",

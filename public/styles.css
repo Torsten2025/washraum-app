@@ -646,6 +646,19 @@ input[readonly] {
   color: #8c9691;
 }
 
+.availability-slot-unavailable,
+.availability-slot-unavailable:hover {
+  background: #fff7d8;
+  border-color: #ead99a;
+  color: var(--warning);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.availability-slot-unavailable small {
+  color: var(--warning);
+}
+
 .availability-closed {
   color: var(--warning);
   font-weight: 800;
@@ -723,6 +736,55 @@ input[readonly] {
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+.resource-admin-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.resource-admin-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr minmax(220px, 0.95fr);
+  padding: 0.75rem;
+}
+
+.resource-admin-row-unavailable {
+  background: #fff7d8;
+  border-color: #ead99a;
+}
+
+.resource-admin-row strong,
+.resource-admin-row span {
+  display: block;
+}
+
+.resource-admin-row span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  margin-top: 0.25rem;
+}
+
+.resource-admin-row-unavailable span {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+.resource-admin-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.resource-admin-actions input {
+  min-width: 0;
 }
 
 .ops-status-grid {
@@ -923,6 +985,15 @@ input[readonly] {
   text-align: center;
 }
 
+.month-resource-unavailable {
+  border-color: #ead99a;
+}
+
+.month-resource-unavailable h3 {
+  background: #fff7d8;
+  color: var(--warning);
+}
+
 .month-table {
   border-collapse: collapse;
   font-size: 0.78rem;
@@ -985,6 +1056,13 @@ input[readonly] {
   background: #e7f2ff;
   color: #15588d;
   font-weight: 800;
+}
+
+.month-slot-unavailable {
+  background: #fff7d8;
+  color: var(--warning);
+  font-weight: 800;
+  text-align: center;
 }
 
 .calendar-day {
@@ -1240,6 +1318,14 @@ input[readonly] {
 
   .calendar-grid {
     grid-template-columns: repeat(7, minmax(170px, 1fr));
+  }
+
+  .resource-admin-row {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-admin-actions {
+    justify-content: flex-start;
   }
 }
 

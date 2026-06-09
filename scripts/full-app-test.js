@@ -73,6 +73,44 @@ async function run() {
 
   const bookingDate = nextBookableDate(blockedDateKeys, 35);
   const washerRange = localRangeForDate(bookingDate, "07:00", "12:00");
+  const blockResource = await request(`/api/admin/resources/${createResource.body.resource.id}/availability`, {
+    method: "PATCH",
+    token: admin.token,
+    body: {
+      unavailable: true,
+      reason: "FullTest: Wartung"
+    }
+  });
+  assertStatus(blockResource, 200, "admin blocks unavailable resource");
+  assert(blockResource.body.resource.unavailable_reason.includes("Wartung"), "blocked resource reason is stored");
+
+  const resourcesAfterBlock = await request("/api/resources");
+  assertStatus(resourcesAfterBlock, 200, "resources reload after block");
+  assert(!resourcesAfterBlock.body.resources.washer.includes(testWasher), "blocked washer is not bookable");
+  assert(resourcesAfterBlock.body.allResources.washer.includes(testWasher), "blocked washer remains visible as known resource");
+
+  const blockedWasherBooking = await request("/api/bookings", {
+    method: "POST",
+    token: user.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher,
+      startAt: washerRange.startAt,
+      endAt: washerRange.endAt
+    }
+  });
+  assertStatus(blockedWasherBooking, 400, "blocked washer cannot be booked");
+  assert(blockedWasherBooking.body.error === "resource_unavailable", "blocked washer error code");
+
+  const releaseResource = await request(`/api/admin/resources/${createResource.body.resource.id}/availability`, {
+    method: "PATCH",
+    token: admin.token,
+    body: {
+      unavailable: false
+    }
+  });
+  assertStatus(releaseResource, 200, "admin releases unavailable resource");
+
   const washerBooking = await request("/api/bookings", {
     method: "POST",
     token: user.token,
