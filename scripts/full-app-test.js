@@ -159,6 +159,44 @@ async function run() {
   assertStatus(logs, 200, "machine logs load");
   assert(logs.body.logs.some((entry) => entry.resource_id === testWasher && entry.note.includes("vibrierte")), "machine log appears in logbook");
 
+  const blockFromLog = await request("/api/machine-logs", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher,
+      eventDate: dateKey(bookingDate),
+      availabilityAction: "block_resource",
+      note: "FullTest-Protokoll: Wasser tritt unten aus."
+    }
+  });
+  assertStatus(blockFromLog, 201, "admin blocks resource from logbook");
+  assert(blockFromLog.body.availabilityAction === "block_resource", "logbook block action is returned");
+  assert(blockFromLog.body.logEntry.note.includes("[Gesperrt]"), "logbook block entry is marked");
+
+  const resourcesAfterLogBlock = await request("/api/resources");
+  assertStatus(resourcesAfterLogBlock, 200, "resources reload after logbook block");
+  assert(!resourcesAfterLogBlock.body.resources.washer.includes(testWasher), "logbook-blocked washer is not bookable");
+
+  const releaseFromLog = await request("/api/machine-logs", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      resourceType: "washer",
+      resourceId: testWasher,
+      eventDate: dateKey(bookingDate),
+      availabilityAction: "release_resource",
+      note: "FullTest-Protokoll: Dichtung ersetzt, Probelauf ok."
+    }
+  });
+  assertStatus(releaseFromLog, 201, "admin releases resource from logbook");
+  assert(releaseFromLog.body.availabilityAction === "release_resource", "logbook release action is returned");
+  assert(releaseFromLog.body.logEntry.note.includes("[Freigegeben]"), "logbook release entry is marked");
+
+  const resourcesAfterLogRelease = await request("/api/resources");
+  assertStatus(resourcesAfterLogRelease, 200, "resources reload after logbook release");
+  assert(resourcesAfterLogRelease.body.resources.washer.includes(testWasher), "logbook-released washer is bookable again");
+
   const createFeedback = await request("/api/pilot-feedback", {
     method: "POST",
     token: user.token,

@@ -17,6 +17,7 @@ const featureCatalog = [
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
   "Ressourcensperre: defekte Maschine oder Raum sperren und wieder freigeben",
+  "Protokoll-Sperre: Admin sperrt oder gibt Ressourcen direkt aus dem Protokolltagebuch frei",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
   "Alltagshinweis: Waesche haengt noch direkt an einer Buchung melden",
   "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
@@ -77,6 +78,12 @@ async function checkStaticPages() {
   assert(appJs.includes("availability-slot-unavailable"), "unavailable resource slots are marked");
   assert(appJs.includes("resource_unavailable"), "unavailable resource error is handled");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
+  assert(indexHtml.includes("machineLogAction"), "machine logbook availability action exists");
+  assert(indexHtml.includes("Protokollieren und sperren"), "machine logbook can block resources");
+  assert(indexHtml.includes("Protokollieren und freigeben"), "machine logbook can release resources");
+  assert(appJs.includes("updateMachineLogActionOptions"), "machine log action options are synced with resource status");
+  assert(appJs.includes("availabilityAction"), "machine log submits availability action");
+  assert(appJs.includes("Protokolleintrag gespeichert und Ressource gesperrt"), "machine log block confirmation exists");
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
   assert(!indexHtml.includes("forgottenLaundryButton"), "old forgotten laundry logbook shortcut is removed");
   assert(appJs.includes("reportLaundryLeft"), "laundry-left booking action exists");

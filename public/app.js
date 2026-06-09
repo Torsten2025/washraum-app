@@ -21,6 +21,8 @@ const machineLogForm = document.getElementById("machineLogForm");
 const machineLogResourceTypeInput = document.getElementById("machineLogResourceType");
 const machineLogResourceIdInput = document.getElementById("machineLogResourceId");
 const machineLogDateInput = document.getElementById("machineLogDate");
+const machineLogActionGroup = document.getElementById("machineLogActionGroup");
+const machineLogActionInput = document.getElementById("machineLogAction");
 const machineLogNoteInput = document.getElementById("machineLogNote");
 const machineLogMessage = document.getElementById("machineLogMessage");
 const machineLogsList = document.getElementById("machineLogsList");
@@ -172,7 +174,11 @@ resourceTypeInput.addEventListener("change", () => {
   renderAvailability();
 });
 resourceIdInput.addEventListener("change", renderAvailability);
-machineLogResourceTypeInput.addEventListener("change", updateMachineLogResourceOptions);
+machineLogResourceTypeInput.addEventListener("change", () => {
+  updateMachineLogResourceOptions();
+  updateMachineLogActionOptions();
+});
+machineLogResourceIdInput.addEventListener("change", updateMachineLogActionOptions);
 bookingDateInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
@@ -220,6 +226,7 @@ machineLogForm.addEventListener("submit", async (event) => {
       resourceType: machineLogResourceTypeInput.value,
       resourceId: machineLogResourceIdInput.value,
       eventDate: machineLogDateInput.value,
+      availabilityAction: role === "admin" ? machineLogActionInput.value : "log_only",
       note: machineLogNoteInput.value.trim()
     })
   });
@@ -231,8 +238,23 @@ machineLogForm.addEventListener("submit", async (event) => {
   }
 
   machineLogNoteInput.value = "";
-  machineLogMessage.textContent = "Protokolleintrag gespeichert.";
+  machineLogActionInput.value = "log_only";
+  machineLogMessage.textContent = data.availabilityAction === "block_resource"
+    ? "Protokolleintrag gespeichert und Ressource gesperrt."
+    : data.availabilityAction === "release_resource"
+      ? "Protokolleintrag gespeichert und Ressource freigegeben."
+      : "Protokolleintrag gespeichert.";
   await loadMachineLogs();
+  if (data.availabilityAction && data.availabilityAction !== "log_only") {
+    await loadResources();
+    updateResourceOptions();
+    updateMachineLogResourceOptions();
+    updateSlotControls();
+    setDefaultBookingTimes();
+    renderAvailability();
+    renderBookings();
+    await loadOperations();
+  }
 });
 bookingFilter.addEventListener("change", renderBookings);
 previousWeekButton.addEventListener("click", () => moveWeek(-1));
@@ -536,6 +558,39 @@ function updateMachineLogResourceOptions() {
     option.value = resourceId;
     option.textContent = resourceId;
     machineLogResourceIdInput.append(option);
+  }
+
+  updateMachineLogActionOptions();
+}
+
+function updateMachineLogActionOptions() {
+  if (!machineLogActionInput || !machineLogActionGroup) {
+    return;
+  }
+
+  const isAdmin = role === "admin";
+  machineLogActionGroup.classList.toggle("hidden", !isAdmin);
+  if (!isAdmin) {
+    machineLogActionInput.value = "log_only";
+    return;
+  }
+
+  const selectedResource = selectedMachineLogResource();
+  const blockOption = machineLogActionInput.querySelector("option[value='block_resource']");
+  const releaseOption = machineLogActionInput.querySelector("option[value='release_resource']");
+  const isUnavailable = Boolean(selectedResource?.unavailable_reason);
+  if (blockOption) {
+    blockOption.disabled = isUnavailable;
+  }
+  if (releaseOption) {
+    releaseOption.disabled = !isUnavailable;
+  }
+
+  if (isUnavailable && machineLogActionInput.value === "block_resource") {
+    machineLogActionInput.value = "log_only";
+  }
+  if (!isUnavailable && machineLogActionInput.value === "release_resource") {
+    machineLogActionInput.value = "log_only";
   }
 }
 
@@ -1694,6 +1749,13 @@ function resourceUnavailable(resourceType, resourceId) {
   });
 }
 
+function selectedMachineLogResource() {
+  return resourceEntries.find((entry) => {
+    return entry.resource_type === machineLogResourceTypeInput.value
+      && entry.resource_id === machineLogResourceIdInput.value;
+  });
+}
+
 function whatsappStatusLabel(status) {
   if (!status) {
     return "nicht konfiguriert";
@@ -1768,8 +1830,13 @@ function updateAdminControls() {
   adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
   adminOpsPanel.classList.toggle("hidden", !isAdmin);
   adminPilotPanel.classList.toggle("hidden", !isAdmin);
+  machineLogActionGroup.classList.toggle("hidden", !isAdmin);
+  if (!isAdmin) {
+    machineLogActionInput.value = "log_only";
+  }
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
+  updateMachineLogActionOptions();
 }
 
 function formatDate(value) {
@@ -1985,6 +2052,7 @@ function messageForError(error) {
     missing_machine_log_fields: "Bitte Ressource, Datum und Eintrag ausfuellen.",
     invalid_machine_log_date: "Bitte ein gueltiges Protokolldatum waehlen.",
     invalid_machine_log_note: "Der Protokolleintrag muss 3 bis 1200 Zeichen lang sein.",
+    invalid_machine_log_action: "Bitte eine gueltige Protokoll-Aktion waehlen.",
     missing_pilot_feedback: "Bitte eine Rueckmeldung eintragen.",
     invalid_pilot_feedback: "Die Rueckmeldung muss 5 bis 1200 Zeichen lang sein.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",

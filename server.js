@@ -649,22 +649,62 @@ app.post("/api/machine-logs", (req, res) => {
   const resourceId = String(req.body?.resourceId || "").trim();
   const eventDate = String(req.body?.eventDate || dateKey(new Date())).trim();
   const note = String(req.body?.note || "").trim();
+  const availabilityAction = String(req.body?.availabilityAction || "log_only").trim();
   const validation = validateMachineLogInput({ resourceType, resourceId, eventDate, note });
   if (!validation.ok) {
     return res.status(400).json(validation);
   }
+  if (!["log_only", "block_resource", "release_resource"].includes(availabilityAction)) {
+    return res.status(400).json({ ok: false, error: "invalid_machine_log_action" });
+  }
+  if (availabilityAction !== "log_only" && auth.role !== "admin") {
+    return res.status(403).json({ ok: false, error: "admin_required" });
+  }
 
-  const info = db
-    .prepare(`
-      INSERT INTO machine_log_entries (user_name, resource_type, resource_id, event_date, note)
-      VALUES (?, ?, ?, ?, ?)
-    `)
-    .run(auth.user_name, resourceType, resourceId, eventDate, note);
-  const logEntry = db
-    .prepare("SELECT * FROM machine_log_entries WHERE id = ?")
-    .get(info.lastInsertRowid);
+  const saveMachineLog = db.transaction(() => {
+    const storedNote = noteWithAvailabilityAction(note, availabilityAction);
+    const info = db
+      .prepare(`
+        INSERT INTO machine_log_entries (user_name, resource_type, resource_id, event_date, note)
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      .run(auth.user_name, resourceType, resourceId, eventDate, storedNote);
 
-  res.status(201).json({ ok: true, logEntry });
+    if (availabilityAction === "block_resource") {
+      db
+        .prepare(`
+          UPDATE resource_entries
+          SET unavailable_reason = ?, unavailable_since = ?
+          WHERE resource_type = ? AND resource_id = ? AND active = 1
+        `)
+        .run(resourceUnavailableReason(note), new Date().toISOString(), resourceType, resourceId);
+    }
+
+    if (availabilityAction === "release_resource") {
+      db
+        .prepare(`
+          UPDATE resource_entries
+          SET unavailable_reason = NULL, unavailable_since = NULL
+          WHERE resource_type = ? AND resource_id = ? AND active = 1
+        `)
+        .run(resourceType, resourceId);
+    }
+
+    return db
+      .prepare("SELECT * FROM machine_log_entries WHERE id = ?")
+      .get(info.lastInsertRowid);
+  });
+
+  const logEntry = saveMachineLog();
+
+  res.status(201).json({
+    ok: true,
+    logEntry,
+    availabilityAction,
+    resources: listResources(),
+    allResources: listAllResources(),
+    resourceEntries: listResourceEntries()
+  });
 });
 
 app.get("/api/pilot-feedback", (req, res) => {
@@ -1554,6 +1594,21 @@ function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) 
   }
 
   return { ok: true };
+}
+
+function noteWithAvailabilityAction(note, availabilityAction) {
+  if (availabilityAction === "block_resource") {
+    return `[Gesperrt] ${note}`;
+  }
+  if (availabilityAction === "release_resource") {
+    return `[Freigegeben] ${note}`;
+  }
+
+  return note;
+}
+
+function resourceUnavailableReason(note) {
+  return String(note || "").trim().slice(0, 160);
 }
 
 function validatePilotFeedback({ message }) {

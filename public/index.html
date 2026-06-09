@@ -202,6 +202,15 @@
               <input id="machineLogDate" name="machineLogDate" type="date" required>
             </label>
 
+            <label id="machineLogActionGroup" class="hidden">
+              Admin-Aktion
+              <select id="machineLogAction" name="machineLogAction">
+                <option value="log_only">Nur protokollieren</option>
+                <option value="block_resource">Protokollieren und sperren</option>
+                <option value="release_resource">Protokollieren und freigeben</option>
+              </select>
+            </label>
+
             <label>
               Eintrag
               <textarea id="machineLogNote" name="machineLogNote" maxlength="1200" rows="4" required></textarea>
