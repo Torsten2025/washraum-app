@@ -116,7 +116,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS activity_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released')),
+    event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released', 'laundry_left')),
     user_name TEXT NOT NULL,
     resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
     resource_id TEXT NOT NULL,
@@ -136,6 +136,7 @@ db.exec(`
 
 ensureBookingSchema();
 ensureBookingColumns();
+ensureActivitySchema();
 ensureUserColumns();
 seedDefaultResources();
 seedDefaultBlockedDates();
@@ -970,6 +971,31 @@ app.post("/api/user/releaseBooking", async (req, res, next) => {
   }
 });
 
+app.post("/api/user/laundry-left", (req, res) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const { id } = req.body || {};
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "booking_id_required" });
+  }
+
+  const booking = bookingWithUser(id);
+  if (!booking) {
+    return res.status(404).json({ ok: false, error: "booking_not_found" });
+  }
+
+  if (booking.released_at) {
+    return res.status(400).json({ ok: false, error: "booking_already_released" });
+  }
+
+  const message = buildLaundryLeftMessage(booking);
+  logBookingActivity("laundry_left", booking, message);
+  res.json({ ok: true, activity: latestActivityForBooking("laundry_left", booking) });
+});
+
 app.post("/api/bookings", (req, res) => {
   const auth = getAuth(req);
   if (!auth) {
@@ -1083,6 +1109,14 @@ function buildReleaseMessage(booking) {
   ].join(" ");
 }
 
+function buildLaundryLeftMessage(booking) {
+  const person = bookingPartyLabel(booking);
+  return [
+    `${person}: kurzer Hinweis, bei ${resourceLabel(booking.resource_type)} ${booking.resource_id} haengt noch Waesche.`,
+    `Gebucht war ${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)} am ${formatServerDate(booking.start_at)}.`
+  ].join(" ");
+}
+
 function normalizePhoneNumber(value) {
   const digits = String(value || "").replace(/\D/g, "");
   if (digits.startsWith("00")) {
@@ -1179,6 +1213,37 @@ function ensureBookingColumns() {
   if (!hasReleasedAt) {
     db.exec("ALTER TABLE bookings ADD COLUMN released_at TEXT");
   }
+}
+
+function ensureActivitySchema() {
+  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'activity_entries'").get();
+  if (!table || table.sql.includes("'laundry_left'")) {
+    return;
+  }
+
+  db.exec(`
+    ALTER TABLE activity_entries RENAME TO activity_entries_old;
+
+    CREATE TABLE activity_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released', 'laundry_left')),
+      user_name TEXT NOT NULL,
+      resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+      resource_id TEXT NOT NULL,
+      start_at TEXT NOT NULL,
+      end_at TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO activity_entries (id, event_type, user_name, resource_type, resource_id, start_at, end_at, message, created_at)
+    SELECT id, event_type, user_name, resource_type, resource_id, start_at, end_at, message, created_at
+    FROM activity_entries_old;
+
+    DROP TABLE activity_entries_old;
+
+    CREATE INDEX IF NOT EXISTS idx_activity_entries_created_at ON activity_entries(created_at);
+  `);
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -1444,7 +1509,7 @@ function createBooking(input) {
   return { ok: true, booking };
 }
 
-function logBookingActivity(eventType, booking) {
+function logBookingActivity(eventType, booking, customMessage = "") {
   db
     .prepare(`
       INSERT INTO activity_entries (event_type, user_name, resource_type, resource_id, start_at, end_at, message)
@@ -1457,7 +1522,7 @@ function logBookingActivity(eventType, booking) {
       booking.resource_id,
       booking.start_at,
       booking.end_at,
-      activityMessage(eventType, booking)
+      customMessage || activityMessage(eventType, booking)
     );
 }
 
@@ -1489,8 +1554,40 @@ function activityMessage(eventType, booking) {
   if (eventType === "booking_released") {
     return `${slot} wurde frueher frei gemeldet.`;
   }
+  if (eventType === "laundry_left") {
+    return `${slot}: Waesche haengt noch.`;
+  }
 
   return slot;
+}
+
+function bookingWithUser(id) {
+  return db
+    .prepare(`
+      SELECT
+        bookings.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM bookings
+      LEFT JOIN users ON users.user_name = bookings.user_name
+      WHERE bookings.id = ?
+    `)
+    .get(id);
+}
+
+function bookingPartyLabel(booking) {
+  const parts = [];
+  if (booking.apartment_label) {
+    parts.push(booking.apartment_label);
+  }
+  if (booking.user_display_name) {
+    parts.push(booking.user_display_name);
+  }
+  if (parts.length === 0) {
+    parts.push(booking.user_name);
+  }
+
+  return parts.join(" - ");
 }
 
 function isConfiguredSlot(resourceType, start, end) {

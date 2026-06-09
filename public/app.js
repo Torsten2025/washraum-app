@@ -21,7 +21,6 @@ const machineLogDateInput = document.getElementById("machineLogDate");
 const machineLogNoteInput = document.getElementById("machineLogNote");
 const machineLogMessage = document.getElementById("machineLogMessage");
 const machineLogsList = document.getElementById("machineLogsList");
-const forgottenLaundryButton = document.getElementById("forgottenLaundryButton");
 const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
 const newPasswordInput = document.getElementById("newPassword");
@@ -132,14 +131,6 @@ resourceTypeInput.addEventListener("change", () => {
 });
 resourceIdInput.addEventListener("change", renderAvailability);
 machineLogResourceTypeInput.addEventListener("change", updateMachineLogResourceOptions);
-forgottenLaundryButton.addEventListener("click", () => {
-  machineLogResourceTypeInput.value = "drying_room";
-  updateMachineLogResourceOptions();
-  machineLogDateInput.value = dateKey(new Date());
-  machineLogNoteInput.value = "Waesche wurde nach Ablauf des Slots nicht abgehaengt.";
-  machineLogNoteInput.focus();
-  machineLogMessage.textContent = "Bitte Raum pruefen und Eintrag speichern.";
-});
 bookingDateInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
@@ -832,10 +823,18 @@ function renderBookingsList(bookings) {
       item.append(released);
     }
 
-    if (role === "admin" || booking.user_name === userName) {
-      const actions = document.createElement("div");
-      actions.className = "booking-actions";
+    const actions = document.createElement("div");
+    actions.className = "booking-actions";
 
+    if (!booking.released_at) {
+      const laundryLeftButton = document.createElement("button");
+      laundryLeftButton.type = "button";
+      laundryLeftButton.textContent = "Waesche haengt noch";
+      laundryLeftButton.addEventListener("click", () => reportLaundryLeft(booking));
+      actions.append(laundryLeftButton);
+    }
+
+    if (role === "admin" || booking.user_name === userName) {
       const shareButton = document.createElement("button");
       shareButton.type = "button";
       shareButton.className = "whatsapp-share-button";
@@ -849,6 +848,9 @@ function renderBookingsList(bookings) {
       deleteButton.addEventListener("click", () => deleteBooking(booking.id));
 
       actions.append(shareButton, deleteButton);
+    }
+
+    if (actions.children.length > 0) {
       item.append(actions);
     }
 
@@ -1401,6 +1403,25 @@ async function shareEarlyRelease(booking) {
   await loadOperations();
 }
 
+async function reportLaundryLeft(booking) {
+  formMessage.textContent = "";
+  const response = await fetch("/api/user/laundry-left", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ id: booking.id })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    formMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  formMessage.textContent = "Hinweis gespeichert.";
+  showActionToast(data.activity?.message || "Hinweis gespeichert: Waesche haengt noch.", "neutral");
+  await loadActivity();
+}
+
 async function resetUserPassword(user) {
   userMessage.textContent = "";
   const response = await fetch(`/api/admin/users/${user.id}/reset-password`, {
@@ -1474,7 +1495,8 @@ function activityEventLabel(eventType) {
   const labels = {
     booking_created: "Gebucht",
     booking_deleted: "Geloescht",
-    booking_released: "Frei"
+    booking_released: "Frei",
+    laundry_left: "Hinweis"
   };
 
   return labels[eventType] || "Info";
@@ -1767,6 +1789,7 @@ function messageForError(error) {
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
     booking_id_required: "Keine Buchung ausgewaehlt.",
     booking_not_found: "Buchung nicht gefunden.",
+    booking_already_released: "Diese Buchung wurde bereits frueher frei gemeldet.",
     not_allowed: "Diese Buchung kann nicht geloescht werden.",
     invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen.",
     whatsapp_not_configured: "WhatsApp-Versand ist noch nicht konfiguriert.",

@@ -17,6 +17,7 @@ const featureCatalog = [
   "Betrieb: Health-Status, Produktionswarnungen und SQLite-Backup",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
+  "Alltagshinweis: Waesche haengt noch direkt an einer Buchung melden",
   "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
   "WhatsApp-Freimeldung: gebuchte Maschine frueher frei melden",
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
@@ -62,6 +63,7 @@ async function checkStaticPages() {
   console.log("\n==> UI-Funktionsmarker");
   const indexHtml = await textRequest(`${appUrl}/index.html`);
   const loginHtml = await textRequest(`${appUrl}/login.html`);
+  const appJs = await textRequest(`${appUrl}/app.js`);
 
   assert(loginHtml.includes("GBMZ"), "login page shows GBMZ branding");
   assert(loginHtml.includes("Maneggplatz 18"), "login page shows Maneggplatz 18");
@@ -70,7 +72,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
-  assert(indexHtml.includes("forgottenLaundryButton"), "forgotten laundry quick action exists");
+  assert(!indexHtml.includes("forgottenLaundryButton"), "old forgotten laundry logbook shortcut is removed");
+  assert(appJs.includes("reportLaundryLeft"), "laundry-left booking action exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");
   assert(indexHtml.includes("adminPilotPanel"), "pilot readiness panel exists");
   assert(indexHtml.includes("activityList"), "activity feed exists");
@@ -79,7 +82,6 @@ async function checkStaticPages() {
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
   assert(indexHtml.includes("helpPanel"), "resident help panel exists");
   assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
-  const appJs = await textRequest(`${appUrl}/app.js`);
   assert(appJs.includes("availability-slot-past"), "past slots are marked in availability UI");
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
 
