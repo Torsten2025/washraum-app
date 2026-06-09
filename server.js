@@ -9,6 +9,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
 const isProduction = process.env.NODE_ENV === "production";
+const whatsappConfig = {
+  accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
+  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+  apiVersion: process.env.WHATSAPP_API_VERSION || "v20.0",
+  releaseTarget: normalizePhoneNumber(process.env.WHATSAPP_RELEASE_TO || "41788328223")
+};
 const resources = {
   washer: ["WM 1", "WM 2", "WM 3"],
   drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
@@ -667,6 +673,49 @@ app.post("/api/user/deleteBooking", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/user/releaseBooking", async (req, res, next) => {
+  const auth = getAuth(req);
+  if (!auth) {
+    return res.status(401).json({ ok: false, error: "not_authenticated" });
+  }
+
+  const { id } = req.body || {};
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "booking_id_required" });
+  }
+
+  const booking = db
+    .prepare(`
+      SELECT
+        bookings.*,
+        users.display_name AS user_display_name,
+        users.apartment_label AS apartment_label
+      FROM bookings
+      LEFT JOIN users ON users.user_name = bookings.user_name
+      WHERE bookings.id = ?
+    `)
+    .get(id);
+
+  if (!booking) {
+    return res.status(404).json({ ok: false, error: "booking_not_found" });
+  }
+
+  if (auth.role !== "admin" && booking.user_name !== auth.user_name) {
+    return res.status(403).json({ ok: false, error: "not_allowed" });
+  }
+
+  try {
+    const result = await sendWhatsAppReleaseMessage(booking);
+    if (!result.ok) {
+      return res.status(result.status || 400).json(result);
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/bookings", (req, res) => {
   const auth = getAuth(req);
   if (!auth) {
@@ -713,6 +762,56 @@ function seedPassword(envName, localFallback) {
 
 function generateInitialPassword() {
   return `Wp-${crypto.randomBytes(6).toString("base64url")}`;
+}
+
+async function sendWhatsAppReleaseMessage(booking) {
+  if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !whatsappConfig.releaseTarget) {
+    return { ok: false, status: 503, error: "whatsapp_not_configured" };
+  }
+
+  const text = buildReleaseMessage(booking);
+  const response = await fetch(`https://graph.facebook.com/${whatsappConfig.apiVersion}/${whatsappConfig.phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${whatsappConfig.accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: whatsappConfig.releaseTarget,
+      type: "text",
+      text: {
+        preview_url: false,
+        body: text
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const details = await response.json().catch(() => ({}));
+    console.error("WhatsApp release message failed", details);
+    return { ok: false, status: 502, error: "whatsapp_send_failed" };
+  }
+
+  return { ok: true };
+}
+
+function buildReleaseMessage(booking) {
+  return [
+    "Info Waschraum Maneggplatz 18:",
+    `${resourceLabel(booking.resource_type)} ${booking.resource_id} ist frueher frei.`,
+    `Gebucht war bis ${formatServerTime(booking.end_at)} am ${formatServerDate(booking.start_at)}.`
+  ].join(" ");
+}
+
+function normalizePhoneNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("00")) {
+    return digits.slice(2);
+  }
+
+  return digits;
 }
 
 function seedDefaultBlockedDates() {
@@ -1030,6 +1129,31 @@ function defaultBlockedDateLabel(date) {
   };
 
   return labels[date] || "Sperrtag";
+}
+
+function resourceLabel(type) {
+  const labels = {
+    washer: "Waschmaschine",
+    drying_room: "Trockenraum",
+    tumbler: "Tumbler"
+  };
+
+  return labels[type] || type;
+}
+
+function formatServerDate(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    dateStyle: "medium",
+    timeZone: "Europe/Zurich"
+  }).format(new Date(value));
+}
+
+function formatServerTime(value) {
+  return new Intl.DateTimeFormat("de-CH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Zurich"
+  }).format(new Date(value));
 }
 
 function dateTimeStamp(date) {

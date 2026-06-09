@@ -60,6 +60,7 @@ Buchungen in der Vergangenheit werden serverseitig blockiert.
 Alle Ressourcen werden ueber feste Slots gebucht: `07:00-12:00`, `12:00-17:00`, `17:00-21:00`.
 Sonntage und manuell gepflegte Sperrtage sind nicht buchbar.
 Der Monatsplan bildet den analogen Aushang digital ab: je Ressource eine Monatstabelle mit den drei festen Zeitfenstern und markierten Sperrtagen.
+Eigene Buchungen koennen ueber "Frueher frei melden" per WhatsApp API an eine hinterlegte Nummer gemeldet werden.
 
 Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebungsvariablen angepasst werden:
 
@@ -69,6 +70,19 @@ Die Start-Logins koennen vor dem ersten Start einer neuen Datenbank ueber Umgebu
 - `SEED_USER_PASSWORD`
 
 Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wieder auf. Diese Route ist in Produktion deaktiviert.
+
+## WhatsApp-Versand
+
+Die App kann eine "frueher frei"-Nachricht serverseitig ueber die WhatsApp Cloud API versenden. Dafuer braucht der Render-Service diese Umgebungsvariablen:
+
+- `WHATSAPP_ACCESS_TOKEN`: Meta/WhatsApp Cloud API Access Token
+- `WHATSAPP_PHONE_NUMBER_ID`: Phone Number ID des WhatsApp-Business-Absenders
+- `WHATSAPP_RELEASE_TO`: Zielnummer im internationalen Format, aktuell `41788328223`
+- `WHATSAPP_API_VERSION`: optional, Standard `v20.0`
+
+Ohne `WHATSAPP_ACCESS_TOKEN` und `WHATSAPP_PHONE_NUMBER_ID` bleibt der Button sichtbar, meldet aber "WhatsApp-Versand ist noch nicht konfiguriert".
+
+Hinweis: Freitext-Nachrichten ueber die WhatsApp Business Platform funktionieren nur innerhalb der von WhatsApp erlaubten Messaging-Regeln. Fuer business-initiierte Nachrichten ausserhalb des erlaubten Fensters kann eine von Meta freigegebene Nachrichtenvorlage notwendig sein.
 
 ## Livegang-Checkliste
 
@@ -80,6 +94,7 @@ Der Smoke-Test raeumt seine eigenen Testdaten lokal ueber `/api/dev/cleanup` wie
 - GitHub Actions CI muss nach dem Push gruen sein
 - Lokale Testdaten pruefen und vor Livegang bei Bedarf aus SQLite loeschen
 - In Render `SEED_ADMIN_PASSWORD` und `SEED_USER_PASSWORD` als sichere Secret-Werte setzen
+- In Render bei Bedarf `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` und `WHATSAPP_RELEASE_TO` setzen
 - Nach dem ersten produktiven Start sofort mit dem Admin anmelden und Passwort aendern
 - Nutzerkonten fuer echte Bewohnerinnen und Bewohner anlegen
 - Sperrtage/Feiertage im Admin-Bereich kontrollieren und ergaenzen

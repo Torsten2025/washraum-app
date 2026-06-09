@@ -58,7 +58,6 @@ const previousMonthButton = document.getElementById("previousMonthButton");
 const currentMonthButton = document.getElementById("currentMonthButton");
 const nextMonthButton = document.getElementById("nextMonthButton");
 const printMonthButton = document.getElementById("printMonthButton");
-const whatsappReleaseTarget = "41788328223";
 
 let resources = {
   washer: [],
@@ -572,7 +571,7 @@ function renderBookingsList(bookings) {
       const shareButton = document.createElement("button");
       shareButton.type = "button";
       shareButton.className = "whatsapp-share-button";
-      shareButton.textContent = "WhatsApp: frueher frei";
+      shareButton.textContent = "Frueher frei melden";
       shareButton.addEventListener("click", () => shareEarlyRelease(booking));
 
       const deleteButton = document.createElement("button");
@@ -915,14 +914,21 @@ async function deleteBooking(id) {
   await loadOperations();
 }
 
-function shareEarlyRelease(booking) {
-  const text = [
-    "Info Waschraum Maneggplatz 18:",
-    `${resourceLabel(booking.resource_type)} ${booking.resource_id} ist frueher frei.`,
-    `Gebucht war bis ${formatTime(booking.end_at)} am ${formatDateOnly(new Date(booking.start_at))}.`
-  ].join(" ");
-  const url = `https://wa.me/${whatsappReleaseTarget}?text=${encodeURIComponent(text)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
+async function shareEarlyRelease(booking) {
+  formMessage.textContent = "";
+  const response = await fetch("/api/user/releaseBooking", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ id: booking.id })
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    formMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  formMessage.textContent = "Nachricht wurde an WhatsApp uebergeben.";
 }
 
 async function resetUserPassword(user) {
@@ -1236,7 +1242,9 @@ function messageForError(error) {
     booking_id_required: "Keine Buchung ausgewaehlt.",
     booking_not_found: "Buchung nicht gefunden.",
     not_allowed: "Diese Buchung kann nicht geloescht werden.",
-    invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen."
+    invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen.",
+    whatsapp_not_configured: "WhatsApp-Versand ist noch nicht konfiguriert.",
+    whatsapp_send_failed: "WhatsApp konnte die Nachricht nicht senden."
   };
 
   return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";
