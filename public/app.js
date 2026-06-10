@@ -25,6 +25,11 @@ const machineLogActionGroup = document.getElementById("machineLogActionGroup");
 const machineLogActionInput = document.getElementById("machineLogAction");
 const machineLogNoteInput = document.getElementById("machineLogNote");
 const machineLogMessage = document.getElementById("machineLogMessage");
+const machineLogSearchInput = document.getElementById("machineLogSearch");
+const machineLogTypeFilterInput = document.getElementById("machineLogTypeFilter");
+const machineLogTagFilterInput = document.getElementById("machineLogTagFilter");
+const clearMachineLogFiltersButton = document.getElementById("clearMachineLogFiltersButton");
+const machineLogSummary = document.getElementById("machineLogSummary");
 const machineLogsList = document.getElementById("machineLogsList");
 const passwordForm = document.getElementById("passwordForm");
 const currentPasswordInput = document.getElementById("currentPassword");
@@ -33,6 +38,8 @@ const passwordMessage = document.getElementById("passwordMessage");
 const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
 const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
 const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
+const pilotFeedbackSearchInput = document.getElementById("pilotFeedbackSearch");
+const clearPilotFeedbackSearchButton = document.getElementById("clearPilotFeedbackSearchButton");
 const pilotFeedbackList = document.getElementById("pilotFeedbackList");
 const adminNavTab = document.getElementById("adminNavTab");
 const adminDashboardNav = document.getElementById("adminDashboardNav");
@@ -192,6 +199,15 @@ machineLogResourceTypeInput.addEventListener("change", () => {
   updateMachineLogActionOptions();
 });
 machineLogResourceIdInput.addEventListener("change", updateMachineLogActionOptions);
+machineLogSearchInput.addEventListener("input", renderMachineLogs);
+machineLogTypeFilterInput.addEventListener("change", renderMachineLogs);
+machineLogTagFilterInput.addEventListener("change", renderMachineLogs);
+clearMachineLogFiltersButton.addEventListener("click", () => {
+  machineLogSearchInput.value = "";
+  machineLogTypeFilterInput.value = "all";
+  machineLogTagFilterInput.value = "all";
+  renderMachineLogs();
+});
 bookingDateInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
@@ -348,6 +364,12 @@ pilotFeedbackForm.addEventListener("submit", async (event) => {
   pilotFeedbackForm.reset();
   pilotFeedbackMessageStatus.textContent = "Danke, Feedback gespeichert.";
   await loadPilotFeedback();
+});
+
+pilotFeedbackSearchInput.addEventListener("input", renderPilotFeedback);
+clearPilotFeedbackSearchButton.addEventListener("click", () => {
+  pilotFeedbackSearchInput.value = "";
+  renderPilotFeedback();
 });
 
 userForm.addEventListener("submit", async (event) => {
@@ -1269,25 +1291,52 @@ function renderResources() {
 
 function renderMachineLogs() {
   machineLogsList.innerHTML = "";
+  machineLogSummary.innerHTML = "";
 
   if (allMachineLogs.length === 0) {
+    renderMachineLogSummary([]);
     machineLogsList.textContent = "Noch keine Protokolleintraege.";
     return;
   }
 
-  for (const logEntry of allMachineLogs) {
+  const filteredLogs = filteredMachineLogs();
+  renderMachineLogSummary(filteredLogs);
+
+  if (filteredLogs.length === 0) {
+    machineLogsList.textContent = "Keine passenden Protokolleintraege.";
+    return;
+  }
+
+  for (const logEntry of filteredLogs) {
     const item = document.createElement("article");
     item.className = "machine-log-item";
 
+    const heading = document.createElement("div");
+    heading.className = "machine-log-heading";
     const title = document.createElement("h3");
-    title.textContent = `${resourceLabel(logEntry.resource_type)} ${logEntry.resource_id}`;
+    title.textContent = logEntry.resource_id;
+    const typeTag = document.createElement("span");
+    typeTag.className = "log-tag";
+    typeTag.textContent = resourceLabel(logEntry.resource_type);
+    heading.append(title, typeTag);
+
+    const tags = document.createElement("div");
+    tags.className = "log-tags";
+    for (const tag of machineLogTags(logEntry)) {
+      const tagElement = document.createElement("span");
+      tagElement.className = `log-tag log-tag-${tag.key}`;
+      tagElement.textContent = tag.label;
+      tags.append(tagElement);
+    }
+
     const meta = document.createElement("p");
-    meta.textContent = `${formatDateKey(logEntry.event_date)} - ${partyLabel(logEntry)}`;
+    meta.className = "machine-log-meta";
+    meta.textContent = `${formatDateKey(logEntry.event_date)} - ${partyLabel(logEntry)} - erfasst ${formatDate(logEntry.created_at)}`;
     const note = document.createElement("p");
     note.className = "machine-log-note";
-    note.textContent = logEntry.note;
+    note.textContent = cleanMachineLogNote(logEntry.note);
 
-    item.append(title, meta, note);
+    item.append(heading, tags, meta, note);
     machineLogsList.append(item);
   }
 }
@@ -1295,6 +1344,7 @@ function renderMachineLogs() {
 function renderPilotFeedback() {
   pilotFeedbackList.innerHTML = "";
   adminPilotFeedbackList.innerHTML = "";
+  const filteredFeedback = filteredPilotFeedback();
 
   if (allPilotFeedback.length === 0) {
     pilotFeedbackList.textContent = "Noch keine Rueckmeldungen.";
@@ -1302,7 +1352,15 @@ function renderPilotFeedback() {
     return;
   }
 
-  for (const entry of allPilotFeedback) {
+  if (filteredFeedback.length === 0) {
+    pilotFeedbackList.textContent = "Keine passenden Rueckmeldungen.";
+    if (role === "admin") {
+      adminPilotFeedbackList.textContent = "Keine passenden Rueckmeldungen.";
+    }
+    return;
+  }
+
+  for (const entry of filteredFeedback) {
     const item = pilotFeedbackItem(entry);
     pilotFeedbackList.append(item);
 
@@ -1326,6 +1384,99 @@ function pilotFeedbackItem(entry) {
 
   item.append(title, meta, message);
   return item;
+}
+
+function filteredMachineLogs() {
+  const search = machineLogSearchInput.value.trim().toLowerCase();
+  const typeFilter = machineLogTypeFilterInput.value;
+  const tagFilter = machineLogTagFilterInput.value;
+
+  return allMachineLogs.filter((entry) => {
+    if (typeFilter !== "all" && entry.resource_type !== typeFilter) {
+      return false;
+    }
+
+    if (tagFilter !== "all" && !machineLogTags(entry).some((tag) => tag.key === tagFilter)) {
+      return false;
+    }
+
+    if (!search) {
+      return true;
+    }
+
+    const haystack = [
+      resourceLabel(entry.resource_type),
+      entry.resource_id,
+      partyLabel(entry),
+      entry.user_name,
+      entry.note,
+      formatDateKey(entry.event_date)
+    ].join(" ").toLowerCase();
+    return haystack.includes(search);
+  });
+}
+
+function renderMachineLogSummary(entries) {
+  const counts = {
+    total: entries.length,
+    blocked: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "blocked")).length,
+    released: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "released")).length,
+    note: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "note")).length
+  };
+  const summaryItems = [
+    ["Treffer", counts.total],
+    ["Gesperrt", counts.blocked],
+    ["Freigegeben", counts.released],
+    ["Hinweise", counts.note]
+  ];
+
+  for (const [label, value] of summaryItems) {
+    const item = document.createElement("div");
+    item.className = "logbook-summary-item";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const count = document.createElement("strong");
+    count.textContent = String(value);
+    item.append(name, count);
+    machineLogSummary.append(item);
+  }
+}
+
+function machineLogTags(entry) {
+  const note = String(entry.note || "");
+  const tags = [];
+  if (note.startsWith("[Gesperrt]")) {
+    tags.push({ key: "blocked", label: "Gesperrt" });
+  }
+  if (note.startsWith("[Freigegeben]")) {
+    tags.push({ key: "released", label: "Freigegeben" });
+  }
+  if (tags.length === 0) {
+    tags.push({ key: "note", label: "Hinweis" });
+  }
+
+  return tags;
+}
+
+function cleanMachineLogNote(note) {
+  return String(note || "").replace(/^\[(Gesperrt|Freigegeben)\]\s*/, "");
+}
+
+function filteredPilotFeedback() {
+  const search = pilotFeedbackSearchInput.value.trim().toLowerCase();
+  if (!search) {
+    return allPilotFeedback;
+  }
+
+  return allPilotFeedback.filter((entry) => {
+    const haystack = [
+      partyLabel(entry),
+      entry.user_name,
+      entry.message,
+      formatDate(entry.created_at)
+    ].join(" ").toLowerCase();
+    return haystack.includes(search);
+  });
 }
 
 function renderUsers() {
@@ -1871,6 +2022,8 @@ function initialViewFromHash() {
     helpPanel: "help",
     washraum: "washraum",
     bookings: "bookings",
+    logbook: "logbook",
+    feedback: "feedback",
     rules: "rules",
     help: "help",
     admin: "admin"
@@ -1881,8 +2034,8 @@ function initialViewFromHash() {
 
 function setActiveView(view, options = {}) {
   const allowedViews = role === "admin"
-    ? ["washraum", "bookings", "rules", "help", "admin"]
-    : ["washraum", "bookings", "rules", "help"];
+    ? ["washraum", "bookings", "logbook", "feedback", "rules", "help", "admin"]
+    : ["washraum", "bookings", "logbook", "feedback", "rules", "help"];
   const selectedView = allowedViews.includes(view) ? view : "washraum";
   document.body.dataset.activeView = selectedView;
 

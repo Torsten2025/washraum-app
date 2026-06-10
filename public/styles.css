@@ -411,6 +411,8 @@ button.notice-bar:hover {
 }
 
 body[data-active-view="washraum"] .calendar-panel,
+body[data-active-view="logbook"] .calendar-panel,
+body[data-active-view="feedback"] .calendar-panel,
 body[data-active-view="rules"] .calendar-panel,
 body[data-active-view="help"] .calendar-panel,
 body[data-active-view="admin"] .calendar-panel {
@@ -426,6 +428,8 @@ body[data-active-view="bookings"] .app-layout {
 }
 
 body[data-active-view="rules"] .app-layout,
+body[data-active-view="logbook"] .app-layout,
+body[data-active-view="feedback"] .app-layout,
 body[data-active-view="help"] .app-layout,
 body[data-active-view="admin"] .app-layout {
   grid-template-columns: minmax(300px, 760px);
@@ -437,12 +441,16 @@ body[data-active-view="admin"] .app-layout {
 }
 
 body[data-active-view="washraum"] .booking-panel > #rulesPanel,
-body[data-active-view="washraum"] .booking-panel > #helpPanel {
+body[data-active-view="washraum"] .booking-panel > #helpPanel,
+body[data-active-view="washraum"] .booking-panel > #logbookPanel,
+body[data-active-view="washraum"] .booking-panel > #feedbackPanel {
   display: none;
 }
 
 body[data-active-view="rules"] .booking-panel > :not(#rulesPanel),
-body[data-active-view="help"] .booking-panel > :not(#helpPanel) {
+body[data-active-view="help"] .booking-panel > :not(#helpPanel),
+body[data-active-view="logbook"] .booking-panel > :not(#logbookPanel),
+body[data-active-view="feedback"] .booking-panel > :not(#feedbackPanel) {
   display: none;
 }
 
@@ -456,7 +464,9 @@ body:not([data-active-view="admin"]) .admin-panel {
 }
 
 body[data-active-view="rules"] #rulesPanel,
-body[data-active-view="help"] #helpPanel {
+body[data-active-view="help"] #helpPanel,
+body[data-active-view="logbook"] #logbookPanel,
+body[data-active-view="feedback"] #feedbackPanel {
   margin-top: 0;
 }
 
@@ -676,6 +686,49 @@ input[readonly] {
   color: var(--muted);
   line-height: 1.45;
   margin: 0.65rem 0 1rem;
+}
+
+.logbook-tools,
+.feedback-tools {
+  align-items: end;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.65fr) minmax(130px, 0.55fr) auto;
+  margin-top: 1rem;
+  padding: 0.85rem;
+}
+
+.feedback-tools {
+  grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.logbook-summary {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-top: 0.85rem;
+}
+
+.logbook-summary-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+}
+
+.logbook-summary-item span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.logbook-summary-item strong {
+  font-size: 1.2rem;
 }
 
 .form-actions {
@@ -1518,6 +1571,57 @@ button.subtle-button[type="button"]:hover {
   margin-top: 0.35rem;
 }
 
+.machine-log-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: space-between;
+}
+
+.machine-log-heading h3 {
+  line-height: 1.25;
+}
+
+.machine-log-meta {
+  font-size: 0.88rem;
+}
+
+.log-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.log-tag {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 0.32rem 0.55rem;
+}
+
+.log-tag-blocked {
+  background: #fff7d8;
+  border-color: #ead99a;
+  color: var(--warning);
+}
+
+.log-tag-released {
+  background: var(--green-soft);
+  border-color: rgba(8, 191, 114, 0.25);
+  color: var(--green-dark);
+}
+
+.log-tag-note {
+  background: #e7f2ff;
+  border-color: #bed8f4;
+  color: #15588d;
+}
+
 .machine-log-note,
 .pilot-feedback-note {
   color: var(--text) !important;
@@ -1603,6 +1707,11 @@ button.subtle-button[type="button"]:hover {
 
   .resource-admin-actions {
     justify-content: flex-start;
+  }
+
+  .logbook-tools,
+  .feedback-tools {
+    grid-template-columns: 1fr;
   }
 }
 

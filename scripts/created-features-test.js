@@ -98,6 +98,12 @@ async function checkStaticPages() {
   assert(appJs.includes("availability-slot-unavailable"), "unavailable resource slots are marked");
   assert(appJs.includes("resource_unavailable"), "unavailable resource error is handled");
   assert(indexHtml.includes("machineLogForm"), "machine logbook exists");
+  assert(indexHtml.includes("data-view=\"logbook\""), "logbook main tab exists");
+  assert(indexHtml.includes("machineLogSearch"), "machine log search exists");
+  assert(indexHtml.includes("machineLogTagFilter"), "machine log tag filter exists");
+  assert(indexHtml.includes("machineLogSummary"), "machine log summary exists");
+  assert(appJs.includes("filteredMachineLogs"), "machine log filtering exists");
+  assert(appJs.includes("machineLogTags"), "machine log tags exist");
   assert(indexHtml.includes("machineLogAction"), "machine logbook availability action exists");
   assert(indexHtml.includes("Protokollieren und sperren"), "machine logbook can block resources");
   assert(indexHtml.includes("Protokollieren und freigeben"), "machine logbook can release resources");
@@ -105,6 +111,9 @@ async function checkStaticPages() {
   assert(appJs.includes("availabilityAction"), "machine log submits availability action");
   assert(appJs.includes("Protokolleintrag gespeichert und Ressource gesperrt"), "machine log block confirmation exists");
   assert(indexHtml.includes("pilotFeedbackForm"), "pilot feedback form exists");
+  assert(indexHtml.includes("data-view=\"feedback\""), "feedback main tab exists");
+  assert(indexHtml.includes("pilotFeedbackSearch"), "pilot feedback search exists");
+  assert(appJs.includes("filteredPilotFeedback"), "pilot feedback filtering exists");
   assert(!indexHtml.includes("forgottenLaundryButton"), "old forgotten laundry logbook shortcut is removed");
   assert(appJs.includes("reportLaundryLeft"), "laundry-left booking action exists");
   assert(indexHtml.includes("adminOpsPanel"), "operations panel exists");

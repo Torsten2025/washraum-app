@@ -12,6 +12,8 @@
       <nav class="main-nav" aria-label="Hauptnavigation" role="tablist">
         <button class="nav-tab is-active" type="button" role="tab" aria-selected="true" data-view="washraum">WASCHRAUM</button>
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="bookings">BUCHUNGEN</button>
+        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="logbook">PROTOKOLL</button>
+        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="feedback">FEEDBACK</button>
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="rules">REGELN</button>
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="help">HILFE</button>
         <button id="adminNavTab" class="nav-tab hidden" type="button" role="tab" aria-selected="false" data-view="admin">ADMIN</button>
@@ -180,7 +182,7 @@
         </form>
         <div id="availabilityPanel" class="availability-panel" aria-live="polite"></div>
 
-        <div class="logbook-panel">
+        <div id="logbookPanel" class="logbook-panel">
           <h2>Protokolltagebuch</h2>
           <p class="panel-note">Stoerungen, Schaeden oder besondere Vorkommnisse pro Maschine, Trockenraum oder Tumbler dokumentieren.</p>
           <form id="machineLogForm" class="booking-form">
@@ -220,6 +222,32 @@
             <button type="submit">Eintrag speichern</button>
             <p id="machineLogMessage" class="message" role="status"></p>
           </form>
+          <div class="logbook-tools" aria-label="Protokoll filtern">
+            <label>
+              Suche
+              <input id="machineLogSearch" type="search" autocomplete="off" placeholder="Name, Ressource oder Stichwort">
+            </label>
+            <label>
+              Bereich
+              <select id="machineLogTypeFilter">
+                <option value="all">Alle Bereiche</option>
+                <option value="washer">Waschmaschinen</option>
+                <option value="drying_room">Trockenraeume</option>
+                <option value="tumbler">Tumbler</option>
+              </select>
+            </label>
+            <label>
+              Tag
+              <select id="machineLogTagFilter">
+                <option value="all">Alle Tags</option>
+                <option value="blocked">Gesperrt</option>
+                <option value="released">Freigegeben</option>
+                <option value="note">Hinweis</option>
+              </select>
+            </label>
+            <button id="clearMachineLogFiltersButton" type="button">Filter leeren</button>
+          </div>
+          <div id="machineLogSummary" class="logbook-summary"></div>
           <div id="machineLogsList" class="machine-logs-list"></div>
         </div>
 
@@ -241,7 +269,7 @@
           </form>
         </div>
 
-        <div class="feedback-panel">
+        <div id="feedbackPanel" class="feedback-panel">
           <h2>Pilot-Feedback</h2>
           <p class="panel-note">Bitte kurz melden, wenn beim Testen etwas unklar ist, nicht funktioniert oder im Alltag stoert.</p>
           <form id="pilotFeedbackForm" class="booking-form">
@@ -253,6 +281,13 @@
             <button type="submit">Feedback senden</button>
             <p id="pilotFeedbackMessageStatus" class="message" role="status"></p>
           </form>
+          <div class="feedback-tools" aria-label="Feedback filtern">
+            <label>
+              Suche
+              <input id="pilotFeedbackSearch" type="search" autocomplete="off" placeholder="Name oder Stichwort">
+            </label>
+            <button id="clearPilotFeedbackSearchButton" type="button">Suche leeren</button>
+          </div>
           <div id="pilotFeedbackList" class="pilot-feedback-list"></div>
         </div>
 
