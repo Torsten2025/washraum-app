@@ -250,8 +250,48 @@ async function run() {
 
   assertStatus(reactivateUser, 200, "admin reactivates managed user");
 
+  const deletableUserName = `Managed-${Date.now()}-delete`;
+  cleanupPrefixes.push(deletableUserName);
+  const createDeletableUser = await request("/api/admin/users", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: deletableUserName,
+      displayName: "Leeres Testkonto",
+      apartmentLabel: "Partei Leer",
+      password: "secret123",
+      role: "user",
+      active: true
+    }
+  });
+
+  assertStatus(createDeletableUser, 201, "admin creates deletable unused user");
+
+  const deleteUnusedUser = await request(`/api/admin/users/${createDeletableUser.body.user.id}`, {
+    method: "DELETE",
+    token: admin.body.token
+  });
+
+  assertStatus(deleteUnusedUser, 200, "admin deletes unused user");
+  assert(deleteUnusedUser.body.userName === deletableUserName, "deleted user response names account");
+
   const uniqueName = `Smoke-${Date.now()}`;
   cleanupPrefixes.push(uniqueName);
+  const createBookedUser = await request("/api/admin/users", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: uniqueName,
+      displayName: "Smoke Buchung",
+      apartmentLabel: "Partei Buchung",
+      password: "secret123",
+      role: "user",
+      active: true
+    }
+  });
+
+  assertStatus(createBookedUser, 201, "admin creates user for booking delete guard");
+
   const bookingDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey]);
   const slotOne = rangeForDate(bookingDate, "07:00", "12:00");
 
@@ -269,6 +309,20 @@ async function run() {
 
   assertStatus(create, 201, "admin creates booking");
   assert(create.body.booking.user_name === uniqueName, "admin booking uses target user name");
+
+  const usersBeforeLinkedDelete = await request("/api/admin/users", {
+    token: admin.body.token
+  });
+  const linkedSmokeUser = usersBeforeLinkedDelete.body.users.find((user) => user.user_name === uniqueName);
+  assert(linkedSmokeUser.linked_records >= 1, "admin sees linked records for booked user");
+
+  const deleteLinkedUser = await request(`/api/admin/users/${linkedSmokeUser.id}`, {
+    method: "DELETE",
+    token: admin.body.token
+  });
+
+  assertStatus(deleteLinkedUser, 409, "admin cannot delete user with booking records");
+  assert(deleteLinkedUser.body.error === "user_has_records", "linked user delete error code");
 
   const sameSlotOtherWasher = await request("/api/admin/addBooking", {
     method: "POST",

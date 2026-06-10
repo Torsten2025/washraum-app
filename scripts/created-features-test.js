@@ -91,6 +91,8 @@ async function checkStaticPages() {
   assert(appJs.includes("Alle Geraete abmelden"), "admin can log out all devices for a user");
   assert(appJs.includes("active_sessions"), "admin user cards show active device count");
   assert(appJs.includes("last_seen_at"), "admin user cards show last activity");
+  assert(appJs.includes("Loeschen"), "admin can delete unused user accounts");
+  assert(appJs.includes("user_has_records"), "user delete is blocked when records exist");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(resources.resources.tumbler.length === 2, "two tumblers are configured");
   assert(!resources.resources.tumbler.includes("Tumbler 3"), "retired Tumbler 3 is not bookable");

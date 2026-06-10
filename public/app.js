@@ -1500,9 +1500,11 @@ function renderUsers() {
     const sessionMeta = document.createElement("p");
     sessionMeta.className = "user-session-meta";
     const activeSessions = Number(user.active_sessions || 0);
+    const linkedRecords = Number(user.linked_records || 0);
     const sessionLabel = activeSessions === 1 ? "1 aktives Geraet" : `${activeSessions} aktive Geraete`;
     const lastSeen = user.last_seen_at ? `zuletzt aktiv ${formatDate(user.last_seen_at)}` : "noch keine Aktivitaet";
-    sessionMeta.textContent = `${sessionLabel} - ${lastSeen}`;
+    const recordLabel = linkedRecords === 1 ? "1 Eintrag" : `${linkedRecords} Eintraege`;
+    sessionMeta.textContent = `${sessionLabel} - ${lastSeen} - ${recordLabel}`;
 
     details.append(title, meta, sessionMeta);
 
@@ -1529,9 +1531,19 @@ function renderUsers() {
     logoutSessionsButton.disabled = activeSessions === 0;
     logoutSessionsButton.addEventListener("click", () => logoutUserSessions(user));
 
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "danger-text-button";
+    deleteButton.textContent = "Loeschen";
+    deleteButton.disabled = linkedRecords > 0;
+    deleteButton.title = linkedRecords > 0
+      ? "Dieses Konto hat noch Buchungen, Protokolle, Feedback oder Aktivitaeten."
+      : "Konto ohne Eintraege loeschen";
+    deleteButton.addEventListener("click", () => deleteUser(user));
+
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    actions.append(editButton, resetButton, logoutSessionsButton, toggleActiveButton);
+    actions.append(editButton, resetButton, logoutSessionsButton, toggleActiveButton, deleteButton);
 
     item.append(details, actions);
     usersList.append(item);
@@ -1974,6 +1986,33 @@ async function logoutUserSessions(user) {
   userMessage.textContent = `${label}: ${data.loggedOutSessions || 0} Geraet(e) abgemeldet.`;
   await loadUsers();
   await loadOperations();
+}
+
+async function deleteUser(user) {
+  userMessage.textContent = "";
+  const label = user.apartment_label
+    ? `${user.apartment_label} - ${user.user_name}`
+    : user.user_name;
+
+  if (!window.confirm(`${label} wirklich loeschen? Das geht nur, wenn keine Eintraege vorhanden sind.`)) {
+    return;
+  }
+
+  const response = await fetch(`/api/admin/users/${user.id}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  userMessage.textContent = `${label} geloescht.`;
+  await loadUsers();
+  await loadOperations();
+  await loadAnalytics();
 }
 
 async function deleteBlockedDate(date) {
@@ -2434,6 +2473,7 @@ function messageForError(error) {
     last_admin_required: "Mindestens ein Admin muss bestehen bleiben.",
     user_already_exists: "Dieser Nutzer existiert bereits.",
     user_not_found: "Nutzer nicht gefunden.",
+    user_has_records: "Dieses Konto hat noch Buchungen, Protokolle, Feedback oder Aktivitaeten und kann nicht geloescht werden.",
     missing_blocked_date_fields: "Bitte Datum und Bezeichnung ausfuellen.",
     invalid_blocked_date: "Bitte ein gueltiges Datum waehlen.",
     invalid_blocked_date_label: "Die Bezeichnung muss 2 bis 80 Zeichen lang sein.",

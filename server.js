@@ -453,7 +453,13 @@ app.get("/api/admin/users", (req, res) => {
         users.onboarding_seen_at,
         users.created_at,
         COUNT(sessions.token) AS active_sessions,
-        MAX(COALESCE(sessions.last_seen_at, sessions.created_at)) AS last_seen_at
+        MAX(COALESCE(sessions.last_seen_at, sessions.created_at)) AS last_seen_at,
+        (
+          (SELECT COUNT(*) FROM bookings WHERE bookings.user_name = users.user_name)
+          + (SELECT COUNT(*) FROM machine_log_entries WHERE machine_log_entries.user_name = users.user_name)
+          + (SELECT COUNT(*) FROM pilot_feedback_entries WHERE pilot_feedback_entries.user_name = users.user_name)
+          + (SELECT COUNT(*) FROM activity_entries WHERE activity_entries.user_name = users.user_name)
+        ) AS linked_records
       FROM users
       LEFT JOIN sessions
         ON sessions.user_id = users.id
@@ -883,6 +889,43 @@ app.post("/api/admin/users/:id/logout-sessions", (req, res) => {
     ok: true,
     userName: existingUser.user_name,
     loggedOutSessions: result.changes
+  });
+});
+
+app.delete("/api/admin/users/:id", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existingUser = db.prepare("SELECT id, user_name, role FROM users WHERE id = ?").get(id);
+  if (!existingUser) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  if (existingUser.role === "admin" && countAdmins() <= 1) {
+    return res.status(400).json({ ok: false, error: "last_admin_required" });
+  }
+
+  const linkedRecords = countUserLinkedRecords(existingUser.user_name);
+  if (linkedRecords.total > 0) {
+    return res.status(409).json({
+      ok: false,
+      error: "user_has_records",
+      linkedRecords
+    });
+  }
+
+  const deleted = db.transaction(() => {
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
+    return db.prepare("DELETE FROM users WHERE id = ?").run(id).changes;
+  })();
+
+  res.json({
+    ok: true,
+    userName: existingUser.user_name,
+    deleted
   });
 });
 
@@ -1770,6 +1813,20 @@ function getAdminAuth(req) {
 
 function countAdmins() {
   return db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
+}
+
+function countUserLinkedRecords(userName) {
+  const counts = {
+    bookings: db.prepare("SELECT COUNT(*) AS count FROM bookings WHERE user_name = ?").get(userName).count,
+    machineLogs: db.prepare("SELECT COUNT(*) AS count FROM machine_log_entries WHERE user_name = ?").get(userName).count,
+    feedback: db.prepare("SELECT COUNT(*) AS count FROM pilot_feedback_entries WHERE user_name = ?").get(userName).count,
+    activities: db.prepare("SELECT COUNT(*) AS count FROM activity_entries WHERE user_name = ?").get(userName).count
+  };
+
+  return {
+    ...counts,
+    total: counts.bookings + counts.machineLogs + counts.feedback + counts.activities
+  };
 }
 
 function normalizeActive(value) {
