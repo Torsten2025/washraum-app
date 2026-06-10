@@ -14,6 +14,7 @@
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="bookings">BUCHUNGEN</button>
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="rules">REGELN</button>
         <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="help">HILFE</button>
+        <button id="adminNavTab" class="nav-tab hidden" type="button" role="tab" aria-selected="false" data-view="admin">ADMIN</button>
       </nav>
       <div class="header-actions">
         <span id="sessionLabel" class="session-pill"></span>
@@ -255,22 +256,18 @@
           <div id="pilotFeedbackList" class="pilot-feedback-list"></div>
         </div>
 
+        <div id="adminDashboardNav" class="admin-dashboard-nav hidden" aria-label="Adminbereiche">
+          <button class="admin-dashboard-tab is-active" type="button" data-admin-panel="adminOpsPanel">Uebersicht</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminUsersPanel">Nutzer</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminResourcesPanel">Ressourcen</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminBlockedDatesPanel">Sperrtage</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminAnalyticsPanel">Auswertung</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminPilotPanel">Pilot</button>
+        </div>
+
         <div id="adminUsersPanel" class="admin-panel hidden">
           <h2>Nutzer verwalten</h2>
-          <div class="onboarding-box">
-            <div>
-              <h3>20 Parteien anlegen</h3>
-              <p>Erstellt Partei 01 bis Partei 20 mit sicheren Erstpasswoertern. Bestehende Konten bleiben unveraendert.</p>
-            </div>
-            <button id="seedPartiesButton" type="button">20 Parteien anlegen</button>
-          </div>
-          <div id="partyCredentialsPanel" class="credentials-panel hidden">
-            <div class="credentials-toolbar">
-              <strong>Uebergabeliste</strong>
-              <button id="printCredentialsButton" type="button">Liste drucken</button>
-            </div>
-            <div id="partyCredentialsList" class="credentials-list"></div>
-          </div>
+          <p class="panel-note">Bewohner koennen sich auf der Loginseite selbst registrieren. Admins koennen Konten bearbeiten, deaktivieren oder Passwoerter neu setzen.</p>
           <form id="userForm" class="booking-form">
             <input id="editingUserId" type="hidden">
             <label>
@@ -421,7 +418,7 @@
             <li>Tag 1-2: Jede Testperson bucht mindestens einen freien Waschslot.</li>
             <li>Tag 2-4: Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen.</li>
             <li>Tag 2-4: Zweite zukuenftige Waschsequenz testen und Fehlermeldung pruefen.</li>
-            <li>Tag 5-7: Feedback sammeln und Entscheid fuer alle 20 Parteien treffen.</li>
+            <li>Tag 5-7: Feedback sammeln und Entscheid fuer alle Bewohner treffen.</li>
           </ol>
         </div>
       </section>

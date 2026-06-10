@@ -34,11 +34,10 @@ const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
 const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
 const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
 const pilotFeedbackList = document.getElementById("pilotFeedbackList");
+const adminNavTab = document.getElementById("adminNavTab");
+const adminDashboardNav = document.getElementById("adminDashboardNav");
+const adminDashboardTabs = Array.from(document.querySelectorAll(".admin-dashboard-tab[data-admin-panel]"));
 const adminUsersPanel = document.getElementById("adminUsersPanel");
-const seedPartiesButton = document.getElementById("seedPartiesButton");
-const partyCredentialsPanel = document.getElementById("partyCredentialsPanel");
-const partyCredentialsList = document.getElementById("partyCredentialsList");
-const printCredentialsButton = document.getElementById("printCredentialsButton");
 const userForm = document.getElementById("userForm");
 const editingUserIdInput = document.getElementById("editingUserId");
 const managedUserNameInput = document.getElementById("managedUserName");
@@ -126,7 +125,7 @@ let allMachineLogs = [];
 let allPilotFeedback = [];
 let allActivities = [];
 let blockedDates = [];
-let latestPartyCredentials = [];
+let activeAdminPanelId = "adminOpsPanel";
 let visibleWeekStart = startOfWeek(new Date());
 let visibleMonth = startOfMonth(new Date());
 
@@ -140,6 +139,12 @@ for (const control of viewControls) {
   control.addEventListener("click", (event) => {
     event.preventDefault();
     setActiveView(control.dataset.view);
+  });
+}
+
+for (const tab of adminDashboardTabs) {
+  tab.addEventListener("click", () => {
+    setActiveAdminPanel(tab.dataset.adminPanel);
   });
 }
 
@@ -296,37 +301,6 @@ startAtInput.addEventListener("change", () => {
 bookingSlotInput.addEventListener("change", () => {
   applySelectedSlot();
   renderAvailability();
-});
-
-seedPartiesButton.addEventListener("click", async () => {
-  userMessage.textContent = "";
-  const response = await fetch("/api/admin/seed-parties", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ count: 20, displayNameMode: "schema" })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  latestPartyCredentials = data.parties || [];
-  renderPartyCredentials();
-  partyCredentialsPanel.classList.remove("hidden");
-  const created = latestPartyCredentials.filter((party) => party.status === "created").length;
-  const existing = latestPartyCredentials.filter((party) => party.status === "exists").length;
-  userMessage.textContent = `${created} Parteien angelegt, ${existing} bereits vorhanden.`;
-  await loadUsers();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-printCredentialsButton.addEventListener("click", () => {
-  document.body.classList.add("print-credentials");
-  window.print();
-  window.setTimeout(() => document.body.classList.remove("print-credentials"), 200);
 });
 
 passwordForm.addEventListener("submit", async (event) => {
@@ -1399,25 +1373,6 @@ function renderUsers() {
   }
 }
 
-function renderPartyCredentials() {
-  partyCredentialsList.innerHTML = "";
-
-  for (const party of latestPartyCredentials) {
-    const item = document.createElement("article");
-    item.className = party.status === "created" ? "credential-item" : "credential-item credential-item-existing";
-
-    const title = document.createElement("strong");
-    title.textContent = `${party.apartmentLabel}: ${party.userName}`;
-    const password = document.createElement("span");
-    password.textContent = party.password ? `Passwort: ${party.password}` : "Bereits vorhanden";
-    const note = document.createElement("small");
-    note.textContent = party.displayName ? `Anzeigename: ${party.displayName}` : "Anzeigename leer";
-
-    item.append(title, password, note);
-    partyCredentialsList.append(item);
-  }
-}
-
 function renderOperations(status, warnings) {
   opsStatusGrid.innerHTML = "";
   opsWarningsList.innerHTML = "";
@@ -1431,7 +1386,7 @@ function renderOperations(status, warnings) {
     ["Zukunftsbuchungen", String(status.futureBookings)],
     ["Aktivitaeten", String(status.activities || 0)],
     ["Pilot-Feedback", String(status.pilotFeedback || 0)],
-    ["Parteien", `${status.seededParties}/20`],
+    ["Nutzerkonten", String(status.registeredUsers || 0)],
     ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
     ["Gesperrt", String(status.resources.unavailable || 0)],
     ["WhatsApp", whatsappStatusLabel(status.whatsapp)]
@@ -1569,11 +1524,6 @@ function renderPilotReadiness(status, warnings) {
       ok: productionDb,
       label: "Produktionsdatenbank",
       detail: productionDb ? "Render-Disk /var/data ist aktiv." : `Aktueller Pfad: ${status.sqlitePath}`
-    },
-    {
-      ok: status.seededParties >= 20,
-      label: "20 Parteien",
-      detail: `${status.seededParties}/20 Parteien sind angelegt.`
     },
     {
       ok: namedActiveUsers.length >= 3 && namedActiveUsers.length <= 5,
@@ -1804,16 +1754,7 @@ async function resetUserPassword(user) {
     return;
   }
 
-  latestPartyCredentials = [{
-    status: "created",
-    userName: data.userName,
-    displayName: user.display_name || "",
-    apartmentLabel: user.apartment_label || data.userName,
-    password: data.password
-  }];
-  renderPartyCredentials();
-  partyCredentialsPanel.classList.remove("hidden");
-  userMessage.textContent = `Neues Passwort fuer ${data.userName} erzeugt.`;
+  userMessage.textContent = `Neues Passwort fuer ${data.userName}: ${data.password}`;
 }
 
 async function toggleUserActive(user) {
@@ -1896,14 +1837,17 @@ function initialViewFromHash() {
     washraum: "washraum",
     bookings: "bookings",
     rules: "rules",
-    help: "help"
+    help: "help",
+    admin: "admin"
   };
 
   return hashMap[hash] || "washraum";
 }
 
 function setActiveView(view, options = {}) {
-  const allowedViews = ["washraum", "bookings", "rules", "help"];
+  const allowedViews = role === "admin"
+    ? ["washraum", "bookings", "rules", "help", "admin"]
+    : ["washraum", "bookings", "rules", "help"];
   const selectedView = allowedViews.includes(view) ? view : "washraum";
   document.body.dataset.activeView = selectedView;
 
@@ -2058,12 +2002,12 @@ function hideOnboarding() {
 function updateAdminControls() {
   const isAdmin = role === "admin";
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
-  adminUsersPanel.classList.toggle("hidden", !isAdmin);
-  adminResourcesPanel.classList.toggle("hidden", !isAdmin);
-  adminBlockedDatesPanel.classList.toggle("hidden", !isAdmin);
-  adminOpsPanel.classList.toggle("hidden", !isAdmin);
-  adminAnalyticsPanel.classList.toggle("hidden", !isAdmin);
-  adminPilotPanel.classList.toggle("hidden", !isAdmin);
+  adminNavTab.classList.toggle("hidden", !isAdmin);
+  adminDashboardNav.classList.toggle("hidden", !isAdmin);
+  renderAdminPanelVisibility(isAdmin);
+  if (!isAdmin && document.body.dataset.activeView === "admin") {
+    setActiveView("washraum");
+  }
   machineLogActionGroup.classList.toggle("hidden", !isAdmin);
   if (!isAdmin) {
     machineLogActionInput.value = "log_only";
@@ -2071,6 +2015,38 @@ function updateAdminControls() {
   adminTargetUserNameInput.required = false;
   adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
   updateMachineLogActionOptions();
+}
+
+function setActiveAdminPanel(panelId) {
+  const allowedPanels = [
+    "adminOpsPanel",
+    "adminUsersPanel",
+    "adminResourcesPanel",
+    "adminBlockedDatesPanel",
+    "adminAnalyticsPanel",
+    "adminPilotPanel"
+  ];
+  activeAdminPanelId = allowedPanels.includes(panelId) ? panelId : "adminOpsPanel";
+  renderAdminPanelVisibility(role === "admin");
+}
+
+function renderAdminPanelVisibility(isAdmin) {
+  const panels = [
+    adminOpsPanel,
+    adminUsersPanel,
+    adminResourcesPanel,
+    adminBlockedDatesPanel,
+    adminAnalyticsPanel,
+    adminPilotPanel
+  ];
+
+  for (const panel of panels) {
+    panel.classList.toggle("hidden", !isAdmin || panel.id !== activeAdminPanelId);
+  }
+
+  for (const tab of adminDashboardTabs) {
+    tab.classList.toggle("is-active", tab.dataset.adminPanel === activeAdminPanelId);
+  }
 }
 
 function formatDate(value) {

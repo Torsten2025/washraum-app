@@ -14,6 +14,10 @@
 
     <main class="login-shell">
       <h1>Maneggplatz 18</h1>
+      <div class="auth-switch" role="tablist" aria-label="Anmeldung">
+        <button id="showLoginButton" class="auth-switch-button is-active" type="button">Einloggen</button>
+        <button id="showRegisterButton" class="auth-switch-button" type="button">Account erstellen</button>
+      </div>
       <form id="loginForm" class="login-form">
         <label>
           Name
@@ -27,6 +31,31 @@
 
         <button type="submit">Einloggen</button>
         <p id="loginMessage" class="message" role="status"></p>
+      </form>
+
+      <form id="registerForm" class="login-form hidden">
+        <label>
+          Name fuer Login
+          <input id="registerUserName" name="registerUserName" autocomplete="username" required>
+        </label>
+
+        <label>
+          Anzeigename
+          <input id="registerDisplayName" name="registerDisplayName" autocomplete="name" maxlength="80" placeholder="z. B. Familie Mueller">
+        </label>
+
+        <label>
+          Partei / Wohnung
+          <input id="registerApartmentLabel" name="registerApartmentLabel" maxlength="40" placeholder="z. B. Partei 12">
+        </label>
+
+        <label>
+          Passwort
+          <input id="registerPassword" name="registerPassword" type="password" autocomplete="new-password" required>
+        </label>
+
+        <button type="submit">Account erstellen</button>
+        <p id="registerMessage" class="message" role="status"></p>
       </form>
     </main>
 

@@ -45,6 +45,22 @@ async function run() {
   assert(resources.body.slots.tumbler.length === 3, "tumbler has three configured slots");
   assert(blockedDateKeys.includes("2026-08-01"), "resources include seeded blocked dates");
 
+  const registeredUserName = `Smoke-${Date.now()}-register`;
+  cleanupPrefixes.push(registeredUserName);
+  const registration = await request("/api/register", {
+    method: "POST",
+    body: {
+      userName: registeredUserName,
+      displayName: "Smoke Registrierung",
+      apartmentLabel: "Partei Smoke",
+      password: "secret123"
+    }
+  });
+
+  assertStatus(registration, 201, "resident registers own account");
+  assert(registration.body.token, "registration returns login token");
+  assert(registration.body.user.role === "user", "registered account is normal user");
+
   const managedUserName = `Managed-${Date.now()}`;
   cleanupPrefixes.push(managedUserName);
   const users = await request("/api/admin/users", {
@@ -53,6 +69,7 @@ async function run() {
 
   assertStatus(users, 200, "admin lists users");
   assert(Array.isArray(users.body.users), "admin users response is an array");
+  assert(users.body.users.some((user) => user.user_name === registeredUserName), "registered user appears in admin users");
 
   const listedBlockedDates = await request("/api/admin/blocked-dates", {
     token: admin.body.token

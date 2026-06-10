@@ -211,6 +211,58 @@ app.post("/api/login", (req, res) => {
   });
 });
 
+app.post("/api/register", (req, res) => {
+  cleanupExpiredSessions();
+  const userName = String(req.body?.userName || "").trim();
+  const password = String(req.body?.password || "");
+  const displayName = String(req.body?.displayName || "").trim();
+  const apartmentLabel = String(req.body?.apartmentLabel || "").trim();
+  const validation = validateUserInput({
+    userName,
+    password,
+    role: "user",
+    displayName,
+    apartmentLabel,
+    requirePassword: true
+  });
+
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  try {
+    const info = db
+      .prepare(`
+        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
+        VALUES (?, ?, 'user', 1, ?, ?)
+      `)
+      .run(userName, hashPassword(password), displayName, apartmentLabel);
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
+
+    db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
+      .run(token, info.lastInsertRowid, expiresAt);
+
+    res.status(201).json({
+      ok: true,
+      token,
+      user: {
+        userName,
+        role: "user",
+        displayName,
+        apartmentLabel,
+        onboardingSeenAt: ""
+      }
+    });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ ok: false, error: "user_already_exists" });
+    }
+
+    throw error;
+  }
+});
+
 app.post("/api/logout", (req, res) => {
   const token = getToken(req);
   if (token) {
@@ -419,9 +471,7 @@ app.get("/api/admin/overview", (req, res) => {
   const currentResources = listAllResources();
   const unavailableResources = listResourceEntries().filter((resource) => resource.unavailable_reason);
   const whatsappStatus = whatsappRuntimeStatus();
-  const seededParties = db
-    .prepare("SELECT COUNT(*) AS count FROM users WHERE user_name LIKE 'partei-%' OR apartment_label LIKE 'Partei %'")
-    .get().count;
+  const registeredUsers = activeUsers + inactiveUsers;
   const testUsers = db
     .prepare(`
       SELECT user_name
@@ -441,12 +491,6 @@ app.get("/api/admin/overview", (req, res) => {
     warnings.push({
       code: "test_users_present",
       message: `Test-/Standardnutzer vorhanden: ${testUsers.join(", ")}`
-    });
-  }
-  if (seededParties < 20) {
-    warnings.push({
-      code: "parties_incomplete",
-      message: `Es sind erst ${seededParties} von 20 Parteien nach Standardschema angelegt.`
     });
   }
   if (admins < 1) {
@@ -475,7 +519,7 @@ app.get("/api/admin/overview", (req, res) => {
       activities,
       futureBookings,
       blockedDates: blockedDatesCount,
-      seededParties,
+      registeredUsers,
       resources: {
         washers: currentResources.washer.length,
         dryingRooms: currentResources.drying_room.length,
@@ -604,60 +648,6 @@ app.patch("/api/admin/resources/:id/availability", (req, res) => {
     allResources: listAllResources(),
     resourceEntries: listResourceEntries()
   });
-});
-
-app.post("/api/admin/seed-parties", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const count = Number(req.body?.count || 20);
-  const displayNameMode = String(req.body?.displayNameMode || "schema");
-  if (!Number.isInteger(count) || count < 1 || count > 60) {
-    return res.status(400).json({ ok: false, error: "invalid_party_count" });
-  }
-
-  const lookupUser = db.prepare("SELECT id, user_name, display_name, apartment_label FROM users WHERE user_name = ?");
-  const insertUser = db.prepare(`
-    INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
-    VALUES (?, ?, 'user', 1, ?, ?)
-  `);
-  const createdParties = [];
-
-  const createParties = db.transaction(() => {
-    for (let index = 1; index <= count; index += 1) {
-      const suffix = String(index).padStart(2, "0");
-      const userName = `partei-${suffix}`;
-      const apartmentLabel = `Partei ${suffix}`;
-      const existing = lookupUser.get(userName);
-
-      if (existing) {
-        createdParties.push({
-          status: "exists",
-          userName: existing.user_name,
-          displayName: existing.display_name || "",
-          apartmentLabel: existing.apartment_label || apartmentLabel,
-          password: ""
-        });
-        continue;
-      }
-
-      const password = generateInitialPassword();
-      const displayName = displayNameMode === "empty" ? "" : apartmentLabel;
-      insertUser.run(userName, hashPassword(password), displayName, apartmentLabel);
-      createdParties.push({
-        status: "created",
-        userName,
-        displayName,
-        apartmentLabel,
-        password
-      });
-    }
-  });
-
-  createParties();
-  res.status(201).json({ ok: true, parties: createdParties });
 });
 
 app.get("/api/machine-logs", (req, res) => {

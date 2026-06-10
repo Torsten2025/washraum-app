@@ -412,7 +412,8 @@ button.notice-bar:hover {
 
 body[data-active-view="washraum"] .calendar-panel,
 body[data-active-view="rules"] .calendar-panel,
-body[data-active-view="help"] .calendar-panel {
+body[data-active-view="help"] .calendar-panel,
+body[data-active-view="admin"] .calendar-panel {
   display: none;
 }
 
@@ -425,9 +426,14 @@ body[data-active-view="bookings"] .app-layout {
 }
 
 body[data-active-view="rules"] .app-layout,
-body[data-active-view="help"] .app-layout {
+body[data-active-view="help"] .app-layout,
+body[data-active-view="admin"] .app-layout {
   grid-template-columns: minmax(300px, 760px);
   justify-content: center;
+}
+
+body[data-active-view="admin"] .app-layout {
+  grid-template-columns: minmax(300px, 1080px);
 }
 
 body[data-active-view="washraum"] .booking-panel > #rulesPanel,
@@ -437,6 +443,15 @@ body[data-active-view="washraum"] .booking-panel > #helpPanel {
 
 body[data-active-view="rules"] .booking-panel > :not(#rulesPanel),
 body[data-active-view="help"] .booking-panel > :not(#helpPanel) {
+  display: none;
+}
+
+body[data-active-view="admin"] .booking-panel > :not(#adminDashboardNav):not(.admin-panel) {
+  display: none;
+}
+
+body:not([data-active-view="admin"]) #adminDashboardNav,
+body:not([data-active-view="admin"]) .admin-panel {
   display: none;
 }
 
@@ -575,6 +590,33 @@ body[data-active-view="help"] #helpPanel {
   margin-top: 1.4rem;
 }
 
+.auth-switch {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 1.2rem;
+  padding: 0.25rem;
+}
+
+button.auth-switch-button[type="button"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 38px;
+  padding: 0.5rem 0.8rem;
+}
+
+button.auth-switch-button[type="button"]:hover,
+button.auth-switch-button[type="button"].is-active {
+  background: #fff;
+  border-color: var(--line-strong);
+  color: var(--text);
+  transform: none;
+}
+
 label {
   color: #46524d;
   display: grid;
@@ -640,6 +682,33 @@ input[readonly] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
+}
+
+.admin-dashboard-nav {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1.1rem;
+  padding: 0.55rem;
+}
+
+button.admin-dashboard-tab[type="button"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 38px;
+  padding: 0.45rem 0.75rem;
+}
+
+button.admin-dashboard-tab[type="button"]:hover,
+button.admin-dashboard-tab[type="button"].is-active {
+  background: #fff;
+  border-color: var(--line-strong);
+  color: var(--text);
+  transform: none;
 }
 
 .availability-panel {

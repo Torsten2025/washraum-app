@@ -8,7 +8,7 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const featureCatalog = [
   "Branding: GBMZ Maneggplatz 18 ohne alte Navigationspunkte",
-  "Admin-Onboarding: 20 Parteien mit Uebergabeliste und Erstpasswoertern",
+  "Registrierung: Bewohner erstellen ihren Account auf der Loginseite selbst",
   "Nutzerverwaltung: echte Anzeigenamen, Partei/Wohnung, Aktiv/Inaktiv, Passwort neu",
   "Nutzerverwaltung: Parteien aktiv/inaktiv schalten, Eintraege bleiben erhalten",
   "Buchungsmaske: Bereich, Ressource, Datum, feste Slots und freie Slots",
@@ -79,7 +79,11 @@ async function checkStaticPages() {
   assert(loginHtml.includes("GBMZ"), "login page shows GBMZ branding");
   assert(loginHtml.includes("Maneggplatz 18"), "login page shows Maneggplatz 18");
   assert(!loginHtml.includes("myGBMZ"), "login page does not contain old myGBMZ navigation");
-  assert(indexHtml.includes("seedPartiesButton"), "admin 20-party onboarding exists");
+  assert(loginHtml.includes("registerForm"), "login page contains registration form");
+  assert(loginHtml.includes("Account erstellen"), "login page offers account registration");
+  assert(appJs.includes("adminDashboardNav"), "admin dashboard navigation exists");
+  assert(indexHtml.includes("data-view=\"admin\""), "admin main tab exists");
+  assert(indexHtml.includes("data-admin-panel=\"adminUsersPanel\""), "admin user subtab exists");
   assert(appJs.includes("toggleUserActive(user)"), "admin user active toggle action exists");
   assert(appJs.includes("Deaktivieren"), "admin user deactivate button exists");
   assert(appJs.includes("Aktivieren"), "admin user activate button exists");
