@@ -173,6 +173,47 @@ async function run() {
 
   assertStatus(managedLoginAfterPasswordChange, 200, "managed user can log in with changed password");
 
+  const secondManagedLogin = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: managedUserName,
+      password: "secret789"
+    }
+  });
+
+  assertStatus(secondManagedLogin, 200, "same user can log in on a second device");
+
+  const usersWithSessions = await request("/api/admin/users", {
+    token: admin.body.token
+  });
+  const managedUserWithSessions = usersWithSessions.body.users.find((user) => user.user_name === managedUserName);
+  assert(managedUserWithSessions.active_sessions >= 2, "admin sees multiple active devices");
+  assert(managedUserWithSessions.last_seen_at, "admin sees last activity for user");
+
+  const logoutSessions = await request(`/api/admin/users/${createUser.body.user.id}/logout-sessions`, {
+    method: "POST",
+    token: admin.body.token
+  });
+
+  assertStatus(logoutSessions, 200, "admin logs out all devices for a user");
+  assert(logoutSessions.body.loggedOutSessions >= 2, "all active device sessions are removed");
+
+  const oldSessionAfterLogout = await request("/api/session", {
+    token: managedLoginAfterPasswordChange.body.token
+  });
+
+  assertStatus(oldSessionAfterLogout, 401, "old device token is invalid after admin logout");
+
+  const managedLoginAfterSessionLogout = await request("/api/login", {
+    method: "POST",
+    body: {
+      userName: managedUserName,
+      password: "secret789"
+    }
+  });
+
+  assertStatus(managedLoginAfterSessionLogout, 200, "managed user can log in again after admin device logout");
+
   const deactivateUser = await request(`/api/admin/users/${createUser.body.user.id}`, {
     method: "PATCH",
     token: admin.body.token,
@@ -302,7 +343,10 @@ async function run() {
   });
 
   assertStatus(secondFutureSequence, 400, "second future wash sequence is blocked");
-  assert(secondFutureSequence.body.error === "only_one_future_sequence_allowed", "future sequence error code");
+  assert(
+    secondFutureSequence.body.error === "only_one_future_sequence_allowed",
+    `future sequence error code (${secondFutureSequence.body.error})`
+  );
 
   const dryingRange = rangeForDate(bookingDate, "12:00", "17:00");
   const dryingAfterWasher = await request("/api/admin/addBooking", {

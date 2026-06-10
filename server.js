@@ -70,6 +70,8 @@ db.exec(`
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     expires_at TEXT NOT NULL,
+    last_seen_at TEXT,
+    user_agent TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
@@ -144,6 +146,7 @@ ensureBookingSchema();
 ensureBookingColumns();
 ensureActivitySchema();
 ensureUserColumns();
+ensureSessionColumns();
 ensureResourceColumns();
 seedDefaultResources();
 deactivateRetiredDefaultResources();
@@ -195,8 +198,8 @@ app.post("/api/login", (req, res) => {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
 
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .run(token, user.id, expiresAt);
+  db.prepare("INSERT INTO sessions (token, user_id, expires_at, last_seen_at, user_agent) VALUES (?, ?, ?, ?, ?)")
+    .run(token, user.id, expiresAt, new Date().toISOString(), sessionUserAgent(req));
 
   res.json({
     ok: true,
@@ -240,8 +243,8 @@ app.post("/api/register", (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
 
-    db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-      .run(token, info.lastInsertRowid, expiresAt);
+    db.prepare("INSERT INTO sessions (token, user_id, expires_at, last_seen_at, user_agent) VALUES (?, ?, ?, ?, ?)")
+      .run(token, info.lastInsertRowid, expiresAt, new Date().toISOString(), sessionUserAgent(req));
 
     res.status(201).json({
       ok: true,
@@ -440,14 +443,28 @@ app.get("/api/admin/users", (req, res) => {
 
   const users = db
     .prepare(`
-      SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at
+      SELECT
+        users.id,
+        users.user_name,
+        users.role,
+        users.active,
+        users.display_name,
+        users.apartment_label,
+        users.onboarding_seen_at,
+        users.created_at,
+        COUNT(sessions.token) AS active_sessions,
+        MAX(COALESCE(sessions.last_seen_at, sessions.created_at)) AS last_seen_at
       FROM users
+      LEFT JOIN sessions
+        ON sessions.user_id = users.id
+       AND sessions.expires_at > ?
+      GROUP BY users.id
       ORDER BY
-        CASE WHEN apartment_label IS NULL OR apartment_label = '' THEN 1 ELSE 0 END,
-        apartment_label ASC,
-        user_name ASC
+        CASE WHEN users.apartment_label IS NULL OR users.apartment_label = '' THEN 1 ELSE 0 END,
+        users.apartment_label ASC,
+        users.user_name ASC
     `)
-    .all();
+    .all(new Date().toISOString());
 
   res.json({ users });
 });
@@ -846,6 +863,26 @@ app.post("/api/admin/users/:id/reset-password", (req, res) => {
     ok: true,
     userName: existingUser.user_name,
     password
+  });
+});
+
+app.post("/api/admin/users/:id/logout-sessions", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existingUser = db.prepare("SELECT id, user_name FROM users WHERE id = ?").get(id);
+  if (!existingUser) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  const result = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
+  res.json({
+    ok: true,
+    userName: existingUser.user_name,
+    loggedOutSessions: result.changes
   });
 });
 
@@ -1578,6 +1615,20 @@ function ensureUserColumns() {
   }
 }
 
+function ensureSessionColumns() {
+  const columns = db.prepare("PRAGMA table_info(sessions)").all();
+  const hasLastSeenAt = columns.some((column) => column.name === "last_seen_at");
+  const hasUserAgent = columns.some((column) => column.name === "user_agent");
+
+  if (!hasLastSeenAt) {
+    db.exec("ALTER TABLE sessions ADD COLUMN last_seen_at TEXT");
+  }
+
+  if (!hasUserAgent) {
+    db.exec("ALTER TABLE sessions ADD COLUMN user_agent TEXT");
+  }
+}
+
 function ensureResourceColumns() {
   const columns = db.prepare("PRAGMA table_info(resource_entries)").all();
   const hasUnavailableReason = columns.some((column) => column.name === "unavailable_reason");
@@ -1684,7 +1735,12 @@ function getAuth(req) {
     return null;
   }
 
+  db.prepare("UPDATE sessions SET last_seen_at = ? WHERE token = ?").run(new Date().toISOString(), token);
   return session;
+}
+
+function sessionUserAgent(req) {
+  return String(req.headers["user-agent"] || "").trim().slice(0, 240);
 }
 
 function cleanupExpiredSessions() {

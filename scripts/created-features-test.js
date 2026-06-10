@@ -88,6 +88,9 @@ async function checkStaticPages() {
   assert(appJs.includes("Deaktivieren"), "admin user deactivate button exists");
   assert(appJs.includes("Aktivieren"), "admin user activate button exists");
   assert(appJs.includes("Bestehende Eintraege bleiben erhalten"), "admin user toggle preserves entry message exists");
+  assert(appJs.includes("Alle Geraete abmelden"), "admin can log out all devices for a user");
+  assert(appJs.includes("active_sessions"), "admin user cards show active device count");
+  assert(appJs.includes("last_seen_at"), "admin user cards show last activity");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
   assert(resources.resources.tumbler.length === 2, "two tumblers are configured");
   assert(!resources.resources.tumbler.includes("Tumbler 3"), "retired Tumbler 3 is not bookable");

@@ -1346,7 +1346,14 @@ function renderUsers() {
     const displayName = user.display_name ? `${user.display_name} - ` : "";
     meta.textContent = `${displayName}${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
 
-    details.append(title, meta);
+    const sessionMeta = document.createElement("p");
+    sessionMeta.className = "user-session-meta";
+    const activeSessions = Number(user.active_sessions || 0);
+    const sessionLabel = activeSessions === 1 ? "1 aktives Geraet" : `${activeSessions} aktive Geraete`;
+    const lastSeen = user.last_seen_at ? `zuletzt aktiv ${formatDate(user.last_seen_at)}` : "noch keine Aktivitaet";
+    sessionMeta.textContent = `${sessionLabel} - ${lastSeen}`;
+
+    details.append(title, meta, sessionMeta);
 
     const editButton = document.createElement("button");
     editButton.type = "button";
@@ -1364,9 +1371,16 @@ function renderUsers() {
     toggleActiveButton.textContent = user.active ? "Deaktivieren" : "Aktivieren";
     toggleActiveButton.addEventListener("click", () => toggleUserActive(user));
 
+    const logoutSessionsButton = document.createElement("button");
+    logoutSessionsButton.type = "button";
+    logoutSessionsButton.className = "subtle-button";
+    logoutSessionsButton.textContent = "Alle Geraete abmelden";
+    logoutSessionsButton.disabled = activeSessions === 0;
+    logoutSessionsButton.addEventListener("click", () => logoutUserSessions(user));
+
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    actions.append(editButton, resetButton, toggleActiveButton);
+    actions.append(editButton, resetButton, logoutSessionsButton, toggleActiveButton);
 
     item.append(details, actions);
     usersList.append(item);
@@ -1788,6 +1802,27 @@ async function toggleUserActive(user) {
   await loadUsers();
   await loadOperations();
   await loadAnalytics();
+}
+
+async function logoutUserSessions(user) {
+  userMessage.textContent = "";
+  const label = user.apartment_label
+    ? `${user.apartment_label} - ${user.user_name}`
+    : user.user_name;
+  const response = await fetch(`/api/admin/users/${user.id}/logout-sessions`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    userMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  userMessage.textContent = `${label}: ${data.loggedOutSessions || 0} Geraet(e) abgemeldet.`;
+  await loadUsers();
+  await loadOperations();
 }
 
 async function deleteBlockedDate(date) {

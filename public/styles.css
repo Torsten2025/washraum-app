@@ -1047,6 +1047,16 @@ button.status-toggle-button[type="button"]:hover {
   color: var(--green-dark);
 }
 
+button.subtle-button[type="button"] {
+  border-color: var(--line-strong);
+  color: var(--muted);
+}
+
+button.subtle-button[type="button"]:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
 .analytics-toolbar {
   display: flex;
   justify-content: flex-start;
@@ -1442,6 +1452,12 @@ button.status-toggle-button[type="button"]:hover {
 .user-item p {
   color: var(--muted);
   margin-top: 0.35rem;
+}
+
+.user-item .user-session-meta {
+  color: var(--green-dark);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 
 .booking-item-released {
