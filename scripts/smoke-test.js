@@ -47,19 +47,34 @@ async function run() {
 
   const registeredUserName = `Smoke-${Date.now()}-register`;
   cleanupPrefixes.push(registeredUserName);
+  const blockedRegistration = await request("/api/register", {
+    method: "POST",
+    body: {
+      userName: `${registeredUserName}-blocked`,
+      displayName: "Smoke Registrierung Blockiert",
+      apartmentLabel: "Partei Smoke",
+      password: "secret123"
+    }
+  });
+  assertStatus(blockedRegistration, 400, "resident registration requires onboarding");
+  assert(blockedRegistration.body.error === "onboarding_required", "registration without onboarding is blocked");
+
   const registration = await request("/api/register", {
     method: "POST",
     body: {
       userName: registeredUserName,
       displayName: "Smoke Registrierung",
       apartmentLabel: "Partei Smoke",
-      password: "secret123"
+      password: "secret123",
+      onboardingIntroSeen: true,
+      onboardingAnswers: onboardingAnswers()
     }
   });
 
   assertStatus(registration, 201, "resident registers own account");
   assert(registration.body.token, "registration returns login token");
   assert(registration.body.user.role === "user", "registered account is normal user");
+  assert(registration.body.user.onboardingSeenAt, "registration marks onboarding as seen");
 
   const managedUserName = `Managed-${Date.now()}`;
   cleanupPrefixes.push(managedUserName);
@@ -920,6 +935,14 @@ function pastRange() {
   return {
     startAt: date.toISOString(),
     endAt: new Date(date.getTime() + 1000 * 60 * 90).toISOString()
+  };
+}
+
+function onboardingAnswers() {
+  return {
+    morningDrying: "same-day-21",
+    lateDrying: "next-day-12",
+    tumbler: "own-slot-free"
   };
 }
 

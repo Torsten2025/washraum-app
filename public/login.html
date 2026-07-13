@@ -80,6 +80,62 @@
           <input id="registerPassword" name="registerPassword" type="password" autocomplete="new-password" required>
         </label>
 
+        <section class="register-onboarding" aria-labelledby="registerOnboardingHeading">
+          <div class="register-onboarding-heading">
+            <p class="workspace-kicker">Intro fuer neue Personen</p>
+            <h3 id="registerOnboardingHeading">Kurz anschauen, kurz checken</h3>
+            <p>Damit alle fair buchen, gibt es vor dem ersten Account ein kleines Video und drei freundliche Fragen.</p>
+          </div>
+
+          <div class="register-video-card" aria-label="Onboarding Video">
+            <div id="registerVideoStage" class="register-video-stage" role="img" aria-label="Animiertes Onboarding Video mit Waschslot, Trocknung und Reinigung">
+              <div class="video-timeline">
+                <span>07:00</span>
+                <span>12:00</span>
+                <span>17:00</span>
+                <span>21:00</span>
+              </div>
+              <div class="video-machine video-machine-washer">
+                <span>WM</span>
+                <strong>Slot buchen</strong>
+              </div>
+              <div class="video-machine video-machine-drying">
+                <span>TR</span>
+                <strong>Regelzeit nutzen</strong>
+              </div>
+              <div class="video-machine video-machine-clean">
+                <span>OK</span>
+                <strong>Sauber freigeben</strong>
+              </div>
+              <div class="video-progress" aria-hidden="true"><span id="registerVideoProgress"></span></div>
+            </div>
+            <div class="register-video-actions">
+              <button id="playRegisterOnboardingVideo" type="button">Intro starten</button>
+              <span id="registerVideoStatus">Dauert etwa 8 Sekunden.</span>
+            </div>
+          </div>
+
+          <div class="register-quiz" aria-labelledby="registerQuizHeading">
+            <h3 id="registerQuizHeading">Mini-Quiz</h3>
+            <fieldset>
+              <legend>Du waeschst im Slot 07:00-12:00. Wie lange darf der Trockenraum maximal genutzt werden?</legend>
+              <label><input type="radio" name="registerQuizMorningDrying" value="same-day-21"> Bis 21:00 am gleichen Tag</label>
+              <label><input type="radio" name="registerQuizMorningDrying" value="next-day-12"> Bis 12:00 am Folgetag</label>
+            </fieldset>
+            <fieldset>
+              <legend>Du waeschst im Slot 12:00-17:00 oder 17:00-21:00. Was gilt fuer den Trockenraum?</legend>
+              <label><input type="radio" name="registerQuizLateDrying" value="next-day-12"> Maximal bis 12:00 am Folgetag</label>
+              <label><input type="radio" name="registerQuizLateDrying" value="two-days"> Bis zwei Tage spaeter</label>
+            </fieldset>
+            <fieldset>
+              <legend>Wann ist ein Tumbler passend?</legend>
+              <label><input type="radio" name="registerQuizTumbler" value="own-slot-free"> Nur zum eigenen Waschslot, und ein Tumbler bleibt frei</label>
+              <label><input type="radio" name="registerQuizTumbler" value="any-free"> Immer, wenn irgendwo ein Tumbler frei ist</label>
+            </fieldset>
+            <p id="registerOnboardingMessage" class="message" role="status"></p>
+          </div>
+        </section>
+
         <button type="submit">Account erstellen</button>
         <p id="registerMessage" class="message" role="status"></p>
       </form>

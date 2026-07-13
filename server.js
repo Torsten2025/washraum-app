@@ -247,13 +247,24 @@ app.post("/api/register", (req, res) => {
     return res.status(400).json(validation);
   }
 
+  const onboardingValidation = validateRegistrationOnboarding({
+    introSeen: Boolean(req.body?.onboardingIntroSeen),
+    answers: req.body?.onboardingAnswers || {}
+  });
+
+  if (!onboardingValidation.ok) {
+    return res.status(400).json(onboardingValidation);
+  }
+
+  const onboardingSeenAt = new Date().toISOString();
+
   try {
     const info = db
       .prepare(`
-        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
-        VALUES (?, ?, 'user', 1, ?, ?)
+        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label, onboarding_seen_at)
+        VALUES (?, ?, 'user', 1, ?, ?, ?)
       `)
-      .run(userName, hashPassword(password), displayName, apartmentLabel);
+      .run(userName, hashPassword(password), displayName, apartmentLabel, onboardingSeenAt);
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
 
@@ -268,7 +279,7 @@ app.post("/api/register", (req, res) => {
         role: "user",
         displayName,
         apartmentLabel,
-        onboardingSeenAt: ""
+        onboardingSeenAt
       }
     });
   } catch (error) {
@@ -1942,6 +1953,26 @@ function validateUserInput({ userName, password, role, displayName, apartmentLab
 
   if (apartmentLabel && apartmentLabel.length > 40) {
     return { ok: false, error: "invalid_apartment_label" };
+  }
+
+  return { ok: true };
+}
+
+function validateRegistrationOnboarding({ introSeen, answers }) {
+  if (!introSeen || !answers) {
+    return { ok: false, error: "onboarding_required" };
+  }
+
+  const morningDrying = String(answers.morningDrying || "");
+  const lateDrying = String(answers.lateDrying || "");
+  const tumbler = String(answers.tumbler || "");
+
+  if (!morningDrying || !lateDrying || !tumbler) {
+    return { ok: false, error: "onboarding_required" };
+  }
+
+  if (morningDrying !== "same-day-21" || lateDrying !== "next-day-12" || tumbler !== "own-slot-free") {
+    return { ok: false, error: "onboarding_quiz_retry" };
   }
 
   return { ok: true };

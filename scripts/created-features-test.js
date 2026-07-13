@@ -34,6 +34,7 @@ const featureCatalog = [
   "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
   "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto",
   "Willkommen: freundliches Kurzquiz prueft die wichtigsten Regeln",
+  "Registrierung: Onboarding-Video und Mini-Quiz vor dem ersten Account",
   "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken",
   "Design: moderne App-Oberflaeche mit Workspace Hero, Flow-Karten und Admin Cockpit",
   "Design: Kalenderbereich mit animiertem Planungs-Header",
@@ -78,6 +79,7 @@ async function checkStaticPages() {
   console.log("\n==> UI-Funktionsmarker");
   const indexHtml = await textRequest(`${appUrl}/index.html`);
   const loginHtml = await textRequest(`${appUrl}/login.html`);
+  const loginJs = await textRequest(`${appUrl}/login.js`);
   const stylesCss = await textRequest(`${appUrl}/styles.css`);
   const appJs = await textRequest(`${appUrl}/app.js`);
   const resources = await jsonRequest(`${appUrl}/api/resources`);
@@ -87,6 +89,12 @@ async function checkStaticPages() {
   assert(!loginHtml.includes("myGBMZ"), "login page does not contain old myGBMZ navigation");
   assert(loginHtml.includes("registerForm"), "login page contains registration form");
   assert(loginHtml.includes("Account erstellen"), "login page offers account registration");
+  assert(loginHtml.includes("register-onboarding"), "registration onboarding block exists");
+  assert(loginHtml.includes("register-video-card"), "registration onboarding video exists");
+  assert(loginHtml.includes("register-quiz"), "registration onboarding quiz exists");
+  assert(loginJs.includes("registerOnboardingResult"), "registration onboarding quiz validation exists");
+  assert(loginJs.includes("onboardingIntroSeen"), "registration sends onboarding completion");
+  assert(stylesCss.includes("register-video-stage"), "registration video styling exists");
   assert(appJs.includes("adminDashboardNav"), "admin dashboard navigation exists");
   assert(indexHtml.includes("data-view=\"admin\""), "admin main tab exists");
   assert(indexHtml.includes("data-admin-panel=\"adminUsersPanel\""), "admin user subtab exists");
@@ -185,11 +193,13 @@ async function checkLiveReadiness() {
   }
 
   const liveIndex = await textRequest(`${liveUrl}/index.html`);
+  const liveLogin = await textRequest(`${liveUrl}/login.html`);
   assert(liveIndex.includes("adminPilotPanel"), "live app contains pilot readiness panel");
   assert(liveIndex.includes("adminResourcesPanel"), "live app contains resource management panel");
   assert(liveIndex.includes("machineLogForm"), "live app contains machine logbook");
   assert(liveIndex.includes("pilotFeedbackForm"), "live app contains pilot feedback form");
   assert(liveIndex.includes("activityList"), "live app contains activity feed");
+  assert(liveLogin.includes("register-onboarding"), "live app contains registration onboarding");
 
   console.log("OK Live-App ist bereit");
 }
