@@ -2456,6 +2456,7 @@ function hasUserWasherBookingInDifferentSlotForDate(userName, start, end) {
 
 function hasOtherFutureSequence(userName, start) {
   const sequenceDate = dateKey(start);
+  const today = dateKey(new Date());
   const nowIso = new Date().toISOString();
   const openFutureBookings = db
     .prepare(`
@@ -2468,7 +2469,12 @@ function hasOtherFutureSequence(userName, start) {
 
   return openFutureBookings.some((booking) => {
     const bookingStart = new Date(booking.start_at);
-    return dateKey(bookingStart) !== sequenceDate;
+    const bookingDate = dateKey(bookingStart);
+    if (bookingDate === today) {
+      return false;
+    }
+
+    return bookingDate !== sequenceDate;
   });
 }
 

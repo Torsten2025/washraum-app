@@ -354,6 +354,32 @@ button.notice-bar:hover {
   width: auto;
 }
 
+.cleaning-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 0.9rem;
+}
+
+.cleaning-grid article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.cleaning-grid strong {
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.cleaning-grid ul {
+  display: grid;
+  gap: 0.38rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
 .activity-panel {
   background: rgba(255, 255, 255, 0.72);
   border-bottom: 1px solid var(--line);
