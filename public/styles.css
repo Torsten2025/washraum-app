@@ -3143,6 +3143,16 @@ button.auth-switch-button[type="button"].is-active {
   font-weight: 760;
 }
 
+.register-audio-status {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 760;
+  line-height: 1.45;
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
+
 .register-transcript {
   background: rgba(255, 255, 255, 0.95);
   color: var(--ink);

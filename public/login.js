@@ -11,11 +11,13 @@ const registerMessage = document.getElementById("registerMessage");
 const showLoginButton = document.getElementById("showLoginButton");
 const showRegisterButton = document.getElementById("showRegisterButton");
 const playRegisterOnboardingVideoButton = document.getElementById("playRegisterOnboardingVideo");
+const toggleRegisterNarrationButton = document.getElementById("toggleRegisterNarration");
 const markRegisterOnboardingReadButton = document.getElementById("markRegisterOnboardingRead");
 const registerVideoStage = document.getElementById("registerVideoStage");
 const registerVideoProgress = document.getElementById("registerVideoProgress");
 const registerVideoProgressTrack = document.getElementById("registerVideoProgressTrack");
 const registerVideoStatus = document.getElementById("registerVideoStatus");
+const registerAudioStatus = document.getElementById("registerAudioStatus");
 const registerVideoTitle = document.getElementById("registerVideoTitle");
 const registerVideoCaption = document.getElementById("registerVideoCaption");
 const registerVideoStepLabel = document.getElementById("registerVideoStepLabel");
@@ -27,43 +29,52 @@ let registerIntroElapsedMs = 0;
 let registerIntroTimer = null;
 let registerIntroLastTick = 0;
 let registerIntroPlaying = false;
+const registerNarrationSupported = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+let registerNarrationEnabled = registerNarrationSupported;
+let registerNarrationStepId = "";
 
 const registerIntroSteps = [
   {
     id: "plan",
     durationMs: 12500,
     title: "Erst planen, dann buchen",
-    caption: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag."
+    caption: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag.",
+    speech: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag."
   },
   {
     id: "washer",
     durationMs: 12500,
     title: "Waschmaschinen bleiben im Slot",
-    caption: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: 07:00-12:00, 12:00-17:00 oder 17:00-21:00, aber nicht am gleichen Tag gemischt."
+    caption: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: 07:00-12:00, 12:00-17:00 oder 17:00-21:00, aber nicht am gleichen Tag gemischt.",
+    speech: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: sieben bis zwoelf Uhr, zwoelf bis siebzehn Uhr oder siebzehn bis einundzwanzig Uhr, aber nicht am gleichen Tag gemischt."
   },
   {
     id: "drying",
     durationMs: 12500,
     title: "Trockenraum passend zum Waschslot",
-    caption: "Beim 07:00-Slot darf der Trockenraum bis 21:00 am gleichen Tag genutzt werden. Beim 12:00- oder 17:00-Slot ist maximal 12:00 am Folgetag erlaubt. Frueher freigeben hilft allen."
+    caption: "Beim 07:00-Slot darf der Trockenraum bis 21:00 am gleichen Tag genutzt werden. Beim 12:00- oder 17:00-Slot ist maximal 12:00 am Folgetag erlaubt. Frueher freigeben hilft allen.",
+    speech: "Beim sieben Uhr Slot darf der Trockenraum bis einundzwanzig Uhr am gleichen Tag genutzt werden. Beim zwoelf Uhr oder siebzehn Uhr Slot ist maximal zwoelf Uhr am Folgetag erlaubt. Frueher freigeben hilft allen."
   },
   {
     id: "tumbler",
     durationMs: 12500,
     title: "Tumbler nur zum eigenen Waschslot",
-    caption: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen-Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben."
+    caption: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen-Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.",
+    speech: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben."
   },
   {
     id: "cleaning",
     durationMs: 12500,
     title: "Sauber abschliessen",
-    caption: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu; im Trockenraum auch Filter, Tisch und Boden."
+    caption: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu; im Trockenraum auch Filter, Tisch und Boden.",
+    speech: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu. Im Trockenraum auch Filter, Tisch und Boden."
   },
   {
     id: "fairness",
     durationMs: 12500,
     title: "Kurz fair bleiben",
-    caption: "Auch kurze Zwischendurch-Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin-Buchungen bleiben reserviert und koennen nicht ueberschrieben werden."
+    caption: "Auch kurze Zwischendurch-Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin-Buchungen bleiben reserviert und koennen nicht ueberschrieben werden.",
+    speech: "Auch kurze Zwischendurch Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin Buchungen bleiben reserviert und koennen nicht ueberschrieben werden."
   }
 ];
 
@@ -150,7 +161,9 @@ registerForm.addEventListener("submit", async (event) => {
 showLoginButton.addEventListener("click", () => setAuthMode("login"));
 showRegisterButton.addEventListener("click", () => setAuthMode("register"));
 playRegisterOnboardingVideoButton.addEventListener("click", playRegisterOnboardingVideo);
+toggleRegisterNarrationButton.addEventListener("click", toggleRegisterNarration);
 markRegisterOnboardingReadButton.addEventListener("click", markRegisterOnboardingRead);
+updateRegisterNarrationControl();
 renderRegisterIntro();
 
 function setAuthMode(mode) {
@@ -195,6 +208,7 @@ function startRegisterIntro() {
   clearRegisterIntroTimer();
   registerIntroPlaying = true;
   registerIntroLastTick = Date.now();
+  registerNarrationStepId = "";
   registerVideoStage.classList.add("is-playing");
   playRegisterOnboardingVideoButton.textContent = "Intro pausieren";
   markRegisterOnboardingReadButton.textContent = "Als gelesen markieren";
@@ -216,17 +230,20 @@ function startRegisterIntro() {
 function pauseRegisterIntro() {
   clearRegisterIntroTimer();
   registerIntroPlaying = false;
+  pauseRegisterNarration();
   registerVideoStage.classList.remove("is-playing");
   playRegisterOnboardingVideoButton.textContent = "Intro fortsetzen";
   renderRegisterIntro();
 }
 
 function markRegisterOnboardingRead() {
+  cancelRegisterNarration();
   completeRegisterIntro("Einfuehrung als gelesen markiert. Jetzt fehlen nur noch die drei Fragen.");
 }
 
 function completeRegisterIntro(message) {
   clearRegisterIntroTimer();
+  cancelRegisterNarration();
   registerIntroPlaying = false;
   registerOnboardingWatched = true;
   registerIntroElapsedMs = registerIntroTotalMs;
@@ -269,6 +286,7 @@ function renderRegisterIntro() {
   }
 
   if (registerIntroPlaying) {
+    speakRegisterIntroStep(stepState.step);
     registerVideoStatus.textContent = `Laeuft: ${stepState.step.title}`;
     return;
   }
@@ -279,6 +297,99 @@ function renderRegisterIntro() {
   }
 
   registerVideoStatus.textContent = "Dauert etwa 75 Sekunden. Das Transkript steht direkt darunter.";
+}
+
+function toggleRegisterNarration() {
+  if (!registerNarrationSupported) {
+    registerAudioStatus.textContent = "Sprachausgabe wird von diesem Browser leider nicht unterstuetzt. Untertitel und Transkript bleiben verfuegbar.";
+    return;
+  }
+
+  registerNarrationEnabled = !registerNarrationEnabled;
+  updateRegisterNarrationControl();
+
+  if (!registerNarrationEnabled) {
+    cancelRegisterNarration();
+    registerAudioStatus.textContent = "Ton ist aus. Untertitel und Transkript bleiben sichtbar.";
+    return;
+  }
+
+  registerAudioStatus.textContent = "Ton ist an. Beim Start oder Fortsetzen wird das aktuelle Kapitel vorgelesen.";
+  if (registerIntroPlaying) {
+    registerNarrationStepId = "";
+    speakRegisterIntroStep(registerIntroStepForElapsed(registerIntroElapsedMs).step);
+  }
+}
+
+function updateRegisterNarrationControl() {
+  toggleRegisterNarrationButton.disabled = !registerNarrationSupported;
+  toggleRegisterNarrationButton.setAttribute("aria-pressed", registerNarrationEnabled ? "true" : "false");
+  toggleRegisterNarrationButton.textContent = registerNarrationSupported
+    ? registerNarrationEnabled ? "Ton an" : "Ton aus"
+    : "Ton nicht verfuegbar";
+
+  if (!registerNarrationSupported) {
+    registerAudioStatus.textContent = "Sprachausgabe wird von diesem Browser nicht unterstuetzt. Untertitel und Transkript sind weiterhin verfuegbar.";
+  }
+}
+
+function speakRegisterIntroStep(step) {
+  if (!registerNarrationSupported || !registerNarrationEnabled || !registerIntroPlaying) {
+    return;
+  }
+
+  if (registerNarrationStepId === step.id) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(`${step.title}. ${step.speech || step.caption}`);
+  utterance.lang = "de-CH";
+  utterance.rate = 0.92;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  const voice = preferredRegisterNarrationVoice();
+  if (voice) {
+    utterance.voice = voice;
+  }
+  utterance.onstart = () => {
+    registerAudioStatus.textContent = `Wird gesprochen: ${step.title}`;
+  };
+  utterance.onend = () => {
+    if (registerIntroPlaying && registerNarrationStepId === step.id) {
+      registerAudioStatus.textContent = "Naechstes Kapitel wird automatisch vorgelesen.";
+    }
+  };
+  utterance.onerror = () => {
+    registerAudioStatus.textContent = "Die Sprachausgabe konnte gerade nicht gestartet werden. Untertitel und Transkript bleiben sichtbar.";
+  };
+  registerNarrationStepId = step.id;
+  window.speechSynthesis.speak(utterance);
+}
+
+function preferredRegisterNarrationVoice() {
+  if (!registerNarrationSupported) {
+    return null;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find((voice) => voice.lang === "de-CH")
+    || voices.find((voice) => voice.lang === "de-DE")
+    || voices.find((voice) => voice.lang && voice.lang.startsWith("de"))
+    || null;
+}
+
+function pauseRegisterNarration() {
+  if (registerNarrationSupported && window.speechSynthesis.speaking) {
+    window.speechSynthesis.pause();
+  }
+}
+
+function cancelRegisterNarration() {
+  if (registerNarrationSupported) {
+    window.speechSynthesis.cancel();
+  }
+  registerNarrationStepId = "";
 }
 
 function registerIntroStepForElapsed(elapsedMs) {

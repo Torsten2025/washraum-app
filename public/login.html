@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>GBMZ Maneggplatz 18</title>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=voice-onboarding">
   </head>
   <body class="login-page">
     <header class="app-header login-header">
@@ -111,9 +111,11 @@
             </div>
             <div class="register-video-actions">
               <button id="playRegisterOnboardingVideo" type="button" aria-controls="registerVideoStage">Intro starten</button>
+              <button id="toggleRegisterNarration" type="button" aria-pressed="true">Ton an</button>
               <button id="markRegisterOnboardingRead" type="button">Als gelesen markieren</button>
               <span id="registerVideoStatus" role="status">Dauert etwa 75 Sekunden. Das Transkript steht direkt darunter.</span>
             </div>
+            <p id="registerAudioStatus" class="register-audio-status" role="status">Beim Start wird die Einfuehrung vorgelesen, wenn dein Browser Sprachausgabe unterstuetzt.</p>
             <details class="register-transcript">
               <summary>Einfuehrung als Text lesen</summary>
               <ol>
@@ -154,6 +156,6 @@
       </section>
     </main>
 
-    <script src="/login.js"></script>
+    <script src="/login.js?v=voice-onboarding"></script>
   </body>
 </html>
