@@ -11,13 +11,63 @@ const registerMessage = document.getElementById("registerMessage");
 const showLoginButton = document.getElementById("showLoginButton");
 const showRegisterButton = document.getElementById("showRegisterButton");
 const playRegisterOnboardingVideoButton = document.getElementById("playRegisterOnboardingVideo");
+const markRegisterOnboardingReadButton = document.getElementById("markRegisterOnboardingRead");
 const registerVideoStage = document.getElementById("registerVideoStage");
 const registerVideoProgress = document.getElementById("registerVideoProgress");
+const registerVideoProgressTrack = document.getElementById("registerVideoProgressTrack");
 const registerVideoStatus = document.getElementById("registerVideoStatus");
+const registerVideoTitle = document.getElementById("registerVideoTitle");
+const registerVideoCaption = document.getElementById("registerVideoCaption");
+const registerVideoStepLabel = document.getElementById("registerVideoStepLabel");
+const registerVideoStepMarkers = Array.from(document.querySelectorAll("[data-register-video-step]"));
 const registerOnboardingMessage = document.getElementById("registerOnboardingMessage");
 
 let registerOnboardingWatched = false;
-let registerVideoTimer = null;
+let registerIntroElapsedMs = 0;
+let registerIntroTimer = null;
+let registerIntroLastTick = 0;
+let registerIntroPlaying = false;
+
+const registerIntroSteps = [
+  {
+    id: "plan",
+    durationMs: 12500,
+    title: "Erst planen, dann buchen",
+    caption: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag."
+  },
+  {
+    id: "washer",
+    durationMs: 12500,
+    title: "Waschmaschinen bleiben im Slot",
+    caption: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: 07:00-12:00, 12:00-17:00 oder 17:00-21:00, aber nicht am gleichen Tag gemischt."
+  },
+  {
+    id: "drying",
+    durationMs: 12500,
+    title: "Trockenraum passend zum Waschslot",
+    caption: "Beim 07:00-Slot darf der Trockenraum bis 21:00 am gleichen Tag genutzt werden. Beim 12:00- oder 17:00-Slot ist maximal 12:00 am Folgetag erlaubt. Frueher freigeben hilft allen."
+  },
+  {
+    id: "tumbler",
+    durationMs: 12500,
+    title: "Tumbler nur zum eigenen Waschslot",
+    caption: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen-Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben."
+  },
+  {
+    id: "cleaning",
+    durationMs: 12500,
+    title: "Sauber abschliessen",
+    caption: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu; im Trockenraum auch Filter, Tisch und Boden."
+  },
+  {
+    id: "fairness",
+    durationMs: 12500,
+    title: "Kurz fair bleiben",
+    caption: "Auch kurze Zwischendurch-Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin-Buchungen bleiben reserviert und koennen nicht ueberschrieben werden."
+  }
+];
+
+const registerIntroTotalMs = registerIntroSteps.reduce((total, step) => total + step.durationMs, 0);
 
 const sessionNotice = sessionStorage.getItem("washraumSessionNotice");
 if (sessionNotice) {
@@ -100,6 +150,8 @@ registerForm.addEventListener("submit", async (event) => {
 showLoginButton.addEventListener("click", () => setAuthMode("login"));
 showRegisterButton.addEventListener("click", () => setAuthMode("register"));
 playRegisterOnboardingVideoButton.addEventListener("click", playRegisterOnboardingVideo);
+markRegisterOnboardingReadButton.addEventListener("click", markRegisterOnboardingRead);
+renderRegisterIntro();
 
 function setAuthMode(mode) {
   const registerMode = mode === "register";
@@ -125,30 +177,121 @@ function storeSessionAndContinue(data) {
 }
 
 function playRegisterOnboardingVideo() {
-  if (registerVideoTimer) {
-    window.clearTimeout(registerVideoTimer);
+  if (registerIntroPlaying) {
+    pauseRegisterIntro();
+    return;
   }
 
-  registerOnboardingWatched = false;
-  registerVideoStage.classList.remove("is-complete");
-  registerVideoStage.classList.remove("is-playing");
-  registerVideoProgress.style.animation = "none";
-  registerVideoProgress.offsetHeight;
-  registerVideoProgress.style.animation = "";
-  registerVideoStage.classList.add("is-playing");
-  playRegisterOnboardingVideoButton.disabled = true;
-  playRegisterOnboardingVideoButton.textContent = "Intro laeuft";
-  registerVideoStatus.textContent = "Slot waehlen, Trocknung pruefen, sauber freigeben.";
-  registerOnboardingMessage.textContent = "";
+  if (registerOnboardingWatched || registerIntroElapsedMs >= registerIntroTotalMs) {
+    registerIntroElapsedMs = 0;
+    registerOnboardingWatched = false;
+    registerVideoStage.classList.remove("is-complete");
+  }
 
-  registerVideoTimer = window.setTimeout(() => {
-    registerOnboardingWatched = true;
-    registerVideoStage.classList.remove("is-playing");
-    registerVideoStage.classList.add("is-complete");
-    playRegisterOnboardingVideoButton.disabled = false;
-    playRegisterOnboardingVideoButton.textContent = "Intro erneut ansehen";
-    registerVideoStatus.textContent = "Intro angesehen. Jetzt fehlen nur noch die drei Fragen.";
-  }, 8200);
+  startRegisterIntro();
+}
+
+function startRegisterIntro() {
+  clearRegisterIntroTimer();
+  registerIntroPlaying = true;
+  registerIntroLastTick = Date.now();
+  registerVideoStage.classList.add("is-playing");
+  playRegisterOnboardingVideoButton.textContent = "Intro pausieren";
+  markRegisterOnboardingReadButton.textContent = "Als gelesen markieren";
+  registerOnboardingMessage.textContent = "";
+  renderRegisterIntro();
+
+  registerIntroTimer = window.setInterval(() => {
+    const now = Date.now();
+    registerIntroElapsedMs = Math.min(registerIntroTotalMs, registerIntroElapsedMs + now - registerIntroLastTick);
+    registerIntroLastTick = now;
+    renderRegisterIntro();
+
+    if (registerIntroElapsedMs >= registerIntroTotalMs) {
+      completeRegisterIntro("Intro angesehen. Jetzt fehlen nur noch die drei Fragen.");
+    }
+  }, 200);
+}
+
+function pauseRegisterIntro() {
+  clearRegisterIntroTimer();
+  registerIntroPlaying = false;
+  registerVideoStage.classList.remove("is-playing");
+  playRegisterOnboardingVideoButton.textContent = "Intro fortsetzen";
+  renderRegisterIntro();
+}
+
+function markRegisterOnboardingRead() {
+  completeRegisterIntro("Einfuehrung als gelesen markiert. Jetzt fehlen nur noch die drei Fragen.");
+}
+
+function completeRegisterIntro(message) {
+  clearRegisterIntroTimer();
+  registerIntroPlaying = false;
+  registerOnboardingWatched = true;
+  registerIntroElapsedMs = registerIntroTotalMs;
+  registerVideoStage.classList.remove("is-playing");
+  registerVideoStage.classList.add("is-complete");
+  playRegisterOnboardingVideoButton.textContent = "Intro erneut ansehen";
+  markRegisterOnboardingReadButton.textContent = "Gelesen";
+  registerVideoStatus.textContent = message;
+  renderRegisterIntro();
+}
+
+function clearRegisterIntroTimer() {
+  if (registerIntroTimer) {
+    window.clearInterval(registerIntroTimer);
+    registerIntroTimer = null;
+  }
+}
+
+function renderRegisterIntro() {
+  const stepState = registerIntroStepForElapsed(registerIntroElapsedMs);
+  const progress = Math.min(1, registerIntroElapsedMs / registerIntroTotalMs);
+  const percent = Math.round(progress * 100);
+
+  registerVideoStage.dataset.activeStep = stepState.step.id;
+  registerVideoProgress.style.transform = `scaleX(${progress})`;
+  registerVideoProgressTrack.setAttribute("aria-valuenow", String(percent));
+  registerVideoTitle.textContent = stepState.step.title;
+  registerVideoCaption.textContent = stepState.step.caption;
+  registerVideoStepLabel.textContent = `Kapitel ${stepState.index + 1} von ${registerIntroSteps.length}`;
+
+  for (const marker of registerVideoStepMarkers) {
+    const markerIndex = registerIntroSteps.findIndex((step) => step.id === marker.dataset.registerVideoStep);
+    marker.classList.toggle("is-active", markerIndex === stepState.index);
+    marker.classList.toggle("is-done", markerIndex >= 0 && markerIndex < stepState.index);
+  }
+
+  if (registerOnboardingWatched) {
+    registerVideoStatus.textContent = "Einfuehrung erledigt. Du kannst sie bei Bedarf erneut ansehen.";
+    return;
+  }
+
+  if (registerIntroPlaying) {
+    registerVideoStatus.textContent = `Laeuft: ${stepState.step.title}`;
+    return;
+  }
+
+  if (registerIntroElapsedMs > 0) {
+    registerVideoStatus.textContent = "Pausiert. Du kannst fortsetzen oder das Transkript lesen.";
+    return;
+  }
+
+  registerVideoStatus.textContent = "Dauert etwa 75 Sekunden. Das Transkript steht direkt darunter.";
+}
+
+function registerIntroStepForElapsed(elapsedMs) {
+  let cursor = 0;
+  for (let index = 0; index < registerIntroSteps.length; index += 1) {
+    const step = registerIntroSteps[index];
+    cursor += step.durationMs;
+    if (elapsedMs < cursor || index === registerIntroSteps.length - 1) {
+      return { step, index };
+    }
+  }
+
+  return { step: registerIntroSteps[0], index: 0 };
 }
 
 function registerOnboardingResult() {
@@ -160,7 +303,7 @@ function registerOnboardingResult() {
   if (!registerOnboardingWatched) {
     return {
       ok: false,
-      message: "Fast da: Bitte starte kurz das Intro, dann ist der Account bereit.",
+      message: "Fast da: Bitte starte die Einfuehrung oder lies das Transkript und markiere es als gelesen.",
       answers
     };
   }

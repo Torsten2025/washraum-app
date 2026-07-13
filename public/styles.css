@@ -2975,7 +2975,9 @@ button.auth-switch-button[type="button"].is-active {
 
 .register-video-stage {
   display: grid;
-  min-height: 220px;
+  align-content: start;
+  gap: 1rem;
+  min-height: 300px;
   overflow: hidden;
   padding: 1rem;
   position: relative;
@@ -2993,110 +2995,105 @@ button.auth-switch-button[type="button"].is-active {
 .video-timeline {
   align-items: center;
   display: grid;
-  gap: 0.35rem;
-  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   position: relative;
   z-index: 1;
 }
 
 .video-timeline::before {
-  background: rgba(255, 255, 255, 0.24);
-  content: "";
-  height: 2px;
-  left: 0;
-  position: absolute;
-  right: 0;
-  top: 50%;
+  content: none;
 }
 
 .video-timeline span {
   background: rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
+  border-radius: 8px;
   color: rgba(255, 255, 255, 0.86);
   font-size: 0.72rem;
   font-weight: 860;
   justify-self: center;
-  padding: 0.26rem 0.45rem;
+  padding: 0.38rem 0.28rem;
+  position: relative;
+  text-align: center;
+  width: 100%;
+  z-index: 1;
+}
+
+.video-timeline span.is-active {
+  background: #fff;
+  color: var(--wash-green);
+}
+
+.video-timeline span.is-done {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.video-story {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.45rem;
+  min-height: 142px;
+  padding: 1rem;
+  position: relative;
+  text-align: left;
+  z-index: 1;
+}
+
+.video-step-label {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.74rem;
+  font-weight: 920;
+  letter-spacing: 0;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.video-story h4 {
+  color: #fff;
+  font-size: 1.12rem;
+  margin: 0;
+}
+
+.video-story p:not(.video-step-label) {
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.video-rule-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   position: relative;
   z-index: 1;
 }
 
-.video-machine {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+.video-rule-pill {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  display: grid;
-  gap: 0.18rem;
-  justify-items: center;
-  min-height: 74px;
-  padding: 0.65rem;
-  position: absolute;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0.62rem 0.4rem;
   text-align: center;
-  width: 138px;
-  z-index: 1;
 }
 
-.video-machine span {
-  align-items: center;
-  background: #fff;
-  border-radius: 999px;
-  color: var(--wash-green);
-  display: inline-flex;
-  font-size: 0.78rem;
-  font-weight: 920;
-  height: 34px;
-  justify-content: center;
-  width: 34px;
-}
-
-.video-machine strong {
-  color: #fff;
-  font-size: 0.88rem;
-  line-height: 1.2;
-}
-
-.video-machine-washer {
-  bottom: 1.1rem;
-  left: 1rem;
-}
-
-.video-machine-drying {
-  bottom: 4.8rem;
-  left: calc(50% - 69px);
-}
-
-.video-machine-clean {
-  bottom: 1.1rem;
-  right: 1rem;
-}
-
-.register-video-stage.is-playing .video-machine-washer {
-  animation: videoStepPulse 2.2s ease-in-out both;
-}
-
-.register-video-stage.is-playing .video-machine-drying {
-  animation: videoStepPulse 2.2s ease-in-out 2.2s both;
-}
-
-.register-video-stage.is-playing .video-machine-clean {
-  animation: videoStepPulse 2.2s ease-in-out 4.4s both;
-}
-
-.register-video-stage.is-complete .video-machine {
-  background: rgba(255, 255, 255, 0.2);
+.register-video-stage[data-active-step="drying"] .video-rule-pill,
+.register-video-stage[data-active-step="tumbler"] .video-rule-pill {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .video-progress {
   background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  bottom: 0.75rem;
   height: 8px;
-  left: 1rem;
   overflow: hidden;
-  position: absolute;
-  right: 1rem;
+  position: relative;
   z-index: 2;
 }
 
@@ -3109,7 +3106,7 @@ button.auth-switch-button[type="button"].is-active {
 }
 
 .register-video-stage.is-playing .video-progress span {
-  animation: registerVideoProgress 8.2s linear forwards;
+  animation: none;
 }
 
 .register-video-stage.is-complete .video-progress span {
@@ -3120,6 +3117,7 @@ button.auth-switch-button[type="button"].is-active {
   align-items: center;
   background: rgba(16, 34, 29, 0.2);
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
   padding: 0.8rem;
@@ -3132,10 +3130,40 @@ button.auth-switch-button[type="button"].is-active {
   min-width: 132px;
 }
 
+.register-video-actions button[type="button"] + button[type="button"] {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #fff;
+}
+
 .register-video-actions span {
   color: rgba(255, 255, 255, 0.78);
+  flex: 1 1 210px;
   font-size: 0.82rem;
   font-weight: 760;
+}
+
+.register-transcript {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  padding: 0.85rem 1rem;
+}
+
+.register-transcript summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.register-transcript ol {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.register-transcript li {
+  color: var(--ink-soft);
+  line-height: 1.45;
 }
 
 .register-quiz {
@@ -3173,28 +3201,6 @@ button.auth-switch-button[type="button"].is-active {
   accent-color: var(--wash-green);
   min-height: auto;
   width: auto;
-}
-
-@keyframes videoStepPulse {
-  0% {
-    transform: translateY(0);
-  }
-  38% {
-    background: rgba(255, 255, 255, 0.26);
-    transform: translateY(-7px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-
-@keyframes registerVideoProgress {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3348,27 +3354,16 @@ button.auth-switch-button[type="button"].is-active {
     min-height: 300px;
   }
 
-  .video-machine {
-    width: calc(100% - 2rem);
+  .video-timeline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .video-machine-washer,
-  .video-machine-drying,
-  .video-machine-clean {
-    left: 1rem;
-    right: 1rem;
+  .video-story {
+    min-height: 168px;
   }
 
-  .video-machine-washer {
-    bottom: 8.6rem;
-  }
-
-  .video-machine-drying {
-    bottom: 4.8rem;
-  }
-
-  .video-machine-clean {
-    bottom: 1rem;
+  .video-rule-grid {
+    grid-template-columns: 1fr;
   }
 
   .register-video-actions {

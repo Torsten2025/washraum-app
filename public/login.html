@@ -83,36 +83,48 @@
         <section class="register-onboarding" aria-labelledby="registerOnboardingHeading">
           <div class="register-onboarding-heading">
             <p class="workspace-kicker">Intro fuer neue Personen</p>
-            <h3 id="registerOnboardingHeading">Kurz anschauen, kurz checken</h3>
-            <p>Damit alle fair buchen, gibt es vor dem ersten Account ein kleines Video und drei freundliche Fragen.</p>
+            <h3 id="registerOnboardingHeading">Gefuehrte Einfuehrung</h3>
+            <p>Die wichtigsten Regeln werden ruhig, praxisnah und barrierearm erklaert. Danach folgen drei freundliche Fragen zur Orientierung.</p>
           </div>
 
-          <div class="register-video-card" aria-label="Onboarding Video">
-            <div id="registerVideoStage" class="register-video-stage" role="img" aria-label="Animiertes Onboarding Video mit Waschslot, Trocknung und Reinigung">
-              <div class="video-timeline">
-                <span>07:00</span>
-                <span>12:00</span>
-                <span>17:00</span>
-                <span>21:00</span>
+          <div class="register-video-card" aria-label="Gefuehrte Einfuehrung">
+            <div id="registerVideoStage" class="register-video-stage" aria-labelledby="registerVideoTitle" aria-describedby="registerVideoCaption">
+              <div class="video-timeline" aria-label="Kapitel der Einfuehrung">
+                <span data-register-video-step="plan">Planen</span>
+                <span data-register-video-step="washer">Waschen</span>
+                <span data-register-video-step="drying">Trocknen</span>
+                <span data-register-video-step="tumbler">Tumbler</span>
+                <span data-register-video-step="cleaning">Reinigung</span>
+                <span data-register-video-step="fairness">Fairness</span>
               </div>
-              <div class="video-machine video-machine-washer">
-                <span>WM</span>
-                <strong>Slot buchen</strong>
+              <div class="video-story">
+                <p id="registerVideoStepLabel" class="video-step-label">Kapitel 1 von 6</p>
+                <h4 id="registerVideoTitle">Erst planen, dann buchen</h4>
+                <p id="registerVideoCaption" aria-live="polite">Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag.</p>
               </div>
-              <div class="video-machine video-machine-drying">
-                <span>TR</span>
-                <strong>Regelzeit nutzen</strong>
+              <div class="video-rule-grid" aria-hidden="true">
+                <span class="video-rule-pill">07-12</span>
+                <span class="video-rule-pill">12-17</span>
+                <span class="video-rule-pill">17-21</span>
               </div>
-              <div class="video-machine video-machine-clean">
-                <span>OK</span>
-                <strong>Sauber freigeben</strong>
-              </div>
-              <div class="video-progress" aria-hidden="true"><span id="registerVideoProgress"></span></div>
+              <div id="registerVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einfuehrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="registerVideoProgress"></span></div>
             </div>
             <div class="register-video-actions">
-              <button id="playRegisterOnboardingVideo" type="button">Intro starten</button>
-              <span id="registerVideoStatus">Dauert etwa 8 Sekunden.</span>
+              <button id="playRegisterOnboardingVideo" type="button" aria-controls="registerVideoStage">Intro starten</button>
+              <button id="markRegisterOnboardingRead" type="button">Als gelesen markieren</button>
+              <span id="registerVideoStatus" role="status">Dauert etwa 75 Sekunden. Das Transkript steht direkt darunter.</span>
             </div>
+            <details class="register-transcript">
+              <summary>Einfuehrung als Text lesen</summary>
+              <ol>
+                <li>Buche zuerst deinen Waschslot. Pro Tag wird nur innerhalb eines Zeitfensters gewaschen; mehrere Waschmaschinen bleiben also im selben Slot.</li>
+                <li>Eine weitere Zukunftssequenz wird erst am Waschtag wieder sinnvoll. So bleiben Chancen fuer alle Parteien frei.</li>
+                <li>Trockenraum: Beim 07:00-12:00-Slot maximal bis 21:00 am gleichen Tag. Beim 12:00-17:00- oder 17:00-21:00-Slot maximal bis 12:00 am Folgetag. Wenn die Waesche frueher trocken ist, bitte frueher freigeben.</li>
+                <li>Tumbler: Nur waehrend deines eigenen Waschslots buchen. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.</li>
+                <li>Nach der Nutzung reinigen: Waschmittelschublade, Trommel, Gummidichtung und Filter der Waschmaschine; beim Tumbler Trommel, vier Filter und Dichtung; im Trockenraum Filter, Tisch und Boden.</li>
+                <li>Auch bei kurzen Zwischendurch-Waeschen gilt die Reinigungspflicht. Sonn- und gepflegte Sperrtage sind geschlossen; feste Admin-Buchungen bleiben reserviert.</li>
+              </ol>
+            </details>
           </div>
 
           <div class="register-quiz" aria-labelledby="registerQuizHeading">
