@@ -12,11 +12,37 @@
       <span class="site-address">Maneggplatz 18</span>
     </header>
 
-    <main class="login-shell">
-      <h1>Maneggplatz 18</h1>
-      <div class="auth-switch" role="tablist" aria-label="Anmeldung">
-        <button id="showLoginButton" class="auth-switch-button is-active" type="button">Einloggen</button>
-        <button id="showRegisterButton" class="auth-switch-button" type="button">Account erstellen</button>
+    <main class="login-landing">
+      <section class="login-hero" aria-labelledby="loginHeading">
+        <div class="login-hero-copy">
+          <p class="login-kicker">Waschraum Maneggplatz 18</p>
+          <h1 id="loginHeading">Fair buchen. Ruhig waschen. Sauber abschliessen.</h1>
+          <p>Der digitale Plan fuer Waschmaschine, Trockenraum und Tumbler. Mit GBMZ-Regeln, festen Admin-Buchungen und einer kurzen Einfuehrung fuer neue Bewohnerinnen und Bewohner.</p>
+        </div>
+        <div class="slot-stage" aria-label="Waschraum Tagesuebersicht">
+          <div class="slot-rail">
+            <span>07-12</span>
+            <strong>Waschen</strong>
+            <small>WM 1 frei</small>
+          </div>
+          <div class="slot-rail slot-rail-active">
+            <span>12-17</span>
+            <strong>Trocknen</strong>
+            <small>TR 2 reserviert</small>
+          </div>
+          <div class="slot-rail">
+            <span>17-21</span>
+            <strong>Fertig</strong>
+            <small>Tumbler bleibt frei</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="login-shell" aria-labelledby="authHeading">
+        <h2 id="authHeading">Zugang</h2>
+        <div class="auth-switch" role="tablist" aria-label="Anmeldung">
+          <button id="showLoginButton" class="auth-switch-button is-active" type="button">Einloggen</button>
+          <button id="showRegisterButton" class="auth-switch-button" type="button">Account erstellen</button>
       </div>
       <form id="loginForm" class="login-form">
         <label>
@@ -57,6 +83,7 @@
         <button type="submit">Account erstellen</button>
         <p id="registerMessage" class="message" role="status"></p>
       </form>
+      </section>
     </main>
 
     <script src="/login.js"></script>
