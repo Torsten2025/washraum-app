@@ -1957,6 +1957,228 @@ button.subtle-button[type="button"]:hover {
   }
 }
 
+/* Full surface design pass: landing, resident workflows, calendar and admin tools. */
+.app-header {
+  box-shadow: 0 10px 28px rgba(29, 42, 36, 0.055);
+  position: sticky;
+  top: 0;
+  z-index: 12;
+}
+
+.main-nav {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.58);
+}
+
+.main-nav .nav-tab.is-active {
+  box-shadow: 0 8px 18px rgba(29, 42, 36, 0.08);
+}
+
+.booking-panel,
+.calendar-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94)),
+    linear-gradient(135deg, rgba(19, 134, 90, 0.08), transparent 48%);
+}
+
+.booking-panel h2,
+.calendar-panel h2,
+.admin-panel h2,
+.account-panel h2,
+.logbook-panel h2,
+.feedback-panel h2 {
+  letter-spacing: 0;
+}
+
+.booking-form,
+.logbook-tools,
+.feedback-tools {
+  background:
+    linear-gradient(180deg, #fff, #fbfcfb),
+    repeating-linear-gradient(135deg, transparent 0 18px, rgba(19, 134, 90, 0.045) 18px 19px);
+  border: 1px solid rgba(19, 134, 90, 0.13);
+  border-radius: 8px;
+  box-shadow: 0 14px 32px rgba(29, 42, 36, 0.045);
+  padding: 1rem;
+}
+
+.account-panel,
+.logbook-panel,
+.feedback-panel,
+.admin-panel,
+.rules-panel,
+.help-panel {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(19, 134, 90, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 12px 26px rgba(29, 42, 36, 0.045);
+  padding: 1rem;
+}
+
+.admin-panel {
+  border-top: 1px solid rgba(19, 134, 90, 0.12);
+  margin-top: 0;
+}
+
+.admin-dashboard-nav {
+  background: #17251f;
+  border-color: #17251f;
+  box-shadow: 0 16px 34px rgba(23, 37, 31, 0.14);
+}
+
+button.admin-dashboard-tab[type="button"] {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+button.admin-dashboard-tab[type="button"]:hover,
+button.admin-dashboard-tab[type="button"].is-active {
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+  color: #17251f;
+}
+
+.availability-panel {
+  background:
+    linear-gradient(180deg, rgba(245, 251, 247, 0.92), rgba(255, 255, 255, 0.96)),
+    repeating-linear-gradient(90deg, transparent 0 34px, rgba(19, 134, 90, 0.055) 34px 35px);
+  border-color: rgba(19, 134, 90, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.availability-slot {
+  min-height: 88px;
+  padding: 0.78rem;
+}
+
+.availability-slot strong {
+  font-size: 0.98rem;
+}
+
+.availability-slot span {
+  color: #46524d;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.calendar-day,
+.month-resource,
+.booking-item,
+.user-item,
+.blocked-date-item,
+.resource-item,
+.machine-log-item,
+.pilot-feedback-item,
+.ops-status-item,
+.analytics-card,
+.pilot-readiness-item,
+.logbook-summary-item,
+.credential-item,
+.resource-admin-row {
+  box-shadow: 0 10px 24px rgba(29, 42, 36, 0.045);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.calendar-day:hover,
+.month-resource:hover,
+.booking-item:hover,
+.user-item:hover,
+.resource-item:hover,
+.machine-log-item:hover,
+.pilot-feedback-item:hover,
+.ops-status-item:hover,
+.analytics-card:hover,
+.resource-admin-row:hover {
+  border-color: rgba(19, 134, 90, 0.23);
+  box-shadow: 0 16px 34px rgba(29, 42, 36, 0.075);
+  transform: translateY(-1px);
+}
+
+.calendar-day h3,
+.month-resource h3,
+.resource-item h3,
+.machine-log-item h3,
+.pilot-feedback-item h3 {
+  color: #17251f;
+}
+
+.calendar-booking {
+  background: linear-gradient(180deg, #fff, #fbfcfb);
+  border-left-width: 4px;
+}
+
+.calendar-booking-washer {
+  border-left-color: var(--green);
+}
+
+.calendar-booking-drying_room {
+  background: #f2fbf8;
+}
+
+.calendar-booking-tumbler {
+  background: #fffaf0;
+}
+
+.month-table thead th {
+  background: #17251f;
+  color: #fff;
+}
+
+.month-slot-booked {
+  background: #fff0b8;
+}
+
+.month-slot-released {
+  background: #e7f2ff;
+}
+
+.ops-status-item,
+.analytics-card,
+.logbook-summary-item {
+  background: linear-gradient(180deg, #fff, #f8faf7);
+  position: relative;
+}
+
+.ops-status-item::before,
+.analytics-card::before,
+.logbook-summary-item::before {
+  background: var(--green);
+  border-radius: 999px;
+  content: "";
+  height: 7px;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  width: 7px;
+}
+
+.analytics-bar {
+  background: #e7ece8;
+}
+
+.analytics-bar span {
+  background: linear-gradient(90deg, var(--green), #2f86d1);
+}
+
+.resource-admin-row,
+.blocked-date-item,
+.user-item {
+  background:
+    linear-gradient(180deg, #fff, #fbfcfb);
+}
+
+.machine-log-item,
+.pilot-feedback-item {
+  border-left: 4px solid rgba(19, 134, 90, 0.32);
+}
+
+.danger-zone {
+  box-shadow: 0 14px 32px rgba(122, 27, 18, 0.06);
+}
+
+.login-shell {
+  box-shadow: 0 22px 52px rgba(29, 42, 36, 0.1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
