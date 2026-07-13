@@ -36,7 +36,8 @@ const featureCatalog = [
   "Willkommen: freundliches Kurzquiz prueft die wichtigsten Regeln",
   "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken",
   "Design: moderne App-Oberflaeche mit Workspace Hero, Flow-Karten und Admin Cockpit",
-  "Design: Kalenderbereich mit animiertem Planungs-Header"
+  "Design: Kalenderbereich mit animiertem Planungs-Header",
+  "Design: einheitliche Produktsprache fuer Landing, Bewohnerbereich und Admin"
 ];
 
 run().catch((error) => {
@@ -77,6 +78,7 @@ async function checkStaticPages() {
   console.log("\n==> UI-Funktionsmarker");
   const indexHtml = await textRequest(`${appUrl}/index.html`);
   const loginHtml = await textRequest(`${appUrl}/login.html`);
+  const stylesCss = await textRequest(`${appUrl}/styles.css`);
   const appJs = await textRequest(`${appUrl}/app.js`);
   const resources = await jsonRequest(`${appUrl}/api/resources`);
 
@@ -153,6 +155,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("washroom-flow"), "resident booking flow cards exist");
   assert(indexHtml.includes("admin-command-center"), "admin command center exists");
   assert(indexHtml.includes("calendar-command-strip"), "calendar command strip exists");
+  assert(stylesCss.includes("Cohesive product skin"), "cohesive product skin exists");
+  assert(stylesCss.includes("--wash-gradient"), "shared design tokens exist");
   assert(!indexHtml.includes("href=\"#bookingForm\""), "old washroom jump link is removed");
   assert(!indexHtml.includes("href=\"#rulesPanel\""), "old rules jump link is removed");
   assert(appJs.includes("setActiveView"), "tab view switching logic exists");

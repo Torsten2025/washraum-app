@@ -2525,6 +2525,418 @@ button.admin-dashboard-tab[type="button"].is-active {
   }
 }
 
+/* Cohesive product skin: one visual language for landing, resident views and admin. */
+:root {
+  --ink: #10221d;
+  --ink-soft: #17332b;
+  --paper: #fbfcfa;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-solid: #ffffff;
+  --card-line: rgba(16, 34, 29, 0.1);
+  --wash-green: #0f7a56;
+  --wash-mint: #dff4e9;
+  --wash-blue: #2f86d1;
+  --wash-gold: #efc84a;
+  --wash-shadow: 0 18px 46px rgba(16, 34, 29, 0.09);
+  --wash-shadow-soft: 0 10px 26px rgba(16, 34, 29, 0.06);
+  --wash-gradient: linear-gradient(125deg, #10221d 0%, #126247 56%, #2f86d1 100%);
+}
+
+body,
+body.login-page {
+  background:
+    linear-gradient(180deg, rgba(16, 34, 29, 0.08) 0, rgba(251, 252, 250, 0) 360px),
+    repeating-linear-gradient(90deg, rgba(16, 34, 29, 0.04) 0 1px, transparent 1px 72px),
+    linear-gradient(180deg, #f3f6f1 0%, #fbfcfa 46%, #eef3ef 100%);
+}
+
+.app-header {
+  background:
+    linear-gradient(180deg, rgba(16, 34, 29, 0.96), rgba(16, 34, 29, 0.9)),
+    repeating-linear-gradient(90deg, transparent 0 48px, rgba(255, 255, 255, 0.06) 48px 49px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 38px rgba(16, 34, 29, 0.13);
+}
+
+.brand {
+  color: #fff;
+  display: inline-flex;
+  width: max-content;
+}
+
+.site-address {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.main-nav {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.main-nav .nav-tab {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.main-nav .nav-tab:hover,
+.main-nav .nav-tab.is-active {
+  background: #fff;
+  color: var(--ink);
+}
+
+.header-actions button[type="button"],
+.login-header .site-address,
+.session-pill {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.login-header .site-address {
+  align-items: center;
+  display: inline-flex;
+  min-height: 40px;
+  padding: 0.55rem 0.9rem;
+}
+
+.header-actions button[type="button"]:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+button.notice-bar {
+  background: rgba(251, 252, 250, 0.92);
+  border-bottom: 1px solid var(--card-line);
+  color: var(--ink-soft);
+  min-height: 46px;
+}
+
+button.notice-bar:hover {
+  background: #fff;
+  color: var(--wash-green);
+}
+
+.workspace-hero,
+.admin-command-center,
+.calendar-command-strip {
+  background:
+    var(--wash-gradient),
+    repeating-linear-gradient(90deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 42px 43px);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.11);
+}
+
+.workspace-hero {
+  border-bottom: 0;
+  padding-bottom: clamp(1.8rem, 4vw, 3.4rem);
+}
+
+.workspace-hero::before,
+.admin-command-center::after,
+.calendar-command-strip::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+}
+
+.workspace-metrics article,
+.admin-command-grid span,
+.slot-rail {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.workspace-metrics article:hover,
+.slot-rail:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.login-landing {
+  max-width: 1240px;
+  min-height: calc(100vh - 84px);
+}
+
+.login-hero {
+  align-content: center;
+  background:
+    var(--wash-gradient),
+    repeating-linear-gradient(90deg, transparent 0 48px, rgba(255, 255, 255, 0.08) 48px 49px);
+  border-radius: 8px;
+  box-shadow: var(--wash-shadow);
+  min-height: min(680px, calc(100vh - 150px));
+  overflow: hidden;
+  padding: clamp(1.2rem, 4vw, 3rem);
+  position: relative;
+}
+
+.login-hero::before {
+  animation: workspaceScan 7s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  content: "";
+  inset: 0 auto 0 -36%;
+  position: absolute;
+  width: 30%;
+}
+
+.login-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-kicker,
+.login-hero h1,
+.login-hero p {
+  color: #fff;
+}
+
+.login-hero p,
+.slot-rail small {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.slot-rail span,
+.slot-rail strong {
+  color: #fff;
+}
+
+.slot-rail-active {
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 16px 38px rgba(16, 34, 29, 0.22);
+}
+
+.slot-rail-active span {
+  color: var(--wash-green);
+}
+
+.slot-rail-active strong {
+  color: var(--ink);
+}
+
+.slot-rail-active small {
+  color: var(--muted);
+}
+
+.login-shell,
+.booking-panel,
+.calendar-panel,
+.activity-panel,
+.account-panel,
+.logbook-panel,
+.feedback-panel,
+.admin-panel,
+.rules-panel,
+.help-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(251, 252, 250, 0.92));
+  border: 1px solid var(--card-line);
+  box-shadow: var(--wash-shadow-soft);
+}
+
+.login-shell,
+.booking-panel,
+.calendar-panel {
+  box-shadow: var(--wash-shadow);
+}
+
+.booking-panel::before,
+.calendar-panel::before,
+.login-shell::before {
+  background: linear-gradient(90deg, var(--wash-green), var(--wash-gold), var(--wash-blue));
+  height: 3px;
+}
+
+.activity-panel {
+  backdrop-filter: blur(16px);
+  margin-top: 0;
+  max-width: none;
+  padding-left: 6.8vw;
+  padding-right: 6.8vw;
+}
+
+.app-layout {
+  gap: 1.25rem;
+}
+
+.booking-form,
+.logbook-tools,
+.feedback-tools,
+.availability-panel {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  box-shadow: none;
+}
+
+.rule-strip span,
+.log-tag,
+.activity-marker {
+  background: #fff;
+  border-color: rgba(16, 34, 29, 0.1);
+  color: var(--ink-soft);
+}
+
+.washroom-flow {
+  margin-top: 1.05rem;
+}
+
+.flow-card,
+.calendar-day,
+.month-resource,
+.booking-item,
+.user-item,
+.blocked-date-item,
+.resource-item,
+.machine-log-item,
+.pilot-feedback-item,
+.ops-status-item,
+.analytics-card,
+.pilot-readiness-item,
+.logbook-summary-item,
+.credential-item,
+.resource-admin-row,
+.help-grid article,
+.cleaning-grid article,
+.onboarding-sections article,
+.pilot-guide,
+.danger-zone {
+  background: #fff;
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  box-shadow: 0 10px 24px rgba(16, 34, 29, 0.045);
+}
+
+.flow-card::before {
+  background: linear-gradient(180deg, var(--wash-green), var(--wash-blue));
+}
+
+.flow-card-active {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.availability-slot {
+  background: #fff;
+  border-color: rgba(15, 122, 86, 0.22);
+  box-shadow: 0 8px 18px rgba(16, 34, 29, 0.04);
+}
+
+.availability-slot:hover,
+.calendar-day:hover,
+.month-resource:hover,
+.booking-item:hover,
+.user-item:hover,
+.resource-item:hover,
+.machine-log-item:hover,
+.pilot-feedback-item:hover,
+.ops-status-item:hover,
+.analytics-card:hover,
+.resource-admin-row:hover,
+.flow-card:hover {
+  border-color: rgba(15, 122, 86, 0.28);
+  box-shadow: 0 18px 34px rgba(16, 34, 29, 0.09);
+}
+
+.admin-dashboard-nav {
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: var(--wash-shadow-soft);
+}
+
+button.admin-dashboard-tab[type="button"] {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+button.admin-dashboard-tab[type="button"]:hover,
+button.admin-dashboard-tab[type="button"].is-active {
+  background: #fff;
+  color: var(--ink);
+}
+
+button,
+button[type="submit"] {
+  background: var(--wash-green);
+  border-color: var(--wash-green);
+  box-shadow: 0 10px 22px rgba(15, 122, 86, 0.14);
+}
+
+button:hover,
+button[type="submit"]:hover {
+  background: #0b6448;
+  border-color: #0b6448;
+  box-shadow: 0 14px 26px rgba(15, 122, 86, 0.18);
+}
+
+button[type="button"] {
+  background: #fff;
+  border-color: rgba(16, 34, 29, 0.12);
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+
+button[type="button"]:hover {
+  background: #f5f8f5;
+  border-color: rgba(16, 34, 29, 0.18);
+  color: var(--ink);
+}
+
+button.danger-button,
+button.danger-button:hover {
+  background: #9c3c2f;
+  border-color: #9c3c2f;
+  color: #fff;
+}
+
+input,
+select,
+textarea {
+  background: #fff;
+  border-color: rgba(16, 34, 29, 0.13);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--wash-green);
+  box-shadow: 0 0 0 3px rgba(15, 122, 86, 0.13);
+}
+
+.auth-switch {
+  background: #f2f6f3;
+  border-color: rgba(16, 34, 29, 0.1);
+  border-radius: 8px;
+}
+
+button.auth-switch-button[type="button"].is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.month-table thead th,
+.month-resource h3 {
+  background: var(--ink);
+  color: #fff;
+}
+
+.month-plan-notice {
+  background: #fff8d8;
+  border-color: rgba(239, 200, 74, 0.46);
+  color: #67480f;
+}
+
+.onboarding-card {
+  border-color: rgba(16, 34, 29, 0.08);
+  box-shadow: 0 28px 76px rgba(16, 34, 29, 0.22);
+}
+
+.onboarding-card::before {
+  background: linear-gradient(90deg, var(--wash-green), var(--wash-gold), var(--wash-blue));
+}
+
+.onboarding-quiz {
+  background: #f6faf7;
+  border-color: rgba(15, 122, 86, 0.16);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
