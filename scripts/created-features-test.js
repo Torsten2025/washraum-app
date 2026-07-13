@@ -13,7 +13,7 @@ const featureCatalog = [
   "Nutzerverwaltung: Parteien aktiv/inaktiv schalten, Eintraege bleiben erhalten",
   "Buchungsmaske: Bereich, Ressource, Datum, feste Slots und freie Slots",
   "Aktivitaeten: Buchung, Loeschung und frueher freie Slots werden bestaetigt",
-  "Regelwerk: eine aktive Waschsequenz im Voraus, Sonntage und Sperrtage blockiert",
+  "Regelwerk: eine aktive Buchung im Voraus, Sonntage und Sperrtage blockiert",
   "Regelwerk: pro Partei nur ein Trockenraum gleichzeitig",
   "Regelwerk: Tumbler nur waehrend eigener Waschmaschinen-Slots",
   "Monatsplan: analoge Monatsuebersicht mit Ressourcen, Slots und Sperrtagen",
@@ -27,16 +27,16 @@ const featureCatalog = [
   "Protokoll-Sperre: Admin sperrt oder gibt Ressourcen direkt aus dem Protokolltagebuch frei",
   "Protokolltagebuch: Eintraege pro Maschine/Raum/Tumbler",
   "Alltagshinweis: Waesche haengt noch direkt an einer Buchung melden",
-  "Pilot-Feedback: Testpersonen senden Rueckmeldungen, Admin sieht die Liste",
+  "Pilot-Feedback: Rueckmeldungen aus der Testrunde, Admin sieht die Liste",
   "WhatsApp-Freimeldung: gebuchte Maschine frueher frei melden",
   "Session/Login: abgelaufene Sitzung, Passwortwechsel, deaktivierte Nutzer",
-  "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check",
-  "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
-  "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto",
-  "Willkommen: freundliches Kurzquiz prueft die wichtigsten Regeln",
-  "Registrierung: Onboarding-Video und Mini-Quiz vor dem ersten Account",
+  "Pilotstart: Bereitschaftsliste, Einladungstext und Startpruefung",
+  "Hilfe: Bewohner-Anleitung und App-Probe direkt in der App",
+  "Willkommen: einmaliger Einstieg mit Regeln und Handhabung pro Konto",
+  "Willkommen: kurze Fragen pruefen die wichtigsten Regeln",
+  "Registrierung: vorgelesene Einfuehrung und kurze Fragen vor dem ersten Account",
   "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken",
-  "Design: moderne App-Oberflaeche mit Workspace Hero, Flow-Karten und Admin Cockpit",
+  "Design: moderne App-Oberflaeche mit Startbereich, klaren Karten und Adminbereich",
   "Design: Kalenderbereich mit animiertem Planungs-Header",
   "Design: einheitliche Produktsprache fuer Landing, Bewohnerbereich und Admin"
 ];
@@ -149,9 +149,9 @@ async function checkStaticPages() {
   assert(indexHtml.includes("monthlyPlanGrid"), "monthly plan exists");
   assert(indexHtml.includes("Benutzung"), "rules panel exists");
   assert(indexHtml.includes("helpPanel"), "resident help panel exists");
-  assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
+  assert(indexHtml.includes("App ausprobieren"), "resident app check exists");
   assert(indexHtml.includes("onboardingOverlay"), "one-time onboarding landing page exists");
-  assert(indexHtml.includes("Hallo und willkommen im Haus"), "onboarding welcomes neighbors");
+  assert(indexHtml.includes("Willkommen im Waschraumplan"), "onboarding welcomes residents");
   assert(indexHtml.includes("onboarding-quiz"), "onboarding rule quiz exists");
   assert(appJs.includes("onboardingQuizResult"), "onboarding quiz validation exists");
   assert(indexHtml.includes("role=\"tablist\""), "main navigation behaves as tabs");

@@ -37,44 +37,44 @@ const registerIntroSteps = [
   {
     id: "plan",
     durationMs: 12500,
-    title: "Erst planen, dann buchen",
-    caption: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag.",
-    speech: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, bleiben sie am gleichen Tag im selben Zeitfenster. Eine weitere Zukunftssequenz buchst du erst am Waschtag."
+    title: "Waschslot auswaehlen",
+    caption: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, buche sie am gleichen Tag im selben Zeitfenster.",
+    speech: "Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, buche sie am gleichen Tag im selben Zeitfenster."
   },
   {
     id: "washer",
     durationMs: 12500,
-    title: "Waschmaschinen bleiben im Slot",
-    caption: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: 07:00-12:00, 12:00-17:00 oder 17:00-21:00, aber nicht am gleichen Tag gemischt.",
-    speech: "Pro Tag wird nur innerhalb eines Slots reserviert. Praktisch heisst das: sieben bis zwoelf Uhr, zwoelf bis siebzehn Uhr oder siebzehn bis einundzwanzig Uhr, aber nicht am gleichen Tag gemischt."
+    title: "Ein Zeitfenster pro Tag",
+    caption: "Pro Tag wird nur innerhalb eines Slots reserviert: 07:00-12:00, 12:00-17:00 oder 17:00-21:00. Am Waschtag kannst du danach wieder neu eintragen.",
+    speech: "Pro Tag wird nur innerhalb eines Slots reserviert: sieben bis zwoelf Uhr, zwoelf bis siebzehn Uhr oder siebzehn bis einundzwanzig Uhr. Am Waschtag kannst du danach wieder neu eintragen."
   },
   {
     id: "drying",
     durationMs: 12500,
-    title: "Trockenraum passend zum Waschslot",
-    caption: "Beim 07:00-Slot darf der Trockenraum bis 21:00 am gleichen Tag genutzt werden. Beim 12:00- oder 17:00-Slot ist maximal 12:00 am Folgetag erlaubt. Frueher freigeben hilft allen.",
-    speech: "Beim sieben Uhr Slot darf der Trockenraum bis einundzwanzig Uhr am gleichen Tag genutzt werden. Beim zwoelf Uhr oder siebzehn Uhr Slot ist maximal zwoelf Uhr am Folgetag erlaubt. Frueher freigeben hilft allen."
+    title: "Trockenraum-Zeiten",
+    caption: "Beim 07:00-Slot ist der Trockenraum bis 21:00 am gleichen Tag moeglich. Beim 12:00- oder 17:00-Slot gilt maximal 12:00 am Folgetag. Wenn die Waesche frueher trocken ist, gib den Raum bitte frei.",
+    speech: "Beim sieben Uhr Slot ist der Trockenraum bis einundzwanzig Uhr am gleichen Tag moeglich. Beim zwoelf Uhr oder siebzehn Uhr Slot gilt maximal zwoelf Uhr am Folgetag. Wenn die Waesche frueher trocken ist, gib den Raum bitte frei."
   },
   {
     id: "tumbler",
     durationMs: 12500,
-    title: "Tumbler nur zum eigenen Waschslot",
+    title: "Tumbler-Regel",
     caption: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen-Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.",
     speech: "Ein Tumbler passt nur waehrend deines gebuchten Waschmaschinen Slots. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben."
   },
   {
     id: "cleaning",
     durationMs: 12500,
-    title: "Sauber abschliessen",
-    caption: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu; im Trockenraum auch Filter, Tisch und Boden.",
-    speech: "Nach der Nutzung bitte Waschmittelschublade, Trommel, Dichtungen und Filter reinigen. Beim Tumbler gehoeren alle vier Filter dazu. Im Trockenraum auch Filter, Tisch und Boden."
+    title: "Reinigung nach der Nutzung",
+    caption: "Bitte reinige nach der Nutzung Schublade, Trommel, Dichtungen und Filter. Beim Tumbler gehoeren alle vier Filter dazu. Im Trockenraum kommen Filter, Tisch und Boden dazu.",
+    speech: "Bitte reinige nach der Nutzung Schublade, Trommel, Dichtungen und Filter. Beim Tumbler gehoeren alle vier Filter dazu. Im Trockenraum kommen Filter, Tisch und Boden dazu."
   },
   {
-    id: "fairness",
+    id: "consideration",
     durationMs: 12500,
-    title: "Kurz fair bleiben",
-    caption: "Auch kurze Zwischendurch-Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin-Buchungen bleiben reserviert und koennen nicht ueberschrieben werden.",
-    speech: "Auch kurze Zwischendurch Waeschen muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin Buchungen bleiben reserviert und koennen nicht ueberschrieben werden."
+    title: "Ruecksicht im Haus",
+    caption: "Auch kurze Waschgaenge muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin-Buchungen bleiben reserviert.",
+    speech: "Auch kurze Waschgaenge muessen gereinigt werden. Sonn- und gepflegte Sperrtage sind geschlossen. Feste Admin Buchungen bleiben reserviert."
   }
 ];
 
@@ -222,7 +222,7 @@ function startRegisterIntro() {
     renderRegisterIntro();
 
     if (registerIntroElapsedMs >= registerIntroTotalMs) {
-      completeRegisterIntro("Intro angesehen. Jetzt fehlen nur noch die drei Fragen.");
+      completeRegisterIntro("Die Einfuehrung ist abgeschlossen. Bitte beantworte noch die drei Fragen.");
     }
   }, 200);
 }
@@ -238,7 +238,7 @@ function pauseRegisterIntro() {
 
 function markRegisterOnboardingRead() {
   cancelRegisterNarration();
-  completeRegisterIntro("Einfuehrung als gelesen markiert. Jetzt fehlen nur noch die drei Fragen.");
+  completeRegisterIntro("Text gelesen. Bitte beantworte noch die drei Fragen.");
 }
 
 function completeRegisterIntro(message) {
@@ -281,27 +281,27 @@ function renderRegisterIntro() {
   }
 
   if (registerOnboardingWatched) {
-    registerVideoStatus.textContent = "Einfuehrung erledigt. Du kannst sie bei Bedarf erneut ansehen.";
+    registerVideoStatus.textContent = "Einfuehrung abgeschlossen. Du kannst sie bei Bedarf erneut ansehen.";
     return;
   }
 
   if (registerIntroPlaying) {
     speakRegisterIntroStep(stepState.step);
-    registerVideoStatus.textContent = `Laeuft: ${stepState.step.title}`;
+    registerVideoStatus.textContent = `Aktuelles Kapitel: ${stepState.step.title}`;
     return;
   }
 
   if (registerIntroElapsedMs > 0) {
-    registerVideoStatus.textContent = "Pausiert. Du kannst fortsetzen oder das Transkript lesen.";
+    registerVideoStatus.textContent = "Pausiert. Du kannst fortsetzen oder den Text lesen.";
     return;
   }
 
-  registerVideoStatus.textContent = "Dauert etwa 75 Sekunden. Das Transkript steht direkt darunter.";
+  registerVideoStatus.textContent = "Dauer: etwa 75 Sekunden. Alles steht auch als Text darunter.";
 }
 
 function toggleRegisterNarration() {
   if (!registerNarrationSupported) {
-    registerAudioStatus.textContent = "Sprachausgabe wird von diesem Browser leider nicht unterstuetzt. Untertitel und Transkript bleiben verfuegbar.";
+    registerAudioStatus.textContent = "Dieser Browser unterstuetzt hier keine Sprachausgabe. Untertitel und Text bleiben verfuegbar.";
     return;
   }
 
@@ -310,11 +310,11 @@ function toggleRegisterNarration() {
 
   if (!registerNarrationEnabled) {
     cancelRegisterNarration();
-    registerAudioStatus.textContent = "Ton ist aus. Untertitel und Transkript bleiben sichtbar.";
+    registerAudioStatus.textContent = "Ton ist aus. Untertitel und Text bleiben sichtbar.";
     return;
   }
 
-  registerAudioStatus.textContent = "Ton ist an. Beim Start oder Fortsetzen wird das aktuelle Kapitel vorgelesen.";
+  registerAudioStatus.textContent = "Ton ist an. Das aktuelle Kapitel wird beim Start oder Fortsetzen vorgelesen.";
   if (registerIntroPlaying) {
     registerNarrationStepId = "";
     speakRegisterIntroStep(registerIntroStepForElapsed(registerIntroElapsedMs).step);
@@ -329,7 +329,7 @@ function updateRegisterNarrationControl() {
     : "Ton nicht verfuegbar";
 
   if (!registerNarrationSupported) {
-    registerAudioStatus.textContent = "Sprachausgabe wird von diesem Browser nicht unterstuetzt. Untertitel und Transkript sind weiterhin verfuegbar.";
+    registerAudioStatus.textContent = "Dieser Browser unterstuetzt hier keine Sprachausgabe. Untertitel und Text bleiben verfuegbar.";
   }
 }
 
@@ -357,11 +357,11 @@ function speakRegisterIntroStep(step) {
   };
   utterance.onend = () => {
     if (registerIntroPlaying && registerNarrationStepId === step.id) {
-      registerAudioStatus.textContent = "Naechstes Kapitel wird automatisch vorgelesen.";
+      registerAudioStatus.textContent = "Das naechste Kapitel startet automatisch.";
     }
   };
   utterance.onerror = () => {
-    registerAudioStatus.textContent = "Die Sprachausgabe konnte gerade nicht gestartet werden. Untertitel und Transkript bleiben sichtbar.";
+    registerAudioStatus.textContent = "Die Sprachausgabe konnte gerade nicht starten. Untertitel und Text bleiben sichtbar.";
   };
   registerNarrationStepId = step.id;
   window.speechSynthesis.speak(utterance);
@@ -414,7 +414,7 @@ function registerOnboardingResult() {
   if (!registerOnboardingWatched) {
     return {
       ok: false,
-      message: "Fast da: Bitte starte die Einfuehrung oder lies das Transkript und markiere es als gelesen.",
+      message: "Bitte starte die Einfuehrung oder lies den Text und markiere ihn als gelesen.",
       answers
     };
   }
@@ -422,7 +422,7 @@ function registerOnboardingResult() {
   if (!morningDrying || !lateDrying || !tumbler) {
     return {
       ok: false,
-      message: "Kleiner letzter Schritt: Bitte beantworte noch alle drei Fragen.",
+      message: "Bitte beantworte noch alle drei Fragen.",
       answers
     };
   }
@@ -430,7 +430,7 @@ function registerOnboardingResult() {
   if (morningDrying !== "same-day-21" || lateDrying !== "next-day-12" || tumbler !== "own-slot-free") {
     return {
       ok: false,
-      message: "Noch ein kurzer Feinschliff: 07:00-Waschslot -> Trockenraum bis 21:00; 12:00/17:00-Waschslot -> maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei.",
+      message: "Bitte pruefe die Antworten: 07:00-Waschslot -> Trockenraum bis 21:00; 12:00/17:00-Waschslot -> maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei.",
       answers
     };
   }
@@ -449,8 +449,8 @@ function messageForError(error) {
     invalid_apartment_label: "Partei/Wohnung darf maximal 40 Zeichen lang sein.",
     password_too_short: "Das Passwort braucht mindestens 6 Zeichen.",
     user_already_exists: "Dieser Name ist bereits vergeben.",
-    onboarding_required: "Bitte zuerst das Intro anschauen und das Mini-Quiz ausfuellen.",
-    onboarding_quiz_retry: "Das Mini-Quiz braucht noch eine kleine Korrektur."
+    onboarding_required: "Bitte zuerst die Einfuehrung nutzen und die kurzen Fragen beantworten.",
+    onboarding_quiz_retry: "Bitte pruefe die Antworten zu Trockenraum und Tumbler."
   };
 
   return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";

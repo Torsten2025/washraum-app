@@ -1705,7 +1705,7 @@ function renderOperations(status, warnings) {
     ["Inaktive Nutzer", String(status.inactiveUsers)],
     ["Admins", String(status.admins)],
     ["Buchungen", String(status.bookings)],
-    ["Zukunftsbuchungen", String(status.futureBookings)],
+    ["Buchungen im Voraus", String(status.futureBookings)],
     ["Aktivitaeten", String(status.activities || 0)],
     ["Pilot-Feedback", String(status.pilotFeedback || 0)],
     ["Nutzerkonten", String(status.registeredUsers || 0)],
@@ -1860,7 +1860,7 @@ function renderPilotReadiness(status, warnings) {
     {
       ok: true,
       label: "Regelwerk",
-      detail: "Eine aktive Waschsequenz, Sonntage und Sperrtage sind technisch abgesichert."
+      detail: "Eine aktive Buchung im Voraus, Sonntage und Sperrtage sind technisch abgesichert."
     },
     {
       ok: false,
@@ -1901,17 +1901,17 @@ function pilotInviteTemplate(namedActiveUsers) {
     "3. Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen",
     "4. Monatsplan kontrollieren",
     "5. eigene Buchung loeschen, falls ihr sie nicht braucht",
-    "6. bewusst eine zweite Zukunftsbuchung versuchen und die Meldung pruefen",
+    "6. bewusst eine zweite Buchung im Voraus versuchen und die Meldung pruefen",
     "7. kurze Rueckmeldung in der App senden, wenn etwas unklar ist",
     "",
     "Wichtige Regeln:",
-    "- Bitte nur eine Waschsequenz im Voraus buchen.",
+    "- Bitte nur eine Buchung im Voraus eintragen.",
     "- Tumbler duerfen nur waehrend des eigenen Waschmaschinen-Slots gebucht werden.",
-    "- Trockenraeume duerfen am gleichen Waschtag ergaenzt werden.",
+    "- Trockenraum je nach Waschslot bis 21:00 am gleichen Tag oder bis 12:00 am Folgetag buchen.",
     "- Sonntag, Sperrtage und vergangene Slots sind nicht buchbar.",
     "- Wer eine Buchung nicht braucht, loescht sie bitte selbst wieder.",
     "",
-    "In der App gibt es neu den Bereich HILFE mit der kurzen Anleitung und dem Test-Guide.",
+    "In der App gibt es den Bereich HILFE mit einer kurzen Anleitung.",
     "",
     "Pilotpersonen:",
     selectedPeople,
@@ -2453,13 +2453,13 @@ function onboardingQuizResult() {
   const dryingAnswer = document.querySelector("input[name='quizDrying']:checked")?.value;
   const tumblerAnswer = document.querySelector("input[name='quizTumbler']:checked")?.value;
   if (!dryingAnswer || !tumblerAnswer) {
-    return { ok: false, message: "Fast geschafft: Bitte beantworte noch beide kurzen Fragen." };
+    return { ok: false, message: "Bitte beantworte noch beide Fragen." };
   }
 
   if (dryingAnswer !== "next-noon" || tumblerAnswer !== "own-slot") {
     return {
       ok: false,
-      message: "Noch ein kleiner Feinschliff: Trockenraum nach dem 12:00- oder 17:00-Waschslot maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei."
+      message: "Bitte pruefe die Antworten: Trockenraum nach dem 12:00- oder 17:00-Waschslot maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei."
     };
   }
 
@@ -2767,9 +2767,9 @@ function messageForError(error) {
     invalid_time_range: "Bitte Start und Ende pruefen.",
     booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
-    blocked_date: "An diesem Feiertag sind keine Buchungen moeglich.",
+    blocked_date: "An diesem Sperrtag sind keine Buchungen moeglich.",
     only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
-    only_one_future_sequence_allowed: "Du hast bereits eine Waschsequenz im Voraus gebucht.",
+    only_one_future_sequence_allowed: "Du hast bereits eine Buchung im Voraus eingetragen.",
     time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
     booking_id_required: "Keine Buchung ausgewaehlt.",
     booking_not_found: "Buchung nicht gefunden.",

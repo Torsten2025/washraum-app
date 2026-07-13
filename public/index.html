@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Waschraum Buchungen</title>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=plain-copy">
   </head>
   <body class="app-page">
     <header class="app-header">
@@ -32,7 +32,7 @@
       <div class="workspace-hero-copy">
         <p class="workspace-kicker">GBMZ Waschraum</p>
         <h1 id="workspaceHeroHeading">Waschraum im Blick</h1>
-        <p>Freie Slots pruefen, fair buchen und den Waschraum sauber abschliessen.</p>
+        <p>Freie Slots pruefen, Buchung eintragen und den Waschraum sauber verlassen.</p>
       </div>
       <div class="workspace-metrics" aria-label="Waschraum Kurzstatus">
         <article>
@@ -56,8 +56,8 @@
     <section id="onboardingOverlay" class="onboarding-overlay hidden" aria-labelledby="onboardingHeading" aria-modal="true" role="dialog">
       <div class="onboarding-card">
         <p class="onboarding-kicker">GBMZ, Maneggplatz 18</p>
-        <h1 id="onboardingHeading">Hallo und willkommen im Haus</h1>
-        <p class="onboarding-intro">Hier kannst du Waschmaschine, Trockenraum und Tumbler eintragen. Kurz, fair und so nah wie moeglich am Aushang im Waschraum.</p>
+        <h1 id="onboardingHeading">Willkommen im Waschraumplan</h1>
+        <p class="onboarding-intro">Hier traegst du Waschmaschine, Trockenraum und Tumbler ein. Die wichtigsten Regeln stehen kurz zusammengefasst hier; der Aushang im Waschraum bleibt massgebend.</p>
 
         <div class="onboarding-sections">
           <article>
@@ -75,12 +75,12 @@
               <li>Eintragen - waschen - wieder eintragen.</li>
               <li>Tumbler nur zum eigenen Waschslot, dabei bleibt mindestens ein Tumbler frei.</li>
               <li>Trockenraum je nach Waschslot bis 21:00 oder bis max. am Folgetag 12:00.</li>
-              <li>Sonntag, Feiertage und vergangene Zeiten sind gesperrt.</li>
+              <li>Sonntage, eingetragene Sperrtage und vergangene Zeiten sind gesperrt.</li>
               <li>Wer frueher fertig ist, meldet den Slot frei.</li>
             </ul>
           </article>
           <article>
-            <h2>Fair bleiben</h2>
+            <h2>Ruecksicht im Alltag</h2>
             <ul>
               <li>Eigene Buchungen loeschen, wenn sie nicht gebraucht werden.</li>
               <li>Wenn Waesche haengen bleibt, den Hinweis an der Buchung nutzen.</li>
@@ -90,7 +90,7 @@
         </div>
 
         <div class="onboarding-quiz" aria-labelledby="onboardingQuizHeading">
-          <h2 id="onboardingQuizHeading">Kurzer Check</h2>
+          <h2 id="onboardingQuizHeading">Kurze Fragen</h2>
           <fieldset>
             <legend>Wann darf der Trockenraum bei einem Waschslot ab 12:00 maximal genutzt werden?</legend>
             <label><input type="radio" name="quizDrying" value="same-day"> Bis 21:00 am gleichen Tag</label>
@@ -139,7 +139,7 @@
         <div class="rule-strip" aria-label="Buchungsregeln">
           <span>Nach Benutzungsplan</span>
           <span>Eintragen - waschen - eintragen</span>
-          <span>Sonntag und Feiertage geschlossen</span>
+          <span>Sonntag und Sperrtage geschlossen</span>
         </div>
         <section id="rulesPanel" class="rules-panel" aria-labelledby="rulesHeading">
           <h3 id="rulesHeading">Benutzung</h3>
@@ -148,9 +148,9 @@
             <li>Mieterinnen nutzen die Waschkueche in der Reihenfolge ihrer Eintragungen im Waschplan nach dem Prinzip eintragen - waschen - eintragen - waschen.</li>
             <li>Gleiches gilt fuer Tumbler und Trocknungsraeume: eintragen - trocknen - eintragen - trocknen.</li>
             <li>Auch bei Nutzung von nur einer Maschine oder nur der Trocknung der Kleider ist ein Eintrag im Waschplan erforderlich.</li>
-            <li>Die Waschkueche ist laengstens bis zu einem Tag, die Trocknungsraeume bis 7 Uhr des naechsten Tages verfuegbar.</li>
+            <li>Trockenraeume sind je nach Waschslot bis 21:00 am gleichen Tag oder bis 12:00 am Folgetag verfuegbar.</li>
             <li>Das Waschen ist vor 7 Uhr und nach 22 Uhr nicht erlaubt.</li>
-            <li>An Sonn- und Feiertagen darf die Waschkueche nicht benutzt werden.</li>
+            <li>An Sonntagen und eingetragenen Sperrtagen darf die Waschkueche nicht benutzt werden.</li>
             <li>Waschen von Fremd- oder Geschaeftswaesche ist nicht erlaubt.</li>
           </ul>
 
@@ -189,7 +189,7 @@
         <section id="helpPanel" class="help-panel" aria-labelledby="helpHeading">
           <div class="help-heading">
             <h3 id="helpHeading">Hilfe</h3>
-            <span>Kurzanleitung fuer Bewohner und Testpersonen</span>
+            <span>Kurzanleitung fuer alle im Haus</span>
           </div>
           <div class="help-grid">
             <article>
@@ -203,7 +203,7 @@
             <article>
               <strong>Regeln</strong>
               <ol>
-                <li>Bitte nur eine Waschsequenz im Voraus buchen.</li>
+                <li>Bitte nur eine Buchung im Voraus eintragen.</li>
                 <li>Tumbler duerfen nur waehrend des eigenen Waschmaschinen-Slots gebucht werden.</li>
                 <li>Sonntag, Sperrtage und vergangene Slots sind nicht buchbar.</li>
               </ol>
@@ -213,15 +213,15 @@
               <ol>
                 <li>Eigene Buchung in der Liste suchen.</li>
                 <li>Nicht benoetigte Buchung loeschen.</li>
-                <li>Wenn frueher frei, den Freimelde-Button nutzen, sobald WhatsApp aktiv ist.</li>
+                <li>Wenn ein Slot frueher frei ist, den Freimelde-Button nutzen, falls WhatsApp konfiguriert ist.</li>
               </ol>
             </article>
             <article>
-              <strong>Test-Guide</strong>
+              <strong>App ausprobieren</strong>
               <ol>
                 <li>Einloggen und eine freie Waschmaschine buchen.</li>
                 <li>Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Tag dazubuchen.</li>
-                <li>Eine zweite Zukunftsbuchung versuchen und die Meldung pruefen.</li>
+                <li>Eine zweite Buchung im Voraus versuchen und die Meldung pruefen.</li>
                 <li>Monatsplan kontrollieren und kurze Rueckmeldung senden.</li>
               </ol>
             </article>
@@ -383,12 +383,12 @@
 
         <section class="admin-command-center" aria-labelledby="adminCommandHeading">
           <div>
-            <p class="workspace-kicker">Admin Cockpit</p>
+            <p class="workspace-kicker">Adminbereich</p>
             <h2 id="adminCommandHeading">Betrieb steuern</h2>
             <p>Feste Buchungen, Ressourcen, Sperrtage und Pilotbetrieb an einem Ort.</p>
           </div>
           <div class="admin-command-grid" aria-label="Admin Kurzfunktionen">
-            <span>Fixslots</span>
+            <span>Feste Slots</span>
             <span>Ressourcen</span>
             <span>Backup</span>
           </div>
@@ -406,7 +406,7 @@
 
         <div id="adminUsersPanel" class="admin-panel hidden">
           <h2>Nutzer verwalten</h2>
-          <p class="panel-note">Bewohner koennen sich auf der Loginseite selbst registrieren. Admins koennen Konten bearbeiten, deaktivieren oder Passwoerter neu setzen.</p>
+          <p class="panel-note">Bewohnerinnen und Bewohner koennen sich auf der Loginseite selbst registrieren. Admins koennen Konten bearbeiten, deaktivieren oder Passwoerter neu setzen.</p>
           <form id="userForm" class="booking-form">
             <input id="editingUserId" type="hidden">
             <label>
@@ -533,7 +533,7 @@
 
             <label>
               Bezeichnung
-              <input id="blockedDateLabelInput" name="blockedDateLabel" maxlength="80" placeholder="z. B. Feiertag" required>
+              <input id="blockedDateLabelInput" name="blockedDateLabel" maxlength="80" placeholder="z. B. Sperrtag" required>
             </label>
 
             <button type="submit">Sperrtag speichern</button>
@@ -565,7 +565,7 @@
 
         <div id="adminAnalyticsPanel" class="admin-panel hidden">
           <h2>Auswertung</h2>
-          <p class="panel-note">Ueberblick ueber Auslastung, Spitzenzeiten und Parteien ohne Buchungen. Gedacht fuer den Pilot und fuer faire Anpassungen am Betrieb.</p>
+          <p class="panel-note">Ueberblick ueber Auslastung, Spitzenzeiten und Parteien ohne Buchungen. Gedacht fuer den Pilot und fuer sachliche Anpassungen am Betrieb.</p>
           <div class="analytics-toolbar">
             <label>
               Zeitraum
@@ -590,7 +590,7 @@
             <div id="adminPilotFeedbackList" class="pilot-feedback-list"></div>
           </div>
           <div class="pilot-guide">
-            <h3>Kurzanleitung fuer Testpersonen</h3>
+            <h3>Kurzanleitung fuer die Testrunde</h3>
             <textarea id="pilotInviteText" rows="9" readonly></textarea>
             <div class="form-actions">
               <button id="copyPilotInviteButton" type="button">Text kopieren</button>
@@ -602,7 +602,7 @@
             <li>Tag 1: Login pruefen und erste Buchung erstellen.</li>
             <li>Tag 1-2: Jede Testperson bucht mindestens einen freien Waschslot.</li>
             <li>Tag 2-4: Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen.</li>
-            <li>Tag 2-4: Zweite zukuenftige Waschsequenz testen und Fehlermeldung pruefen.</li>
+            <li>Tag 2-4: Zweite Buchung im Voraus testen und die Meldung pruefen.</li>
             <li>Tag 5-7: Feedback sammeln und Entscheid fuer alle Bewohner treffen.</li>
           </ol>
         </div>
@@ -661,6 +661,6 @@
       </section>
     </main>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=plain-copy"></script>
   </body>
 </html>
