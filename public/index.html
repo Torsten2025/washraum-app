@@ -28,6 +28,31 @@
 
     <div id="actionToast" class="action-toast hidden" role="status" aria-live="polite"></div>
 
+    <section class="workspace-hero" aria-labelledby="workspaceHeroHeading">
+      <div class="workspace-hero-copy">
+        <p class="workspace-kicker">GBMZ Waschraum</p>
+        <h1 id="workspaceHeroHeading">Waschraum im Blick</h1>
+        <p>Freie Slots pruefen, fair buchen und den Waschraum sauber abschliessen.</p>
+      </div>
+      <div class="workspace-metrics" aria-label="Waschraum Kurzstatus">
+        <article>
+          <span>3</span>
+          <strong>Waschmaschinen</strong>
+          <small>ein Slot pro Tag</small>
+        </article>
+        <article>
+          <span>3</span>
+          <strong>Trockenraeume</strong>
+          <small>bis max. Folgetag 12:00</small>
+        </article>
+        <article>
+          <span>2</span>
+          <strong>Tumbler</strong>
+          <small>einer bleibt frei</small>
+        </article>
+      </div>
+    </section>
+
     <section id="onboardingOverlay" class="onboarding-overlay hidden" aria-labelledby="onboardingHeading" aria-modal="true" role="dialog">
       <div class="onboarding-card">
         <p class="onboarding-kicker">GBMZ, Maneggplatz 18</p>
@@ -94,6 +119,23 @@
     <main class="app-layout">
       <section class="booking-panel">
         <h2>Buchung eintragen</h2>
+        <div class="washroom-flow" aria-label="Waschraum Ablauf">
+          <article class="flow-card flow-card-active">
+            <span>01</span>
+            <strong>Slot waehlen</strong>
+            <small>freie Maschine oder Raum finden</small>
+          </article>
+          <article class="flow-card">
+            <span>02</span>
+            <strong>Reservieren</strong>
+            <small>nur erlaubte GBMZ-Zeitfenster</small>
+          </article>
+          <article class="flow-card">
+            <span>03</span>
+            <strong>Freigeben</strong>
+            <small>frueher fertig? Slot melden</small>
+          </article>
+        </div>
         <div class="rule-strip" aria-label="Buchungsregeln">
           <span>Nach Benutzungsplan</span>
           <span>Eintragen - waschen - eintragen</span>
@@ -339,6 +381,19 @@
           <div id="pilotFeedbackList" class="pilot-feedback-list"></div>
         </div>
 
+        <section class="admin-command-center" aria-labelledby="adminCommandHeading">
+          <div>
+            <p class="workspace-kicker">Admin Cockpit</p>
+            <h2 id="adminCommandHeading">Betrieb steuern</h2>
+            <p>Feste Buchungen, Ressourcen, Sperrtage und Pilotbetrieb an einem Ort.</p>
+          </div>
+          <div class="admin-command-grid" aria-label="Admin Kurzfunktionen">
+            <span>Fixslots</span>
+            <span>Ressourcen</span>
+            <span>Backup</span>
+          </div>
+        </section>
+
         <div id="adminDashboardNav" class="admin-dashboard-nav hidden" aria-label="Adminbereiche">
           <button class="admin-dashboard-tab is-active" type="button" data-admin-panel="adminOpsPanel">Uebersicht</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminUsersPanel">Nutzer</button>
@@ -554,6 +609,18 @@
       </section>
 
       <section id="bookingsSection" class="calendar-panel">
+        <div class="calendar-command-strip" aria-label="Planung">
+          <div>
+            <p class="workspace-kicker">Planung</p>
+            <strong>Wochen- und Monatsplan</strong>
+            <span>Slots scannen, Buchungen pruefen und freie Zeiten sofort erkennen.</span>
+          </div>
+          <div class="calendar-signal">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
         <div class="calendar-toolbar">
           <div>
             <h2>Buchungen</h2>

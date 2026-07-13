@@ -34,7 +34,9 @@ const featureCatalog = [
   "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
   "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto",
   "Willkommen: freundliches Kurzquiz prueft die wichtigsten Regeln",
-  "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken"
+  "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken",
+  "Design: moderne App-Oberflaeche mit Workspace Hero, Flow-Karten und Admin Cockpit",
+  "Design: Kalenderbereich mit animiertem Planungs-Header"
 ];
 
 run().catch((error) => {
@@ -147,6 +149,10 @@ async function checkStaticPages() {
   assert(indexHtml.includes("data-view=\"bookings\""), "bookings tab exists");
   assert(indexHtml.includes("data-view=\"rules\""), "rules tab exists");
   assert(indexHtml.includes("data-view=\"help\""), "help tab exists");
+  assert(indexHtml.includes("workspace-hero"), "modern workspace hero exists");
+  assert(indexHtml.includes("washroom-flow"), "resident booking flow cards exist");
+  assert(indexHtml.includes("admin-command-center"), "admin command center exists");
+  assert(indexHtml.includes("calendar-command-strip"), "calendar command strip exists");
   assert(!indexHtml.includes("href=\"#bookingForm\""), "old washroom jump link is removed");
   assert(!indexHtml.includes("href=\"#rulesPanel\""), "old rules jump link is removed");
   assert(appJs.includes("setActiveView"), "tab view switching logic exists");
