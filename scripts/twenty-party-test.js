@@ -117,11 +117,11 @@ async function exerciseWasherCapacity({ parties, partyTokens, blockedDateKeys })
 
   const dailyLimitDate = bookableDates(blockedDateKeys, 1, 70)[0];
   const first = await bookingFor(partyTokens[0], "washer", "WM 1", dailyLimitDate, "07:00", "12:00");
-  const second = await bookingFor(partyTokens[0], "washer", "WM 2", dailyLimitDate, "12:00", "17:00");
-  const third = await bookingFor(partyTokens[0], "washer", "WM 3", dailyLimitDate, "17:00", "21:00");
+  const second = await bookingFor(partyTokens[0], "washer", "WM 2", dailyLimitDate, "07:00", "12:00");
+  const third = await bookingFor(partyTokens[0], "washer", "WM 3", dailyLimitDate, "07:00", "12:00");
   assertStatus(first, 201, "first daily washer booking");
-  assertStatus(second, 201, "second daily washer booking");
-  assertStatus(third, 201, "third daily washer booking");
+  assertStatus(second, 201, "second same-slot washer booking");
+  assertStatus(third, 201, "third same-slot washer booking");
 
   const duplicate = await bookingFor(partyTokens[1], "washer", "WM 1", dailyLimitDate, "07:00", "12:00");
   assertStatus(duplicate, 400, "duplicate washer slot blocked");
@@ -180,7 +180,8 @@ async function exerciseFutureLimits({ parties, partyTokens, blockedDateKeys }) {
   assertStatus(sameSlotTumbler, 201, "tumbler during own washer slot is allowed");
 
   const secondSameSlotTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 2", dates[0], "07:00", "12:00");
-  assertStatus(secondSameSlotTumbler, 201, "same party may book all tumblers during own washer slot");
+  assertStatus(secondSameSlotTumbler, 400, "last free tumbler remains available");
+  assert(secondSameSlotTumbler.body.error === "tumbler_free_required", "last free tumbler error");
 
   const secondTumbler = await bookingFor(partyTokens[2], "tumbler", "Tumbler 2", dates[3], "12:00", "17:00");
   assertStatus(secondTumbler, 400, "second future tumbler booking blocked");
@@ -189,7 +190,7 @@ async function exerciseFutureLimits({ parties, partyTokens, blockedDateKeys }) {
   const sameSlotOtherDrying = await bookingFor(partyTokens[3], "drying_room", "Trockenraum 2", dates[0], "07:00", "12:00");
   assertStatus(sameSlotOtherDrying, 201, "same drying slot on another room allowed for another party");
 
-  const sameSlotSameDrying = await bookingFor(partyTokens[4], "drying_room", "Trockenraum 1", dates[0], "07:00", "12:00");
+  const sameSlotSameDrying = await bookingFor(partyTokens[3], "drying_room", "Trockenraum 1", dates[0], "07:00", "12:00");
   assertStatus(sameSlotSameDrying, 400, "same drying room same slot blocked");
   assert(sameSlotSameDrying.body.error === "time_range_already_booked", "drying duplicate error");
 
@@ -225,7 +226,7 @@ async function exerciseDeletePermissions({ partyTokens, blockedDateKeys }) {
 
 async function exerciseAdminBooking({ adminToken, parties, blockedDateKeys }) {
   const date = bookableDates(blockedDateKeys, 1, 30)[0];
-  const range = rangeForDate(date, "12:00", "17:00");
+  const range = rangeForDate(date, "17:00", "21:00");
   const booking = await request("/api/admin/addBooking", {
     method: "POST",
     token: adminToken,

@@ -312,6 +312,48 @@ button.notice-bar:hover {
   line-height: 1.35;
 }
 
+.onboarding-quiz {
+  background: linear-gradient(135deg, #f5fbf7 0%, #eef6ff 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.onboarding-quiz h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.onboarding-quiz fieldset {
+  border: 1px solid rgba(19, 134, 90, 0.18);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.8rem;
+}
+
+.onboarding-quiz legend {
+  color: var(--text);
+  font-weight: 900;
+  padding: 0 0.25rem;
+}
+
+.onboarding-quiz label {
+  align-items: center;
+  color: #46524d;
+  display: flex;
+  flex-direction: row;
+  font-weight: 750;
+  gap: 0.5rem;
+}
+
+.onboarding-quiz input {
+  width: auto;
+}
+
 .activity-panel {
   background: rgba(255, 255, 255, 0.72);
   border-bottom: 1px solid var(--line);
@@ -1467,6 +1509,16 @@ button.subtle-button[type="button"]:hover {
 .calendar-booking-released {
   background: #f3f9ff;
   border-left-color: #2f86d1;
+}
+
+.calendar-booking-fixed,
+.booking-item-fixed {
+  background: #f5fbf7;
+  border-color: rgba(19, 134, 90, 0.28);
+}
+
+.calendar-booking-fixed {
+  border-left-color: var(--green-dark);
 }
 
 .bookings-list {

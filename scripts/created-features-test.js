@@ -21,6 +21,7 @@ const featureCatalog = [
   "Betrieb: alle Buchungen mit Tipp-Bestaetigung zuruecksetzen",
   "Auswertung: Nutzung, Auslastung, Spitzenzeiten und inaktive Parteien",
   "Ressourcenverwaltung: Waschmaschine, Trockenraum und Tumbler hinzufuegen",
+  "Feste Buchungen: Admins sperren wiederkehrende Slots fuer einzelne Personen",
   "Ressourcen: Standardbetrieb mit 3 Waschmaschinen, 3 Trockenraeumen und 2 Tumblern",
   "Ressourcensperre: defekte Maschine oder Raum sperren und wieder freigeben",
   "Protokoll-Sperre: Admin sperrt oder gibt Ressourcen direkt aus dem Protokolltagebuch frei",
@@ -32,6 +33,7 @@ const featureCatalog = [
   "Pilotstart: Bereitschaftsliste, Einladungstext und Pilot-Check",
   "Hilfe: Bewohner-Anleitung und Test-Guide direkt in der App",
   "Willkommen: einmalige Landingpage mit Hallo, Regeln und Handhabung pro Konto",
+  "Willkommen: freundliches Kurzquiz prueft die wichtigsten Regeln",
   "Navigation: klare Reiter fuer Waschraum, Buchungen, Regeln und Hilfe ohne Sprungmarken"
 ];
 
@@ -94,6 +96,9 @@ async function checkStaticPages() {
   assert(appJs.includes("Loeschen"), "admin can delete unused user accounts");
   assert(appJs.includes("user_has_records"), "user delete is blocked when records exist");
   assert(indexHtml.includes("adminResourcesPanel"), "admin resource management exists");
+  assert(indexHtml.includes("adminFixedBookingsPanel"), "admin fixed booking management exists");
+  assert(indexHtml.includes("fixedBookingForm"), "admin fixed booking form exists");
+  assert(appJs.includes("/api/admin/fixed-bookings"), "admin fixed booking endpoint is used");
   assert(resources.resources.tumbler.length === 2, "two tumblers are configured");
   assert(!resources.resources.tumbler.includes("Tumbler 3"), "retired Tumbler 3 is not bookable");
   assert(appJs.includes("/api/admin/resources/") && appJs.includes("/availability"), "admin resource availability action exists");
@@ -135,6 +140,8 @@ async function checkStaticPages() {
   assert(indexHtml.includes("Test-Guide"), "resident test guide exists");
   assert(indexHtml.includes("onboardingOverlay"), "one-time onboarding landing page exists");
   assert(indexHtml.includes("Hallo und willkommen im Haus"), "onboarding welcomes neighbors");
+  assert(indexHtml.includes("onboarding-quiz"), "onboarding rule quiz exists");
+  assert(appJs.includes("onboardingQuizResult"), "onboarding quiz validation exists");
   assert(indexHtml.includes("role=\"tablist\""), "main navigation behaves as tabs");
   assert(indexHtml.includes("data-view=\"washraum\""), "washroom tab exists");
   assert(indexHtml.includes("data-view=\"bookings\""), "bookings tab exists");
@@ -150,7 +157,9 @@ async function checkStaticPages() {
   assert(appJs.includes("isPastSlot"), "past slot helper exists");
   assert(appJs.includes("drying_room_parallel_limit_reached"), "parallel drying room error is handled");
   assert(appJs.includes("nur einen Trockenraum"), "parallel drying room message is specific");
+  assert(appJs.includes("drying_room_requires_washer_window"), "drying room washer-window error is handled");
   assert(appJs.includes("tumbler_requires_washer_slot"), "tumbler washer-slot error is handled");
+  assert(appJs.includes("tumbler_free_required"), "last free tumbler error is handled");
   assert(appJs.includes("Nur mit eigenem WM-Slot"), "tumbler availability UI marks missing washer slot");
   assert(appJs.includes("userHasWasherSlotForSlot"), "tumbler availability checks washer slots");
 

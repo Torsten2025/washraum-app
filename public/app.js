@@ -68,6 +68,15 @@ const managedResourceTypeInput = document.getElementById("managedResourceType");
 const managedResourceIdInput = document.getElementById("managedResourceId");
 const resourceMessage = document.getElementById("resourceMessage");
 const resourcesList = document.getElementById("resourcesList");
+const adminFixedBookingsPanel = document.getElementById("adminFixedBookingsPanel");
+const fixedBookingForm = document.getElementById("fixedBookingForm");
+const fixedBookingResourceTypeInput = document.getElementById("fixedBookingResourceType");
+const fixedBookingResourceIdInput = document.getElementById("fixedBookingResourceId");
+const fixedBookingWeekdayInput = document.getElementById("fixedBookingWeekday");
+const fixedBookingSlotInput = document.getElementById("fixedBookingSlot");
+const fixedBookingLabelInput = document.getElementById("fixedBookingLabel");
+const fixedBookingMessage = document.getElementById("fixedBookingMessage");
+const fixedBookingsList = document.getElementById("fixedBookingsList");
 const adminOpsPanel = document.getElementById("adminOpsPanel");
 const downloadBackupButton = document.getElementById("downloadBackupButton");
 const sendWhatsappTestButton = document.getElementById("sendWhatsappTestButton");
@@ -127,6 +136,7 @@ let userName = sessionStorage.getItem("washraumUserName");
 let role = sessionStorage.getItem("washraumUserRole") || "user";
 let onboardingSeenAt = "";
 let allBookings = [];
+let fixedBookings = [];
 let allUsers = [];
 let allMachineLogs = [];
 let allPilotFeedback = [];
@@ -168,6 +178,11 @@ logoutButton.addEventListener("click", async () => {
 
 finishOnboardingButton.addEventListener("click", async () => {
   onboardingMessage.textContent = "";
+  const quiz = onboardingQuizResult();
+  if (!quiz.ok) {
+    onboardingMessage.textContent = quiz.message;
+    return;
+  }
   finishOnboardingButton.disabled = true;
 
   const response = await fetch("/api/me/onboarding-seen", {
@@ -241,6 +256,41 @@ resourceForm.addEventListener("submit", async (event) => {
   renderResources();
   renderBookings();
   renderAvailability();
+  await loadOperations();
+  await loadAnalytics();
+});
+
+fixedBookingResourceTypeInput.addEventListener("change", () => {
+  updateFixedBookingOptions();
+});
+
+fixedBookingForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  fixedBookingMessage.textContent = "";
+
+  const response = await fetch("/api/admin/fixed-bookings", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      resourceType: fixedBookingResourceTypeInput.value,
+      resourceId: fixedBookingResourceIdInput.value,
+      weekday: Number(fixedBookingWeekdayInput.value),
+      slotId: fixedBookingSlotInput.value,
+      label: fixedBookingLabelInput.value.trim()
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    fixedBookingMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  fixedBookingLabelInput.value = "";
+  fixedBookingMessage.textContent = "Feste Buchung gespeichert.";
+  fixedBookings = data.fixedBookings || [];
+  renderFixedBookings();
+  await loadBookings();
   await loadOperations();
   await loadAnalytics();
 });
@@ -726,7 +776,10 @@ async function loadResources() {
   resourceEntries = data.resourceEntries || [];
   slotConfig = data.slots || {};
   blockedDates = data.blockedDates || [];
+  fixedBookings = data.fixedBookings || fixedBookings;
   renderResources();
+  updateFixedBookingOptions();
+  renderFixedBookings();
 }
 
 async function loadUsers() {
@@ -824,6 +877,25 @@ async function loadBlockedDates() {
   renderAvailability();
 }
 
+async function loadFixedBookings() {
+  if (role !== "admin") {
+    return;
+  }
+
+  const response = await fetch("/api/admin/fixed-bookings", {
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    fixedBookingMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  fixedBookings = data.fixedBookings || [];
+  renderFixedBookings();
+}
+
 function renderBookings() {
   const filter = bookingFilter.value;
   const bookings = allBookings.filter((booking) => {
@@ -902,7 +974,11 @@ function renderAvailability() {
       const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
       const isReleased = Boolean(booking?.released_at);
       const isPast = isPastSlot(selectedDate, slot);
-      const hasRequiredWasherSlot = resourceType !== "tumbler" || userHasWasherSlotForSlot(bookingUserName, selectedDate, slot);
+      const hasRequiredWasherSlot = resourceType === "tumbler"
+        ? userHasWasherSlotForSlot(bookingUserName, selectedDate, slot)
+        : resourceType === "drying_room"
+        ? userHasWasherSlotForDryingRoomSlot(bookingUserName, selectedDate, slot)
+        : true;
       const button = document.createElement("button");
       button.type = "button";
       button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
@@ -930,7 +1006,7 @@ function renderAvailability() {
         : isPast
         ? "Vorbei"
         : !hasRequiredWasherSlot
-        ? "Nur mit eigenem WM-Slot"
+        ? resourceType === "drying_room" ? "Nur im erlaubten Trockenfenster" : "Nur mit eigenem WM-Slot"
         : booking
         ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
         : "Frei";
@@ -964,14 +1040,23 @@ function renderBookingsList(bookings) {
   for (const booking of bookings) {
     const item = document.createElement("article");
     item.className = "booking-item";
+    if (booking.is_fixed) {
+      item.classList.add("booking-item-fixed");
+    }
 
     const title = document.createElement("h3");
     title.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
 
     const meta = document.createElement("p");
-    meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${partyLabel(booking)}`;
+    meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${partyLabel(booking)}${booking.is_fixed ? " (feste Buchung)" : ""}`;
 
     item.append(title, meta);
+    if (booking.is_fixed) {
+      const fixedNote = document.createElement("p");
+      fixedNote.className = "release-note";
+      fixedNote.textContent = "Diese Buchung wird von den Admins verwaltet.";
+      item.append(fixedNote);
+    }
     if (booking.released_at) {
       item.classList.add("booking-item-released");
       const released = document.createElement("p");
@@ -983,7 +1068,7 @@ function renderBookingsList(bookings) {
     const actions = document.createElement("div");
     actions.className = "booking-actions";
 
-    if (!booking.released_at) {
+    if (!booking.released_at && !booking.is_fixed) {
       const laundryLeftButton = document.createElement("button");
       laundryLeftButton.type = "button";
       laundryLeftButton.textContent = "Waesche haengt noch";
@@ -991,7 +1076,7 @@ function renderBookingsList(bookings) {
       actions.append(laundryLeftButton);
     }
 
-    if (role === "admin" || booking.user_name === userName) {
+    if (!booking.is_fixed && (role === "admin" || booking.user_name === userName)) {
       const shareButton = document.createElement("button");
       shareButton.type = "button";
       shareButton.className = "whatsapp-share-button";
@@ -1057,13 +1142,18 @@ function renderCalendar(bookings) {
       if (booking.released_at) {
         item.classList.add("calendar-booking-released");
       }
+      if (booking.is_fixed) {
+        item.classList.add("calendar-booking-fixed");
+      }
 
       const time = document.createElement("strong");
       time.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)}`;
       const resource = document.createElement("span");
       resource.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
       const user = document.createElement("small");
-      user.textContent = booking.released_at ? `Frueher frei: ${partyLabel(booking)}` : partyLabel(booking);
+      user.textContent = booking.is_fixed
+        ? `Feste Buchung: ${partyLabel(booking)}`
+        : booking.released_at ? `Frueher frei: ${partyLabel(booking)}` : partyLabel(booking);
 
       item.append(time, resource, user);
       column.append(item);
@@ -1286,6 +1376,61 @@ function renderResources() {
 
     item.append(title, list);
     resourcesList.append(item);
+  }
+}
+
+function updateFixedBookingOptions() {
+  if (!fixedBookingResourceTypeInput || !fixedBookingResourceIdInput || !fixedBookingSlotInput) {
+    return;
+  }
+
+  const resourceType = fixedBookingResourceTypeInput.value || "washer";
+  fixedBookingResourceIdInput.innerHTML = "";
+  for (const resourceId of allResources[resourceType] || []) {
+    const option = document.createElement("option");
+    option.value = resourceId;
+    option.textContent = resourceId;
+    fixedBookingResourceIdInput.append(option);
+  }
+
+  fixedBookingSlotInput.innerHTML = "";
+  for (const slot of slotConfig[resourceType] || []) {
+    const option = document.createElement("option");
+    option.value = slot.id;
+    option.textContent = slot.label;
+    fixedBookingSlotInput.append(option);
+  }
+}
+
+function renderFixedBookings() {
+  if (!fixedBookingsList) {
+    return;
+  }
+
+  fixedBookingsList.innerHTML = "";
+  if (fixedBookings.length === 0) {
+    fixedBookingsList.textContent = "Keine festen Buchungen vorhanden.";
+    return;
+  }
+
+  for (const fixedBooking of fixedBookings) {
+    const item = document.createElement("article");
+    item.className = "blocked-date-item";
+
+    const details = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = fixedBooking.label;
+    const meta = document.createElement("p");
+    meta.textContent = `${weekdayLabel(fixedBooking.weekday)}, ${slotLabel(fixedBooking.resource_type, fixedBooking.slot_id)} - ${resourceLabel(fixedBooking.resource_type)} ${fixedBooking.resource_id}`;
+    details.append(title, meta);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "Entfernen";
+    deleteButton.addEventListener("click", () => deleteFixedBooking(fixedBooking.id));
+
+    item.append(details, deleteButton);
+    fixedBookingsList.append(item);
   }
 }
 
@@ -1848,6 +1993,27 @@ async function resetAllBookings() {
   renderAvailability();
 }
 
+async function deleteFixedBooking(id) {
+  fixedBookingMessage.textContent = "";
+  const response = await fetch(`/api/admin/fixed-bookings/${id}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    fixedBookingMessage.textContent = messageForError(data.error);
+    return;
+  }
+
+  fixedBookings = data.fixedBookings || [];
+  fixedBookingMessage.textContent = "Feste Buchung entfernt.";
+  renderFixedBookings();
+  await loadBookings();
+  await loadOperations();
+  await loadAnalytics();
+}
+
 async function shareEarlyRelease(booking) {
   formMessage.textContent = "";
   const response = await fetch("/api/user/releaseBooking", {
@@ -2153,6 +2319,63 @@ function userHasWasherSlotForSlot(targetUserName, day, slot) {
   });
 }
 
+function userHasWasherSlotForDryingRoomSlot(targetUserName, day, slot) {
+  if (!targetUserName) {
+    return false;
+  }
+
+  const slotStart = withTime(day, slot.start);
+  const slotEnd = withTime(day, slot.end);
+  return allBookings.some((entry) => {
+    if (entry.user_name !== targetUserName || entry.resource_type !== "washer" || entry.released_at) {
+      return false;
+    }
+
+    return allowedDryingRangesForWasher(entry).some((range) => {
+      return range.start.getTime() === slotStart.getTime() && range.end.getTime() === slotEnd.getTime();
+    });
+  });
+}
+
+function allowedDryingRangesForWasher(entry) {
+  const start = new Date(entry.start_at);
+  const end = new Date(entry.end_at);
+  const washerSlot = (slotConfig.washer || []).find((slot) => {
+    return (timeKey(start) === slot.start || utcTimeKey(start) === slot.start)
+      && (timeKey(end) === slot.end || utcTimeKey(end) === slot.end);
+  });
+  if (!washerSlot) {
+    return [];
+  }
+
+  const day = dateFromInputDate(dateKey(start));
+  const nextDay = addDays(day, 1);
+  const ranges = [];
+  if (washerSlot.id === "slot-1") {
+    ranges.push(rangeForSlot(day, "slot-1"), rangeForSlot(day, "slot-2"), rangeForSlot(day, "slot-3"));
+  }
+  if (washerSlot.id === "slot-2") {
+    ranges.push(rangeForSlot(day, "slot-2"), rangeForSlot(day, "slot-3"), rangeForSlot(nextDay, "slot-1"));
+  }
+  if (washerSlot.id === "slot-3") {
+    ranges.push(rangeForSlot(day, "slot-3"), rangeForSlot(nextDay, "slot-1"));
+  }
+
+  return ranges.filter(Boolean);
+}
+
+function rangeForSlot(day, slotId) {
+  const slot = (slotConfig.washer || []).find((entry) => entry.id === slotId);
+  if (!slot) {
+    return null;
+  }
+
+  return {
+    start: withTime(day, slot.start),
+    end: withTime(day, slot.end)
+  };
+}
+
 function selectedMachineLogResource() {
   return resourceEntries.find((entry) => {
     return entry.resource_type === machineLogResourceTypeInput.value
@@ -2226,6 +2449,23 @@ function hideOnboarding() {
   document.body.classList.remove("onboarding-open");
 }
 
+function onboardingQuizResult() {
+  const dryingAnswer = document.querySelector("input[name='quizDrying']:checked")?.value;
+  const tumblerAnswer = document.querySelector("input[name='quizTumbler']:checked")?.value;
+  if (!dryingAnswer || !tumblerAnswer) {
+    return { ok: false, message: "Fast geschafft: Bitte beantworte noch beide kurzen Fragen." };
+  }
+
+  if (dryingAnswer !== "next-noon" || tumblerAnswer !== "own-slot") {
+    return {
+      ok: false,
+      message: "Noch ein kleiner Feinschliff: Trockenraum nach dem 12:00- oder 17:00-Waschslot maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei."
+    };
+  }
+
+  return { ok: true };
+}
+
 function updateAdminControls() {
   const isAdmin = role === "admin";
   adminTargetGroup.classList.toggle("hidden", !isAdmin);
@@ -2249,6 +2489,7 @@ function setActiveAdminPanel(panelId) {
     "adminOpsPanel",
     "adminUsersPanel",
     "adminResourcesPanel",
+    "adminFixedBookingsPanel",
     "adminBlockedDatesPanel",
     "adminAnalyticsPanel",
     "adminPilotPanel"
@@ -2262,6 +2503,7 @@ function renderAdminPanelVisibility(isAdmin) {
     adminOpsPanel,
     adminUsersPanel,
     adminResourcesPanel,
+    adminFixedBookingsPanel,
     adminBlockedDatesPanel,
     adminAnalyticsPanel,
     adminPilotPanel
@@ -2307,6 +2549,21 @@ function formatDayHeading(value) {
     day: "2-digit",
     month: "2-digit"
   }).format(value);
+}
+
+function weekdayLabel(value) {
+  return {
+    1: "Montag",
+    2: "Dienstag",
+    3: "Mittwoch",
+    4: "Donnerstag",
+    5: "Freitag",
+    6: "Samstag"
+  }[Number(value)] || "Wochentag";
+}
+
+function slotLabel(resourceType, slotId) {
+  return (slotConfig[resourceType] || []).find((slot) => slot.id === slotId)?.label || slotId;
 }
 
 function shortWeekday(value) {
@@ -2495,8 +2752,18 @@ function messageForError(error) {
     invalid_pilot_feedback: "Die Rueckmeldung muss 5 bis 1200 Zeichen lang sein.",
     invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
     washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
+    washer_daily_slot_mismatch: "Waschmaschinen koennen am selben Tag nur innerhalb desselben Slots reserviert werden.",
     drying_room_parallel_limit_reached: "Du kannst zur gleichen Zeit nur einen Trockenraum buchen.",
+    drying_room_requires_washer_window: "Trockenraum ist nur im erlaubten Zeitfenster nach deinem Waschslot moeglich.",
     tumbler_requires_washer_slot: "Tumbler koennen nur waehrend deines gebuchten Waschmaschinen-Slots gebucht werden.",
+    tumbler_free_required: "Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.",
+    fixed_booking_reserved: "Dieser Slot ist als feste Admin-Buchung reserviert.",
+    missing_fixed_booking_fields: "Bitte alle Felder fuer die feste Buchung ausfuellen.",
+    invalid_fixed_booking_weekday: "Bitte einen gueltigen Wochentag waehlen.",
+    invalid_fixed_booking_label: "Die Bezeichnung muss 2 bis 80 Zeichen lang sein.",
+    fixed_booking_already_exists: "Diese feste Buchung existiert bereits.",
+    fixed_booking_not_found: "Feste Buchung nicht gefunden.",
+    fixed_booking_conflicts_with_existing_booking: "Dort gibt es bereits eine zukuenftige Buchung. Bitte zuerst klaeren oder loeschen.",
     invalid_time_range: "Bitte Start und Ende pruefen.",
     booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
     sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
@@ -2578,6 +2845,7 @@ async function boot() {
   await loadPilotFeedback();
   await loadActivity();
   await loadBlockedDates();
+  await loadFixedBookings();
   await loadOperations();
   await loadAnalytics();
   await loadBookings();

@@ -105,6 +105,19 @@ db.exec(`
     UNIQUE (resource_type, resource_id)
   );
 
+  CREATE TABLE IF NOT EXISTS fixed_bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
+    resource_id TEXT NOT NULL,
+    weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
+    slot_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (resource_type, resource_id, weekday, slot_id)
+  );
+
   CREATE TABLE IF NOT EXISTS machine_log_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_name TEXT NOT NULL,
@@ -137,6 +150,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
   CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_fixed_bookings_weekday ON fixed_bookings(weekday, slot_id);
   CREATE INDEX IF NOT EXISTS idx_machine_log_entries_created_at ON machine_log_entries(created_at);
   CREATE INDEX IF NOT EXISTS idx_pilot_feedback_entries_created_at ON pilot_feedback_entries(created_at);
   CREATE INDEX IF NOT EXISTS idx_activity_entries_created_at ON activity_entries(created_at);
@@ -310,7 +324,8 @@ app.get("/api/resources", (_req, res) => {
     allResources: listAllResources(),
     resourceEntries: listResourceEntries(),
     slots,
-    blockedDates: listBlockedDates()
+    blockedDates: listBlockedDates(),
+    fixedBookings: listFixedBookings()
   });
 });
 
@@ -327,7 +342,8 @@ app.get("/api/bookings", (_req, res) => {
     `)
     .all();
 
-  res.json({ bookings });
+  const fixedOccurrences = fixedBookingOccurrencesForDefaultWindow();
+  res.json({ bookings: [...bookings, ...fixedOccurrences].sort(compareBookingStart) });
 });
 
 app.get("/api/activity", (req, res) => {
@@ -400,6 +416,8 @@ if (!isProduction) {
     const deleteFeedbackByUser = db.prepare("DELETE FROM pilot_feedback_entries WHERE user_name LIKE ?");
     const deleteActivityByUser = db.prepare("DELETE FROM activity_entries WHERE user_name LIKE ?");
     const deleteActivityByResource = db.prepare("DELETE FROM activity_entries WHERE resource_id LIKE ?");
+    const deleteFixedBookingsByLabel = db.prepare("DELETE FROM fixed_bookings WHERE label LIKE ?");
+    const deleteFixedBookingsByResource = db.prepare("DELETE FROM fixed_bookings WHERE resource_id LIKE ?");
     const deleteUserSessions = db.prepare(`
       DELETE FROM sessions
       WHERE user_id IN (
@@ -420,6 +438,8 @@ if (!isProduction) {
         deleteFeedbackByUser.run(`${prefix}%`);
         deleteActivityByUser.run(`${prefix}%`);
         deleteActivityByResource.run(`${prefix}%`);
+        deleteFixedBookingsByLabel.run(`${prefix}%`);
+        deleteFixedBookingsByResource.run(`${prefix}%`);
         bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
         usersDeleted += deleteUsers.run(`${prefix}%`).changes;
         deleteResources.run(`${prefix}%`);
@@ -593,6 +613,72 @@ app.post("/api/admin/bookings/reset", (req, res) => {
     ok: true,
     ...resetBookings()
   });
+});
+
+app.get("/api/admin/fixed-bookings", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  res.json({ ok: true, fixedBookings: listFixedBookings() });
+});
+
+app.post("/api/admin/fixed-bookings", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const resourceType = String(req.body?.resourceType || "").trim();
+  const resourceId = String(req.body?.resourceId || "").trim();
+  const weekday = Number(req.body?.weekday);
+  const slotId = String(req.body?.slotId || "").trim();
+  const label = String(req.body?.label || "").trim();
+  const validation = validateFixedBookingInput({ resourceType, resourceId, weekday, slotId, label });
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  if (futureBookingConflictsWithFixedBooking({ resourceType, resourceId, weekday, slotId })) {
+    return res.status(409).json({ ok: false, error: "fixed_booking_conflicts_with_existing_booking" });
+  }
+
+  try {
+    const info = db
+      .prepare(`
+        INSERT INTO fixed_bookings (resource_type, resource_id, weekday, slot_id, label, created_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(resourceType, resourceId, weekday, slotId, label, auth.auth.user_name);
+    const fixedBooking = db
+      .prepare("SELECT * FROM fixed_bookings WHERE id = ?")
+      .get(info.lastInsertRowid);
+
+    res.status(201).json({ ok: true, fixedBooking, fixedBookings: listFixedBookings() });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ ok: false, error: "fixed_booking_already_exists" });
+    }
+
+    throw error;
+  }
+});
+
+app.delete("/api/admin/fixed-bookings/:id", (req, res) => {
+  const auth = getAdminAuth(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const id = Number(req.params.id);
+  const existing = db.prepare("SELECT id FROM fixed_bookings WHERE id = ? AND active = 1").get(id);
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: "fixed_booking_not_found" });
+  }
+
+  db.prepare("UPDATE fixed_bookings SET active = 0 WHERE id = ?").run(id);
+  res.json({ ok: true, id, fixedBookings: listFixedBookings() });
 });
 
 app.post("/api/admin/resources", (req, res) => {
@@ -1893,6 +1979,55 @@ function validateResourceInput({ resourceType, resourceId }) {
   return { ok: true };
 }
 
+function validateFixedBookingInput({ resourceType, resourceId, weekday, slotId, label }) {
+  if (!resourceType || !resourceId || !weekday || !slotId || !label) {
+    return { ok: false, error: "missing_fixed_booking_fields" };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
+    return { ok: false, error: "invalid_resource_type" };
+  }
+
+  if (!isKnownResource(resourceType, resourceId)) {
+    return { ok: false, error: "invalid_resource_id" };
+  }
+
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 6) {
+    return { ok: false, error: "invalid_fixed_booking_weekday" };
+  }
+
+  if (!(slots[resourceType] || []).some((slot) => slot.id === slotId)) {
+    return { ok: false, error: "invalid_booking_slot" };
+  }
+
+  if (label.length < 2 || label.length > 80) {
+    return { ok: false, error: "invalid_fixed_booking_label" };
+  }
+
+  return { ok: true };
+}
+
+function futureBookingConflictsWithFixedBooking({ resourceType, resourceId, weekday, slotId }) {
+  const nowIso = new Date().toISOString();
+  const bookings = db
+    .prepare(`
+      SELECT start_at, end_at
+      FROM bookings
+      WHERE resource_type = ?
+        AND resource_id = ?
+        AND end_at > ?
+        AND released_at IS NULL
+    `)
+    .all(resourceType, resourceId, nowIso);
+
+  return bookings.some((booking) => {
+    const start = new Date(booking.start_at);
+    const end = new Date(booking.end_at);
+    const slot = slotForRange(resourceType, start, end);
+    return zonedWeekday(start) === weekday && slot?.id === slotId;
+  });
+}
+
 function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) {
   if (!resourceType || !resourceId || !eventDate || !note) {
     return { ok: false, error: "missing_machine_log_fields" };
@@ -1998,6 +2133,18 @@ function createBooking(input) {
     return { ok: false, error: "tumbler_requires_washer_slot" };
   }
 
+  if (resourceType === "tumbler" && wouldUseLastFreeTumbler(resourceId, start, end)) {
+    return { ok: false, error: "tumbler_free_required" };
+  }
+
+  if (resourceType === "drying_room" && !hasUserWasherForDryingRoomRange(userName, start, end)) {
+    return { ok: false, error: "drying_room_requires_washer_window" };
+  }
+
+  if (fixedBookingOverlaps(resourceType, resourceId, start, end)) {
+    return { ok: false, error: "fixed_booking_reserved" };
+  }
+
   const overlappingBooking = db
     .prepare(`
       SELECT id
@@ -2021,6 +2168,10 @@ function createBooking(input) {
 
   if (resourceType === "washer" && countUserWasherBookingsForDate(userName, start) >= 3) {
     return { ok: false, error: "washer_daily_limit_reached" };
+  }
+
+  if (resourceType === "washer" && hasUserWasherBookingInDifferentSlotForDate(userName, start, end)) {
+    return { ok: false, error: "washer_daily_slot_mismatch" };
   }
 
   const info = db
@@ -2123,6 +2274,25 @@ function isConfiguredSlot(resourceType, start, end) {
   return (slots[resourceType] || []).some((slot) => slot.start === startTime && slot.end === endTime);
 }
 
+function slotForRange(resourceType, start, end) {
+  const startTime = timeKey(start);
+  const endTime = timeKey(end);
+  return (slots[resourceType] || []).find((slot) => slot.start === startTime && slot.end === endTime);
+}
+
+function slotRangeForDay(day, slotId) {
+  const slot = fixedSlots.find((entry) => entry.id === slotId);
+  if (!slot) {
+    return null;
+  }
+
+  const key = dateKey(day);
+  return {
+    start: parseZonedDateTime(`${key}T${slot.start}`),
+    end: parseZonedDateTime(`${key}T${slot.end}`)
+  };
+}
+
 function countUserWasherBookingsForDate(userName, date) {
   const dayStart = startOfZonedDay(date);
   const dayEnd = addZonedDays(dayStart, 1);
@@ -2169,6 +2339,121 @@ function hasUserWasherBookingForRange(userName, start, end) {
     .get(userName, start.toISOString(), end.toISOString()));
 }
 
+function hasUserWasherForDryingRoomRange(userName, start, end) {
+  const washers = db
+    .prepare(`
+      SELECT start_at, end_at
+      FROM bookings
+      WHERE user_name = ?
+        AND resource_type = 'washer'
+        AND released_at IS NULL
+    `)
+    .all(userName);
+
+  return washers.some((booking) => {
+    return allowedDryingRoomRangesForWasher(new Date(booking.start_at), new Date(booking.end_at)).some((range) => {
+      return range.start.getTime() === start.getTime() && range.end.getTime() === end.getTime();
+    });
+  });
+}
+
+function allowedDryingRoomRangesForWasher(washerStart, washerEnd) {
+  const washerSlot = slotForRange("washer", washerStart, washerEnd);
+  if (!washerSlot) {
+    return [];
+  }
+
+  const day = startOfZonedDay(washerStart);
+  const nextDay = addZonedDays(day, 1);
+  const candidates = [];
+
+  if (washerSlot.id === "slot-1") {
+    candidates.push(slotRangeForDay(day, "slot-1"), slotRangeForDay(day, "slot-2"), slotRangeForDay(day, "slot-3"));
+  }
+  if (washerSlot.id === "slot-2") {
+    candidates.push(slotRangeForDay(day, "slot-2"), slotRangeForDay(day, "slot-3"), slotRangeForDay(nextDay, "slot-1"));
+  }
+  if (washerSlot.id === "slot-3") {
+    candidates.push(slotRangeForDay(day, "slot-3"), slotRangeForDay(nextDay, "slot-1"));
+  }
+
+  return candidates.filter(Boolean);
+}
+
+function wouldUseLastFreeTumbler(resourceId, start, end) {
+  const activeTumblers = listResources().tumbler;
+  const activeOtherTumblers = activeTumblers.filter((id) => id !== resourceId);
+  if (activeTumblers.length < 2) {
+    return true;
+  }
+
+  return activeOtherTumblers.every((id) => {
+    return Boolean(overlappingBookingForResource("tumbler", id, start, end))
+      || fixedBookingOverlaps("tumbler", id, start, end);
+  });
+}
+
+function overlappingBookingForResource(resourceType, resourceId, start, end) {
+  return db
+    .prepare(`
+      SELECT id
+      FROM bookings
+      WHERE resource_type = ?
+        AND resource_id = ?
+        AND start_at < ?
+        AND end_at > ?
+        AND released_at IS NULL
+      LIMIT 1
+    `)
+    .get(resourceType, resourceId, end.toISOString(), start.toISOString());
+}
+
+function fixedBookingOverlaps(resourceType, resourceId, start, end) {
+  const slot = slotForRange(resourceType, start, end);
+  if (!slot) {
+    return false;
+  }
+
+  return Boolean(db
+    .prepare(`
+      SELECT id
+      FROM fixed_bookings
+      WHERE active = 1
+        AND resource_type = ?
+        AND resource_id = ?
+        AND weekday = ?
+        AND slot_id = ?
+      LIMIT 1
+    `)
+    .get(resourceType, resourceId, zonedWeekday(start), slot.id));
+}
+
+function hasUserWasherBookingInDifferentSlotForDate(userName, start, end) {
+  const slot = slotForRange("washer", start, end);
+  if (!slot) {
+    return false;
+  }
+
+  const dayStart = startOfZonedDay(start);
+  const dayEnd = addZonedDays(dayStart, 1);
+  const bookings = db
+    .prepare(`
+      SELECT start_at, end_at
+      FROM bookings
+      WHERE user_name = ?
+        AND resource_type = 'washer'
+        AND start_at >= ?
+        AND start_at < ?
+        AND released_at IS NULL
+    `)
+    .all(userName, dayStart.toISOString(), dayEnd.toISOString());
+
+  return bookings.some((booking) => {
+    const existingSlot = slotForRange("washer", new Date(booking.start_at), new Date(booking.end_at));
+    return existingSlot && existingSlot.id !== slot.id;
+  });
+}
+
 function hasOtherFutureSequence(userName, start) {
   const sequenceDate = dateKey(start);
   const nowIso = new Date().toISOString();
@@ -2203,6 +2488,67 @@ function listBlockedDates() {
   return db
     .prepare("SELECT date, label, created_at FROM blocked_dates ORDER BY date ASC")
     .all();
+}
+
+function listFixedBookings() {
+  return db
+    .prepare(`
+      SELECT *
+      FROM fixed_bookings
+      WHERE active = 1
+      ORDER BY weekday ASC, slot_id ASC, resource_type ASC, resource_id ASC
+    `)
+    .all();
+}
+
+function fixedBookingOccurrencesForDefaultWindow() {
+  const today = startOfZonedDay(new Date());
+  const start = addZonedDays(today, -45);
+  const end = addZonedDays(today, 430);
+  return fixedBookingOccurrencesForRange(start, end);
+}
+
+function fixedBookingOccurrencesForRange(start, end) {
+  const fixedBookings = listFixedBookings();
+  const occurrences = [];
+
+  for (let day = startOfZonedDay(start); day <= end; day = addZonedDays(day, 1)) {
+    const weekday = zonedWeekday(day);
+    const key = dateKey(day);
+    for (const fixedBooking of fixedBookings) {
+      if (Number(fixedBooking.weekday) !== weekday) {
+        continue;
+      }
+
+      const slot = fixedSlots.find((entry) => entry.id === fixedBooking.slot_id);
+      if (!slot) {
+        continue;
+      }
+
+      occurrences.push({
+        id: `fixed-${fixedBooking.id}-${key}`,
+        fixed_booking_id: fixedBooking.id,
+        user_name: fixedBooking.label,
+        user_display_name: fixedBooking.label,
+        apartment_label: "Feste Buchung",
+        resource_type: fixedBooking.resource_type,
+        resource_id: fixedBooking.resource_id,
+        start_at: parseZonedDateTime(`${key}T${slot.start}`).toISOString(),
+        end_at: parseZonedDateTime(`${key}T${slot.end}`).toISOString(),
+        released_at: null,
+        created_at: fixedBooking.created_at,
+        is_fixed: 1
+      });
+    }
+  }
+
+  return occurrences;
+}
+
+function compareBookingStart(left, right) {
+  return new Date(left.start_at) - new Date(right.start_at)
+    || String(left.resource_type).localeCompare(String(right.resource_type))
+    || String(left.resource_id).localeCompare(String(right.resource_id));
 }
 
 function isDateKey(value) {

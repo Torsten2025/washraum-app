@@ -48,6 +48,8 @@
             <ul>
               <li>Bitte nur 1x im Voraus eintragen.</li>
               <li>Eintragen - waschen - wieder eintragen.</li>
+              <li>Tumbler nur zum eigenen Waschslot, dabei bleibt mindestens ein Tumbler frei.</li>
+              <li>Trockenraum je nach Waschslot bis 21:00 oder bis max. am Folgetag 12:00.</li>
               <li>Sonntag, Feiertage und vergangene Zeiten sind gesperrt.</li>
               <li>Wer frueher fertig ist, meldet den Slot frei.</li>
             </ul>
@@ -60,6 +62,20 @@
               <li>Bei Stoerungen das Protokolltagebuch verwenden.</li>
             </ul>
           </article>
+        </div>
+
+        <div class="onboarding-quiz" aria-labelledby="onboardingQuizHeading">
+          <h2 id="onboardingQuizHeading">Kurzer Check</h2>
+          <fieldset>
+            <legend>Wann darf der Trockenraum bei einem Waschslot ab 12:00 maximal genutzt werden?</legend>
+            <label><input type="radio" name="quizDrying" value="same-day"> Bis 21:00 am gleichen Tag</label>
+            <label><input type="radio" name="quizDrying" value="next-noon"> Bis 12:00 am Folgetag</label>
+          </fieldset>
+          <fieldset>
+            <legend>Was gilt fuer den Tumbler?</legend>
+            <label><input type="radio" name="quizTumbler" value="own-slot"> Nur waehrend des eigenen Waschslots und ein Tumbler bleibt frei</label>
+            <label><input type="radio" name="quizTumbler" value="anytime"> Jeder freie Tumbler kann jederzeit reserviert werden</label>
+          </fieldset>
         </div>
 
         <button id="finishOnboardingButton" type="button">Verstanden, weiter zur App</button>
@@ -295,6 +311,7 @@
           <button class="admin-dashboard-tab is-active" type="button" data-admin-panel="adminOpsPanel">Uebersicht</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminUsersPanel">Nutzer</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminResourcesPanel">Ressourcen</button>
+          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminFixedBookingsPanel">Feste Buchungen</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminBlockedDatesPanel">Sperrtage</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminAnalyticsPanel">Auswertung</button>
           <button class="admin-dashboard-tab" type="button" data-admin-panel="adminPilotPanel">Pilot</button>
@@ -371,6 +388,52 @@
             <p id="resourceMessage" class="message" role="status"></p>
           </form>
           <div id="resourcesList" class="resources-list"></div>
+        </div>
+
+        <div id="adminFixedBookingsPanel" class="admin-panel hidden">
+          <h2>Feste Buchungen</h2>
+          <p class="panel-note">Feste Buchungen werden von Admins gepflegt und blockieren den Slot dauerhaft. Normale Nutzer koennen sie nicht ueberschreiben.</p>
+          <form id="fixedBookingForm" class="booking-form">
+            <label>
+              Bereich
+              <select id="fixedBookingResourceType" name="fixedBookingResourceType">
+                <option value="washer">Waschmaschine</option>
+                <option value="drying_room">Trockenraum</option>
+                <option value="tumbler">Tumbler</option>
+              </select>
+            </label>
+
+            <label>
+              Ressource
+              <select id="fixedBookingResourceId" name="fixedBookingResourceId" required></select>
+            </label>
+
+            <label>
+              Wochentag
+              <select id="fixedBookingWeekday" name="fixedBookingWeekday">
+                <option value="1">Montag</option>
+                <option value="2">Dienstag</option>
+                <option value="3">Mittwoch</option>
+                <option value="4">Donnerstag</option>
+                <option value="5">Freitag</option>
+                <option value="6">Samstag</option>
+              </select>
+            </label>
+
+            <label>
+              Slot
+              <select id="fixedBookingSlot" name="fixedBookingSlot" required></select>
+            </label>
+
+            <label>
+              Bezeichnung
+              <input id="fixedBookingLabel" name="fixedBookingLabel" maxlength="80" placeholder="z. B. Frau Muster" required>
+            </label>
+
+            <button type="submit">Feste Buchung speichern</button>
+            <p id="fixedBookingMessage" class="message" role="status"></p>
+          </form>
+          <div id="fixedBookingsList" class="blocked-dates-list"></div>
         </div>
 
         <div id="adminBlockedDatesPanel" class="admin-panel hidden">

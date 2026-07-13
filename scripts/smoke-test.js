@@ -383,6 +383,37 @@ async function run() {
   assertStatus(fourthWasherForUser, 400, "fourth washer booking on same day is blocked");
   assert(fourthWasherForUser.body.error === "washer_daily_limit_reached", "washer daily limit error code");
 
+  const mismatchName = `${uniqueName}-mismatch`;
+  const mismatchDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 38);
+  const mismatchSlotOne = rangeForDate(mismatchDate, "07:00", "12:00");
+  const mismatchSlotTwo = rangeForDate(mismatchDate, "12:00", "17:00");
+  const mismatchWasherOne = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: mismatchName,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: mismatchSlotOne.startAt,
+      endAt: mismatchSlotOne.endAt
+    }
+  });
+  assertStatus(mismatchWasherOne, 201, "first washer slot for mismatch test is allowed");
+
+  const washerDifferentSlot = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: mismatchName,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: mismatchSlotTwo.startAt,
+      endAt: mismatchSlotTwo.endAt
+    }
+  });
+  assertStatus(washerDifferentSlot, 400, "washer booking in a second daily slot is blocked");
+  assert(washerDifferentSlot.body.error === "washer_daily_slot_mismatch", "washer slot mismatch error code");
+
   const secondSequenceRange = rangeForDate(nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 36), "07:00", "12:00");
   const secondFutureSequence = await request("/api/admin/addBooking", {
     method: "POST",
@@ -402,6 +433,66 @@ async function run() {
     `future sequence error code (${secondFutureSequence.body.error})`
   );
 
+  const fixedDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 55);
+  const fixedRange = rangeForDate(fixedDate, "07:00", "12:00");
+  const fixedLabel = `${uniqueName}-fixed`;
+  const createFixedBooking = await request("/api/admin/fixed-bookings", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      resourceType: "tumbler",
+      resourceId: "Tumbler 2",
+      weekday: fixedDate.getDay(),
+      slotId: "slot-1",
+      label: fixedLabel
+    }
+  });
+  assertStatus(createFixedBooking, 201, "admin creates fixed booking");
+
+  const fixedBookings = await request("/api/admin/fixed-bookings", {
+    token: admin.body.token
+  });
+  assertStatus(fixedBookings, 200, "admin lists fixed bookings");
+  assert(fixedBookings.body.fixedBookings.some((entry) => entry.label === fixedLabel), "fixed booking appears in admin list");
+
+  const bookingsWithFixed = await request("/api/bookings");
+  assertStatus(bookingsWithFixed, 200, "bookings include fixed occurrences");
+  assert(bookingsWithFixed.body.bookings.some((entry) => entry.is_fixed && entry.user_name === fixedLabel), "fixed booking is projected into bookings");
+
+  const fixedUserName = `${uniqueName}-fixed-user`;
+  const washerForFixedConflict = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: fixedUserName,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: fixedRange.startAt,
+      endAt: fixedRange.endAt
+    }
+  });
+  assertStatus(washerForFixedConflict, 201, "washer for fixed-booking conflict test is allowed");
+
+  const blockedByFixedBooking = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: fixedUserName,
+      resourceType: "tumbler",
+      resourceId: "Tumbler 2",
+      startAt: fixedRange.startAt,
+      endAt: fixedRange.endAt
+    }
+  });
+  assertStatus(blockedByFixedBooking, 400, "fixed booking blocks normal booking");
+  assert(blockedByFixedBooking.body.error === "fixed_booking_reserved", "fixed booking reserved error code");
+
+  const deleteFixedBooking = await request(`/api/admin/fixed-bookings/${createFixedBooking.body.fixedBooking.id}`, {
+    method: "DELETE",
+    token: admin.body.token
+  });
+  assertStatus(deleteFixedBooking, 200, "admin deletes fixed booking");
+
   const dryingRange = rangeForDate(bookingDate, "12:00", "17:00");
   const dryingAfterWasher = await request("/api/admin/addBooking", {
     method: "POST",
@@ -420,6 +511,19 @@ async function run() {
   const dryingName = `${uniqueName}-drying`;
   const dryingDate = nextBookableDate([...blockedDateKeys, smokeBlockedDateKey], 40);
   const dryingSlotOne = rangeForDate(dryingDate, "07:00", "12:00");
+  const dryingWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: dryingName,
+      resourceType: "washer",
+      resourceId: "WM 1",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+  assertStatus(dryingWasher, 201, "washer for drying room booking is allowed");
+
   const firstDrying = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -434,6 +538,19 @@ async function run() {
 
   assertStatus(firstDrying, 201, "first drying room booking is allowed");
 
+  const otherDryingWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${dryingName}-other-room`,
+      resourceType: "washer",
+      resourceId: "WM 2",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+  assertStatus(otherDryingWasher, 201, "washer for other drying room user is allowed");
+
   const sameSlotOtherDryingRoom = await request("/api/admin/addBooking", {
     method: "POST",
     token: admin.body.token,
@@ -447,6 +564,19 @@ async function run() {
   });
 
   assertStatus(sameSlotOtherDryingRoom, 201, "same drying slot on another resource is allowed");
+
+  const duplicateDryingWasher = await request("/api/admin/addBooking", {
+    method: "POST",
+    token: admin.body.token,
+    body: {
+      userName: `${dryingName}-duplicate`,
+      resourceType: "washer",
+      resourceId: "WM 3",
+      startAt: dryingSlotOne.startAt,
+      endAt: dryingSlotOne.endAt
+    }
+  });
+  assertStatus(duplicateDryingWasher, 201, "washer for duplicate drying room test is allowed");
 
   const duplicateDryingRoom = await request("/api/admin/addBooking", {
     method: "POST",
@@ -536,7 +666,8 @@ async function run() {
     }
   });
 
-  assertStatus(secondSameSlotTumblerForUser, 201, "same user can book both tumblers during washer slot");
+  assertStatus(secondSameSlotTumblerForUser, 400, "booking the last free tumbler is blocked");
+  assert(secondSameSlotTumblerForUser.body.error === "tumbler_free_required", "last free tumbler error code");
 
   const otherTumblerWasher = await request("/api/admin/addBooking", {
     method: "POST",
