@@ -3147,6 +3147,15 @@ body:not(.login-page):not(.document-page) {
   width: 100px;
 }
 
+.logout-form {
+  display: block;
+  margin: 0;
+}
+
+.logout-form button {
+  white-space: nowrap;
+}
+
 .view-switcher {
   background: #e5ece9;
   border: 1px solid #cad6d1;
@@ -3452,9 +3461,31 @@ button:hover:not(:disabled),
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .topbar .app-brand {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .topbar .logout-form {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
   .topbar-title {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .topbar .view-switcher {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .topbar .house-switcher:not([hidden]) {
+    grid-column: 1 / -1;
+    grid-row: 4;
   }
 
   .layout {

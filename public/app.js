@@ -1,5 +1,4 @@
 const userLine = document.querySelector('#userLine');
-const logoutButton = document.querySelector('#logoutButton');
 const brandHouseName = document.querySelector('#brandHouseName');
 const introHouseName = document.querySelector('#introHouseName');
 const houseSwitcher = document.querySelector('#houseSwitcher');
@@ -1867,11 +1866,6 @@ if (introVideoSpeechSupported) {
   window.speechSynthesis.addEventListener('voiceschanged', refreshIntroVideoVoice);
   refreshIntroVideoVoice();
 }
-
-logoutButton.addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login.html';
-});
 
 init().catch((error) => {
   statusText.textContent = error.message;

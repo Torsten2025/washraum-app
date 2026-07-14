@@ -903,6 +903,25 @@ async function run() {
       body: JSON.stringify({ name: 'Maneggplatz 20A' })
     });
 
+    const apiLogout = await expectStatus(admin, '/api/logout', 200, { method: 'POST' });
+    assert.match(apiLogout.response.headers.get('set-cookie') || '', /connect\.sid=;/);
+    const apiLoggedOutSession = await expectStatus(admin, '/api/me', 200);
+    assert.equal(apiLoggedOutSession.body.user, null);
+    await expectStatus(admin, '/api/admin/users', 403);
+
+    const formLogoutAdmin = new ApiClient();
+    await expectStatus(formLogoutAdmin, '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'admin', password: 'Admin-Test-2026!' })
+    });
+    const formLogout = await expectStatus(formLogoutAdmin, '/logout', 303, {
+      method: 'POST',
+      redirect: 'manual'
+    });
+    assert.equal(formLogout.response.headers.get('location'), '/login.html?loggedOut=1');
+    const loggedOutSession = await expectStatus(formLogoutAdmin, '/api/me', 200);
+    assert.equal(loggedOutSession.body.user, null);
+
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
@@ -912,6 +931,7 @@ async function run() {
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     assert.ok(indexHtml.includes('viewSwitcher'));
+    assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('/assets/gbmz-logo.svg'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     assert.ok(appScript.body.toString().includes('/api/booking-package'));
@@ -937,6 +957,7 @@ async function run() {
       ok: true,
       checks: {
         authentication: true,
+        adminLogout: true,
         legacySessionHydration: true,
         passwordRecovery: true,
         emailPreferences: true,

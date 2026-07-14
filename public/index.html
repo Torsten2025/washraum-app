@@ -24,7 +24,9 @@
         <span>Hausnummer</span>
         <select id="houseSelect" aria-label="Hausnummer wechseln"></select>
       </label>
-      <button id="logoutButton" class="ghost-button" type="button">Abmelden</button>
+      <form id="logoutForm" class="logout-form" method="post" action="/logout">
+        <button id="logoutButton" class="ghost-button" type="submit">Abmelden</button>
+      </form>
     </header>
 
     <main class="layout">

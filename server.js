@@ -1996,9 +1996,31 @@ app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
   res.json({ ok: true, message: 'Passwort ge\u00e4ndert. Du kannst dich jetzt anmelden.' });
 });
 
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
+function finishLogout(req, res, next, redirectToLogin = false) {
+  const sendResponse = () => {
+    res.clearCookie('connect.sid', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      path: '/'
+    });
+    if (redirectToLogin) {
+      return res.redirect(303, '/login.html?loggedOut=1');
+    }
+    return res.json({ ok: true });
+  };
+
+  if (!req.session) {
+    return sendResponse();
+  }
+  req.session.destroy((error) => {
+    if (error) return next(error);
+    return sendResponse();
+  });
+}
+
+app.post('/api/logout', (req, res, next) => finishLogout(req, res, next));
+app.post('/logout', (req, res, next) => finishLogout(req, res, next, true));
 
 app.get('/api/me', (req, res) => {
   if (!req.session.user) {
