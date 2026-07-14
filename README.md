@@ -1,10 +1,13 @@
 # Waschplan App
 
-Schlanke Buchungsapp fuer den GBMZ-Waschraum am Maneggplatz 18.
+Schlanke Buchungsapp fuer GBMZ-Waschraeume mit mehreren Hausnummern.
 
 ## Enthalten
 
-- Wochenkalender mit direkter Buchung und persoenlichen Vorschlaegen aus dem bisherigen Waschrhythmus.
+- Wochenkalender mit Einzelbuchung und persoenlichen Waschpaketen aus Waschrhythmus und aktuell freien Geraeten.
+- Ein Waschpaket reserviert die ausgewaehlte Waschmaschine, den vorgeschlagenen Trockenraum und optional einen Tumbler gemeinsam und atomar.
+- Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
+- Haus-Admins verwalten nur ihr Haus. Der Superadmin kann Haeuser anlegen, wechseln und Bewohner zu Haus-Admins machen.
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume, serverseitig geprueft.
 - Geschuetzte, wiederkehrende Buchungen fuer von Admins betreute Personen.
 - E-Mail-Hinweise, wenn eine Buchung frueher freigegeben wird.
@@ -43,7 +46,9 @@ Der Check umfasst Syntax, Authentifizierung, Passwortverwaltung, Buchungsregeln,
 
 ## Registrierung und Hauscode
 
-Neue Bewohner registrieren sich mit Benutzername, E-Mail, Passwort und Hauscode. Der aktuelle Hauscode ist nur fuer Admins im Adminbereich sichtbar und kann dort geaendert werden. Lokal lautet der Startwert `GBMZ Maneggplatz 18`. In einer neuen Produktion wird ohne `HOUSE_CODE` ein zufaelliger Startwert erzeugt.
+Neue Bewohner registrieren sich mit Benutzername, E-Mail, Passwort und Hauscode. Der Code ordnet das Konto automatisch der richtigen Hausnummer zu. Der jeweilige Code ist nur fuer den Haus-Admin und den Superadmin sichtbar und kann dort geaendert werden. Lokal lautet der Startwert `GBMZ Maneggplatz 18`. In einer neuen Produktion wird ohne `HOUSE_CODE` ein zufaelliger Startwert erzeugt.
+
+Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das vorhandene erste Admin-Konto wird zum Superadmin. Weitere Hausnummern legt der Superadmin im Adminbereich an; jedes neue Haus erhaelt automatisch drei Waschmaschinen, drei Trockenraeume und zwei Tumbler.
 
 ## Produktion auf Render
 
@@ -52,6 +57,7 @@ Fuer eine neue Datenbank muessen in Render mindestens gesetzt sein:
 - `SEED_ADMIN_PASSWORD`: sicheres erstes Admin-Passwort.
 - `SESSION_SECRET`: wird durch `render.yaml` automatisch erzeugt.
 - `HOUSE_CODE`: optional; sonst wird beim ersten Start ein zufaelliger Wert erzeugt.
+- `HOUSE_NAME`: optionaler Name der ersten Hausnummer, Standard `Maneggplatz 18`.
 - `PUBLIC_APP_URL`: z. B. `https://washraum-app.onrender.com`.
 
 Die SQLite-Daten liegen persistent unter `/var/data/washraum.sqlite`. Bestehende Datenbanken und Konten werden bei Deployments weiterverwendet.

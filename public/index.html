@@ -10,12 +10,16 @@
     <header class="topbar">
       <div class="brand-lockup app-brand">
         <span class="brand-mark">GBMZ</span>
-        <span>Maneggplatz 18</span>
+        <span id="brandHouseName">Maneggplatz 18</span>
       </div>
       <div class="topbar-title">
         <h1>Waschplan</h1>
         <p id="userLine"></p>
       </div>
+      <label id="houseSwitcher" class="house-switcher" hidden>
+        <span>Hausnummer</span>
+        <select id="houseSelect" aria-label="Hausnummer wechseln"></select>
+      </label>
       <button id="logoutButton" class="ghost-button" type="button">Abmelden</button>
     </header>
 
@@ -23,7 +27,7 @@
       <div class="main-column">
         <section class="intro-panel">
           <div class="intro-copy-block">
-            <p class="eyebrow">Waschraum Maneggplatz 18</p>
+            <p id="introHouseName" class="eyebrow">Waschraum Maneggplatz 18</p>
             <h2>Dein Waschplan f&uuml;r diese Woche.</h2>
             <p>Freie Zeiten, deine n&auml;chsten Buchungen und die wichtigsten GBMZ-Regeln stehen direkt beieinander.</p>
             <div class="intro-metrics" aria-hidden="true">
@@ -56,7 +60,7 @@
           <div class="section-head">
             <div>
               <h2>Buchen</h2>
-              <p class="muted">W&auml;hle zuerst den Bereich, dann Datum und Zeitfenster.</p>
+              <p class="muted">Nutze das vorgeschlagene Waschpaket oder w&auml;hle einzelne Termine im Kalender.</p>
             </div>
             <input id="bookingDate" type="date">
           </div>
@@ -149,9 +153,9 @@
           </ul>
         </div>
         <div id="adminBox" class="admin-box" hidden>
-          <h3>Admin</h3>
+          <h3 id="adminTitle">Admin</h3>
           <div id="adminOverview" class="admin-overview"></div>
-          <div class="admin-operation">
+          <div id="backupOperation" class="admin-operation">
             <div>
               <strong>Daten sichern</strong>
               <span>Eine vollst&auml;ndige SQLite-Sicherung herunterladen.</span>
@@ -172,6 +176,22 @@
             </label>
             <button type="submit">Hauscode speichern</button>
           </form>
+          <section id="superadminBox" class="superadmin-box" hidden>
+            <h3>Hausnummern</h3>
+            <p class="muted">Jede Hausnummer hat eigene Personen, Ger&auml;te und Buchungen.</p>
+            <form id="houseForm" class="stack compact-form">
+              <label>
+                Neue Hausnummer
+                <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
+              </label>
+              <label>
+                Hauscode
+                <input id="newHouseCodeInput" name="code" minlength="4" maxlength="80" required>
+              </label>
+              <button type="submit">Haus anlegen</button>
+            </form>
+            <div id="houseList" class="house-admin-list"></div>
+          </section>
           <h3>Feste Buchungen</h3>
           <form id="fixedBookingForm" class="stack compact-form">
             <label>
@@ -240,12 +260,12 @@
             <div class="video-screen">
               <div class="video-host" aria-hidden="true">
                 <span class="host-avatar">18</span>
-                <span>Maneggplatz 18</span>
+                <span>GBMZ Waschraum</span>
               </div>
               <div id="introVideoVisual" class="video-scene" aria-hidden="true"></div>
               <div class="video-narration">
                 <h3 id="introVideoTitle">Willkommen im Waschplan</h3>
-                <p id="introVideoCaption" aria-live="polite">Deine Termine, ein passender Vorschlag und die freien Tage liegen direkt beieinander.</p>
+                <p id="introVideoCaption" aria-live="polite">Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.</p>
               </div>
             </div>
             <div id="introVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einf&uuml;hrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="introVideoProgress"></span></div>
@@ -262,8 +282,8 @@
             <summary>Text zum Mitlesen</summary>
             <ol>
               <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Wochenkalender mit freien Tagen.</li>
-              <li>W&auml;hle einen Tag und einen Bereich. In einem freien Zeitfenster gen&uuml;gt ein Klick auf Buchen. Der Termin erscheint danach unter Meine Buchungen.</li>
-              <li>Der pers&ouml;nliche Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Du kannst ihn direkt buchen oder Tag, Zeit und Ger&auml;t vorher &auml;ndern. Alle anderen freien Termine bleiben sichtbar.</li>
+              <li>Das Waschpaket stellt eine freie Waschmaschine und passende Erg&auml;nzungen zusammen. Trockenraum und Tumbler kannst du vor dem Buchen an- oder abw&auml;hlen.</li>
+              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Mit einer Best&auml;tigung werden alle ausgew&auml;hlten Bestandteile gemeinsam gebucht. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
               <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
               <li>Mindestens ein Tumbler bleibt frei. Eigene Buchungen kannst du l&ouml;schen oder fr&uuml;her freigeben; auf Wunsch werden andere per E-Mail informiert.</li>

@@ -234,6 +234,75 @@ async function run() {
     assert.equal(dryingRooms.length, 3);
     assert.equal(tumblers.length, 2);
 
+    const packageUser = new ApiClient();
+    await expectStatus(packageUser, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Paket Test',
+        email: 'paket-test@example.com',
+        password: 'Paket-Test-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    const packageRecommendation = await expectStatus(packageUser, '/api/recommendation', 200);
+    assert.equal(packageRecommendation.body.recommendation.kind, 'package');
+    assert.ok(packageRecommendation.body.recommendation.components.some((component) => component.type === 'washer'));
+    const selectedPackageComponents = packageRecommendation.body.recommendation.components.filter((component) => (
+      component.required || component.selectedByDefault
+    ));
+    const selectedPackageItems = selectedPackageComponents.flatMap((component) => component.bookings);
+    assert.ok(selectedPackageComponents.length >= 2);
+    const packageBooking = await expectStatus(packageUser, '/api/booking-package', 201, {
+      method: 'POST',
+      body: JSON.stringify({ items: selectedPackageItems })
+    });
+    assert.ok(packageBooking.body.created.length >= 2);
+    const packageUserBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
+    assert.equal(packageUserBookings.body.bookings.length, packageBooking.body.created.length);
+
+    const packageSupplement = await expectStatus(packageUser, '/api/recommendation', 200);
+    if (packageSupplement.body.recommendation.kind === 'package') {
+      assert.ok(packageSupplement.body.recommendation.washerBookingId);
+      const supplementItems = packageSupplement.body.recommendation.components
+        .filter((component) => !component.required)
+        .flatMap((component) => component.bookings);
+      await expectStatus(packageUser, '/api/booking-package', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          washerBookingId: packageSupplement.body.recommendation.washerBookingId,
+          items: supplementItems
+        })
+      });
+    }
+
+    const rollbackUser = new ApiClient();
+    await expectStatus(rollbackUser, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Paket Rollback',
+        email: 'paket-rollback@example.com',
+        password: 'Paket-Rollback-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    const rollbackRecommendation = await expectStatus(rollbackUser, '/api/recommendation', 200);
+    assert.equal(rollbackRecommendation.body.recommendation.kind, 'package');
+    const invalidPackageItems = rollbackRecommendation.body.recommendation.components
+      .filter((component) => component.required || component.selectedByDefault)
+      .flatMap((component) => component.bookings)
+      .map((item) => ({ ...item }));
+    const companionIndex = invalidPackageItems.findIndex((item, index) => index > 0);
+    assert.ok(companionIndex > 0);
+    invalidPackageItems[companionIndex].date = addDays(invalidPackageItems[companionIndex].date, 5);
+    await expectStatus(rollbackUser, '/api/booking-package', 400, {
+      method: 'POST',
+      body: JSON.stringify({ items: invalidPackageItems })
+    });
+    const rollbackBookings = await expectStatus(rollbackUser, '/api/my-bookings', 200);
+    assert.equal(rollbackBookings.body.bookings.length, 0);
+
     const firstWasher = await expectStatus(user, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({ resourceId: washers[0].id, date: bookingDate, slot: '07:00-12:00' })
@@ -338,15 +407,76 @@ async function run() {
       body: JSON.stringify({ username: 'bewohner-test@example.com', password: 'Bewohner-Neu-2026!' })
     });
 
-    await expectStatus(admin, '/api/login', 200, {
+    const adminLogin = await expectStatus(admin, '/api/login', 200, {
       method: 'POST',
       body: JSON.stringify({ username: 'admin', password: 'Admin-Test-2026!' })
     });
+    assert.equal(adminLogin.body.user.isSuperadmin, true);
     const users = await expectStatus(admin, '/api/admin/users', 200);
     const resident = users.body.users.find((item) => item.username === 'Bewohner Test');
     const adminUser = users.body.users.find((item) => item.username === 'admin');
     assert.ok(resident && adminUser);
     await expectStatus(admin, '/api/admin/email-test', 409, { method: 'POST' });
+
+    const initialHouses = await expectStatus(admin, '/api/admin/houses', 200);
+    assert.equal(initialHouses.body.houses.length, 1);
+    const defaultHouseId = initialHouses.body.activeHouseId;
+    await expectStatus(user, '/api/admin/houses', 403);
+    await expectStatus(user, '/api/me/active-house', 403, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
+
+    const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Maneggplatz 20', code: 'Testhaus 20' })
+    });
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: secondHouse.body.house.id })
+    });
+    const secondHouseResources = await expectStatus(admin, '/api/resources', 200);
+    assert.equal(secondHouseResources.body.resources.length, 8);
+    assert.ok(!secondHouseResources.body.resources.some((resource) => (
+      resources.some((defaultResource) => defaultResource.id === resource.id)
+    )));
+
+    const secondHouseUser = new ApiClient();
+    const secondHouseRegistration = await expectStatus(secondHouseUser, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Bewohner Haus 20',
+        email: 'haus20@example.com',
+        password: 'Bewohner-Haus20!',
+        houseCode: 'Testhaus 20',
+        notifyReleases: true
+      })
+    });
+    assert.equal(secondHouseRegistration.body.user.houseName, 'Maneggplatz 20');
+    const secondWasher = secondHouseResources.body.resources.find((resource) => resource.type === 'washer');
+    await expectStatus(secondHouseUser, '/api/bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: secondWasher.id, date: bookingDate, slot: '07:00-12:00' })
+    });
+    const secondHouseBookings = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(secondHouseBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
+    assert.ok(!secondHouseBookings.body.bookings.some((booking) => booking.username === 'Bewohner Test'));
+    const secondHouseUsers = await expectStatus(admin, '/api/admin/users', 200);
+    const secondResident = secondHouseUsers.body.users.find((item) => item.username === 'Bewohner Haus 20');
+    assert.ok(secondResident);
+    await expectStatus(admin, `/api/admin/users/${secondResident.id}/role`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ role: 'admin' })
+    });
+
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
+    const isolatedDefaultBookings = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(!isolatedDefaultBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
+    const isolatedDefaultUsers = await expectStatus(admin, '/api/admin/users', 200);
+    assert.ok(!isolatedDefaultUsers.body.users.some((item) => item.username === 'Bewohner Haus 20'));
 
     await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
       method: 'POST',
@@ -396,8 +526,11 @@ async function run() {
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('knapp vier Minuten'));
     assert.ok(indexHtml.includes('Absagen &amp; informieren'));
+    assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
+    const appScript = await expectStatus(guest, '/app.js', 200);
+    assert.ok(appScript.body.toString().includes('/api/booking-package'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
@@ -417,6 +550,9 @@ async function run() {
         passwordRecovery: true,
         bookingRules: true,
         smartCalendar: true,
+        smartPackage: true,
+        multiHouseIsolation: true,
+        superadmin: true,
         fixedBookings: true,
         accountManagement: true,
         backup: true,

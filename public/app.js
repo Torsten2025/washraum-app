@@ -1,5 +1,9 @@
 const userLine = document.querySelector('#userLine');
 const logoutButton = document.querySelector('#logoutButton');
+const brandHouseName = document.querySelector('#brandHouseName');
+const introHouseName = document.querySelector('#introHouseName');
+const houseSwitcher = document.querySelector('#houseSwitcher');
+const houseSelect = document.querySelector('#houseSelect');
 const bookingDate = document.querySelector('#bookingDate');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const weekCalendar = document.querySelector('#weekCalendar');
@@ -12,8 +16,15 @@ const statusText = document.querySelector('#statusText');
 const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
+const adminTitle = document.querySelector('#adminTitle');
+const backupOperation = document.querySelector('#backupOperation');
 const houseCodeForm = document.querySelector('#houseCodeForm');
 const houseCodeInput = document.querySelector('#houseCodeInput');
+const superadminBox = document.querySelector('#superadminBox');
+const houseForm = document.querySelector('#houseForm');
+const houseNameInput = document.querySelector('#houseNameInput');
+const newHouseCodeInput = document.querySelector('#newHouseCodeInput');
+const houseList = document.querySelector('#houseList');
 const notificationForm = document.querySelector('#notificationForm');
 const notificationEmail = document.querySelector('#notificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
@@ -53,6 +64,7 @@ const introQuizResult = document.querySelector('#introQuizResult');
 const recordedIntroVideo = document.querySelector('#recordedIntroVideo');
 
 let currentUser = null;
+let availableHouses = [];
 let resources = [];
 let bookings = [];
 let slots = [];
@@ -88,14 +100,14 @@ const introVideoSteps = [
     id: 'overview',
     fallbackDurationMs: 18000,
     title: 'Willkommen im Waschplan',
-    caption: 'Deine Termine, ein passender Vorschlag und die freien Tage liegen direkt beieinander.',
-    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter schl\u00e4gt dir die App einen passenden Termin vor. Im Wochenkalender siehst du, an welchen Tagen noch etwas frei ist.',
+    caption: 'Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter stellt dir die App ein passendes Waschpaket zusammen. Im Wochenkalender siehst du, an welchen Tagen noch etwas frei ist.',
     visual: `
       <div class="scene-overview">
         <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
         <div class="scene-grid">
           <div class="scene-panel"><small>Meine Buchung</small><strong>Di, 07:00</strong><span>Waschmaschine 2</span></div>
-          <div class="scene-panel scene-accent"><small>Pers\u00f6nlicher Vorschlag</small><strong>Do, 12:00</strong><span>Direkt buchen</span></div>
+          <div class="scene-panel scene-accent"><small>Pers\u00f6nliches Waschpaket</small><strong>Do, 12:00</strong><span>Gemeinsam buchen</span></div>
           <div class="scene-panel"><small>Diese Woche</small><strong>5 Tage frei</strong><span>Kalender ansehen</span></div>
         </div>
       </div>`
@@ -116,14 +128,14 @@ const introVideoSteps = [
   {
     id: 'suggestion',
     fallbackDurationMs: 31000,
-    title: 'Dein pers\u00f6nlicher Vorschlag',
+    title: 'Dein pers\u00f6nliches Waschpaket',
     caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
-    speech: 'Der pers\u00f6nliche Vorschlag nimmt dir die Suche ab. Er verbindet deinen bisherigen Waschrhythmus mit den aktuell freien Zeiten. So bekommst du einen Termin, der wahrscheinlich gut zu deinem Alltag passt. Mit Vorschlag buchen \u00fcbernimmst du ihn direkt. Vorher kannst du Tag, Zeit oder Ger\u00e4t jederzeit \u00e4ndern. Der Vorschlag ist nur eine Abk\u00fcrzung. Alle freien Termine bleiben sichtbar, und du entscheidest selbst.',
+    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten und stellt eine Waschmaschine sowie passende Erg\u00e4nzungen zusammen. Trockenraum und Tumbler kannst du vor dem Buchen an- oder abw\u00e4hlen. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert. Einzelne Termine bleiben im Kalender weiterhin frei w\u00e4hlbar.',
     visual: `
       <div class="scene-suggestion">
-        <div class="scene-suggestion-head"><span><small>Pers\u00f6nlicher Vorschlag</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
-        <div class="scene-slot scene-suggestion-slot"><span><small>Donnerstag, 16. Juli</small><strong>12:00 - 17:00</strong><em>Waschmaschine 2</em></span><b>Vorschlag buchen</b></div>
-        <div class="scene-suggestion-steps"><span><b>1</b>Pr\u00fcfen</span><span><b>2</b>Bei Bedarf \u00e4ndern</span><span><b>3</b>Direkt buchen</span></div>
+        <div class="scene-suggestion-head"><span><small>Pers\u00f6nliches Waschpaket</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
+        <div class="scene-slot scene-suggestion-slot"><span><small>Donnerstag, 16. Juli</small><strong>12:00 - 17:00</strong><em>Waschmaschine 2 + Trockenraum</em></span><b>Paket buchen</b></div>
+        <div class="scene-suggestion-steps"><span><b>1</b>Pr\u00fcfen</span><span><b>2</b>Zus\u00e4tze w\u00e4hlen</span><span><b>3</b>Gemeinsam buchen</span></div>
       </div>`
   },
   {
@@ -589,7 +601,8 @@ async function init() {
   }
 
   currentUser = me.user;
-  userLine.textContent = `${currentUser.username} (${currentUser.role})`;
+  availableHouses = me.houses || [];
+  renderHouseContext();
   notificationEmail.value = currentUser.email || '';
   notifyReleasesInput.checked = currentUser.notifyReleases !== false;
 
@@ -609,6 +622,44 @@ async function init() {
   if (pageUrl.searchParams.get('welcome') === '1') {
     openIntro();
     window.history.replaceState({}, '', '/index.html');
+  }
+}
+
+function renderHouseContext() {
+  const roleLabel = currentUser.isSuperadmin
+    ? 'Superadmin'
+    : currentUser.role === 'admin'
+      ? 'Haus-Admin'
+      : 'Bewohner';
+  userLine.textContent = `${currentUser.username} - ${roleLabel} - ${currentUser.houseName}`;
+  brandHouseName.textContent = currentUser.houseName;
+  introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
+  adminTitle.textContent = `Admin - ${currentUser.houseName}`;
+
+  houseSwitcher.hidden = !currentUser.isSuperadmin;
+  if (currentUser.isSuperadmin) {
+    houseSelect.innerHTML = availableHouses.map((house) => (
+      `<option value="${house.id}">${escapeHtml(house.name)}</option>`
+    )).join('');
+    houseSelect.value = String(currentUser.activeHouseId);
+  }
+}
+
+async function switchHouse(houseId) {
+  try {
+    const data = await api('/api/me/active-house', {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: Number(houseId) })
+    });
+    currentUser = data.user;
+    renderHouseContext();
+    const resourceData = await api('/api/resources');
+    resources = resourceData.resources;
+    await Promise.all([refreshAll(), loadAdmin()]);
+    showStatus(data.message);
+  } catch (error) {
+    houseSelect.value = String(currentUser.activeHouseId);
+    showStatus(error.message, 'error');
   }
 }
 
@@ -703,6 +754,26 @@ function renderCalendar() {
   }
 }
 
+function packageComponentDetail(component, recommendation) {
+  const componentBookings = component.bookings || [];
+  if (component.existing) {
+    return `${component.resourceName} - ${formatShortDate(recommendation.date)} - ${recommendation.slot} - bereits gebucht`;
+  }
+  const firstBooking = componentBookings[0];
+  if (!firstBooking) {
+    return component.resourceName;
+  }
+  if (component.type !== 'drying_room' || componentBookings.length === 1) {
+    return `${component.resourceName} - ${formatShortDate(firstBooking.date)} - ${firstBooking.slot}`;
+  }
+  const lastBooking = componentBookings[componentBookings.length - 1];
+  const endTime = lastBooking.slot.split('-')[1];
+  const endLabel = lastBooking.date === firstBooking.date
+    ? endTime
+    : `${formatShortDate(lastBooking.date)}, ${endTime}`;
+  return `${component.resourceName} - ab ${firstBooking.slot.split('-')[0]} bis ${endLabel}`;
+}
+
 function renderRecommendation() {
   bookingSuggestion.innerHTML = '';
   const recommendation = currentRecommendation;
@@ -733,11 +804,57 @@ function renderRecommendation() {
     copy.append(detail);
   }
   copy.append(reason);
+
+  const packageSelections = new Map();
+  if (recommendation.kind === 'package') {
+    const packageOptions = document.createElement('div');
+    packageOptions.className = 'package-options';
+    for (const component of recommendation.components || []) {
+      const option = document.createElement(component.required ? 'div' : 'label');
+      option.className = `package-option${component.required ? ' is-required' : ''}`;
+
+      if (component.required) {
+        const status = document.createElement('span');
+        status.className = 'package-option-status';
+        status.textContent = component.existing ? 'Gebucht' : 'Dabei';
+        option.append(status);
+      } else {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = component.selectedByDefault !== false;
+        input.setAttribute('aria-label', `${typeLabel(component.type)} in das Waschpaket aufnehmen`);
+        packageSelections.set(component.id, input);
+        option.append(input);
+      }
+
+      const optionCopy = document.createElement('span');
+      const optionTitle = document.createElement('strong');
+      optionTitle.textContent = typeLabel(component.type);
+      const optionDetail = document.createElement('small');
+      optionDetail.textContent = packageComponentDetail(component, recommendation);
+      optionCopy.append(optionTitle, optionDetail);
+      option.append(optionCopy);
+      packageOptions.append(option);
+    }
+    copy.append(packageOptions);
+  }
   bookingSuggestion.append(copy);
 
   const actions = document.createElement('div');
   actions.className = 'suggestion-actions';
-  if (recommendation.kind === 'booking') {
+  if (recommendation.kind === 'package') {
+    const packageButton = document.createElement('button');
+    packageButton.type = 'button';
+    packageButton.textContent = recommendation.actionLabel || 'Waschpaket buchen';
+    packageButton.addEventListener('click', () => {
+      const selectedComponents = (recommendation.components || []).filter((component) => (
+        component.required || packageSelections.get(component.id)?.checked
+      ));
+      const items = selectedComponents.flatMap((component) => component.bookings || []);
+      createBookingPackage(items, recommendation);
+    });
+    actions.append(packageButton);
+  } else if (recommendation.kind === 'booking') {
     const bookButton = document.createElement('button');
     bookButton.type = 'button';
     bookButton.textContent = recommendation.actionLabel || 'Direkt buchen';
@@ -919,6 +1036,26 @@ async function createBooking(resourceId, slot, date = bookingDate.value, type = 
   }
 }
 
+async function createBookingPackage(items, recommendation) {
+  try {
+    const data = await api('/api/booking-package', {
+      method: 'POST',
+      body: JSON.stringify({
+        washerBookingId: recommendation.washerBookingId || null,
+        items
+      })
+    });
+    bookingDate.value = recommendation.date;
+    calendarStartDate = startOfWeek(recommendation.date);
+    activeType = 'washer';
+    filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === 'washer'));
+    showStatus(data.message || 'Waschpaket gespeichert.');
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 async function deleteBooking(id) {
   try {
     const data = await api(`/api/bookings/${id}`, { method: 'DELETE' });
@@ -1001,14 +1138,23 @@ async function changePassword() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, settingsData, fixedData] = await Promise.all([
+  const [usersData, overviewData, settingsData, fixedData, housesData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/settings'),
-    api('/api/admin/fixed-bookings')
+    api('/api/admin/fixed-bookings'),
+    currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] })
   ]);
   adminBox.hidden = false;
+  adminTitle.textContent = `Admin - ${settingsData.houseName}`;
   houseCodeInput.value = settingsData.houseCode;
+  backupOperation.hidden = !currentUser.isSuperadmin;
+  superadminBox.hidden = !currentUser.isSuperadmin;
+  if (currentUser.isSuperadmin) {
+    availableHouses = housesData.houses.filter((house) => house.active);
+    renderHouseContext();
+    renderHouses(housesData.houses);
+  }
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
   adminOverview.innerHTML = `
@@ -1047,7 +1193,8 @@ function renderAdminUsers(users) {
     const name = document.createElement('strong');
     name.textContent = user.username;
     const meta = document.createElement('span');
-    meta.textContent = `${user.role === 'admin' ? 'Admin' : 'Bewohner'} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ''}`;
+    const roleName = user.is_superadmin ? 'Superadmin' : user.role === 'admin' ? 'Haus-Admin' : 'Bewohner';
+    meta.textContent = `${roleName} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ''}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -1057,7 +1204,7 @@ function renderAdminUsers(users) {
     statusButton.type = 'button';
     statusButton.className = user.active ? 'secondary danger' : 'secondary';
     statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
-    statusButton.disabled = user.id === currentUser.id;
+    statusButton.disabled = user.id === currentUser.id || Boolean(user.is_superadmin);
     statusButton.title = statusButton.disabled ? 'Das eigene Konto bleibt aktiv' : `${user.username} ${statusButton.textContent.toLowerCase()}`;
     statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
 
@@ -1081,9 +1228,45 @@ function renderAdminUsers(users) {
       resetUserPassword(user.id, password.value, resetForm);
     });
 
-    actions.append(statusButton, resetForm);
+    actions.append(statusButton);
+    if (currentUser.isSuperadmin && !user.is_superadmin) {
+      const roleButton = document.createElement('button');
+      roleButton.type = 'button';
+      roleButton.className = 'secondary';
+      roleButton.textContent = user.role === 'admin' ? 'Zu Bewohner' : 'Zu Haus-Admin';
+      roleButton.addEventListener('click', () => updateUserRole(
+        user.id,
+        user.role === 'admin' ? 'user' : 'admin'
+      ));
+      actions.append(roleButton);
+    }
+    if (!user.is_superadmin || user.id === currentUser.id) {
+      actions.append(resetForm);
+    }
     item.append(identity, actions);
     userList.append(item);
+  }
+}
+
+function renderHouses(houses) {
+  houseList.innerHTML = '';
+  for (const house of houses) {
+    const item = document.createElement('article');
+    item.className = 'house-admin-item';
+    const copy = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = house.name;
+    const meta = document.createElement('span');
+    meta.textContent = `${house.users} Personen - ${house.resources} Ger\u00e4te`;
+    copy.append(name, meta);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = Number(house.id) === Number(currentUser.activeHouseId) ? 'Aktiv' : 'Anzeigen';
+    button.disabled = Number(house.id) === Number(currentUser.activeHouseId);
+    button.addEventListener('click', () => switchHouse(house.id));
+    item.append(copy, button);
+    houseList.append(item);
   }
 }
 
@@ -1092,6 +1275,19 @@ async function updateUserStatus(userId, active) {
     const data = await api(`/api/admin/users/${userId}/status`, {
       method: 'PUT',
       body: JSON.stringify({ active })
+    });
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function updateUserRole(userId, role) {
+  try {
+    const data = await api(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role })
     });
     showStatus(data.message);
     await loadAdmin();
@@ -1181,6 +1377,23 @@ async function deleteFixedBooking(id) {
   }
 }
 
+async function createHouse() {
+  try {
+    const data = await api('/api/admin/houses', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: houseNameInput.value,
+        code: newHouseCodeInput.value
+      })
+    });
+    houseForm.reset();
+    await switchHouse(data.house.id);
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
 
 previousWeekButton.addEventListener('click', () => {
@@ -1222,6 +1435,13 @@ filterButtons.forEach((button) => {
   button.addEventListener('click', () => {
     setActiveType(button.dataset.type);
   });
+});
+
+houseSelect.addEventListener('change', () => switchHouse(houseSelect.value));
+
+houseForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await createHouse();
 });
 
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);

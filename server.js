@@ -105,21 +105,33 @@ const slots = [
 
 function createCurrentTables() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS houses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
       email TEXT,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+      house_id INTEGER,
+      is_superadmin INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       notify_releases INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT
     );
 
     CREATE TABLE IF NOT EXISTS resources (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL CHECK (type IN ('washer', 'drying_room', 'tumbler')),
+      house_id INTEGER,
       active INTEGER NOT NULL DEFAULT 1
     );
 
@@ -148,6 +160,7 @@ function createCurrentTables() {
       slot TEXT NOT NULL,
       kind TEXT NOT NULL DEFAULT 'early_release',
       message TEXT NOT NULL,
+      house_id INTEGER,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
@@ -173,28 +186,40 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('users', 'house_id', 'INTEGER');
+  ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('resources', 'house_id', 'INTEGER');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
+  ensureColumn('release_notices', 'house_id', 'INTEGER');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
+  const initialHouseCode = getSetting('house_code').trim()
+    || process.env.HOUSE_CODE
+    || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
+  const defaultHouse = seedHouse(process.env.HOUSE_NAME || 'Maneggplatz 18', initialHouseCode);
+  db.prepare('UPDATE users SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
+  db.prepare('UPDATE resources SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
+  db.prepare('UPDATE release_notices SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
+
   const seededAdminPassword = String(process.env.SEED_ADMIN_PASSWORD || '');
   if (seededAdminPassword) {
-    seedUser(process.env.SEED_ADMIN_NAME || 'admin', seededAdminPassword, 'admin');
+    seedUser(process.env.SEED_ADMIN_NAME || 'admin', seededAdminPassword, 'admin', defaultHouse.id, true);
   } else if (!isProduction) {
-    seedUser('admin', 'admin123', 'admin');
+    seedUser('admin', 'admin123', 'admin', defaultHouse.id, true);
   }
   if (!isProduction) {
-    seedUser('user', 'user123', 'user');
+    seedUser('user', 'user123', 'user', defaultHouse.id);
   }
-  seedResource('Waschmaschine 1', 'washer');
-  seedResource('Waschmaschine 2', 'washer');
-  seedResource('Waschmaschine 3', 'washer');
-  seedResource('Trockenraum 1', 'drying_room');
-  seedResource('Trockenraum 2', 'drying_room');
-  seedResource('Trockenraum 3', 'drying_room');
-  seedResource('Tumbler 1', 'tumbler');
-  seedResource('Tumbler 2', 'tumbler');
-  const initialHouseCode = process.env.HOUSE_CODE
-    || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
+  seedHouseResources(defaultHouse.id);
   seedSetting('house_code', initialHouseCode);
+
+  const superadmin = db.prepare("SELECT id FROM users WHERE role = 'admin' AND is_superadmin = 1 LIMIT 1").get();
+  if (!superadmin) {
+    db.prepare(`
+      UPDATE users SET is_superadmin = 1
+      WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1)
+    `).run();
+  }
 }
 
 function tableExists(table) {
@@ -406,19 +431,46 @@ function ensureColumn(table, column, definition) {
   }
 }
 
-function seedUser(username, password, role) {
+function seedUser(username, password, role, houseId, isSuperadmin = false) {
   const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (!exists) {
-    db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
-      .run(username, bcrypt.hashSync(password, 10), role);
+    db.prepare('INSERT INTO users (username, password_hash, role, house_id, is_superadmin) VALUES (?, ?, ?, ?, ?)')
+      .run(username, bcrypt.hashSync(password, 10), role, houseId, isSuperadmin ? 1 : 0);
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET house_id = COALESCE(house_id, ?),
+          is_superadmin = CASE WHEN ? = 1 THEN 1 ELSE is_superadmin END
+      WHERE id = ?
+    `).run(houseId, isSuperadmin ? 1 : 0, exists.id);
   }
 }
 
-function seedResource(name, type) {
-  const exists = db.prepare('SELECT id FROM resources WHERE name = ?').get(name);
-  if (!exists) {
-    db.prepare('INSERT INTO resources (name, type) VALUES (?, ?)').run(name, type);
+function seedHouse(name, code) {
+  const existing = db.prepare('SELECT id, name, code, active FROM houses WHERE lower(name) = lower(?)').get(name);
+  if (existing) {
+    return existing;
   }
+  const result = db.prepare('INSERT INTO houses (name, code) VALUES (?, ?)').run(name, code);
+  return db.prepare('SELECT id, name, code, active FROM houses WHERE id = ?').get(result.lastInsertRowid);
+}
+
+function seedResource(name, type, houseId) {
+  const exists = db.prepare('SELECT id FROM resources WHERE name = ? AND house_id = ?').get(name, houseId);
+  if (!exists) {
+    db.prepare('INSERT INTO resources (name, type, house_id) VALUES (?, ?, ?)').run(name, type, houseId);
+  }
+}
+
+function seedHouseResources(houseId) {
+  seedResource('Waschmaschine 1', 'washer', houseId);
+  seedResource('Waschmaschine 2', 'washer', houseId);
+  seedResource('Waschmaschine 3', 'washer', houseId);
+  seedResource('Trockenraum 1', 'drying_room', houseId);
+  seedResource('Trockenraum 2', 'drying_room', houseId);
+  seedResource('Trockenraum 3', 'drying_room', houseId);
+  seedResource('Tumbler 1', 'tumbler', houseId);
+  seedResource('Tumbler 2', 'tumbler', houseId);
 }
 
 function seedSetting(key, value) {
@@ -521,7 +573,7 @@ function weekdayForDate(dateString) {
   return new Date(`${dateString}T12:00:00`).getDay();
 }
 
-function getFixedBookingsForDate(dateString) {
+function getFixedBookingsForDate(dateString, houseId) {
   const weekday = weekdayForDate(dateString);
   if (weekday === 0) {
     return [];
@@ -535,12 +587,13 @@ function getFixedBookingsForDate(dateString) {
     JOIN resources r ON r.id = fb.resource_id
     WHERE fb.active = 1
       AND r.active = 1
+      AND r.house_id = ?
       AND fb.weekday = ?
     ORDER BY fb.slot, r.name
-  `).all(dateString, weekday);
+  `).all(dateString, houseId, weekday);
 }
 
-function fixedBookingConflict(resourceId, dateString, slot) {
+function fixedBookingConflict(resourceId, dateString, slot, houseId) {
   const weekday = weekdayForDate(dateString);
   if (weekday === 0) {
     return null;
@@ -552,10 +605,11 @@ function fixedBookingConflict(resourceId, dateString, slot) {
     JOIN resources r ON r.id = fb.resource_id
     WHERE fb.active = 1
       AND fb.resource_id = ?
+      AND r.house_id = ?
       AND fb.weekday = ?
       AND fb.slot = ?
     LIMIT 1
-  `).get(Number(resourceId), weekday, slot);
+  `).get(Number(resourceId), houseId, weekday, slot);
 }
 
 function allowedDryingRoomSlots(washDate, washSlot) {
@@ -587,7 +641,7 @@ function allowedDryingRoomSlots(washDate, washSlot) {
   return [];
 }
 
-function hasAllowedDryingRoomWindow(userId, date, slot) {
+function hasAllowedDryingRoomWindow(userId, date, slot, houseId) {
   const previousDate = addDays(date, -1);
   const washerBookings = db.prepare(`
     SELECT b.booking_date, b.slot
@@ -595,8 +649,9 @@ function hasAllowedDryingRoomWindow(userId, date, slot) {
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = 'washer'
+      AND r.house_id = ?
       AND b.booking_date IN (?, ?)
-  `).all(userId, date, previousDate);
+  `).all(userId, houseId, date, previousDate);
 
   return washerBookings.some((booking) => (
     allowedDryingRoomSlots(booking.booking_date, booking.slot)
@@ -604,7 +659,7 @@ function hasAllowedDryingRoomWindow(userId, date, slot) {
   ));
 }
 
-function validateWasherBooking(userId, date, slot) {
+function validateWasherBooking(userId, date, slot, houseId) {
   const today = todayStringLocal();
   const washerBookings = db.prepare(`
     SELECT b.booking_date, b.slot
@@ -612,8 +667,9 @@ function validateWasherBooking(userId, date, slot) {
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = 'washer'
+      AND r.house_id = ?
       AND b.booking_date >= ?
-  `).all(userId, today);
+  `).all(userId, houseId, today);
 
   const sameDayDifferentSlot = washerBookings.find((booking) => (
     booking.booking_date === date && booking.slot !== slot
@@ -632,21 +688,22 @@ function validateWasherBooking(userId, date, slot) {
   return '';
 }
 
-function validateTumblerBooking(date, slot) {
+function validateTumblerBooking(date, slot, houseId) {
   const totalTumblers = db.prepare(`
     SELECT COUNT(*) AS count
     FROM resources
-    WHERE active = 1 AND type = 'tumbler'
-  `).get().count;
+    WHERE active = 1 AND type = 'tumbler' AND house_id = ?
+  `).get(houseId).count;
 
   const bookedTumblers = db.prepare(`
     SELECT COUNT(*) AS count
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE r.type = 'tumbler'
+      AND r.house_id = ?
       AND b.booking_date = ?
       AND b.slot = ?
-  `).get(date, slot).count;
+  `).get(houseId, date, slot).count;
 
   const fixedTumblers = db.prepare(`
     SELECT COUNT(*) AS count
@@ -654,9 +711,10 @@ function validateTumblerBooking(date, slot) {
     JOIN resources r ON r.id = fb.resource_id
     WHERE fb.active = 1
       AND r.type = 'tumbler'
+      AND r.house_id = ?
       AND fb.weekday = ?
       AND fb.slot = ?
-  `).get(weekdayForDate(date), slot).count;
+  `).get(houseId, weekdayForDate(date), slot).count;
 
   if (bookedTumblers + fixedTumblers >= Math.max(0, totalTumblers - 1)) {
     return 'Mindestens ein Tumbler muss am Ende des Waschslots frei bleiben.';
@@ -665,42 +723,43 @@ function validateTumblerBooking(date, slot) {
   return '';
 }
 
-function validateDryingRoomBooking(userId, date, slot) {
+function validateDryingRoomBooking(userId, date, slot, houseId) {
   const userDryingRoomInSlot = db.prepare(`
     SELECT b.id
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = 'drying_room'
+      AND r.house_id = ?
       AND b.booking_date = ?
       AND b.slot = ?
     LIMIT 1
-  `).get(userId, date, slot);
+  `).get(userId, houseId, date, slot);
 
   if (userDryingRoomInSlot) {
     return 'Pro Slot kann nur ein Trockenraum reserviert werden.';
   }
 
-  if (!hasAllowedDryingRoomWindow(userId, date, slot)) {
+  if (!hasAllowedDryingRoomWindow(userId, date, slot, houseId)) {
     return 'Trockenr\u00e4ume k\u00f6nnen nur passend zu deiner Waschmaschinen-Buchung reserviert werden: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.';
   }
 
   return '';
 }
 
-function calendarDaySummary(userId, date) {
+function calendarDaySummary(userId, date, houseId) {
   const activeResources = db.prepare(`
     SELECT id, type
     FROM resources
-    WHERE active = 1
-  `).all();
+    WHERE active = 1 AND house_id = ?
+  `).all(houseId);
   const normalBookings = db.prepare(`
     SELECT b.resource_id, b.slot, b.user_id, r.type AS resource_type
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
-    WHERE b.booking_date = ?
-  `).all(date);
-  const fixedBookings = getFixedBookingsForDate(date);
+    WHERE b.booking_date = ? AND r.house_id = ?
+  `).all(date, houseId);
+  const fixedBookings = getFixedBookingsForDate(date, houseId);
   const occupied = new Set([
     ...normalBookings.map((booking) => `${booking.resource_id}|${booking.slot}`),
     ...fixedBookings.map((booking) => `${booking.resource_id}|${booking.slot}`)
@@ -748,18 +807,18 @@ function calendarDaySummary(userId, date) {
   };
 }
 
-function findAvailableResource(userId, type, date, slot) {
+function findAvailableResource(userId, type, date, slot, houseId) {
   if (isPastSlot(date, slot)) {
     return null;
   }
 
   let ruleError = '';
   if (type === 'washer') {
-    ruleError = validateWasherBooking(userId, date, slot);
+    ruleError = validateWasherBooking(userId, date, slot, houseId);
   } else if (type === 'drying_room') {
-    ruleError = validateDryingRoomBooking(userId, date, slot);
+    ruleError = validateDryingRoomBooking(userId, date, slot, houseId);
   } else if (type === 'tumbler') {
-    ruleError = validateTumblerBooking(date, slot);
+    ruleError = validateTumblerBooking(date, slot, houseId);
   }
   if (ruleError) {
     return null;
@@ -770,6 +829,7 @@ function findAvailableResource(userId, type, date, slot) {
     FROM resources r
     WHERE r.active = 1
       AND r.type = ?
+      AND r.house_id = ?
       AND NOT EXISTS (
         SELECT 1
         FROM bookings b
@@ -787,97 +847,139 @@ function findAvailableResource(userId, type, date, slot) {
       )
     ORDER BY r.name
     LIMIT 1
-  `).get(type, date, slot, weekdayForDate(date), slot) || null;
+  `).get(type, houseId, date, slot, weekdayForDate(date), slot) || null;
 }
 
-function userHasBookingInWindow(userId, type, window) {
+function userHasBookingInWindow(userId, type, window, houseId) {
   return window.some(({ date, slot }) => Boolean(db.prepare(`
     SELECT b.id
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = ?
+      AND r.house_id = ?
       AND b.booking_date = ?
       AND b.slot = ?
     LIMIT 1
-  `).get(userId, type, date, slot)));
+  `).get(userId, type, houseId, date, slot)));
 }
 
-function companionPreference(userId) {
+function companionPreference(userId, houseId) {
   const rows = db.prepare(`
     SELECT r.type, COUNT(*) AS count
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND b.booking_date < date('now', 'localtime')
+      AND r.house_id = ?
       AND r.type IN ('drying_room', 'tumbler')
     GROUP BY r.type
-  `).all(userId);
+  `).all(userId, houseId);
   const counts = Object.fromEntries(rows.map((row) => [row.type, row.count]));
   return (counts.tumbler || 0) > (counts.drying_room || 0)
     ? ['tumbler', 'drying_room']
     : ['drying_room', 'tumbler'];
 }
 
-function companionRecommendation(userId, washerBooking) {
-  const dryingWindow = allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
-  const candidates = {};
+function findAvailableResourceForWindow(type, window, houseId) {
+  if (!window.length || window.some((item) => isPastSlot(item.date, item.slot) || isSunday(item.date))) {
+    return null;
+  }
 
-  if (!userHasBookingInWindow(userId, 'drying_room', dryingWindow)) {
-    for (const option of dryingWindow) {
-      const resource = findAvailableResource(userId, 'drying_room', option.date, option.slot);
-      if (resource) {
-        candidates.drying_room = {
-          resource,
-          date: option.date,
-          slot: option.slot,
-          title: 'Trockenraum erg\u00e4nzen',
-          reason: 'Passt zu deiner vorhandenen Waschmaschinen-Buchung.'
-        };
-        break;
-      }
+  const resourcesForType = db.prepare(`
+    SELECT id, name, type
+    FROM resources
+    WHERE active = 1 AND type = ? AND house_id = ?
+    ORDER BY name
+  `).all(type, houseId);
+  const occupied = db.prepare(`
+    SELECT id
+    FROM bookings
+    WHERE resource_id = ? AND booking_date = ? AND slot = ?
+    LIMIT 1
+  `);
+
+  return resourcesForType.find((resource) => window.every((item) => (
+    !occupied.get(resource.id, item.date, item.slot)
+    && !fixedBookingConflict(resource.id, item.date, item.slot, houseId)
+  ))) || null;
+}
+
+function defaultDryingWindow(washDate, washSlot) {
+  return allowedDryingRoomSlots(washDate, washSlot).slice(0, 2);
+}
+
+function packageComponent(type, resource, bookings, options = {}) {
+  return {
+    id: type,
+    type,
+    resourceName: resource.name,
+    required: Boolean(options.required),
+    existing: Boolean(options.existing),
+    selectedByDefault: Boolean(options.required || options.selectedByDefault),
+    bookings: bookings.map((booking) => ({
+      resourceId: resource.id,
+      date: booking.date,
+      slot: booking.slot
+    }))
+  };
+}
+
+function companionPackageRecommendation(userId, washerBooking, houseId) {
+  const preferredType = companionPreference(userId, houseId)[0];
+  const components = [packageComponent('washer', {
+    id: washerBooking.resource_id,
+    name: washerBooking.resource_name
+  }, [], { required: true, existing: true })];
+  const dryingWindow = allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
+
+  if (!userHasBookingInWindow(userId, 'drying_room', dryingWindow, houseId)) {
+    const suggestedWindow = defaultDryingWindow(washerBooking.booking_date, washerBooking.slot);
+    const dryingRoom = findAvailableResourceForWindow('drying_room', suggestedWindow, houseId);
+    if (dryingRoom) {
+      components.push(packageComponent('drying_room', dryingRoom, suggestedWindow, {
+        selectedByDefault: preferredType === 'drying_room'
+      }));
     }
   }
 
   const tumblerWindow = [{ date: washerBooking.booking_date, slot: washerBooking.slot }];
-  if (!userHasBookingInWindow(userId, 'tumbler', tumblerWindow)) {
-    const resource = findAvailableResource(
+  if (!userHasBookingInWindow(userId, 'tumbler', tumblerWindow, houseId)) {
+    const tumbler = findAvailableResource(
       userId,
       'tumbler',
       washerBooking.booking_date,
-      washerBooking.slot
+      washerBooking.slot,
+      houseId
     );
-    if (resource) {
-      candidates.tumbler = {
-        resource,
-        date: washerBooking.booking_date,
-        slot: washerBooking.slot,
-        title: 'Tumbler erg\u00e4nzen',
-        reason: 'Liegt im gleichen Zeitfenster wie deine Waschmaschinen-Buchung.'
-      };
+    if (tumbler) {
+      components.push(packageComponent('tumbler', tumbler, tumblerWindow, {
+        selectedByDefault: preferredType === 'tumbler'
+      }));
     }
   }
 
-  for (const type of companionPreference(userId)) {
-    const candidate = candidates[type];
-    if (candidate) {
-      return {
-        kind: 'booking',
-        resourceId: candidate.resource.id,
-        resourceName: candidate.resource.name,
-        resourceType: candidate.resource.type,
-        date: candidate.date,
-        slot: candidate.slot,
-        title: candidate.title,
-        reason: candidate.reason,
-        actionLabel: 'Direkt buchen'
-      };
-    }
+  if (components.length === 1) {
+    return null;
   }
-  return null;
+  if (!components.some((component) => component.selectedByDefault && !component.required)) {
+    components[1].selectedByDefault = true;
+  }
+
+  return {
+    kind: 'package',
+    washerBookingId: washerBooking.id,
+    date: washerBooking.booking_date,
+    slot: washerBooking.slot,
+    resourceType: 'washer',
+    title: 'Waschpaket erg\u00e4nzen',
+    reason: 'Die Waschmaschine ist bereits gebucht. W\u00e4hle die passenden Erg\u00e4nzungen und best\u00e4tige alles gemeinsam.',
+    actionLabel: 'Paket erg\u00e4nzen',
+    components
+  };
 }
 
-function washerHistoryPreference(userId) {
+function washerHistoryPreference(userId, houseId) {
   return db.prepare(`
     SELECT CAST(strftime('%w', b.booking_date) AS INTEGER) AS weekday,
            b.slot,
@@ -887,20 +989,62 @@ function washerHistoryPreference(userId) {
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = 'washer'
+      AND r.house_id = ?
       AND b.booking_date < date('now', 'localtime')
     GROUP BY weekday, b.slot
     ORDER BY count DESC, last_date DESC
     LIMIT 1
-  `).get(userId) || null;
+  `).get(userId, houseId) || null;
 }
 
-function nextWasherRecommendation(userId, startDate) {
-  const preference = washerHistoryPreference(userId);
+function washerPackageRecommendation(userId, washer, reason, houseId) {
+  const preferredType = companionPreference(userId, houseId)[0];
+  const washWindow = [{ date: washer.date, slot: washer.slot }];
+  const components = [packageComponent('washer', washer.resource, washWindow, { required: true })];
+  const suggestedDryingWindow = defaultDryingWindow(washer.date, washer.slot);
+  const dryingRoom = findAvailableResourceForWindow('drying_room', suggestedDryingWindow, houseId);
+  const tumbler = findAvailableResource(userId, 'tumbler', washer.date, washer.slot, houseId);
+
+  if (dryingRoom) {
+    components.push(packageComponent('drying_room', dryingRoom, suggestedDryingWindow, {
+      selectedByDefault: preferredType === 'drying_room'
+    }));
+  }
+  if (tumbler) {
+    components.push(packageComponent('tumbler', tumbler, washWindow, {
+      selectedByDefault: preferredType === 'tumbler'
+    }));
+  }
+  if (components.length === 1) {
+    return null;
+  }
+  if (!components.some((component) => component.selectedByDefault && !component.required)) {
+    components[1].selectedByDefault = true;
+  }
+
+  return {
+    kind: 'package',
+    date: washer.date,
+    slot: washer.slot,
+    resourceType: 'washer',
+    title: 'Dein Waschpaket',
+    reason: `${reason} Zusatzger\u00e4te kannst du vor dem Buchen an- oder abw\u00e4hlen.`,
+    actionLabel: 'Waschpaket buchen',
+    components
+  };
+}
+
+function nextWasherRecommendation(userId, startDate, houseId) {
+  const preference = washerHistoryPreference(userId, houseId);
   const candidates = [];
+  let fallback = null;
 
   for (let offset = 0; offset < 21; offset += 1) {
     const date = addDays(startDate, offset);
     const weekday = weekdayForDate(date);
+    if (weekday === 0) {
+      continue;
+    }
     for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
       const slot = slots[slotIndex];
       const score = preference
@@ -912,7 +1056,7 @@ function nextWasherRecommendation(userId, startDate) {
   candidates.sort((left, right) => left.score - right.score || left.date.localeCompare(right.date));
 
   for (const candidate of candidates) {
-    const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot);
+    const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot, houseId);
     if (!resource) {
       continue;
     }
@@ -921,7 +1065,12 @@ function nextWasherRecommendation(userId, startDate) {
       && candidate.weekday === preference.weekday
       && candidate.slot === preference.slot
     );
-    return {
+    const reason = preference
+      ? (matchesHabit
+        ? 'Dieser freie Termin entspricht deinem bisher h\u00e4ufigsten Waschrhythmus.'
+        : 'Dein \u00fcblicher Termin ist belegt. Dies ist die n\u00e4chste passende freie Option.')
+      : 'Ein fr\u00fcher freier Termin f\u00fcr deinen ersten Waschrhythmus.';
+    const washer = {
       kind: 'booking',
       resourceId: resource.id,
       resourceName: resource.name,
@@ -929,32 +1078,37 @@ function nextWasherRecommendation(userId, startDate) {
       date: candidate.date,
       slot: candidate.slot,
       title: preference ? 'Dein passender Waschslot' : 'N\u00e4chster freier Waschslot',
-      reason: preference
-        ? (matchesHabit
-          ? 'Dieser freie Termin entspricht deinem bisher h\u00e4ufigsten Waschrhythmus.'
-          : 'Dein \u00fcblicher Termin ist belegt. Dies ist die n\u00e4chste passende freie Option.')
-        : 'Ein fr\u00fcher freier Termin f\u00fcr deinen ersten Waschrhythmus.',
+      reason,
       actionLabel: 'Direkt buchen'
     };
+    fallback ||= washer;
+    const packageRecommendation = washerPackageRecommendation(userId, {
+      resource,
+      date: candidate.date,
+      slot: candidate.slot
+    }, reason, houseId);
+    if (packageRecommendation) {
+      return packageRecommendation;
+    }
   }
-  return null;
+  return fallback;
 }
 
-function bookingRecommendation(userId) {
+function bookingRecommendation(userId, houseId) {
   const today = todayStringLocal();
   const upcomingWashers = db.prepare(`
-    SELECT b.booking_date, b.slot
+    SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ?
       AND r.type = 'washer'
+      AND r.house_id = ?
       AND b.booking_date >= ?
-    GROUP BY b.booking_date, b.slot
-    ORDER BY b.booking_date, b.slot
-  `).all(userId, today);
+    ORDER BY b.booking_date, b.slot, b.id
+  `).all(userId, houseId, today);
 
   for (const washerBooking of upcomingWashers) {
-    const companion = companionRecommendation(userId, washerBooking);
+    const companion = companionPackageRecommendation(userId, washerBooking, houseId);
     if (companion) {
       return companion;
     }
@@ -974,7 +1128,7 @@ function bookingRecommendation(userId) {
   const startDate = upcomingWashers.some((booking) => booking.booking_date === today)
     ? addDays(today, 1)
     : today;
-  return nextWasherRecommendation(userId, startDate) || {
+  return nextWasherRecommendation(userId, startDate, houseId) || {
     kind: 'info',
     title: 'Im Moment kein freier Vorschlag',
     reason: 'In den n\u00e4chsten drei Wochen ist kein regelkonformer Waschslot frei.'
@@ -1022,6 +1176,29 @@ function authRateLimit(req, res, next) {
   next();
 }
 
+function currentHouseId(req) {
+  return Number(req.session.activeHouseId || req.session.user?.activeHouseId || req.session.user?.houseId || 0);
+}
+
+function isSuperadmin(req) {
+  return Boolean(req.session.user?.isSuperadmin);
+}
+
+function sessionUserFromRow(user, activeHouse = null) {
+  const house = activeHouse || db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    email: user.email || '',
+    notifyReleases: Boolean(user.notify_releases),
+    houseId: user.house_id,
+    activeHouseId: house?.id || user.house_id,
+    houseName: house?.name || '',
+    isSuperadmin: Boolean(user.is_superadmin)
+  };
+}
+
 function clearAuthRateLimit(req) {
   if (req.authRateKey) {
     authRateBuckets.delete(req.authRateKey);
@@ -1031,6 +1208,13 @@ function clearAuthRateLimit(req) {
 function requireAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== 'admin') {
     return res.status(403).json({ error: 'Nur f\u00fcr Admins erlaubt' });
+  }
+  next();
+}
+
+function requireSuperadmin(req, res, next) {
+  if (!req.session.user || !isSuperadmin(req)) {
+    return res.status(403).json({ error: 'Nur f\u00fcr den Superadmin erlaubt' });
   }
   next();
 }
@@ -1140,12 +1324,13 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
     SELECT id, username, email
     FROM users
     WHERE active = 1
+      AND house_id = ?
       AND notify_releases = 1
       AND email IS NOT NULL
       AND email != ''
       AND id != ?
     ORDER BY username
-  `).all(booking.user_id);
+  `).all(booking.house_id, booking.user_id);
 
   if (!recipients.length) {
     return { configured: true, sent: 0 };
@@ -1168,7 +1353,7 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
           `Du kannst den Slot jetzt im Waschplan ansehen und buchen: ${appUrl}`,
           '',
           'Viele Gr\u00fcsse',
-          'Waschplan Maneggplatz 18'
+          `Waschplan ${booking.house_name || ''}`.trim()
         ].join('\n')
       });
       sent += 1;
@@ -1356,13 +1541,8 @@ app.post('/api/login', authRateLimit, (req, res) => {
       .run(bcrypt.hashSync(String(password || ''), 10), user.id);
   }
 
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-    role: user.role,
-    email: user.email || '',
-    notifyReleases: Boolean(user.notify_releases)
-  };
+  req.session.user = sessionUserFromRow(user);
+  req.session.activeHouseId = user.house_id;
   clearAuthRateLimit(req);
   res.json({ user: req.session.user });
 });
@@ -1373,7 +1553,11 @@ app.post('/api/register', authRateLimit, (req, res) => {
   const password = String(req.body?.password || '');
   const houseCode = String(req.body?.houseCode || '').trim();
   const notifyReleases = req.body?.notifyReleases !== false ? 1 : 0;
-  const configuredCode = getSetting('house_code').trim();
+  const house = db.prepare(`
+    SELECT id, name
+    FROM houses
+    WHERE lower(code) = lower(?) AND active = 1
+  `).get(houseCode);
 
   if (!isValidUsername(username)) {
     return res.status(400).json({ error: 'Der Benutzername darf 3 bis 40 Buchstaben, Zahlen, Leerzeichen, Punkte, Binde- oder Unterstriche enthalten.' });
@@ -1384,23 +1568,19 @@ app.post('/api/register', authRateLimit, (req, res) => {
   if (!isValidPassword(password)) {
     return res.status(400).json({ error: 'Das Passwort muss 8 bis 128 Zeichen haben.' });
   }
-  if (houseCode.toLowerCase() !== configuredCode.toLowerCase()) {
+  if (!house) {
     return res.status(403).json({ error: 'Hauscode ist nicht korrekt' });
   }
 
   try {
     const result = db.prepare(`
-      INSERT INTO users (username, email, password_hash, role, active, notify_releases)
-      VALUES (?, ?, ?, 'user', 1, ?)
-    `).run(username, email, bcrypt.hashSync(password, 10), notifyReleases);
+      INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases)
+      VALUES (?, ?, ?, 'user', ?, 1, ?)
+    `).run(username, email, bcrypt.hashSync(password, 10), house.id, notifyReleases);
 
-    req.session.user = {
-      id: result.lastInsertRowid,
-      username,
-      role: 'user',
-      email,
-      notifyReleases: Boolean(notifyReleases)
-    };
+    const createdUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+    req.session.user = sessionUserFromRow(createdUser, house);
+    req.session.activeHouseId = house.id;
     clearAuthRateLimit(req);
     res.status(201).json({ user: req.session.user });
   } catch (error) {
@@ -1416,7 +1596,25 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ user: req.session.user || null });
+  if (!req.session.user) {
+    return res.json({ user: null, houses: [] });
+  }
+  const houses = isSuperadmin(req)
+    ? db.prepare('SELECT id, name, active FROM houses WHERE active = 1 ORDER BY name').all()
+    : [];
+  res.json({ user: req.session.user, houses });
+});
+
+app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
+  const houseId = Number(req.body?.houseId);
+  const house = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1').get(houseId);
+  if (!house) {
+    return res.status(404).json({ error: 'Hausnummer nicht gefunden.' });
+  }
+  req.session.activeHouseId = house.id;
+  req.session.user.activeHouseId = house.id;
+  req.session.user.houseName = house.name;
+  res.json({ user: req.session.user, message: `Ansicht gewechselt zu ${house.name}.` });
 });
 
 app.put('/api/me/notifications', requireAuth, (req, res) => {
@@ -1466,6 +1664,7 @@ app.put('/api/me/password', requireAuth, (req, res) => {
 app.get('/api/calendar', requireAuth, (req, res) => {
   const from = String(req.query.from || todayStringLocal());
   const days = Number(req.query.days || 7);
+  const houseId = currentHouseId(req);
   if (!isDateString(from) || !Number.isInteger(days) || days < 1 || days > 14) {
     return res.status(400).json({ error: 'Ung\u00fcltiger Kalenderzeitraum' });
   }
@@ -1473,13 +1672,13 @@ app.get('/api/calendar', requireAuth, (req, res) => {
   res.json({
     from,
     days: Array.from({ length: days }, (_, index) => (
-      calendarDaySummary(req.session.user.id, addDays(from, index))
+      calendarDaySummary(req.session.user.id, addDays(from, index), houseId)
     ))
   });
 });
 
 app.get('/api/recommendation', requireAuth, (req, res) => {
-  res.json({ recommendation: bookingRecommendation(req.session.user.id) });
+  res.json({ recommendation: bookingRecommendation(req.session.user.id, currentHouseId(req)) });
 });
 
 app.get('/api/slots', requireAuth, (req, res) => {
@@ -1487,7 +1686,11 @@ app.get('/api/slots', requireAuth, (req, res) => {
 });
 
 app.get('/api/resources', requireAuth, (req, res) => {
-  const resources = db.prepare('SELECT id, name, type FROM resources WHERE active = 1 ORDER BY type, name').all();
+  const resources = db.prepare(`
+    SELECT id, name, type FROM resources
+    WHERE active = 1 AND house_id = ?
+    ORDER BY type, name
+  `).all(currentHouseId(req));
   res.json({ resources });
 });
 
@@ -1499,10 +1702,11 @@ app.get('/api/my-bookings', requireAuth, (req, res) => {
     JOIN resources r ON r.id = b.resource_id
     JOIN users u ON u.id = b.user_id
     WHERE b.user_id = ?
+      AND r.house_id = ?
       AND b.booking_date >= date('now', 'localtime')
     ORDER BY b.booking_date, b.slot, r.name
     LIMIT 12
-  `).all(req.session.user.id);
+  `).all(req.session.user.id, currentHouseId(req));
 
   res.json({
     bookings: bookings.map((booking) => {
@@ -1518,6 +1722,7 @@ app.get('/api/my-bookings', requireAuth, (req, res) => {
 
 app.get('/api/bookings', requireAuth, (req, res) => {
   const date = req.query.date;
+  const houseId = currentHouseId(req);
   if (!isDateString(date)) {
     return res.status(400).json({ error: 'Datum im Format YYYY-MM-DD erforderlich' });
   }
@@ -1528,11 +1733,11 @@ app.get('/api/bookings', requireAuth, (req, res) => {
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     JOIN users u ON u.id = b.user_id
-    WHERE b.booking_date = ?
+    WHERE b.booking_date = ? AND r.house_id = ?
     ORDER BY b.slot, r.name
-  `).all(date);
+  `).all(date, houseId);
 
-  const fixedBookings = getFixedBookingsForDate(date);
+  const fixedBookings = getFixedBookingsForDate(date, houseId);
   const allBookings = [...bookings, ...fixedBookings]
     .sort((left, right) => left.slot.localeCompare(right.slot) || left.resource_name.localeCompare(right.resource_name));
 
@@ -1541,6 +1746,7 @@ app.get('/api/bookings', requireAuth, (req, res) => {
 
 app.post('/api/bookings', requireAuth, (req, res) => {
   const { resourceId, date, slot } = req.body || {};
+  const houseId = currentHouseId(req);
 
   if (!Number.isInteger(Number(resourceId)) || !isDateString(date) || !slots.includes(slot)) {
     return res.status(400).json({ error: 'Ung\u00fcltige Buchungsdaten' });
@@ -1555,12 +1761,15 @@ app.post('/api/bookings', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Sonntags sind keine Buchungen m\u00f6glich' });
   }
 
-  const resource = db.prepare('SELECT id, type FROM resources WHERE id = ? AND active = 1').get(Number(resourceId));
+  const resource = db.prepare(`
+    SELECT id, type FROM resources
+    WHERE id = ? AND active = 1 AND house_id = ?
+  `).get(Number(resourceId), houseId);
   if (!resource) {
     return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
   }
 
-  const fixedConflict = fixedBookingConflict(resource.id, date, slot);
+  const fixedConflict = fixedBookingConflict(resource.id, date, slot, houseId);
   if (fixedConflict) {
     return res.status(409).json({
       error: `${fixedConflict.resource_name} ist in diesem Slot fest f\u00fcr ${fixedConflict.label} reserviert.`
@@ -1569,11 +1778,11 @@ app.post('/api/bookings', requireAuth, (req, res) => {
 
   let ruleError = '';
   if (resource.type === 'washer') {
-    ruleError = validateWasherBooking(req.session.user.id, date, slot);
+    ruleError = validateWasherBooking(req.session.user.id, date, slot, houseId);
   } else if (resource.type === 'tumbler') {
-    ruleError = validateTumblerBooking(date, slot);
+    ruleError = validateTumblerBooking(date, slot, houseId);
   } else if (resource.type === 'drying_room') {
-    ruleError = validateDryingRoomBooking(req.session.user.id, date, slot);
+    ruleError = validateDryingRoomBooking(req.session.user.id, date, slot, houseId);
   }
 
   if (ruleError) {
@@ -1605,8 +1814,209 @@ app.post('/api/bookings', requireAuth, (req, res) => {
   }
 });
 
+function packageRequestError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+app.post('/api/booking-package', requireAuth, (req, res) => {
+  const rawItems = req.body?.items;
+  const washerBookingId = Number(req.body?.washerBookingId || 0);
+  const houseId = currentHouseId(req);
+  if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 5) {
+    return res.status(400).json({ error: 'Ein Waschpaket muss ein bis f\u00fcnf Buchungen enthalten.' });
+  }
+
+  try {
+    const items = rawItems.map((item) => {
+      const resourceId = Number(item?.resourceId);
+      const date = String(item?.date || '');
+      const slot = String(item?.slot || '');
+      if (!Number.isInteger(resourceId) || !isDateString(date) || !slots.includes(slot)) {
+        throw packageRequestError(400, 'Das Waschpaket enth\u00e4lt ung\u00fcltige Buchungsdaten.');
+      }
+      const resource = db.prepare(`
+        SELECT id, name, type FROM resources
+        WHERE id = ? AND active = 1 AND house_id = ?
+      `).get(resourceId, houseId);
+      if (!resource) {
+        throw packageRequestError(404, 'Ein Ger\u00e4t aus dem Waschpaket ist nicht mehr verf\u00fcgbar.');
+      }
+      return { resourceId, date, slot, resource };
+    });
+
+    const itemKeys = items.map((item) => `${item.resourceId}|${item.date}|${item.slot}`);
+    if (new Set(itemKeys).size !== itemKeys.length) {
+      throw packageRequestError(400, 'Das Waschpaket enth\u00e4lt eine Buchung doppelt.');
+    }
+
+    const washerItems = items.filter((item) => item.resource.type === 'washer');
+    const dryingItems = items.filter((item) => item.resource.type === 'drying_room');
+    const tumblerItems = items.filter((item) => item.resource.type === 'tumbler');
+    let existingWasher = null;
+    let newWasher = null;
+
+    if (washerBookingId) {
+      existingWasher = db.prepare(`
+        SELECT b.id, b.user_id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name
+        FROM bookings b
+        JOIN resources r ON r.id = b.resource_id
+        WHERE b.id = ? AND r.type = 'washer' AND r.house_id = ?
+      `).get(washerBookingId, houseId);
+      if (!existingWasher) {
+        throw packageRequestError(404, 'Die Waschmaschinen-Buchung wurde nicht gefunden.');
+      }
+      if (existingWasher.user_id !== req.session.user.id) {
+        throw packageRequestError(403, 'Diese Waschmaschinen-Buchung geh\u00f6rt dir nicht.');
+      }
+      if (washerItems.length) {
+        throw packageRequestError(400, 'Eine bereits gebuchte Waschmaschine darf im Paket nicht erneut reserviert werden.');
+      }
+    } else {
+      if (washerItems.length !== 1) {
+        throw packageRequestError(400, 'Ein neues Waschpaket braucht genau eine Waschmaschine.');
+      }
+      newWasher = washerItems[0];
+    }
+
+    const washDate = existingWasher?.booking_date || newWasher.date;
+    const washSlot = existingWasher?.slot || newWasher.slot;
+    if (isPastDate(washDate) || isPastSlot(washDate, washSlot)) {
+      throw packageRequestError(400, 'Der vorgeschlagene Waschslot ist bereits vorbei. Bitte lade einen neuen Vorschlag.');
+    }
+    if (isSunday(washDate)) {
+      throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
+    }
+
+    if (tumblerItems.length > 1 || tumblerItems.some((item) => item.date !== washDate || item.slot !== washSlot)) {
+      throw packageRequestError(400, 'Der Tumbler muss im gleichen Zeitfenster wie die Waschmaschine liegen.');
+    }
+
+    const allowedDryingWindow = allowedDryingRoomSlots(washDate, washSlot);
+    const sortedDryingItems = [...dryingItems].sort((left, right) => {
+      const leftIndex = allowedDryingWindow.findIndex((item) => item.date === left.date && item.slot === left.slot);
+      const rightIndex = allowedDryingWindow.findIndex((item) => item.date === right.date && item.slot === right.slot);
+      return leftIndex - rightIndex;
+    });
+    const dryingResourceIds = new Set(dryingItems.map((item) => item.resourceId));
+    const expectedDryingWindow = allowedDryingWindow.slice(0, dryingItems.length);
+    const validDryingWindow = sortedDryingItems.every((item, index) => (
+      expectedDryingWindow[index]?.date === item.date
+      && expectedDryingWindow[index]?.slot === item.slot
+    ));
+    if (dryingItems.length && (
+      dryingResourceIds.size !== 1
+      || dryingItems.length > allowedDryingWindow.length
+      || !validDryingWindow
+    )) {
+      throw packageRequestError(400, 'Der Trockenraum muss l\u00fcckenlos und innerhalb der erlaubten Trocknungszeit gebucht werden.');
+    }
+
+    for (const item of items) {
+      if (isPastDate(item.date) || isPastSlot(item.date, item.slot)) {
+        throw packageRequestError(400, 'Ein Bestandteil des Waschpakets liegt bereits in der Vergangenheit.');
+      }
+      if (isSunday(item.date)) {
+        throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
+      }
+      const fixedConflict = fixedBookingConflict(item.resourceId, item.date, item.slot, houseId);
+      if (fixedConflict) {
+        throw packageRequestError(
+          409,
+          `${fixedConflict.resource_name} ist in diesem Slot fest f\u00fcr ${fixedConflict.label} reserviert.`
+        );
+      }
+      const occupied = db.prepare(`
+        SELECT id FROM bookings
+        WHERE resource_id = ? AND booking_date = ? AND slot = ?
+        LIMIT 1
+      `).get(item.resourceId, item.date, item.slot);
+      if (occupied) {
+        throw packageRequestError(409, 'Ein Bestandteil des Waschpakets wurde inzwischen gebucht. Bitte lade einen neuen Vorschlag.');
+      }
+    }
+
+    if (newWasher) {
+      const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
+      if (washerError) {
+        throw packageRequestError(409, washerError);
+      }
+    }
+    if (tumblerItems.length) {
+      const tumblerError = validateTumblerBooking(washDate, washSlot, houseId);
+      if (tumblerError) {
+        throw packageRequestError(409, tumblerError);
+      }
+    }
+
+    const createPackage = db.transaction(() => {
+      const created = [];
+      const insert = db.prepare(`
+        INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      if (newWasher) {
+        const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
+        if (washerError) {
+          throw packageRequestError(409, washerError);
+        }
+        const result = insert.run(req.session.user.id, newWasher.resourceId, washDate, washSlot);
+        created.push({ id: result.lastInsertRowid, type: 'washer' });
+      }
+
+      for (const item of sortedDryingItems) {
+        const dryingError = validateDryingRoomBooking(req.session.user.id, item.date, item.slot, houseId);
+        if (dryingError) {
+          throw packageRequestError(409, dryingError);
+        }
+        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot);
+        created.push({ id: result.lastInsertRowid, type: 'drying_room' });
+      }
+
+      for (const item of tumblerItems) {
+        const tumblerError = validateTumblerBooking(item.date, item.slot, houseId);
+        if (tumblerError) {
+          throw packageRequestError(409, tumblerError);
+        }
+        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot);
+        created.push({ id: result.lastInsertRowid, type: 'tumbler' });
+      }
+      return created;
+    });
+
+    const created = createPackage();
+    const bookedTypes = [...new Set(created.map((item) => item.type))];
+    const typeLabels = {
+      washer: 'Waschmaschine',
+      drying_room: 'Trockenraum',
+      tumbler: 'Tumbler'
+    };
+    const summary = bookedTypes.map((type) => typeLabels[type]).join(', ');
+    res.status(201).json({
+      created,
+      message: existingWasher
+        ? `Waschpaket erg\u00e4nzt: ${summary}.`
+        : `Waschpaket gebucht: ${summary}.`
+    });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Ein Bestandteil des Waschpakets wurde inzwischen gebucht. Bitte versuche es erneut.' });
+    }
+    throw error;
+  }
+});
+
 app.delete('/api/bookings/:id', requireAuth, (req, res) => {
-  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(req.params.id));
+  const booking = db.prepare(`
+    SELECT b.* FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.id = ? AND r.house_id = ?
+  `).get(Number(req.params.id), currentHouseId(req));
   if (!booking) {
     return res.status(404).json({ error: 'Buchung nicht gefunden' });
   }
@@ -1622,11 +2032,12 @@ app.delete('/api/bookings/:id', requireAuth, (req, res) => {
 app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) => {
   try {
     const booking = db.prepare(`
-      SELECT b.*, r.name AS resource_name
+      SELECT b.*, r.name AS resource_name, r.house_id, h.name AS house_name
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
-      WHERE b.id = ?
-    `).get(Number(req.params.id));
+      JOIN houses h ON h.id = r.house_id
+      WHERE b.id = ? AND r.house_id = ?
+    `).get(Number(req.params.id), currentHouseId(req));
 
     if (!booking) {
       return res.status(404).json({ error: 'Buchung nicht gefunden' });
@@ -1645,9 +2056,9 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
     db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
     const message = `${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} wurde abgesagt und ist wieder buchbar.`;
     db.prepare(`
-      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, created_by)
-      VALUES (?, ?, ?, 'cancellation', ?, ?)
-    `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
+      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
+      VALUES (?, ?, ?, 'cancellation', ?, ?, ?)
+    `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
     const emailNotifications = await notifyReleaseSubscribers(
       req,
@@ -1664,11 +2075,12 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
 app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
   try {
     const booking = db.prepare(`
-      SELECT b.*, r.name AS resource_name
+      SELECT b.*, r.name AS resource_name, r.house_id, h.name AS house_name
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
-      WHERE b.id = ?
-    `).get(Number(req.params.id));
+      JOIN houses h ON h.id = r.house_id
+      WHERE b.id = ? AND r.house_id = ?
+    `).get(Number(req.params.id), currentHouseId(req));
 
     if (!booking) {
       return res.status(404).json({ error: 'Buchung nicht gefunden' });
@@ -1696,9 +2108,9 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       ? `${booking.resource_name} ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
       : `${booking.resource_name} ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
     db.prepare(`
-      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, created_by)
-      VALUES (?, ?, ?, 'early_release', ?, ?)
-    `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
+      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
+      VALUES (?, ?, ?, 'early_release', ?, ?, ?)
+    `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
     const emailNotifications = await notifyReleaseSubscribers(req, booking, message);
     res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications });
@@ -1713,10 +2125,11 @@ app.get('/api/release-notices', requireAuth, (req, res) => {
            u.username AS created_by_name
     FROM release_notices rn
     LEFT JOIN users u ON u.id = rn.created_by
-    WHERE rn.created_at >= datetime('now', '-7 days', 'localtime')
+    WHERE rn.house_id = ?
+      AND rn.created_at >= datetime('now', '-7 days', 'localtime')
     ORDER BY rn.created_at DESC
     LIMIT 10
-  `).all().filter((notice) => {
+  `).all(currentHouseId(req)).filter((notice) => {
     const windowStatus = releaseWindowStatus(notice.booking_date, notice.slot);
     return notice.kind === 'cancellation'
       ? ['not_started', 'eligible'].includes(windowStatus.reason)
@@ -1727,14 +2140,22 @@ app.get('/api/release-notices', requireAuth, (req, res) => {
 });
 
 app.get('/api/admin/users', requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, username, email, role, active, notify_releases, created_at FROM users ORDER BY username').all();
+  const users = db.prepare(`
+    SELECT id, username, email, role, is_superadmin, active, notify_releases, created_at
+    FROM users
+    WHERE house_id = ?
+    ORDER BY username
+  `).all(currentHouseId(req));
   res.json({ users });
 });
 
 app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   const userId = Number(req.params.id);
   const active = req.body?.active === true ? 1 : 0;
-  const user = db.prepare('SELECT id, username, role, active FROM users WHERE id = ?').get(userId);
+  const user = db.prepare(`
+    SELECT id, username, role, is_superadmin, active
+    FROM users WHERE id = ? AND house_id = ?
+  `).get(userId, currentHouseId(req));
 
   if (!user) {
     return res.status(404).json({ error: 'Konto nicht gefunden.' });
@@ -1742,8 +2163,14 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   if (!active && user.id === req.session.user.id) {
     return res.status(400).json({ error: 'Du kannst dein eigenes Admin-Konto nicht deaktivieren.' });
   }
+  if (user.is_superadmin && user.id !== req.session.user.id) {
+    return res.status(403).json({ error: 'Das Superadmin-Konto kann hier nicht ge\u00e4ndert werden.' });
+  }
   if (!active && user.role === 'admin') {
-    const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
+    const activeAdmins = db.prepare(`
+      SELECT COUNT(*) AS count FROM users
+      WHERE role = 'admin' AND active = 1 AND house_id = ?
+    `).get(currentHouseId(req)).count;
     if (activeAdmins <= 1) {
       return res.status(400).json({ error: 'Mindestens ein aktives Admin-Konto muss erhalten bleiben.' });
     }
@@ -1759,10 +2186,16 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
 app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
   const userId = Number(req.params.id);
   const newPassword = String(req.body?.newPassword || '');
-  const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId);
+  const user = db.prepare(`
+    SELECT id, username, is_superadmin FROM users
+    WHERE id = ? AND house_id = ?
+  `).get(userId, currentHouseId(req));
 
   if (!user) {
     return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (user.is_superadmin && user.id !== req.session.user.id) {
+    return res.status(403).json({ error: 'Das Superadmin-Passwort kann hier nicht ge\u00e4ndert werden.' });
   }
   if (!isValidPassword(newPassword)) {
     return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
@@ -1774,7 +2207,28 @@ app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
   res.json({ ok: true, message: `Passwort f\u00fcr ${user.username} wurde neu gesetzt.` });
 });
 
-app.get('/api/admin/backup', requireAdmin, async (req, res, next) => {
+app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res) => {
+  const userId = Number(req.params.id);
+  const role = String(req.body?.role || '');
+  if (!['admin', 'user'].includes(role)) {
+    return res.status(400).json({ error: 'Ung\u00fcltige Rolle.' });
+  }
+  const user = db.prepare(`
+    SELECT id, username, is_superadmin
+    FROM users WHERE id = ? AND house_id = ?
+  `).get(userId, currentHouseId(req));
+  if (!user) {
+    return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (user.is_superadmin) {
+    return res.status(400).json({ error: 'Die Rolle des Superadmins kann nicht ge\u00e4ndert werden.' });
+  }
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+  destroyUserSessions(user.id);
+  res.json({ message: `${user.username} ist jetzt ${role === 'admin' ? 'Haus-Admin' : 'Bewohner'}.` });
+});
+
+app.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req, res, next) => {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const downloadName = `waschplan-backup-${stamp}.sqlite`;
   const backupPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${downloadName}`);
@@ -1794,17 +2248,24 @@ app.get('/api/admin/backup', requireAdmin, async (req, res, next) => {
 });
 
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1').get().count;
+  const houseId = currentHouseId(req);
+  const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1 AND house_id = ?').get(houseId).count;
   const todayBookings = db.prepare(`
-    SELECT COUNT(*) AS count FROM bookings WHERE booking_date = date('now', 'localtime')
-  `).get().count;
-  const activeResources = db.prepare('SELECT COUNT(*) AS count FROM resources WHERE active = 1').get().count;
-  const fixedBookings = db.prepare('SELECT COUNT(*) AS count FROM fixed_bookings WHERE active = 1').get().count;
+    SELECT COUNT(*) AS count
+    FROM bookings b JOIN resources r ON r.id = b.resource_id
+    WHERE b.booking_date = date('now', 'localtime') AND r.house_id = ?
+  `).get(houseId).count;
+  const activeResources = db.prepare('SELECT COUNT(*) AS count FROM resources WHERE active = 1 AND house_id = ?').get(houseId).count;
+  const fixedBookings = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.active = 1 AND r.house_id = ?
+  `).get(houseId).count;
   const recentReleases = db.prepare(`
     SELECT COUNT(*) AS count
     FROM release_notices
-    WHERE created_at >= datetime('now', '-7 days', 'localtime')
-  `).get().count;
+    WHERE house_id = ? AND created_at >= datetime('now', '-7 days', 'localtime')
+  `).get(houseId).count;
 
   res.json({
     users,
@@ -1819,6 +2280,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
 app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
   const config = smtpConfig();
   const user = db.prepare('SELECT username, email FROM users WHERE id = ?').get(req.session.user.id);
+  const house = db.prepare('SELECT name FROM houses WHERE id = ?').get(currentHouseId(req));
 
   if (!config.host || !config.from) {
     return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht in Render konfiguriert.' });
@@ -1838,7 +2300,7 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
         'Der E-Mail-Versand des Waschplans funktioniert.',
         '',
         'Viele Gr\u00fcsse',
-        'Waschplan Maneggplatz 18'
+        `Waschplan ${house?.name || 'GBMZ'}`
       ].join('\n')
     });
     res.json({ ok: true, message: `Testmail wurde an ${user.email} gesendet.` });
@@ -1848,9 +2310,53 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
 });
 
 app.get('/api/admin/settings', requireAdmin, (req, res) => {
+  const house = db.prepare('SELECT id, name, code FROM houses WHERE id = ?').get(currentHouseId(req));
   res.json({
-    houseCode: getSetting('house_code')
+    houseCode: house?.code || '',
+    houseName: house?.name || ''
   });
+});
+
+app.get('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
+  const houses = db.prepare(`
+    SELECT h.id, h.name, h.code, h.active, h.created_at,
+           COUNT(DISTINCT u.id) AS users,
+           COUNT(DISTINCT r.id) AS resources
+    FROM houses h
+    LEFT JOIN users u ON u.house_id = h.id AND u.active = 1
+    LEFT JOIN resources r ON r.house_id = h.id AND r.active = 1
+    GROUP BY h.id
+    ORDER BY h.name
+  `).all();
+  res.json({ houses, activeHouseId: currentHouseId(req) });
+});
+
+app.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const code = String(req.body?.code || '').trim();
+  if (name.length < 2 || name.length > 80) {
+    return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
+  }
+  if (code.length < 4 || code.length > 80) {
+    return res.status(400).json({ error: 'Der Hauscode muss 4 bis 80 Zeichen haben.' });
+  }
+  if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?)').get(name)) {
+    return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });
+  }
+
+  try {
+    const house = db.transaction(() => {
+      const result = db.prepare('INSERT INTO houses (name, code) VALUES (?, ?)').run(name, code);
+      seedHouseResources(result.lastInsertRowid);
+      return db.prepare('SELECT id, name, code, active FROM houses WHERE id = ?').get(result.lastInsertRowid);
+    })();
+    res.status(201).json({ house, message: `${house.name} wurde mit eigenen Ger\u00e4ten angelegt.` });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Hausnummer oder Hauscode ist bereits vorhanden.' });
+    }
+    throw error;
+  }
 });
 
 app.get('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
@@ -1859,9 +2365,9 @@ app.get('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
            r.name AS resource_name, r.type AS resource_type
     FROM fixed_bookings fb
     JOIN resources r ON r.id = fb.resource_id
-    WHERE fb.active = 1
+    WHERE fb.active = 1 AND r.house_id = ?
     ORDER BY fb.weekday, fb.slot, r.name
-  `).all();
+  `).all(currentHouseId(req));
 
   res.json({ fixedBookings });
 });
@@ -1879,7 +2385,10 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Bitte einen Namen oder Hinweis eintragen' });
   }
 
-  const resource = db.prepare('SELECT id FROM resources WHERE id = ? AND active = 1').get(resourceId);
+  const resource = db.prepare(`
+    SELECT id FROM resources
+    WHERE id = ? AND active = 1 AND house_id = ?
+  `).get(resourceId, currentHouseId(req));
   if (!resource) {
     return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
   }
@@ -1917,7 +2426,12 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/fixed-bookings/:id', requireAdmin, (req, res) => {
-  const fixedBooking = db.prepare('SELECT id FROM fixed_bookings WHERE id = ? AND active = 1').get(Number(req.params.id));
+  const fixedBooking = db.prepare(`
+    SELECT fb.id
+    FROM fixed_bookings fb
+    JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.id = ? AND fb.active = 1 AND r.house_id = ?
+  `).get(Number(req.params.id), currentHouseId(req));
   if (!fixedBooking) {
     return res.status(404).json({ error: 'Feste Buchung nicht gefunden' });
   }
@@ -1932,11 +2446,14 @@ app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Hauscode muss 4 bis 80 Zeichen haben' });
   }
 
-  db.prepare(`
-    INSERT INTO settings (key, value, updated_at)
-    VALUES ('house_code', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-  `).run(houseCode);
+  try {
+    db.prepare('UPDATE houses SET code = ? WHERE id = ?').run(houseCode, currentHouseId(req));
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Dieser Hauscode wird bereits f\u00fcr eine andere Hausnummer verwendet.' });
+    }
+    throw error;
+  }
 
   res.json({ houseCode, message: 'Hauscode gespeichert.' });
 });

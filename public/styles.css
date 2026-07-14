@@ -380,7 +380,7 @@ label {
   border-bottom: 1px solid rgba(215, 225, 220, 0.9);
   display: grid;
   gap: 18px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   padding: 16px 24px;
   position: sticky;
   top: 0;
@@ -691,6 +691,27 @@ aside.panel {
   font-size: 13px;
 }
 
+.house-switcher {
+  color: rgba(255, 255, 255, 0.72);
+  display: grid;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 4px;
+  text-transform: uppercase;
+  width: min(240px, 100%);
+}
+
+.house-switcher select {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  min-height: 40px;
+}
+
+.house-switcher option {
+  color: var(--text);
+}
+
 .admin-operation {
   align-items: center;
   background: rgba(255, 255, 255, 0.1);
@@ -717,6 +738,39 @@ aside.panel {
 .user-admin-list {
   display: grid;
   gap: 10px;
+}
+
+.superadmin-box {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  margin: 22px 0;
+  padding: 20px 0 4px;
+}
+
+.house-admin-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.house-admin-item {
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 0;
+}
+
+.house-admin-item strong,
+.house-admin-item span {
+  display: block;
+}
+
+.house-admin-item span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .user-admin-item {
@@ -1696,6 +1750,62 @@ select:focus-visible {
   color: var(--night);
   font-size: 14px;
   font-weight: 850;
+}
+
+.package-options {
+  border-bottom: 1px solid rgba(19, 32, 28, 0.12);
+  margin-top: 14px;
+}
+
+.package-option {
+  align-items: center;
+  border-top: 1px solid rgba(19, 32, 28, 0.12);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  min-height: 58px;
+  padding: 10px 2px;
+}
+
+.package-option.is-required {
+  cursor: default;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.package-option input {
+  accent-color: var(--accent);
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.package-option > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.package-option strong {
+  font-size: 14px;
+}
+
+.package-option small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.package-option-status {
+  background: var(--night);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  min-width: 54px;
+  padding: 5px 7px;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .suggestion-actions {
