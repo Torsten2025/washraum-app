@@ -65,6 +65,16 @@
             <span><strong>TR</strong> passend zum Waschslot</span>
             <span><strong>Tumbler</strong> einer bleibt frei</span>
           </div>
+          <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
+          <div class="calendar-shell">
+            <div class="calendar-toolbar">
+              <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
+              <strong id="calendarRange"></strong>
+              <button id="todayButton" class="secondary calendar-today" type="button">Heute</button>
+              <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="Naechste Woche" title="Naechste Woche">&rarr;</button>
+            </div>
+            <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
+          </div>
           <div class="filters" role="group" aria-label="Geraetetyp">
             <button class="filter active" data-type="washer" type="button">Waschmaschinen</button>
             <button class="filter" data-type="drying_room" type="button">Trockenraeume</button>

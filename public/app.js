@@ -1,6 +1,12 @@
 const userLine = document.querySelector('#userLine');
 const logoutButton = document.querySelector('#logoutButton');
 const bookingDate = document.querySelector('#bookingDate');
+const bookingSuggestion = document.querySelector('#bookingSuggestion');
+const weekCalendar = document.querySelector('#weekCalendar');
+const calendarRange = document.querySelector('#calendarRange');
+const previousWeekButton = document.querySelector('#previousWeekButton');
+const nextWeekButton = document.querySelector('#nextWeekButton');
+const todayButton = document.querySelector('#todayButton');
 const schedule = document.querySelector('#schedule');
 const statusText = document.querySelector('#statusText');
 const adminBox = document.querySelector('#adminBox');
@@ -38,6 +44,9 @@ let resources = [];
 let bookings = [];
 let slots = [];
 let activeType = 'washer';
+let calendarStartDate = '';
+let calendarDays = [];
+let currentRecommendation = null;
 let introVideoElapsedMs = 0;
 let introVideoTimer = null;
 let introVideoLastTick = 0;
@@ -102,7 +111,43 @@ const introVideoSteps = [
 const introVideoTotalMs = introVideoSteps.reduce((total, step) => total + step.durationMs, 0);
 
 function todayString() {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateString(new Date());
+}
+
+function formatDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysString(dateString, days) {
+  const date = new Date(`${dateString}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return formatDateString(date);
+}
+
+function startOfWeek(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const weekday = date.getDay() || 7;
+  date.setDate(date.getDate() - weekday + 1);
+  return formatDateString(date);
+}
+
+function formatShortDate(dateString) {
+  return new Intl.DateTimeFormat('de-CH', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit'
+  }).format(new Date(`${dateString}T12:00:00`));
+}
+
+function formatCalendarRange(from, to) {
+  const start = new Date(`${from}T12:00:00`);
+  const end = new Date(`${to}T12:00:00`);
+  const startLabel = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' }).format(start);
+  const endLabel = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' }).format(end);
+  return `${startLabel} - ${endLabel}`;
 }
 
 function typeLabel(type) {
@@ -270,6 +315,7 @@ async function api(path, options = {}) {
 
 async function init() {
   bookingDate.value = todayString();
+  calendarStartDate = startOfWeek(bookingDate.value);
   const me = await api('/api/me');
   if (!me || !me.user) {
     window.location.href = '/login.html';
@@ -299,7 +345,9 @@ async function refreshAll() {
   await Promise.all([
     loadBookings(),
     loadMyBookings(),
-    loadReleaseNotices()
+    loadReleaseNotices(),
+    loadCalendar(),
+    loadRecommendation()
   ]);
 }
 
@@ -317,6 +365,151 @@ async function loadMyBookings() {
 async function loadReleaseNotices() {
   const data = await api('/api/release-notices');
   renderReleaseNotices(data.notices);
+}
+
+async function loadCalendar() {
+  const data = await api(`/api/calendar?from=${encodeURIComponent(calendarStartDate)}&days=7`);
+  calendarDays = data.days;
+  renderCalendar();
+}
+
+async function loadRecommendation() {
+  const data = await api('/api/recommendation');
+  currentRecommendation = data.recommendation;
+  renderRecommendation();
+}
+
+function availabilityForDay(day) {
+  if (activeType !== 'all') {
+    return day.availability[activeType] || { free: 0, total: 0 };
+  }
+  return Object.values(day.availability).reduce((summary, item) => ({
+    free: summary.free + item.free,
+    total: summary.total + item.total
+  }), { free: 0, total: 0 });
+}
+
+function renderCalendar() {
+  weekCalendar.innerHTML = '';
+  if (!calendarDays.length) {
+    calendarRange.textContent = '';
+    return;
+  }
+
+  calendarRange.textContent = formatCalendarRange(
+    calendarDays[0].date,
+    calendarDays[calendarDays.length - 1].date
+  );
+  previousWeekButton.disabled = calendarStartDate <= startOfWeek(todayString());
+
+  for (const day of calendarDays) {
+    const availability = availabilityForDay(day);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'calendar-day';
+    button.classList.toggle('is-selected', day.date === bookingDate.value);
+    button.classList.toggle('is-today', day.date === todayString());
+    button.classList.toggle('has-own-booking', day.ownBookings > 0);
+    button.disabled = day.date < todayString();
+    button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
+    button.setAttribute(
+      'aria-label',
+      `${formatShortDate(day.date)}, ${availability.free} freie Buchungsmoeglichkeiten${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
+    );
+    button.innerHTML = `
+      <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(new Date(`${day.date}T12:00:00`))}</span>
+      <strong>${new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit' }).format(new Date(`${day.date}T12:00:00`))}</strong>
+      <span class="calendar-availability">${availability.total ? `<b>${availability.free}</b> frei` : 'vorbei'}</span>
+      ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
+    `;
+    button.addEventListener('click', () => selectBookingDate(day.date));
+    weekCalendar.append(button);
+  }
+}
+
+function renderRecommendation() {
+  bookingSuggestion.innerHTML = '';
+  const recommendation = currentRecommendation;
+  if (!recommendation) {
+    bookingSuggestion.innerHTML = '<p class="muted">Noch kein persoenlicher Vorschlag verfuegbar.</p>';
+    return;
+  }
+
+  const copy = document.createElement('div');
+  copy.className = 'suggestion-copy';
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'suggestion-label';
+  eyebrow.textContent = 'Persoenlicher Vorschlag';
+  const title = document.createElement('h3');
+  title.textContent = recommendation.title;
+  const detail = document.createElement('p');
+  detail.className = 'suggestion-detail';
+  detail.textContent = recommendation.resourceName
+    ? `${recommendation.resourceName} - ${formatShortDate(recommendation.date)} - ${recommendation.slot}`
+    : recommendation.date
+      ? `${formatShortDate(recommendation.date)} - ${recommendation.slot}`
+      : '';
+  const reason = document.createElement('p');
+  reason.className = 'muted';
+  reason.textContent = recommendation.reason;
+  copy.append(eyebrow, title);
+  if (detail.textContent) {
+    copy.append(detail);
+  }
+  copy.append(reason);
+  bookingSuggestion.append(copy);
+
+  const actions = document.createElement('div');
+  actions.className = 'suggestion-actions';
+  if (recommendation.kind === 'booking') {
+    const bookButton = document.createElement('button');
+    bookButton.type = 'button';
+    bookButton.textContent = recommendation.actionLabel || 'Direkt buchen';
+    bookButton.addEventListener('click', () => createBooking(
+      recommendation.resourceId,
+      recommendation.slot,
+      recommendation.date,
+      recommendation.resourceType
+    ));
+    actions.append(bookButton);
+  }
+  if (recommendation.date) {
+    const showButton = document.createElement('button');
+    showButton.type = 'button';
+    showButton.className = 'secondary';
+    showButton.textContent = 'Im Kalender zeigen';
+    showButton.addEventListener('click', () => selectBookingDate(
+      recommendation.date,
+      recommendation.resourceType
+    ));
+    actions.append(showButton);
+  }
+  if (actions.childElementCount) {
+    bookingSuggestion.append(actions);
+  }
+}
+
+function setActiveType(type) {
+  activeType = type;
+  filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === type));
+  renderSchedule();
+  renderCalendar();
+}
+
+async function selectBookingDate(date, type = '') {
+  bookingDate.value = date;
+  const selectedWeek = startOfWeek(date);
+  if (selectedWeek !== calendarStartDate) {
+    calendarStartDate = selectedWeek;
+    await Promise.all([loadBookings(), loadCalendar()]);
+  } else {
+    await loadBookings();
+    renderCalendar();
+  }
+  if (type) {
+    setActiveType(type);
+  }
+  document.querySelector('.booking-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderSchedule() {
@@ -419,12 +612,18 @@ function renderReleaseNotices(items) {
   }
 }
 
-async function createBooking(resourceId, slot) {
+async function createBooking(resourceId, slot, date = bookingDate.value, type = '') {
   try {
     const data = await api('/api/bookings', {
       method: 'POST',
-      body: JSON.stringify({ resourceId, date: bookingDate.value, slot })
+      body: JSON.stringify({ resourceId, date, slot })
     });
+    bookingDate.value = date;
+    calendarStartDate = startOfWeek(date);
+    if (type) {
+      activeType = type;
+      filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === type));
+    }
     showStatus(data.message || 'Buchung gespeichert.');
     await refreshAll();
   } catch (error) {
@@ -568,7 +767,19 @@ async function deleteFixedBooking(id) {
   }
 }
 
-bookingDate.addEventListener('change', loadBookings);
+bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
+
+previousWeekButton.addEventListener('click', () => {
+  selectBookingDate(addDaysString(calendarStartDate, -7));
+});
+
+nextWeekButton.addEventListener('click', () => {
+  selectBookingDate(addDaysString(calendarStartDate, 7));
+});
+
+todayButton.addEventListener('click', () => {
+  selectBookingDate(todayString());
+});
 
 houseCodeForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -595,9 +806,7 @@ fixedBookingForm.addEventListener('submit', async (event) => {
 
 filterButtons.forEach((button) => {
   button.addEventListener('click', () => {
-    activeType = button.dataset.type;
-    filterButtons.forEach((item) => item.classList.toggle('active', item === button));
-    renderSchedule();
+    setActiveType(button.dataset.type);
   });
 });
 

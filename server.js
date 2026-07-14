@@ -644,6 +644,294 @@ function validateDryingRoomBooking(userId, date, slot) {
   return '';
 }
 
+function calendarDaySummary(userId, date) {
+  const activeResources = db.prepare(`
+    SELECT id, type
+    FROM resources
+    WHERE active = 1
+  `).all();
+  const normalBookings = db.prepare(`
+    SELECT b.resource_id, b.slot, b.user_id, r.type AS resource_type
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.booking_date = ?
+  `).all(date);
+  const fixedBookings = getFixedBookingsForDate(date);
+  const occupied = new Set([
+    ...normalBookings.map((booking) => `${booking.resource_id}|${booking.slot}`),
+    ...fixedBookings.map((booking) => `${booking.resource_id}|${booking.slot}`)
+  ]);
+  const availability = {};
+  const ownByType = { washer: 0, drying_room: 0, tumbler: 0 };
+
+  for (const booking of normalBookings) {
+    if (booking.user_id === userId) {
+      ownByType[booking.resource_type] += 1;
+    }
+  }
+
+  for (const type of ['washer', 'drying_room', 'tumbler']) {
+    const typeResources = activeResources.filter((resource) => resource.type === type);
+    let free = 0;
+    let total = 0;
+
+    for (const slot of slots) {
+      if (isPastSlot(date, slot)) {
+        continue;
+      }
+      const capacity = type === 'tumbler'
+        ? Math.max(0, typeResources.length - 1)
+        : typeResources.length;
+      const occupiedCount = typeResources
+        .filter((resource) => occupied.has(`${resource.id}|${slot}`)).length;
+      total += capacity;
+      free += Math.max(0, capacity - occupiedCount);
+    }
+
+    availability[type] = { free, total };
+  }
+
+  return {
+    date,
+    availability,
+    ownBookings: Object.values(ownByType).reduce((sum, count) => sum + count, 0),
+    ownByType
+  };
+}
+
+function findAvailableResource(userId, type, date, slot) {
+  if (isPastSlot(date, slot)) {
+    return null;
+  }
+
+  let ruleError = '';
+  if (type === 'washer') {
+    ruleError = validateWasherBooking(userId, date, slot);
+  } else if (type === 'drying_room') {
+    ruleError = validateDryingRoomBooking(userId, date, slot);
+  } else if (type === 'tumbler') {
+    ruleError = validateTumblerBooking(date, slot);
+  }
+  if (ruleError) {
+    return null;
+  }
+
+  return db.prepare(`
+    SELECT r.id, r.name, r.type
+    FROM resources r
+    WHERE r.active = 1
+      AND r.type = ?
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bookings b
+        WHERE b.resource_id = r.id
+          AND b.booking_date = ?
+          AND b.slot = ?
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM fixed_bookings fb
+        WHERE fb.resource_id = r.id
+          AND fb.active = 1
+          AND fb.weekday = ?
+          AND fb.slot = ?
+      )
+    ORDER BY r.name
+    LIMIT 1
+  `).get(type, date, slot, weekdayForDate(date), slot) || null;
+}
+
+function userHasBookingInWindow(userId, type, window) {
+  return window.some(({ date, slot }) => Boolean(db.prepare(`
+    SELECT b.id
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = ?
+      AND b.booking_date = ?
+      AND b.slot = ?
+    LIMIT 1
+  `).get(userId, type, date, slot)));
+}
+
+function companionPreference(userId) {
+  const rows = db.prepare(`
+    SELECT r.type, COUNT(*) AS count
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND b.booking_date < date('now', 'localtime')
+      AND r.type IN ('drying_room', 'tumbler')
+    GROUP BY r.type
+  `).all(userId);
+  const counts = Object.fromEntries(rows.map((row) => [row.type, row.count]));
+  return (counts.tumbler || 0) > (counts.drying_room || 0)
+    ? ['tumbler', 'drying_room']
+    : ['drying_room', 'tumbler'];
+}
+
+function companionRecommendation(userId, washerBooking) {
+  const dryingWindow = allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
+  const candidates = {};
+
+  if (!userHasBookingInWindow(userId, 'drying_room', dryingWindow)) {
+    for (const option of dryingWindow) {
+      const resource = findAvailableResource(userId, 'drying_room', option.date, option.slot);
+      if (resource) {
+        candidates.drying_room = {
+          resource,
+          date: option.date,
+          slot: option.slot,
+          title: 'Trockenraum ergaenzen',
+          reason: 'Passt zu deiner vorhandenen Waschmaschinen-Buchung.'
+        };
+        break;
+      }
+    }
+  }
+
+  const tumblerWindow = [{ date: washerBooking.booking_date, slot: washerBooking.slot }];
+  if (!userHasBookingInWindow(userId, 'tumbler', tumblerWindow)) {
+    const resource = findAvailableResource(
+      userId,
+      'tumbler',
+      washerBooking.booking_date,
+      washerBooking.slot
+    );
+    if (resource) {
+      candidates.tumbler = {
+        resource,
+        date: washerBooking.booking_date,
+        slot: washerBooking.slot,
+        title: 'Tumbler ergaenzen',
+        reason: 'Liegt im gleichen Zeitfenster wie deine Waschmaschinen-Buchung.'
+      };
+    }
+  }
+
+  for (const type of companionPreference(userId)) {
+    const candidate = candidates[type];
+    if (candidate) {
+      return {
+        kind: 'booking',
+        resourceId: candidate.resource.id,
+        resourceName: candidate.resource.name,
+        resourceType: candidate.resource.type,
+        date: candidate.date,
+        slot: candidate.slot,
+        title: candidate.title,
+        reason: candidate.reason,
+        actionLabel: 'Direkt buchen'
+      };
+    }
+  }
+  return null;
+}
+
+function washerHistoryPreference(userId) {
+  return db.prepare(`
+    SELECT CAST(strftime('%w', b.booking_date) AS INTEGER) AS weekday,
+           b.slot,
+           COUNT(*) AS count,
+           MAX(b.booking_date) AS last_date
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'washer'
+      AND b.booking_date < date('now', 'localtime')
+    GROUP BY weekday, b.slot
+    ORDER BY count DESC, last_date DESC
+    LIMIT 1
+  `).get(userId) || null;
+}
+
+function nextWasherRecommendation(userId, startDate) {
+  const preference = washerHistoryPreference(userId);
+  const candidates = [];
+
+  for (let offset = 0; offset < 21; offset += 1) {
+    const date = addDays(startDate, offset);
+    const weekday = weekdayForDate(date);
+    for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+      const slot = slots[slotIndex];
+      const score = preference
+        ? offset + (weekday === preference.weekday ? 0 : 8) + (slot === preference.slot ? 0 : 4)
+        : offset * slots.length + slotIndex;
+      candidates.push({ date, slot, weekday, score });
+    }
+  }
+  candidates.sort((left, right) => left.score - right.score || left.date.localeCompare(right.date));
+
+  for (const candidate of candidates) {
+    const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot);
+    if (!resource) {
+      continue;
+    }
+    const matchesHabit = Boolean(
+      preference
+      && candidate.weekday === preference.weekday
+      && candidate.slot === preference.slot
+    );
+    return {
+      kind: 'booking',
+      resourceId: resource.id,
+      resourceName: resource.name,
+      resourceType: resource.type,
+      date: candidate.date,
+      slot: candidate.slot,
+      title: preference ? 'Dein passender Waschslot' : 'Naechster freier Waschslot',
+      reason: preference
+        ? (matchesHabit
+          ? 'Dieser freie Termin entspricht deinem bisher haeufigsten Waschrhythmus.'
+          : 'Dein ueblicher Termin ist belegt. Dies ist die naechste passende freie Option.')
+        : 'Ein frueher freier Termin fuer deinen ersten Waschrhythmus.',
+      actionLabel: 'Direkt buchen'
+    };
+  }
+  return null;
+}
+
+function bookingRecommendation(userId) {
+  const today = todayStringLocal();
+  const upcomingWashers = db.prepare(`
+    SELECT b.booking_date, b.slot
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'washer'
+      AND b.booking_date >= ?
+    GROUP BY b.booking_date, b.slot
+    ORDER BY b.booking_date, b.slot
+  `).all(userId, today);
+
+  for (const washerBooking of upcomingWashers) {
+    const companion = companionRecommendation(userId, washerBooking);
+    if (companion) {
+      return companion;
+    }
+  }
+
+  const futureWasher = upcomingWashers.find((booking) => booking.booking_date > today);
+  if (futureWasher) {
+    return {
+      kind: 'info',
+      date: futureWasher.booking_date,
+      slot: futureWasher.slot,
+      title: 'Dein naechster Waschtag steht',
+      reason: 'Waschmaschine und sinnvolle Ergaenzungen sind bereits geplant.'
+    };
+  }
+
+  const startDate = upcomingWashers.some((booking) => booking.booking_date === today)
+    ? addDays(today, 1)
+    : today;
+  return nextWasherRecommendation(userId, startDate) || {
+    kind: 'info',
+    title: 'Im Moment kein freier Vorschlag',
+    reason: 'In den naechsten drei Wochen ist kein regelkonformer Waschslot frei.'
+  };
+}
+
 function requireAuth(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Nicht angemeldet' });
@@ -1026,6 +1314,25 @@ app.put('/api/me/notifications', requireAuth, (req, res) => {
   req.session.user.email = email;
   req.session.user.notifyReleases = Boolean(notifyReleases);
   res.json({ user: req.session.user, message: 'Benachrichtigungen gespeichert.' });
+});
+
+app.get('/api/calendar', requireAuth, (req, res) => {
+  const from = String(req.query.from || todayStringLocal());
+  const days = Number(req.query.days || 7);
+  if (!isDateString(from) || !Number.isInteger(days) || days < 1 || days > 14) {
+    return res.status(400).json({ error: 'Ungueltiger Kalenderzeitraum' });
+  }
+
+  res.json({
+    from,
+    days: Array.from({ length: days }, (_, index) => (
+      calendarDaySummary(req.session.user.id, addDays(from, index))
+    ))
+  });
+});
+
+app.get('/api/recommendation', requireAuth, (req, res) => {
+  res.json({ recommendation: bookingRecommendation(req.session.user.id) });
 });
 
 app.get('/api/slots', requireAuth, (req, res) => {
