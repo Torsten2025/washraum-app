@@ -1,25 +1,30 @@
 services:
   - type: web
-    name: washraum-app
-    runtime: node
-    plan: starter
+    name: waschplan-app
+    env: node
+    plan: free
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NODE_VERSION
-        value: 22.12.0
-      - key: SQLITE_PATH
+      - key: DB_PATH
         value: /var/data/washraum.sqlite
-      - key: SEED_ADMIN_NAME
-        value: admin
-      - key: SEED_ADMIN_PASSWORD
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PUBLIC_APP_URL
         sync: false
-      - key: SEED_USER_NAME
-        value: user
-      - key: SEED_USER_PASSWORD
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
         sync: false
     disk:
       name: washraum-data

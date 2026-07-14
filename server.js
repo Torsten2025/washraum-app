@@ -1,2768 +1,1090 @@
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
-const os = require("os");
-const express = require("express");
-const Database = require("better-sqlite3");
+const fs = require('fs');
+const net = require('net');
+const path = require('path');
+const tls = require('tls');
+const express = require('express');
+const session = require('express-session');
+const Database = require('better-sqlite3');
+const bcrypt = require('bcryptjs');
 
 const app = express();
-const port = process.env.PORT || 3000;
-const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, "data", "washraum.sqlite");
-const isProduction = process.env.NODE_ENV === "production";
-const appTimeZone = process.env.APP_TIME_ZONE || "Europe/Zurich";
-const whatsappConfig = {
-  accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
-  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
-  apiVersion: process.env.WHATSAPP_API_VERSION || "v20.0",
-  releaseMode: process.env.WHATSAPP_RELEASE_MODE || "test",
-  testTarget: normalizePhoneNumber(process.env.WHATSAPP_TEST_TO || process.env.WHATSAPP_RELEASE_TO || ""),
-  productionTarget: normalizePhoneNumber(process.env.WHATSAPP_PRODUCTION_TO || process.env.WHATSAPP_GROUP_TO || "")
-};
-const defaultResources = {
-  washer: ["WM 1", "WM 2", "WM 3"],
-  drying_room: ["Trockenraum 1", "Trockenraum 2", "Trockenraum 3"],
-  tumbler: ["Tumbler 1", "Tumbler 2"]
-};
-const retiredDefaultResources = [
-  { resourceType: "tumbler", resourceId: "Tumbler 3" }
-];
-const fixedSlots = [
-  { id: "slot-1", label: "07:00-12:00", start: "07:00", end: "12:00" },
-  { id: "slot-2", label: "12:00-17:00", start: "12:00", end: "17:00" },
-  { id: "slot-3", label: "17:00-21:00", start: "17:00", end: "21:00" }
-];
-const slots = {
-  washer: fixedSlots,
-  drying_room: fixedSlots,
-  tumbler: fixedSlots
-};
-const defaultBlockedDates = [
-  "2026-01-01",
-  "2026-04-03",
-  "2026-04-06",
-  "2026-05-01",
-  "2026-05-14",
-  "2026-05-25",
-  "2026-08-01",
-  "2026-12-25",
-  "2026-12-26"
-].map((date) => ({ date, label: defaultBlockedDateLabel(date) }));
+const port = Number(process.env.PORT || 3000);
+const isProduction = process.env.NODE_ENV === 'production';
+const dbPath = path.resolve(process.env.DB_PATH || path.join(__dirname, 'data', 'washraum.sqlite'));
+const dbDir = path.dirname(dbPath);
 
-fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
+fs.mkdirSync(dbDir, { recursive: true });
 
-const db = new Database(sqlitePath);
-db.pragma("journal_mode = WAL");
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
-    active INTEGER NOT NULL DEFAULT 1,
-    display_name TEXT,
-    apartment_label TEXT,
-    onboarding_seen_at TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS sessions (
-    token TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    expires_at TEXT NOT NULL,
-    last_seen_at TEXT,
-    user_agent TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT NOT NULL,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-    resource_id TEXT NOT NULL,
-    start_at TEXT NOT NULL,
-    end_at TEXT NOT NULL,
-    released_at TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS blocked_dates (
-    date TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS resource_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-    resource_id TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1,
-    unavailable_reason TEXT,
-    unavailable_since TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (resource_type, resource_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS fixed_bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-    resource_id TEXT NOT NULL,
-    weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
-    slot_id TEXT NOT NULL,
-    label TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1,
-    created_by TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (resource_type, resource_id, weekday, slot_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS machine_log_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT NOT NULL,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-    resource_id TEXT NOT NULL,
-    event_date TEXT NOT NULL,
-    note TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS pilot_feedback_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT NOT NULL,
-    message TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS activity_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released', 'laundry_left')),
-    user_name TEXT NOT NULL,
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-    resource_id TEXT NOT NULL,
-    start_at TEXT NOT NULL,
-    end_at TEXT NOT NULL,
-    message TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
-  CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
-  CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-  CREATE INDEX IF NOT EXISTS idx_fixed_bookings_weekday ON fixed_bookings(weekday, slot_id);
-  CREATE INDEX IF NOT EXISTS idx_machine_log_entries_created_at ON machine_log_entries(created_at);
-  CREATE INDEX IF NOT EXISTS idx_pilot_feedback_entries_created_at ON pilot_feedback_entries(created_at);
-  CREATE INDEX IF NOT EXISTS idx_activity_entries_created_at ON activity_entries(created_at);
-`);
-
-ensureBookingSchema();
-ensureBookingColumns();
-ensureActivitySchema();
-ensureUserColumns();
-ensureSessionColumns();
-ensureResourceColumns();
-seedDefaultResources();
-deactivateRetiredDefaultResources();
-seedDefaultBlockedDates();
-seedDefaultUsers();
-
-app.disable("x-powered-by");
-app.use(express.json());
-app.use((_req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "same-origin");
-  next();
-});
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/", (_req, res) => {
-  res.redirect("/login.html");
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
-    sqlitePath,
-    users: db.prepare("SELECT COUNT(*) AS count FROM users").get().count,
-    bookings: db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count,
-    blockedDates: db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count,
-    production: isProduction
-  });
-});
-
-app.post("/api/login", (req, res) => {
-  cleanupExpiredSessions();
-  const userName = String(req.body?.userName || "").trim();
-  const password = String(req.body?.password || "");
-
-  if (!userName || !password) {
-    return res.status(400).json({ ok: false, error: "missing_login_fields" });
-  }
-
-  const user = db.prepare("SELECT * FROM users WHERE user_name = ?").get(userName);
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    return res.status(401).json({ ok: false, error: "invalid_login" });
-  }
-
-  if (!user.active) {
-    return res.status(403).json({ ok: false, error: "user_inactive" });
-  }
-
-  const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
-
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at, last_seen_at, user_agent) VALUES (?, ?, ?, ?, ?)")
-    .run(token, user.id, expiresAt, new Date().toISOString(), sessionUserAgent(req));
-
-  res.json({
-    ok: true,
-    token,
-    user: {
-      userName: user.user_name,
-      role: user.role,
-      displayName: user.display_name || "",
-      apartmentLabel: user.apartment_label || "",
-      onboardingSeenAt: user.onboarding_seen_at || ""
-    }
-  });
-});
-
-app.post("/api/register", (req, res) => {
-  cleanupExpiredSessions();
-  const userName = String(req.body?.userName || "").trim();
-  const password = String(req.body?.password || "");
-  const displayName = String(req.body?.displayName || "").trim();
-  const apartmentLabel = String(req.body?.apartmentLabel || "").trim();
-  const validation = validateUserInput({
-    userName,
-    password,
-    role: "user",
-    displayName,
-    apartmentLabel,
-    requirePassword: true
-  });
-
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  const onboardingValidation = validateRegistrationOnboarding({
-    introSeen: Boolean(req.body?.onboardingIntroSeen),
-    answers: req.body?.onboardingAnswers || {}
-  });
-
-  if (!onboardingValidation.ok) {
-    return res.status(400).json(onboardingValidation);
-  }
-
-  const onboardingSeenAt = new Date().toISOString();
-
-  try {
-    const info = db
-      .prepare(`
-        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label, onboarding_seen_at)
-        VALUES (?, ?, 'user', 1, ?, ?, ?)
-      `)
-      .run(userName, hashPassword(password), displayName, apartmentLabel, onboardingSeenAt);
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
-
-    db.prepare("INSERT INTO sessions (token, user_id, expires_at, last_seen_at, user_agent) VALUES (?, ?, ?, ?, ?)")
-      .run(token, info.lastInsertRowid, expiresAt, new Date().toISOString(), sessionUserAgent(req));
-
-    res.status(201).json({
-      ok: true,
-      token,
-      user: {
-        userName,
-        role: "user",
-        displayName,
-        apartmentLabel,
-        onboardingSeenAt
-      }
-    });
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ ok: false, error: "user_already_exists" });
-    }
-
-    throw error;
-  }
-});
-
-app.post("/api/logout", (req, res) => {
-  const token = getToken(req);
-  if (token) {
-    db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
-  }
-
-  res.json({ ok: true });
-});
-
-app.get("/api/session", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  res.json({
-    ok: true,
-    user: {
-      userName: auth.user_name,
-      role: auth.role,
-      displayName: auth.display_name || "",
-      apartmentLabel: auth.apartment_label || "",
-      onboardingSeenAt: auth.onboarding_seen_at || ""
-    }
-  });
-});
-
-app.post("/api/me/onboarding-seen", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const seenAt = new Date().toISOString();
-  db.prepare("UPDATE users SET onboarding_seen_at = ? WHERE user_name = ?").run(seenAt, auth.user_name);
-  res.json({ ok: true, onboardingSeenAt: seenAt });
-});
-
-app.get("/api/resources", (_req, res) => {
-  res.json({
-    resources: listResources(),
-    allResources: listAllResources(),
-    resourceEntries: listResourceEntries(),
-    slots,
-    blockedDates: listBlockedDates(),
-    fixedBookings: listFixedBookings()
-  });
-});
-
-app.get("/api/bookings", (_req, res) => {
-  const bookings = db
-    .prepare(`
-      SELECT
-        bookings.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM bookings
-      LEFT JOIN users ON users.user_name = bookings.user_name
-      ORDER BY start_at ASC
-    `)
-    .all();
-
-  const fixedOccurrences = fixedBookingOccurrencesForDefaultWindow();
-  res.json({ bookings: [...bookings, ...fixedOccurrences].sort(compareBookingStart) });
-});
-
-app.get("/api/activity", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const activities = db
-    .prepare(`
-      SELECT
-        activity_entries.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM activity_entries
-      LEFT JOIN users ON users.user_name = activity_entries.user_name
-      ORDER BY activity_entries.created_at DESC, activity_entries.id DESC
-      LIMIT 30
-    `)
-    .all();
-
-  res.json({ ok: true, activities });
-});
-
-app.post("/api/me/password", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const currentPassword = String(req.body?.currentPassword || "");
-  const newPassword = String(req.body?.newPassword || "");
-  const user = db.prepare("SELECT * FROM users WHERE user_name = ?").get(auth.user_name);
-
-  if (!user || !verifyPassword(currentPassword, user.password_hash)) {
-    return res.status(400).json({ ok: false, error: "invalid_current_password" });
-  }
-
-  if (newPassword.length < 6) {
-    return res.status(400).json({ ok: false, error: "password_too_short" });
-  }
-
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?")
-    .run(hashPassword(newPassword), user.id);
-  db.prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?")
-    .run(user.id, getToken(req));
-
-  res.json({ ok: true });
-});
-
-if (!isProduction) {
-  app.post("/api/dev/cleanup", (req, res) => {
-    const auth = getAdminAuth(req);
-    if (!auth.ok) {
-      return res.status(auth.status).json(auth.body);
-    }
-
-    const prefixes = Array.isArray(req.body?.prefixes) ? req.body.prefixes : [];
-    const safePrefixes = prefixes
-      .map((prefix) => String(prefix || "").trim())
-      .filter((prefix) => prefix.length >= 4);
-
-    if (safePrefixes.length === 0) {
-      return res.status(400).json({ ok: false, error: "cleanup_prefix_required" });
-    }
-
-    const deleteBookings = db.prepare("DELETE FROM bookings WHERE user_name LIKE ?");
-    const deleteLogsByUser = db.prepare("DELETE FROM machine_log_entries WHERE user_name LIKE ?");
-    const deleteLogsByResource = db.prepare("DELETE FROM machine_log_entries WHERE resource_id LIKE ?");
-    const deleteFeedbackByUser = db.prepare("DELETE FROM pilot_feedback_entries WHERE user_name LIKE ?");
-    const deleteActivityByUser = db.prepare("DELETE FROM activity_entries WHERE user_name LIKE ?");
-    const deleteActivityByResource = db.prepare("DELETE FROM activity_entries WHERE resource_id LIKE ?");
-    const deleteFixedBookingsByLabel = db.prepare("DELETE FROM fixed_bookings WHERE label LIKE ?");
-    const deleteFixedBookingsByResource = db.prepare("DELETE FROM fixed_bookings WHERE resource_id LIKE ?");
-    const deleteUserSessions = db.prepare(`
-      DELETE FROM sessions
-      WHERE user_id IN (
-        SELECT id FROM users WHERE user_name LIKE ?
+class BetterSqliteSessionStore extends session.Store {
+  constructor(database) {
+    super();
+    this.db = database;
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        sid TEXT PRIMARY KEY,
+        expired INTEGER NOT NULL,
+        sess TEXT NOT NULL
       )
     `);
-    const deleteUsers = db.prepare("DELETE FROM users WHERE user_name LIKE ?");
-    const deleteResources = db.prepare("DELETE FROM resource_entries WHERE resource_id LIKE ?");
-
-    const cleanup = db.transaction(() => {
-      let bookingsDeleted = 0;
-      let usersDeleted = 0;
-
-      for (const prefix of safePrefixes) {
-        deleteUserSessions.run(`${prefix}%`);
-        deleteLogsByUser.run(`${prefix}%`);
-        deleteLogsByResource.run(`${prefix}%`);
-        deleteFeedbackByUser.run(`${prefix}%`);
-        deleteActivityByUser.run(`${prefix}%`);
-        deleteActivityByResource.run(`${prefix}%`);
-        deleteFixedBookingsByLabel.run(`${prefix}%`);
-        deleteFixedBookingsByResource.run(`${prefix}%`);
-        bookingsDeleted += deleteBookings.run(`${prefix}%`).changes;
-        usersDeleted += deleteUsers.run(`${prefix}%`).changes;
-        deleteResources.run(`${prefix}%`);
-      }
-
-      return {
-        bookingsDeleted,
-        usersDeleted
-      };
-    });
-
-    res.json({ ok: true, ...cleanup() });
-  });
-}
-
-app.get("/api/admin/users", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
   }
 
-  const users = db
-    .prepare(`
-      SELECT
-        users.id,
-        users.user_name,
-        users.role,
-        users.active,
-        users.display_name,
-        users.apartment_label,
-        users.onboarding_seen_at,
-        users.created_at,
-        COUNT(sessions.token) AS active_sessions,
-        MAX(COALESCE(sessions.last_seen_at, sessions.created_at)) AS last_seen_at,
-        (
-          (SELECT COUNT(*) FROM bookings WHERE bookings.user_name = users.user_name)
-          + (SELECT COUNT(*) FROM machine_log_entries WHERE machine_log_entries.user_name = users.user_name)
-          + (SELECT COUNT(*) FROM pilot_feedback_entries WHERE pilot_feedback_entries.user_name = users.user_name)
-          + (SELECT COUNT(*) FROM activity_entries WHERE activity_entries.user_name = users.user_name)
-        ) AS linked_records
-      FROM users
-      LEFT JOIN sessions
-        ON sessions.user_id = users.id
-       AND sessions.expires_at > ?
-      GROUP BY users.id
-      ORDER BY
-        CASE WHEN users.apartment_label IS NULL OR users.apartment_label = '' THEN 1 ELSE 0 END,
-        users.apartment_label ASC,
-        users.user_name ASC
-    `)
-    .all(new Date().toISOString());
-
-  res.json({ users });
-});
-
-app.get("/api/admin/overview", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const activeUsers = db.prepare("SELECT COUNT(*) AS count FROM users WHERE active = 1").get().count;
-  const inactiveUsers = db.prepare("SELECT COUNT(*) AS count FROM users WHERE active = 0").get().count;
-  const admins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
-  const bookings = db.prepare("SELECT COUNT(*) AS count FROM bookings").get().count;
-  const pilotFeedback = db.prepare("SELECT COUNT(*) AS count FROM pilot_feedback_entries").get().count;
-  const activities = db.prepare("SELECT COUNT(*) AS count FROM activity_entries").get().count;
-  const futureBookings = db
-    .prepare("SELECT COUNT(*) AS count FROM bookings WHERE end_at > ?")
-    .get(new Date().toISOString()).count;
-  const blockedDatesCount = db.prepare("SELECT COUNT(*) AS count FROM blocked_dates").get().count;
-  const currentResources = listAllResources();
-  const unavailableResources = listResourceEntries().filter((resource) => resource.unavailable_reason);
-  const whatsappStatus = whatsappRuntimeStatus();
-  const registeredUsers = activeUsers + inactiveUsers;
-  const testUsers = db
-    .prepare(`
-      SELECT user_name
-      FROM users
-      WHERE user_name IN ('user')
-        OR user_name LIKE 'PartyTest-%'
-        OR user_name LIKE 'Smoke-%'
-        OR user_name LIKE 'Managed-%'
-      ORDER BY user_name ASC
-      LIMIT 8
-    `)
-    .all()
-    .map((user) => user.user_name);
-
-  const warnings = [];
-  if (testUsers.length > 0) {
-    warnings.push({
-      code: "test_users_present",
-      message: `Test-/Standardnutzer vorhanden: ${testUsers.join(", ")}`
-    });
-  }
-  if (admins < 1) {
-    warnings.push({
-      code: "no_active_admin",
-      message: "Es gibt keinen aktiven Admin."
-    });
-  }
-  if (!whatsappStatus.configured) {
-    warnings.push({
-      code: "whatsapp_not_configured",
-      message: "WhatsApp-Versand ist noch nicht vollstaendig konfiguriert."
-    });
-  }
-
-  res.json({
-    ok: true,
-    status: {
-      sqlitePath,
-      production: isProduction,
-      activeUsers,
-      inactiveUsers,
-      admins,
-      bookings,
-      pilotFeedback,
-      activities,
-      futureBookings,
-      blockedDates: blockedDatesCount,
-      registeredUsers,
-      resources: {
-        washers: currentResources.washer.length,
-        dryingRooms: currentResources.drying_room.length,
-        tumblers: currentResources.tumbler.length,
-        slotsPerResource: fixedSlots.length,
-        unavailable: unavailableResources.length
-      },
-      whatsapp: whatsappStatus
-    },
-    warnings
-  });
-});
-
-app.get("/api/admin/analytics", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const days = normalizeAnalyticsDays(req.query.days);
-  res.json({
-    ok: true,
-    analytics: buildAdminAnalytics(days)
-  });
-});
-
-app.post("/api/admin/bookings/reset", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const confirmation = String(req.body.confirmation || "").trim();
-  if (confirmation !== "ZURUECKSETZEN") {
-    return res.status(400).json({ ok: false, error: "invalid_reset_confirmation" });
-  }
-
-  const resetBookings = db.transaction(() => {
-    const deletedBookings = db.prepare("DELETE FROM bookings").run().changes;
-    const deletedActivities = db.prepare("DELETE FROM activity_entries").run().changes;
-    return {
-      deletedBookings,
-      deletedActivities
-    };
-  });
-
-  res.json({
-    ok: true,
-    ...resetBookings()
-  });
-});
-
-app.get("/api/admin/fixed-bookings", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  res.json({ ok: true, fixedBookings: listFixedBookings() });
-});
-
-app.post("/api/admin/fixed-bookings", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const resourceType = String(req.body?.resourceType || "").trim();
-  const resourceId = String(req.body?.resourceId || "").trim();
-  const weekday = Number(req.body?.weekday);
-  const slotId = String(req.body?.slotId || "").trim();
-  const label = String(req.body?.label || "").trim();
-  const validation = validateFixedBookingInput({ resourceType, resourceId, weekday, slotId, label });
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  if (futureBookingConflictsWithFixedBooking({ resourceType, resourceId, weekday, slotId })) {
-    return res.status(409).json({ ok: false, error: "fixed_booking_conflicts_with_existing_booking" });
-  }
-
-  try {
-    const info = db
-      .prepare(`
-        INSERT INTO fixed_bookings (resource_type, resource_id, weekday, slot_id, label, created_by)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
-      .run(resourceType, resourceId, weekday, slotId, label, auth.auth.user_name);
-    const fixedBooking = db
-      .prepare("SELECT * FROM fixed_bookings WHERE id = ?")
-      .get(info.lastInsertRowid);
-
-    res.status(201).json({ ok: true, fixedBooking, fixedBookings: listFixedBookings() });
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ ok: false, error: "fixed_booking_already_exists" });
+  get(sid, callback) {
+    try {
+      const row = this.db.prepare('SELECT sess FROM sessions WHERE sid = ? AND expired > ?')
+        .get(sid, Date.now());
+      callback(null, row ? JSON.parse(row.sess) : null);
+    } catch (error) {
+      callback(error);
     }
-
-    throw error;
-  }
-});
-
-app.delete("/api/admin/fixed-bookings/:id", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
   }
 
-  const id = Number(req.params.id);
-  const existing = db.prepare("SELECT id FROM fixed_bookings WHERE id = ? AND active = 1").get(id);
-  if (!existing) {
-    return res.status(404).json({ ok: false, error: "fixed_booking_not_found" });
-  }
-
-  db.prepare("UPDATE fixed_bookings SET active = 0 WHERE id = ?").run(id);
-  res.json({ ok: true, id, fixedBookings: listFixedBookings() });
-});
-
-app.post("/api/admin/resources", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const resourceType = String(req.body?.resourceType || "").trim();
-  const resourceId = String(req.body?.resourceId || "").trim();
-  const validation = validateResourceInput({ resourceType, resourceId });
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  try {
-    const sortOrder = nextResourceSortOrder(resourceType);
-    const info = db
-      .prepare(`
-        INSERT INTO resource_entries (resource_type, resource_id, sort_order)
+  set(sid, sess, callback = () => {}) {
+    try {
+      const expires = sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + 86400000;
+      this.db.prepare(`
+        INSERT INTO sessions (sid, expired, sess)
         VALUES (?, ?, ?)
-      `)
-      .run(resourceType, resourceId, sortOrder);
-    const resource = db
-      .prepare("SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at FROM resource_entries WHERE id = ?")
-      .get(info.lastInsertRowid);
-
-    res.status(201).json({ ok: true, resource, resources: listResources() });
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ ok: false, error: "resource_already_exists" });
-    }
-
-    throw error;
-  }
-});
-
-app.patch("/api/admin/resources/:id/availability", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingResource = db
-    .prepare("SELECT id, resource_type, resource_id FROM resource_entries WHERE id = ? AND active = 1")
-    .get(id);
-  if (!existingResource) {
-    return res.status(404).json({ ok: false, error: "resource_not_found" });
-  }
-
-  const unavailable = Boolean(req.body?.unavailable);
-  const reason = String(req.body?.reason || "").trim();
-  if (unavailable && (reason.length < 3 || reason.length > 160)) {
-    return res.status(400).json({ ok: false, error: "invalid_resource_unavailable_reason" });
-  }
-
-  if (unavailable) {
-    db
-      .prepare("UPDATE resource_entries SET unavailable_reason = ?, unavailable_since = ? WHERE id = ?")
-      .run(reason, new Date().toISOString(), id);
-  } else {
-    db
-      .prepare("UPDATE resource_entries SET unavailable_reason = NULL, unavailable_since = NULL WHERE id = ?")
-      .run(id);
-  }
-
-  const resource = db
-    .prepare("SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at FROM resource_entries WHERE id = ?")
-    .get(id);
-
-  res.json({
-    ok: true,
-    resource,
-    resources: listResources(),
-    allResources: listAllResources(),
-    resourceEntries: listResourceEntries()
-  });
-});
-
-app.get("/api/machine-logs", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const logs = db
-    .prepare(`
-      SELECT
-        machine_log_entries.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM machine_log_entries
-      LEFT JOIN users ON users.user_name = machine_log_entries.user_name
-      ORDER BY event_date DESC, created_at DESC, id DESC
-      LIMIT 150
-    `)
-    .all();
-
-  res.json({ ok: true, logs });
-});
-
-app.post("/api/machine-logs", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const resourceType = String(req.body?.resourceType || "").trim();
-  const resourceId = String(req.body?.resourceId || "").trim();
-  const eventDate = String(req.body?.eventDate || dateKey(new Date())).trim();
-  const note = String(req.body?.note || "").trim();
-  const availabilityAction = String(req.body?.availabilityAction || "log_only").trim();
-  const validation = validateMachineLogInput({ resourceType, resourceId, eventDate, note });
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-  if (!["log_only", "block_resource", "release_resource"].includes(availabilityAction)) {
-    return res.status(400).json({ ok: false, error: "invalid_machine_log_action" });
-  }
-  if (availabilityAction !== "log_only" && auth.role !== "admin") {
-    return res.status(403).json({ ok: false, error: "admin_required" });
-  }
-
-  const saveMachineLog = db.transaction(() => {
-    const storedNote = noteWithAvailabilityAction(note, availabilityAction);
-    const info = db
-      .prepare(`
-        INSERT INTO machine_log_entries (user_name, resource_type, resource_id, event_date, note)
-        VALUES (?, ?, ?, ?, ?)
-      `)
-      .run(auth.user_name, resourceType, resourceId, eventDate, storedNote);
-
-    if (availabilityAction === "block_resource") {
-      db
-        .prepare(`
-          UPDATE resource_entries
-          SET unavailable_reason = ?, unavailable_since = ?
-          WHERE resource_type = ? AND resource_id = ? AND active = 1
-        `)
-        .run(resourceUnavailableReason(note), new Date().toISOString(), resourceType, resourceId);
-    }
-
-    if (availabilityAction === "release_resource") {
-      db
-        .prepare(`
-          UPDATE resource_entries
-          SET unavailable_reason = NULL, unavailable_since = NULL
-          WHERE resource_type = ? AND resource_id = ? AND active = 1
-        `)
-        .run(resourceType, resourceId);
-    }
-
-    return db
-      .prepare("SELECT * FROM machine_log_entries WHERE id = ?")
-      .get(info.lastInsertRowid);
-  });
-
-  const logEntry = saveMachineLog();
-
-  res.status(201).json({
-    ok: true,
-    logEntry,
-    availabilityAction,
-    resources: listResources(),
-    allResources: listAllResources(),
-    resourceEntries: listResourceEntries()
-  });
-});
-
-app.get("/api/pilot-feedback", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const ownOnly = auth.role !== "admin";
-  const query = `
-    SELECT
-      pilot_feedback_entries.*,
-      users.display_name AS user_display_name,
-      users.apartment_label AS apartment_label
-    FROM pilot_feedback_entries
-    LEFT JOIN users ON users.user_name = pilot_feedback_entries.user_name
-    ${ownOnly ? "WHERE pilot_feedback_entries.user_name = ?" : ""}
-    ORDER BY pilot_feedback_entries.created_at DESC, pilot_feedback_entries.id DESC
-    LIMIT 100
-  `;
-  const feedback = ownOnly
-    ? db.prepare(query).all(auth.user_name)
-    : db.prepare(query).all();
-
-  res.json({ ok: true, feedback });
-});
-
-app.post("/api/pilot-feedback", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const message = String(req.body?.message || "").trim();
-  const validation = validatePilotFeedback({ message });
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  const info = db
-    .prepare("INSERT INTO pilot_feedback_entries (user_name, message) VALUES (?, ?)")
-    .run(auth.user_name, message);
-  const feedbackEntry = db
-    .prepare("SELECT * FROM pilot_feedback_entries WHERE id = ?")
-    .get(info.lastInsertRowid);
-
-  res.status(201).json({ ok: true, feedbackEntry });
-});
-
-app.post("/api/admin/users", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const userName = String(req.body?.userName || "").trim();
-  const password = String(req.body?.password || "");
-  const role = String(req.body?.role || "user").trim();
-  const displayName = String(req.body?.displayName || "").trim();
-  const apartmentLabel = String(req.body?.apartmentLabel || "").trim();
-  const active = normalizeActive(req.body?.active);
-  const validation = validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword: true });
-
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  try {
-    const info = db
-      .prepare(`
-        INSERT INTO users (user_name, password_hash, role, active, display_name, apartment_label)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
-      .run(userName, hashPassword(password), role, active, displayName, apartmentLabel);
-    const user = db
-      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at FROM users WHERE id = ?")
-      .get(info.lastInsertRowid);
-
-    res.status(201).json({ ok: true, user });
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ ok: false, error: "user_already_exists" });
-    }
-
-    throw error;
-  }
-});
-
-app.post("/api/admin/users/:id/reset-password", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingUser = db.prepare("SELECT id, user_name FROM users WHERE id = ?").get(id);
-  if (!existingUser) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
-  }
-
-  const password = generateInitialPassword();
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(password), id);
-  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-
-  res.json({
-    ok: true,
-    userName: existingUser.user_name,
-    password
-  });
-});
-
-app.post("/api/admin/users/:id/logout-sessions", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingUser = db.prepare("SELECT id, user_name FROM users WHERE id = ?").get(id);
-  if (!existingUser) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
-  }
-
-  const result = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-  res.json({
-    ok: true,
-    userName: existingUser.user_name,
-    loggedOutSessions: result.changes
-  });
-});
-
-app.delete("/api/admin/users/:id", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingUser = db.prepare("SELECT id, user_name, role FROM users WHERE id = ?").get(id);
-  if (!existingUser) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
-  }
-
-  if (existingUser.role === "admin" && countAdmins() <= 1) {
-    return res.status(400).json({ ok: false, error: "last_admin_required" });
-  }
-
-  const linkedRecords = countUserLinkedRecords(existingUser.user_name);
-  if (linkedRecords.total > 0) {
-    return res.status(409).json({
-      ok: false,
-      error: "user_has_records",
-      linkedRecords
-    });
-  }
-
-  const deleted = db.transaction(() => {
-    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-    return db.prepare("DELETE FROM users WHERE id = ?").run(id).changes;
-  })();
-
-  res.json({
-    ok: true,
-    userName: existingUser.user_name,
-    deleted
-  });
-});
-
-app.get("/api/admin/blocked-dates", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  res.json({ blockedDates: listBlockedDates() });
-});
-
-app.post("/api/admin/blocked-dates", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const date = String(req.body?.date || "").trim();
-  const label = String(req.body?.label || "").trim() || "Sperrtag";
-  const validation = validateBlockedDate({ date, label });
-
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  try {
-    db.prepare("INSERT INTO blocked_dates (date, label) VALUES (?, ?)").run(date, label);
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
-      return res.status(409).json({ ok: false, error: "blocked_date_already_exists" });
-    }
-
-    throw error;
-  }
-
-  const blockedDate = db.prepare("SELECT date, label, created_at FROM blocked_dates WHERE date = ?").get(date);
-  res.status(201).json({ ok: true, blockedDate });
-});
-
-app.get("/api/admin/backup", async (req, res, next) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const backupName = `washraum-backup-${dateTimeStamp(new Date())}.sqlite`;
-  const backupPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${backupName}`);
-
-  try {
-    await db.backup(backupPath);
-    res.setHeader("Cache-Control", "no-store");
-    res.download(backupPath, backupName, (error) => {
-      fs.rm(backupPath, { force: true }, () => {});
-      if (error && !res.headersSent) {
-        next(error);
-      }
-    });
-  } catch (error) {
-    fs.rm(backupPath, { force: true }, () => {});
-    next(error);
-  }
-});
-
-app.delete("/api/admin/blocked-dates/:date", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const date = String(req.params.date || "").trim();
-  if (!isDateKey(date)) {
-    return res.status(400).json({ ok: false, error: "invalid_blocked_date" });
-  }
-
-  const result = db.prepare("DELETE FROM blocked_dates WHERE date = ?").run(date);
-  if (result.changes === 0) {
-    return res.status(404).json({ ok: false, error: "blocked_date_not_found" });
-  }
-
-  res.json({ ok: true });
-});
-
-app.post("/api/admin/whatsapp-test", async (req, res, next) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  try {
-    const result = await sendWhatsAppText([
-      "Test Waschraum Maneggplatz 18:",
-      "Der WhatsApp-Versand aus der App ist verbunden."
-    ].join(" "));
-
-    if (!result.ok) {
-      return res.status(result.status || 400).json(result);
-    }
-
-    res.json({ ok: true, status: whatsappRuntimeStatus() });
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.patch("/api/admin/users/:id", (req, res) => {
-  const auth = getAdminAuth(req);
-  if (!auth.ok) {
-    return res.status(auth.status).json(auth.body);
-  }
-
-  const id = Number(req.params.id);
-  const existingUser = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
-
-  if (!existingUser) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
-  }
-
-  const userName = String(req.body?.userName || existingUser.user_name).trim();
-  const password = String(req.body?.password || "");
-  const role = String(req.body?.role || existingUser.role).trim();
-  const displayName = req.body?.displayName === undefined
-    ? String(existingUser.display_name || "")
-    : String(req.body.displayName || "").trim();
-  const apartmentLabel = req.body?.apartmentLabel === undefined
-    ? String(existingUser.apartment_label || "")
-    : String(req.body.apartmentLabel || "").trim();
-  const active = req.body?.active === undefined ? existingUser.active : normalizeActive(req.body.active);
-  const validation = validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword: false });
-
-  if (!validation.ok) {
-    return res.status(400).json(validation);
-  }
-
-  if (existingUser.role === "admin" && (role !== "admin" || !active) && countAdmins() <= 1) {
-    return res.status(400).json({ ok: false, error: "last_admin_required" });
-  }
-
-  try {
-    if (password) {
-      db
-        .prepare(`
-          UPDATE users
-          SET user_name = ?, password_hash = ?, role = ?, active = ?, display_name = ?, apartment_label = ?
-          WHERE id = ?
-        `)
-        .run(userName, hashPassword(password), role, active, displayName, apartmentLabel, id);
-    } else {
-      db
-        .prepare(`
-          UPDATE users
-          SET user_name = ?, role = ?, active = ?, display_name = ?, apartment_label = ?
-          WHERE id = ?
-        `)
-        .run(userName, role, active, displayName, apartmentLabel, id);
-    }
-
-    if (!active) {
-      db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-    }
-
-    const user = db
-      .prepare("SELECT id, user_name, role, active, display_name, apartment_label, onboarding_seen_at, created_at FROM users WHERE id = ?")
-      .get(id);
-
-    res.json({ ok: true, user });
-  } catch (error) {
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ ok: false, error: "user_already_exists" });
-    }
-
-    throw error;
-  }
-});
-
-app.post("/api/admin/addBooking", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  if (auth.role !== "admin") {
-    return res.status(403).json({ ok: false, error: "admin_required" });
-  }
-
-  const result = createBooking({ ...req.body, userName: req.body?.userName || auth.user_name });
-  if (!result.ok) {
-    return res.status(400).json(result);
-  }
-
-  res.status(201).json(result);
-});
-
-app.post("/api/user/deleteBooking", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const { id } = req.body || {};
-
-  if (!id) {
-    return res.status(400).json({ ok: false, error: "booking_id_required" });
-  }
-
-  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(id);
-  if (!booking) {
-    return res.status(404).json({ ok: false, error: "booking_not_found" });
-  }
-
-  if (auth.role !== "admin" && booking.user_name !== auth.user_name) {
-    return res.status(403).json({ ok: false, error: "not_allowed" });
-  }
-
-  db.prepare("DELETE FROM bookings WHERE id = ?").run(id);
-  logBookingActivity("booking_deleted", booking);
-  res.json({ ok: true, activity: latestActivityForBooking("booking_deleted", booking) });
-});
-
-app.post("/api/user/releaseBooking", async (req, res, next) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const { id } = req.body || {};
-  if (!id) {
-    return res.status(400).json({ ok: false, error: "booking_id_required" });
-  }
-
-  const booking = db
-    .prepare(`
-      SELECT
-        bookings.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM bookings
-      LEFT JOIN users ON users.user_name = bookings.user_name
-      WHERE bookings.id = ?
-    `)
-    .get(id);
-
-  if (!booking) {
-    return res.status(404).json({ ok: false, error: "booking_not_found" });
-  }
-
-  if (auth.role !== "admin" && booking.user_name !== auth.user_name) {
-    return res.status(403).json({ ok: false, error: "not_allowed" });
-  }
-
-  try {
-    const result = await sendWhatsAppReleaseMessage(booking);
-    if (!result.ok) {
-      return res.status(result.status || 400).json(result);
-    }
-
-    const releasedAt = new Date().toISOString();
-    db.prepare("UPDATE bookings SET released_at = ? WHERE id = ?").run(releasedAt, id);
-    booking.released_at = releasedAt;
-    logBookingActivity("booking_released", booking);
-    res.json({ ok: true, activity: latestActivityForBooking("booking_released", booking) });
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.post("/api/user/laundry-left", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const { id } = req.body || {};
-  if (!id) {
-    return res.status(400).json({ ok: false, error: "booking_id_required" });
-  }
-
-  const booking = bookingWithUser(id);
-  if (!booking) {
-    return res.status(404).json({ ok: false, error: "booking_not_found" });
-  }
-
-  if (booking.released_at) {
-    return res.status(400).json({ ok: false, error: "booking_already_released" });
-  }
-
-  const message = buildLaundryLeftMessage(booking);
-  logBookingActivity("laundry_left", booking, message);
-  res.json({ ok: true, activity: latestActivityForBooking("laundry_left", booking) });
-});
-
-app.post("/api/bookings", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "not_authenticated" });
-  }
-
-  const result = createBooking({ ...req.body, userName: auth.user_name });
-  if (!result.ok) {
-    return res.status(400).json(result);
-  }
-
-  res.status(201).json(result);
-});
-
-function seedDefaultUsers() {
-  const count = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
-  if (count > 0) {
-    return;
-  }
-
-  const seedAdminPassword = seedPassword("SEED_ADMIN_PASSWORD", "admin123");
-  const seedUserPassword = seedPassword("SEED_USER_PASSWORD", "user123");
-  const insert = db.prepare(`
-    INSERT INTO users (user_name, password_hash, role, display_name, apartment_label)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  insert.run(process.env.SEED_ADMIN_NAME || "admin", hashPassword(seedAdminPassword), "admin", "Administration", "");
-  insert.run(process.env.SEED_USER_NAME || "user", hashPassword(seedUserPassword), "user", "Testnutzer", "Partei 01");
-}
-
-function seedPassword(envName, localFallback) {
-  const value = process.env[envName];
-
-  if (value) {
-    return value;
-  }
-
-  if (isProduction) {
-    throw new Error(`${envName} must be set before starting production with an empty database`);
-  }
-
-  return localFallback;
-}
-
-function generateInitialPassword() {
-  return `Wp-${crypto.randomBytes(6).toString("base64url")}`;
-}
-
-async function sendWhatsAppReleaseMessage(booking) {
-  return sendWhatsAppText(buildReleaseMessage(booking));
-}
-
-async function sendWhatsAppText(text) {
-  const releaseTarget = whatsappReleaseTarget();
-  if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !releaseTarget) {
-    return { ok: false, status: 503, error: "whatsapp_not_configured" };
-  }
-
-  const response = await fetch(`https://graph.facebook.com/${whatsappConfig.apiVersion}/${whatsappConfig.phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${whatsappConfig.accessToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: releaseTarget,
-      type: "text",
-      text: {
-        preview_url: false,
-        body: text
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const details = await response.json().catch(() => ({}));
-    console.error("WhatsApp release message failed", details);
-    return { ok: false, status: 502, error: "whatsapp_send_failed" };
-  }
-
-  return { ok: true };
-}
-
-function whatsappReleaseTarget() {
-  return whatsappConfig.releaseMode === "production"
-    ? whatsappConfig.productionTarget
-    : whatsappConfig.testTarget;
-}
-
-function whatsappRuntimeStatus() {
-  const mode = whatsappConfig.releaseMode === "production" ? "production" : "test";
-  const target = whatsappReleaseTarget();
-
-  return {
-    mode,
-    configured: Boolean(whatsappConfig.accessToken && whatsappConfig.phoneNumberId && target),
-    hasAccessToken: Boolean(whatsappConfig.accessToken),
-    hasPhoneNumberId: Boolean(whatsappConfig.phoneNumberId),
-    hasTarget: Boolean(target),
-    targetMasked: maskPhoneNumber(target)
-  };
-}
-
-function buildReleaseMessage(booking) {
-  return [
-    "Info Waschraum Maneggplatz 18:",
-    `${resourceLabel(booking.resource_type)} ${booking.resource_id} ist frueher frei.`,
-    `Gebucht war bis ${formatServerTime(booking.end_at)} am ${formatServerDate(booking.start_at)}.`
-  ].join(" ");
-}
-
-function buildLaundryLeftMessage(booking) {
-  const person = bookingPartyLabel(booking);
-  return [
-    `${person}: kurzer Hinweis, bei ${resourceLabel(booking.resource_type)} ${booking.resource_id} haengt noch Waesche.`,
-    `Gebucht war ${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)} am ${formatServerDate(booking.start_at)}.`
-  ].join(" ");
-}
-
-function normalizePhoneNumber(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.startsWith("00")) {
-    return digits.slice(2);
-  }
-
-  return digits;
-}
-
-function maskPhoneNumber(value) {
-  const digits = String(value || "");
-  if (!digits) {
-    return "";
-  }
-
-  if (digits.length <= 4) {
-    return "****";
-  }
-
-  return `${"*".repeat(digits.length - 4)}${digits.slice(-4)}`;
-}
-
-function seedDefaultResources() {
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO resource_entries (resource_type, resource_id, sort_order)
-    VALUES (?, ?, ?)
-  `);
-
-  for (const [resourceType, resourceIds] of Object.entries(defaultResources)) {
-    resourceIds.forEach((resourceId, index) => {
-      insert.run(resourceType, resourceId, index + 1);
-    });
-  }
-}
-
-function deactivateRetiredDefaultResources() {
-  const deactivate = db.prepare(`
-    UPDATE resource_entries
-    SET active = 0, unavailable_reason = NULL, unavailable_since = NULL
-    WHERE resource_type = ? AND resource_id = ?
-  `);
-
-  for (const resource of retiredDefaultResources) {
-    deactivate.run(resource.resourceType, resource.resourceId);
-  }
-}
-
-function listResources() {
-  const resources = {
-    washer: [],
-    drying_room: [],
-    tumbler: []
-  };
-  const entries = db
-    .prepare(`
-      SELECT resource_type, resource_id
-      FROM resource_entries
-      WHERE active = 1
-        AND unavailable_reason IS NULL
-      ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
-    `)
-    .all();
-
-  for (const entry of entries) {
-    resources[entry.resource_type].push(entry.resource_id);
-  }
-
-  return resources;
-}
-
-function listAllResources() {
-  const resources = {
-    washer: [],
-    drying_room: [],
-    tumbler: []
-  };
-
-  for (const entry of listResourceEntries()) {
-    resources[entry.resource_type].push(entry.resource_id);
-  }
-
-  return resources;
-}
-
-function listResourceEntries() {
-  return db
-    .prepare(`
-      SELECT id, resource_type, resource_id, active, unavailable_reason, unavailable_since, sort_order, created_at
-      FROM resource_entries
-      WHERE active = 1
-      ORDER BY resource_type ASC, sort_order ASC, resource_id ASC
-    `)
-    .all();
-}
-
-function normalizeAnalyticsDays(value) {
-  const days = Number(value);
-  if ([30, 90, 365].includes(days)) {
-    return days;
-  }
-
-  return 30;
-}
-
-function buildAdminAnalytics(days) {
-  const now = new Date();
-  const periodStart = addZonedDays(startOfZonedDay(now), -days + 1);
-  const periodEnd = now;
-  const periodStartIso = periodStart.toISOString();
-  const periodEndIso = periodEnd.toISOString();
-  const periodStartKey = dateKey(periodStart);
-  const periodEndKey = dateKey(periodEnd);
-  const resources = listAllResources();
-  const unavailableResources = listResourceEntries().filter((resource) => resource.unavailable_reason);
-  const bookings = db
-    .prepare(`
-      SELECT
-        bookings.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM bookings
-      LEFT JOIN users ON users.user_name = bookings.user_name
-      WHERE bookings.start_at >= ?
-        AND bookings.start_at <= ?
-      ORDER BY bookings.start_at ASC
-    `)
-    .all(periodStartIso, periodEndIso);
-  const activeParties = db
-    .prepare(`
-      SELECT user_name, display_name, apartment_label
-      FROM users
-      WHERE active = 1
-        AND role = 'user'
-      ORDER BY apartment_label ASC, user_name ASC
-    `)
-    .all();
-  const machineLogs = db
-    .prepare(`
-      SELECT resource_type, resource_id, event_date
-      FROM machine_log_entries
-      WHERE event_date >= ?
-        AND event_date <= ?
-    `)
-    .all(periodStartKey, periodEndKey);
-  const bookableDays = countBookableDays(periodStart, periodEnd);
-  const bookingsByType = countBy(bookings, (booking) => booking.resource_type);
-  const bookingUsers = countBy(bookings, (booking) => booking.user_name);
-  const partiesWithBookings = activeParties.filter((party) => (bookingUsers.get(party.user_name) || 0) > 0);
-
-  return {
-    period: {
-      days,
-      start: periodStartIso,
-      end: periodEndIso,
-      label: `${formatServerDate(periodStartIso)} bis ${formatServerDate(periodEndIso)}`
-    },
-    totals: {
-      bookings: bookings.length,
-      activeParties: activeParties.length,
-      partiesWithBookings: partiesWithBookings.length,
-      averagePerActiveParty: activeParties.length ? roundOne(bookings.length / activeParties.length) : 0,
-      machineLogs: machineLogs.length,
-      unavailableResources: unavailableResources.length,
-      bookableDays
-    },
-    usage: ["washer", "drying_room", "tumbler"].map((resourceType) => {
-      const capacity = bookableDays * (resources[resourceType]?.length || 0) * fixedSlots.length;
-      const count = bookingsByType.get(resourceType) || 0;
-      return {
-        resourceType,
-        label: resourceType === "washer" ? "Waschmaschinen" : resourceType === "drying_room" ? "Trockenraeume" : "Tumbler",
-        bookings: count,
-        capacity,
-        utilizationPercent: capacity ? roundOne((count / capacity) * 100) : 0
-      };
-    }),
-    insights: {
-      busiestWeekday: topEntry(countBy(bookings, (booking) => weekdayLabel(booking.start_at))),
-      busiestSlot: topEntry(countBy(bookings, (booking) => `${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)}`)),
-      busiestResource: topEntry(countBy(bookings, (booking) => `${resourceLabel(booking.resource_type)} ${booking.resource_id}`)),
-      topParties: topEntries(bookingUsers, 5).map((entry) => ({
-        label: partyAnalyticsLabel(activeParties.find((party) => party.user_name === entry.label) || { user_name: entry.label }),
-        count: entry.count
-      })),
-      inactiveParties: activeParties
-        .filter((party) => !bookingUsers.get(party.user_name))
-        .slice(0, 8)
-        .map(partyAnalyticsLabel),
-      machineLogsByResource: topEntries(countBy(machineLogs, (entry) => `${resourceLabel(entry.resource_type)} ${entry.resource_id}`), 5),
-      unavailableResources: unavailableResources.map((resource) => ({
-        label: `${resourceLabel(resource.resource_type)} ${resource.resource_id}`,
-        reason: resource.unavailable_reason
-      }))
-    }
-  };
-}
-
-function countBookableDays(start, end) {
-  let count = 0;
-  for (let day = startOfZonedDay(start); day <= end; day = addZonedDays(day, 1)) {
-    if (zonedWeekday(day) !== 0 && !isBlockedDate(day)) {
-      count += 1;
+        ON CONFLICT(sid) DO UPDATE SET expired = excluded.expired, sess = excluded.sess
+      `).run(sid, expires, JSON.stringify(sess));
+      callback(null);
+    } catch (error) {
+      callback(error);
     }
   }
 
-  return count;
-}
-
-function countBy(items, getKey) {
-  const counts = new Map();
-  for (const item of items) {
-    const key = getKey(item);
-    if (!key) {
-      continue;
+  destroy(sid, callback = () => {}) {
+    try {
+      this.db.prepare('DELETE FROM sessions WHERE sid = ?').run(sid);
+      callback(null);
+    } catch (error) {
+      callback(error);
     }
-    counts.set(key, (counts.get(key) || 0) + 1);
   }
 
-  return counts;
-}
-
-function topEntry(counts) {
-  return topEntries(counts, 1)[0] || null;
-}
-
-function topEntries(counts, limit) {
-  return Array.from(counts.entries())
-    .map(([label, count]) => ({ label, count }))
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
-    .slice(0, limit);
-}
-
-function partyAnalyticsLabel(party) {
-  const parts = [];
-  if (party.apartment_label) {
-    parts.push(party.apartment_label);
-  }
-  if (party.display_name) {
-    parts.push(party.display_name);
-  }
-  if (parts.length === 0) {
-    parts.push(party.user_name);
-  }
-
-  return parts.join(" - ");
-}
-
-function weekdayLabel(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    weekday: "long",
-    timeZone: appTimeZone
-  }).format(new Date(value));
-}
-
-function roundOne(value) {
-  return Math.round(value * 10) / 10;
-}
-
-function isKnownResource(resourceType, resourceId) {
-  return Boolean(db
-    .prepare(`
-      SELECT id
-      FROM resource_entries
-      WHERE resource_type = ?
-        AND resource_id = ?
-        AND active = 1
-    `)
-    .get(resourceType, resourceId));
-}
-
-function isResourceBookable(resourceType, resourceId) {
-  return Boolean(db
-    .prepare(`
-      SELECT id
-      FROM resource_entries
-      WHERE resource_type = ?
-        AND resource_id = ?
-        AND active = 1
-        AND unavailable_reason IS NULL
-    `)
-    .get(resourceType, resourceId));
-}
-
-function nextResourceSortOrder(resourceType) {
-  return db
-    .prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 AS sort_order FROM resource_entries WHERE resource_type = ?")
-    .get(resourceType).sort_order;
-}
-
-function seedDefaultBlockedDates() {
-  const insert = db.prepare("INSERT OR IGNORE INTO blocked_dates (date, label) VALUES (?, ?)");
-  for (const blockedDate of defaultBlockedDates) {
-    insert.run(blockedDate.date, blockedDate.label);
+  touch(sid, sess, callback = () => {}) {
+    try {
+      const expires = sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + 86400000;
+      this.db.prepare('UPDATE sessions SET expired = ? WHERE sid = ?').run(expires, sid);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
   }
 }
 
-function ensureUserColumns() {
-  const columns = db.prepare("PRAGMA table_info(users)").all();
-  const hasActive = columns.some((column) => column.name === "active");
-  const hasDisplayName = columns.some((column) => column.name === "display_name");
-  const hasApartmentLabel = columns.some((column) => column.name === "apartment_label");
-  const hasOnboardingSeenAt = columns.some((column) => column.name === "onboarding_seen_at");
+const sessionSecret = process.env.SESSION_SECRET || 'local-dev-session-secret';
 
-  if (!hasActive) {
-    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+app.use(express.json());
+app.use(session({
+  store: new BetterSqliteSessionStore(db),
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    maxAge: 1000 * 60 * 60 * 8
   }
+}));
 
-  if (!hasDisplayName) {
-    db.exec("ALTER TABLE users ADD COLUMN display_name TEXT");
-  }
-
-  if (!hasApartmentLabel) {
-    db.exec("ALTER TABLE users ADD COLUMN apartment_label TEXT");
-  }
-
-  if (!hasOnboardingSeenAt) {
-    db.exec("ALTER TABLE users ADD COLUMN onboarding_seen_at TEXT");
-  }
-}
-
-function ensureSessionColumns() {
-  const columns = db.prepare("PRAGMA table_info(sessions)").all();
-  const hasLastSeenAt = columns.some((column) => column.name === "last_seen_at");
-  const hasUserAgent = columns.some((column) => column.name === "user_agent");
-
-  if (!hasLastSeenAt) {
-    db.exec("ALTER TABLE sessions ADD COLUMN last_seen_at TEXT");
-  }
-
-  if (!hasUserAgent) {
-    db.exec("ALTER TABLE sessions ADD COLUMN user_agent TEXT");
-  }
-}
-
-function ensureResourceColumns() {
-  const columns = db.prepare("PRAGMA table_info(resource_entries)").all();
-  const hasUnavailableReason = columns.some((column) => column.name === "unavailable_reason");
-  const hasUnavailableSince = columns.some((column) => column.name === "unavailable_since");
-
-  if (!hasUnavailableReason) {
-    db.exec("ALTER TABLE resource_entries ADD COLUMN unavailable_reason TEXT");
-  }
-
-  if (!hasUnavailableSince) {
-    db.exec("ALTER TABLE resource_entries ADD COLUMN unavailable_since TEXT");
-  }
-}
-
-function ensureBookingColumns() {
-  const columns = db.prepare("PRAGMA table_info(bookings)").all();
-  const hasReleasedAt = columns.some((column) => column.name === "released_at");
-
-  if (!hasReleasedAt) {
-    db.exec("ALTER TABLE bookings ADD COLUMN released_at TEXT");
-  }
-}
-
-function ensureActivitySchema() {
-  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'activity_entries'").get();
-  if (!table || table.sql.includes("'laundry_left'")) {
-    return;
-  }
-
+function initDb() {
   db.exec(`
-    ALTER TABLE activity_entries RENAME TO activity_entries_old;
-
-    CREATE TABLE activity_entries (
+    CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_type TEXT NOT NULL CHECK (event_type IN ('booking_created', 'booking_deleted', 'booking_released', 'laundry_left')),
-      user_name TEXT NOT NULL,
-      resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-      resource_id TEXT NOT NULL,
-      start_at TEXT NOT NULL,
-      end_at TEXT NOT NULL,
-      message TEXT NOT NULL,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+      active INTEGER NOT NULL DEFAULT 1,
+      notify_releases INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
-    INSERT INTO activity_entries (id, event_type, user_name, resource_type, resource_id, start_at, end_at, message, created_at)
-    SELECT id, event_type, user_name, resource_type, resource_id, start_at, end_at, message, created_at
-    FROM activity_entries_old;
-
-    DROP TABLE activity_entries_old;
-
-    CREATE INDEX IF NOT EXISTS idx_activity_entries_created_at ON activity_entries(created_at);
-  `);
-}
-
-function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password, storedHash) {
-  const [salt, hash] = String(storedHash || "").split(":");
-  if (!salt || !hash) {
-    return false;
-  }
-
-  const testHash = crypto.scryptSync(password, salt, 64);
-  const storedBuffer = Buffer.from(hash, "hex");
-
-  return storedBuffer.length === testHash.length && crypto.timingSafeEqual(storedBuffer, testHash);
-}
-
-function getToken(req) {
-  const authHeader = String(req.headers.authorization || "");
-  if (authHeader.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length);
-  }
-
-  return String(req.body?.token || req.query?.token || "").trim();
-}
-
-function getAuth(req) {
-  const token = getToken(req);
-  if (!token) {
-    return null;
-  }
-
-  const session = db
-    .prepare(`
-      SELECT users.user_name, users.role, sessions.expires_at
-        , users.display_name, users.apartment_label, users.onboarding_seen_at
-      FROM sessions
-      JOIN users ON users.id = sessions.user_id
-      WHERE sessions.token = ?
-        AND users.active = 1
-    `)
-    .get(token);
-
-  if (!session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) <= new Date()) {
-    db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
-    return null;
-  }
-
-  db.prepare("UPDATE sessions SET last_seen_at = ? WHERE token = ?").run(new Date().toISOString(), token);
-  return session;
-}
-
-function sessionUserAgent(req) {
-  return String(req.headers["user-agent"] || "").trim().slice(0, 240);
-}
-
-function cleanupExpiredSessions() {
-  db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(new Date().toISOString());
-}
-
-function getAdminAuth(req) {
-  const auth = getAuth(req);
-  if (!auth) {
-    return {
-      ok: false,
-      status: 401,
-      body: { ok: false, error: "not_authenticated" }
-    };
-  }
-
-  if (auth.role !== "admin") {
-    return {
-      ok: false,
-      status: 403,
-      body: { ok: false, error: "admin_required" }
-    };
-  }
-
-  return { ok: true, auth };
-}
-
-function countAdmins() {
-  return db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
-}
-
-function countUserLinkedRecords(userName) {
-  const counts = {
-    bookings: db.prepare("SELECT COUNT(*) AS count FROM bookings WHERE user_name = ?").get(userName).count,
-    machineLogs: db.prepare("SELECT COUNT(*) AS count FROM machine_log_entries WHERE user_name = ?").get(userName).count,
-    feedback: db.prepare("SELECT COUNT(*) AS count FROM pilot_feedback_entries WHERE user_name = ?").get(userName).count,
-    activities: db.prepare("SELECT COUNT(*) AS count FROM activity_entries WHERE user_name = ?").get(userName).count
-  };
-
-  return {
-    ...counts,
-    total: counts.bookings + counts.machineLogs + counts.feedback + counts.activities
-  };
-}
-
-function normalizeActive(value) {
-  return value === false || value === 0 || value === "0" || value === "false" ? 0 : 1;
-}
-
-function validateUserInput({ userName, password, role, displayName, apartmentLabel, requirePassword }) {
-  if (!userName || !role || (requirePassword && !password)) {
-    return { ok: false, error: "missing_user_fields" };
-  }
-
-  if (!["user", "admin"].includes(role)) {
-    return { ok: false, error: "invalid_user_role" };
-  }
-
-  if (userName.length < 2 || userName.length > 60) {
-    return { ok: false, error: "invalid_user_name" };
-  }
-
-  if (password && password.length < 6) {
-    return { ok: false, error: "password_too_short" };
-  }
-
-  if (displayName && displayName.length > 80) {
-    return { ok: false, error: "invalid_display_name" };
-  }
-
-  if (apartmentLabel && apartmentLabel.length > 40) {
-    return { ok: false, error: "invalid_apartment_label" };
-  }
-
-  return { ok: true };
-}
-
-function validateRegistrationOnboarding({ introSeen, answers }) {
-  if (!introSeen || !answers) {
-    return { ok: false, error: "onboarding_required" };
-  }
-
-  const morningDrying = String(answers.morningDrying || "");
-  const lateDrying = String(answers.lateDrying || "");
-  const tumbler = String(answers.tumbler || "");
-
-  if (!morningDrying || !lateDrying || !tumbler) {
-    return { ok: false, error: "onboarding_required" };
-  }
-
-  if (morningDrying !== "same-day-21" || lateDrying !== "next-day-12" || tumbler !== "own-slot-free") {
-    return { ok: false, error: "onboarding_quiz_retry" };
-  }
-
-  return { ok: true };
-}
-
-function validateBlockedDate({ date, label }) {
-  if (!date || !label) {
-    return { ok: false, error: "missing_blocked_date_fields" };
-  }
-
-  if (!isDateKey(date)) {
-    return { ok: false, error: "invalid_blocked_date" };
-  }
-
-  if (label.length < 2 || label.length > 80) {
-    return { ok: false, error: "invalid_blocked_date_label" };
-  }
-
-  return { ok: true };
-}
-
-function validateResourceInput({ resourceType, resourceId }) {
-  if (!resourceType || !resourceId) {
-    return { ok: false, error: "missing_resource_fields" };
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
-    return { ok: false, error: "invalid_resource_type" };
-  }
-
-  if (resourceId.length < 2 || resourceId.length > 60) {
-    return { ok: false, error: "invalid_resource_name" };
-  }
-
-  return { ok: true };
-}
-
-function validateFixedBookingInput({ resourceType, resourceId, weekday, slotId, label }) {
-  if (!resourceType || !resourceId || !weekday || !slotId || !label) {
-    return { ok: false, error: "missing_fixed_booking_fields" };
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
-    return { ok: false, error: "invalid_resource_type" };
-  }
-
-  if (!isKnownResource(resourceType, resourceId)) {
-    return { ok: false, error: "invalid_resource_id" };
-  }
-
-  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 6) {
-    return { ok: false, error: "invalid_fixed_booking_weekday" };
-  }
-
-  if (!(slots[resourceType] || []).some((slot) => slot.id === slotId)) {
-    return { ok: false, error: "invalid_booking_slot" };
-  }
-
-  if (label.length < 2 || label.length > 80) {
-    return { ok: false, error: "invalid_fixed_booking_label" };
-  }
-
-  return { ok: true };
-}
-
-function futureBookingConflictsWithFixedBooking({ resourceType, resourceId, weekday, slotId }) {
-  const nowIso = new Date().toISOString();
-  const bookings = db
-    .prepare(`
-      SELECT start_at, end_at
-      FROM bookings
-      WHERE resource_type = ?
-        AND resource_id = ?
-        AND end_at > ?
-        AND released_at IS NULL
-    `)
-    .all(resourceType, resourceId, nowIso);
-
-  return bookings.some((booking) => {
-    const start = new Date(booking.start_at);
-    const end = new Date(booking.end_at);
-    const slot = slotForRange(resourceType, start, end);
-    return zonedWeekday(start) === weekday && slot?.id === slotId;
-  });
-}
-
-function validateMachineLogInput({ resourceType, resourceId, eventDate, note }) {
-  if (!resourceType || !resourceId || !eventDate || !note) {
-    return { ok: false, error: "missing_machine_log_fields" };
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
-    return { ok: false, error: "invalid_resource_type" };
-  }
-
-  if (!isKnownResource(resourceType, resourceId)) {
-    return { ok: false, error: "invalid_resource_id" };
-  }
-
-  if (!isDateKey(eventDate)) {
-    return { ok: false, error: "invalid_machine_log_date" };
-  }
-
-  if (note.length < 3 || note.length > 1200) {
-    return { ok: false, error: "invalid_machine_log_note" };
-  }
-
-  return { ok: true };
-}
-
-function noteWithAvailabilityAction(note, availabilityAction) {
-  if (availabilityAction === "block_resource") {
-    return `[Gesperrt] ${note}`;
-  }
-  if (availabilityAction === "release_resource") {
-    return `[Freigegeben] ${note}`;
-  }
-
-  return note;
-}
-
-function resourceUnavailableReason(note) {
-  return String(note || "").trim().slice(0, 160);
-}
-
-function validatePilotFeedback({ message }) {
-  if (!message) {
-    return { ok: false, error: "missing_pilot_feedback" };
-  }
-
-  if (message.length < 5 || message.length > 1200) {
-    return { ok: false, error: "invalid_pilot_feedback" };
-  }
-
-  return { ok: true };
-}
-
-function createBooking(input) {
-  const userName = String(input?.userName || "").trim();
-  const resourceType = String(input?.resourceType || "").trim();
-  const resourceId = String(input?.resourceId || "").trim();
-  const startAt = String(input?.startAt || "").trim();
-  const endAt = String(input?.endAt || "").trim();
-
-  if (!userName || !resourceType || !resourceId || !startAt || !endAt) {
-    return { ok: false, error: "missing_required_fields" };
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(defaultResources, resourceType)) {
-    return { ok: false, error: "invalid_resource_type" };
-  }
-
-  if (!isKnownResource(resourceType, resourceId)) {
-    return { ok: false, error: "invalid_resource_id" };
-  }
-
-  if (!isResourceBookable(resourceType, resourceId)) {
-    return { ok: false, error: "resource_unavailable" };
-  }
-
-  const start = parseBookingDateTime(startAt);
-  const end = parseBookingDateTime(endAt);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-    return { ok: false, error: "invalid_time_range" };
-  }
-
-  if (start <= new Date()) {
-    return { ok: false, error: "booking_must_be_in_future" };
-  }
-
-  if (zonedWeekday(start) === 0) {
-    return { ok: false, error: "sunday_not_allowed" };
-  }
-
-  if (isBlockedDate(start)) {
-    return { ok: false, error: "blocked_date" };
-  }
-
-  if (!isConfiguredSlot(resourceType, start, end)) {
-    return { ok: false, error: "invalid_booking_slot" };
-  }
-
-  if (hasOtherFutureSequence(userName, start)) {
-    return { ok: false, error: "only_one_future_sequence_allowed" };
-  }
-
-  if (resourceType === "tumbler" && !hasUserWasherBookingForRange(userName, start, end)) {
-    return { ok: false, error: "tumbler_requires_washer_slot" };
-  }
-
-  if (resourceType === "tumbler" && wouldUseLastFreeTumbler(resourceId, start, end)) {
-    return { ok: false, error: "tumbler_free_required" };
-  }
-
-  if (resourceType === "drying_room" && !hasUserWasherForDryingRoomRange(userName, start, end)) {
-    return { ok: false, error: "drying_room_requires_washer_window" };
-  }
-
-  if (fixedBookingOverlaps(resourceType, resourceId, start, end)) {
-    return { ok: false, error: "fixed_booking_reserved" };
-  }
-
-  const overlappingBooking = db
-    .prepare(`
-      SELECT id
-      FROM bookings
-      WHERE resource_type = ?
-        AND resource_id = ?
-        AND start_at < ?
-        AND end_at > ?
-        AND released_at IS NULL
-      LIMIT 1
-    `)
-    .get(resourceType, resourceId, end.toISOString(), start.toISOString());
-
-  if (overlappingBooking) {
-    return { ok: false, error: "time_range_already_booked" };
-  }
-
-  if (resourceType === "drying_room" && hasUserOverlappingDryingRoomBooking(userName, start, end)) {
-    return { ok: false, error: "drying_room_parallel_limit_reached" };
-  }
-
-  if (resourceType === "washer" && countUserWasherBookingsForDate(userName, start) >= 3) {
-    return { ok: false, error: "washer_daily_limit_reached" };
-  }
-
-  if (resourceType === "washer" && hasUserWasherBookingInDifferentSlotForDate(userName, start, end)) {
-    return { ok: false, error: "washer_daily_slot_mismatch" };
-  }
-
-  const info = db
-    .prepare(`
-      INSERT INTO bookings (user_name, resource_type, resource_id, start_at, end_at)
-      VALUES (?, ?, ?, ?, ?)
-    `)
-    .run(userName, resourceType, resourceId, start.toISOString(), end.toISOString());
-
-  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(info.lastInsertRowid);
-  logBookingActivity("booking_created", booking);
-  return { ok: true, booking };
-}
-
-function logBookingActivity(eventType, booking, customMessage = "") {
-  db
-    .prepare(`
-      INSERT INTO activity_entries (event_type, user_name, resource_type, resource_id, start_at, end_at, message)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-    .run(
-      eventType,
-      booking.user_name,
-      booking.resource_type,
-      booking.resource_id,
-      booking.start_at,
-      booking.end_at,
-      customMessage || activityMessage(eventType, booking)
+    CREATE TABLE IF NOT EXISTS resources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('washer', 'drying_room', 'tumbler')),
+      active INTEGER NOT NULL DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      resource_id INTEGER NOT NULL,
+      booking_date TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
+      UNIQUE (resource_id, booking_date, slot)
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS release_notices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      resource_name TEXT NOT NULL,
+      booking_date TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS fixed_bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      resource_id INTEGER NOT NULL,
+      weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
+      slot TEXT NOT NULL,
+      label TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE (resource_id, weekday, slot)
+    );
+  `);
+
+  ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('users', 'email', 'TEXT');
+  ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
+  seedUser('admin', 'admin123', 'admin');
+  seedUser('user', 'user123', 'user');
+  seedResource('Waschmaschine 1', 'washer');
+  seedResource('Waschmaschine 2', 'washer');
+  seedResource('Waschmaschine 3', 'washer');
+  seedResource('Trockenraum 1', 'drying_room');
+  seedResource('Trockenraum 2', 'drying_room');
+  seedResource('Trockenraum 3', 'drying_room');
+  seedResource('Tumbler 1', 'tumbler');
+  seedResource('Tumbler 2', 'tumbler');
+  seedSetting('house_code', process.env.HOUSE_CODE || 'GBMZ Maneggplatz 18');
 }
 
-function latestActivityForBooking(eventType, booking) {
-  return db
-    .prepare(`
-      SELECT *
-      FROM activity_entries
-      WHERE event_type = ?
-        AND user_name = ?
-        AND resource_type = ?
-        AND resource_id = ?
-        AND start_at = ?
-        AND end_at = ?
-      ORDER BY created_at DESC, id DESC
-      LIMIT 1
-    `)
-    .get(eventType, booking.user_name, booking.resource_type, booking.resource_id, booking.start_at, booking.end_at);
-}
-
-function activityMessage(eventType, booking) {
-  const slot = `${resourceLabel(booking.resource_type)} ${booking.resource_id}, ${formatServerDate(booking.start_at)} ${formatServerTime(booking.start_at)}-${formatServerTime(booking.end_at)}`;
-  if (eventType === "booking_created") {
-    return `${slot} wurde gebucht.`;
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
-  if (eventType === "booking_deleted") {
-    return `${slot} wurde geloescht.`;
+}
+
+function seedUser(username, password, role) {
+  const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (!exists) {
+    db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+      .run(username, bcrypt.hashSync(password, 10), role);
   }
-  if (eventType === "booking_released") {
-    return `${slot} wurde frueher frei gemeldet.`;
+}
+
+function seedResource(name, type) {
+  const exists = db.prepare('SELECT id FROM resources WHERE name = ?').get(name);
+  if (!exists) {
+    db.prepare('INSERT INTO resources (name, type) VALUES (?, ?)').run(name, type);
   }
-  if (eventType === "laundry_left") {
-    return `${slot}: Waesche haengt noch.`;
+}
+
+function seedSetting(key, value) {
+  const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
+  if (!exists) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
   }
-
-  return slot;
 }
 
-function bookingWithUser(id) {
-  return db
-    .prepare(`
-      SELECT
-        bookings.*,
-        users.display_name AS user_display_name,
-        users.apartment_label AS apartment_label
-      FROM bookings
-      LEFT JOIN users ON users.user_name = bookings.user_name
-      WHERE bookings.id = ?
-    `)
-    .get(id);
+function getSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : '';
 }
 
-function bookingPartyLabel(booking) {
-  const parts = [];
-  if (booking.apartment_label) {
-    parts.push(booking.apartment_label);
-  }
-  if (booking.user_display_name) {
-    parts.push(booking.user_display_name);
-  }
-  if (parts.length === 0) {
-    parts.push(booking.user_name);
-  }
+initDb();
 
-  return parts.join(" - ");
+const slots = [
+  '07:00-12:00',
+  '12:00-17:00',
+  '17:00-21:00'
+];
+
+function formatDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function isConfiguredSlot(resourceType, start, end) {
-  const startTime = timeKey(start);
-  const endTime = timeKey(end);
-
-  return (slots[resourceType] || []).some((slot) => slot.start === startTime && slot.end === endTime);
+function todayStringLocal() {
+  return formatDateLocal(new Date());
 }
 
-function slotForRange(resourceType, start, end) {
-  const startTime = timeKey(start);
-  const endTime = timeKey(end);
-  return (slots[resourceType] || []).find((slot) => slot.start === startTime && slot.end === endTime);
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return formatDateLocal(date);
 }
 
-function slotRangeForDay(day, slotId) {
-  const slot = fixedSlots.find((entry) => entry.id === slotId);
-  if (!slot) {
-    return null;
-  }
-
-  const key = dateKey(day);
-  return {
-    start: parseZonedDateTime(`${key}T${slot.start}`),
-    end: parseZonedDateTime(`${key}T${slot.end}`)
-  };
+function weekdayForDate(dateString) {
+  return new Date(`${dateString}T12:00:00`).getDay();
 }
 
-function countUserWasherBookingsForDate(userName, date) {
-  const dayStart = startOfZonedDay(date);
-  const dayEnd = addZonedDays(dayStart, 1);
-
-  return db
-    .prepare(`
-      SELECT COUNT(*) AS count
-      FROM bookings
-      WHERE user_name = ?
-        AND resource_type = 'washer'
-        AND start_at >= ?
-        AND start_at < ?
-    `)
-    .get(userName, dayStart.toISOString(), dayEnd.toISOString()).count;
-}
-
-function hasUserOverlappingDryingRoomBooking(userName, start, end) {
-  return Boolean(db
-    .prepare(`
-      SELECT id
-      FROM bookings
-      WHERE user_name = ?
-        AND resource_type = 'drying_room'
-        AND start_at < ?
-        AND end_at > ?
-        AND released_at IS NULL
-      LIMIT 1
-    `)
-    .get(userName, end.toISOString(), start.toISOString()));
-}
-
-function hasUserWasherBookingForRange(userName, start, end) {
-  return Boolean(db
-    .prepare(`
-      SELECT id
-      FROM bookings
-      WHERE user_name = ?
-        AND resource_type = 'washer'
-        AND start_at <= ?
-        AND end_at >= ?
-        AND released_at IS NULL
-      LIMIT 1
-    `)
-    .get(userName, start.toISOString(), end.toISOString()));
-}
-
-function hasUserWasherForDryingRoomRange(userName, start, end) {
-  const washers = db
-    .prepare(`
-      SELECT start_at, end_at
-      FROM bookings
-      WHERE user_name = ?
-        AND resource_type = 'washer'
-        AND released_at IS NULL
-    `)
-    .all(userName);
-
-  return washers.some((booking) => {
-    return allowedDryingRoomRangesForWasher(new Date(booking.start_at), new Date(booking.end_at)).some((range) => {
-      return range.start.getTime() === start.getTime() && range.end.getTime() === end.getTime();
-    });
-  });
-}
-
-function allowedDryingRoomRangesForWasher(washerStart, washerEnd) {
-  const washerSlot = slotForRange("washer", washerStart, washerEnd);
-  if (!washerSlot) {
+function getFixedBookingsForDate(dateString) {
+  const weekday = weekdayForDate(dateString);
+  if (weekday === 0) {
     return [];
   }
 
-  const day = startOfZonedDay(washerStart);
-  const nextDay = addZonedDays(day, 1);
-  const candidates = [];
-
-  if (washerSlot.id === "slot-1") {
-    candidates.push(slotRangeForDay(day, "slot-1"), slotRangeForDay(day, "slot-2"), slotRangeForDay(day, "slot-3"));
-  }
-  if (washerSlot.id === "slot-2") {
-    candidates.push(slotRangeForDay(day, "slot-2"), slotRangeForDay(day, "slot-3"), slotRangeForDay(nextDay, "slot-1"));
-  }
-  if (washerSlot.id === "slot-3") {
-    candidates.push(slotRangeForDay(day, "slot-3"), slotRangeForDay(nextDay, "slot-1"));
-  }
-
-  return candidates.filter(Boolean);
+  return db.prepare(`
+    SELECT 'fixed-' || fb.id AS id, ? AS booking_date, fb.slot, r.id AS resource_id, r.name AS resource_name,
+           r.type AS resource_type, NULL AS user_id, fb.label AS username,
+           1 AS is_fixed, fb.weekday
+    FROM fixed_bookings fb
+    JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.active = 1
+      AND r.active = 1
+      AND fb.weekday = ?
+    ORDER BY fb.slot, r.name
+  `).all(dateString, weekday);
 }
 
-function wouldUseLastFreeTumbler(resourceId, start, end) {
-  const activeTumblers = listResources().tumbler;
-  const activeOtherTumblers = activeTumblers.filter((id) => id !== resourceId);
-  if (activeTumblers.length < 2) {
-    return true;
+function fixedBookingConflict(resourceId, dateString, slot) {
+  const weekday = weekdayForDate(dateString);
+  if (weekday === 0) {
+    return null;
   }
 
-  return activeOtherTumblers.every((id) => {
-    return Boolean(overlappingBookingForResource("tumbler", id, start, end))
-      || fixedBookingOverlaps("tumbler", id, start, end);
-  });
+  return db.prepare(`
+    SELECT fb.id, fb.label, r.name AS resource_name
+    FROM fixed_bookings fb
+    JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.active = 1
+      AND fb.resource_id = ?
+      AND fb.weekday = ?
+      AND fb.slot = ?
+    LIMIT 1
+  `).get(Number(resourceId), weekday, slot);
 }
 
-function overlappingBookingForResource(resourceType, resourceId, start, end) {
-  return db
-    .prepare(`
-      SELECT id
-      FROM bookings
-      WHERE resource_type = ?
-        AND resource_id = ?
-        AND start_at < ?
-        AND end_at > ?
-        AND released_at IS NULL
-      LIMIT 1
-    `)
-    .get(resourceType, resourceId, end.toISOString(), start.toISOString());
+function allowedDryingRoomSlots(washDate, washSlot) {
+  const nextDate = addDays(washDate, 1);
+
+  if (washSlot === '07:00-12:00') {
+    return [
+      { date: washDate, slot: '07:00-12:00' },
+      { date: washDate, slot: '12:00-17:00' },
+      { date: washDate, slot: '17:00-21:00' }
+    ];
+  }
+
+  if (washSlot === '12:00-17:00') {
+    return [
+      { date: washDate, slot: '12:00-17:00' },
+      { date: washDate, slot: '17:00-21:00' },
+      { date: nextDate, slot: '07:00-12:00' }
+    ];
+  }
+
+  if (washSlot === '17:00-21:00') {
+    return [
+      { date: washDate, slot: '17:00-21:00' },
+      { date: nextDate, slot: '07:00-12:00' }
+    ];
+  }
+
+  return [];
 }
 
-function fixedBookingOverlaps(resourceType, resourceId, start, end) {
-  const slot = slotForRange(resourceType, start, end);
-  if (!slot) {
+function hasAllowedDryingRoomWindow(userId, date, slot) {
+  const previousDate = addDays(date, -1);
+  const washerBookings = db.prepare(`
+    SELECT b.booking_date, b.slot
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'washer'
+      AND b.booking_date IN (?, ?)
+  `).all(userId, date, previousDate);
+
+  return washerBookings.some((booking) => (
+    allowedDryingRoomSlots(booking.booking_date, booking.slot)
+      .some((allowed) => allowed.date === date && allowed.slot === slot)
+  ));
+}
+
+function validateWasherBooking(userId, date, slot) {
+  const today = todayStringLocal();
+  const washerBookings = db.prepare(`
+    SELECT b.booking_date, b.slot
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'washer'
+      AND b.booking_date >= ?
+  `).all(userId, today);
+
+  const sameDayDifferentSlot = washerBookings.find((booking) => (
+    booking.booking_date === date && booking.slot !== slot
+  ));
+  if (sameDayDifferentSlot) {
+    return 'Pro Waschtag darf nur ein Waschmaschinen-Slot reserviert werden.';
+  }
+
+  const otherFutureWashDay = washerBookings.find((booking) => (
+    booking.booking_date > today && booking.booking_date !== date
+  ));
+  if (date > today && otherFutureWashDay) {
+    return 'Der naechste Waschslot kann fruehestens am bestehenden Waschtag reserviert werden.';
+  }
+
+  return '';
+}
+
+function validateTumblerBooking(date, slot) {
+  const totalTumblers = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM resources
+    WHERE active = 1 AND type = 'tumbler'
+  `).get().count;
+
+  const bookedTumblers = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE r.type = 'tumbler'
+      AND b.booking_date = ?
+      AND b.slot = ?
+  `).get(date, slot).count;
+
+  const fixedTumblers = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM fixed_bookings fb
+    JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.active = 1
+      AND r.type = 'tumbler'
+      AND fb.weekday = ?
+      AND fb.slot = ?
+  `).get(weekdayForDate(date), slot).count;
+
+  if (bookedTumblers + fixedTumblers >= Math.max(0, totalTumblers - 1)) {
+    return 'Mindestens ein Tumbler muss am Ende des Waschslots frei bleiben.';
+  }
+
+  return '';
+}
+
+function validateDryingRoomBooking(userId, date, slot) {
+  const userDryingRoomInSlot = db.prepare(`
+    SELECT b.id
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'drying_room'
+      AND b.booking_date = ?
+      AND b.slot = ?
+    LIMIT 1
+  `).get(userId, date, slot);
+
+  if (userDryingRoomInSlot) {
+    return 'Pro Slot kann nur ein Trockenraum reserviert werden.';
+  }
+
+  if (!hasAllowedDryingRoomWindow(userId, date, slot)) {
+    return 'Trockenraeume koennen nur passend zu deiner Waschmaschinen-Buchung reserviert werden: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.';
+  }
+
+  return '';
+}
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Nicht angemeldet' });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user || req.session.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Nur fuer Admins erlaubt' });
+  }
+  next();
+}
+
+function isDateString(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || '');
+}
+
+function isSunday(dateString) {
+  return new Date(`${dateString}T12:00:00`).getDay() === 0;
+}
+
+function isPastDate(dateString) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateString}T00:00:00`);
+  return date < today;
+}
+
+function isPastSlot(dateString, slot) {
+  if (!isDateString(dateString) || !slots.includes(slot)) {
     return false;
   }
 
-  return Boolean(db
-    .prepare(`
-      SELECT id
-      FROM fixed_bookings
-      WHERE active = 1
-        AND resource_type = ?
-        AND resource_id = ?
-        AND weekday = ?
-        AND slot_id = ?
-      LIMIT 1
-    `)
-    .get(resourceType, resourceId, zonedWeekday(start), slot.id));
+  const [, end] = slot.split('-');
+  const slotEnd = new Date(`${dateString}T${end}:00`);
+  return slotEnd <= new Date();
 }
 
-function hasUserWasherBookingInDifferentSlotForDate(userName, start, end) {
-  const slot = slotForRange("washer", start, end);
-  if (!slot) {
-    return false;
+function slotEndLabel(slot) {
+  return slot.split('-')[1] || slot;
+}
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+}
+
+function publicAppUrl(req) {
+  const configured = String(process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+  if (configured) {
+    return configured;
   }
 
-  const dayStart = startOfZonedDay(start);
-  const dayEnd = addZonedDays(dayStart, 1);
-  const bookings = db
-    .prepare(`
-      SELECT start_at, end_at
-      FROM bookings
-      WHERE user_name = ?
-        AND resource_type = 'washer'
-        AND start_at >= ?
-        AND start_at < ?
-        AND released_at IS NULL
-    `)
-    .all(userName, dayStart.toISOString(), dayEnd.toISOString());
-
-  return bookings.some((booking) => {
-    const existingSlot = slotForRange("washer", new Date(booking.start_at), new Date(booking.end_at));
-    return existingSlot && existingSlot.id !== slot.id;
-  });
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  return `${protocol}://${req.get('host')}`;
 }
 
-function hasOtherFutureSequence(userName, start) {
-  const sequenceDate = dateKey(start);
-  const today = dateKey(new Date());
-  const nowIso = new Date().toISOString();
-  const openFutureBookings = db
-    .prepare(`
-      SELECT start_at
-      FROM bookings
-      WHERE user_name = ?
-        AND end_at > ?
-    `)
-    .all(userName, nowIso);
-
-  return openFutureBookings.some((booking) => {
-    const bookingStart = new Date(booking.start_at);
-    const bookingDate = dateKey(bookingStart);
-    if (bookingDate === today) {
-      return false;
-    }
-
-    return bookingDate !== sequenceDate;
-  });
-}
-
-function timeKey(date) {
-  return zonedParts(date).time;
-}
-
-function isBlockedDate(date) {
-  return Boolean(db.prepare("SELECT date FROM blocked_dates WHERE date = ?").get(dateKey(date)));
-}
-
-function dateKey(date) {
-  return zonedParts(date).date;
-}
-
-function listBlockedDates() {
-  return db
-    .prepare("SELECT date, label, created_at FROM blocked_dates ORDER BY date ASC")
-    .all();
-}
-
-function listFixedBookings() {
-  return db
-    .prepare(`
-      SELECT *
-      FROM fixed_bookings
-      WHERE active = 1
-      ORDER BY weekday ASC, slot_id ASC, resource_type ASC, resource_id ASC
-    `)
-    .all();
-}
-
-function fixedBookingOccurrencesForDefaultWindow() {
-  const today = startOfZonedDay(new Date());
-  const start = addZonedDays(today, -45);
-  const end = addZonedDays(today, 430);
-  return fixedBookingOccurrencesForRange(start, end);
-}
-
-function fixedBookingOccurrencesForRange(start, end) {
-  const fixedBookings = listFixedBookings();
-  const occurrences = [];
-
-  for (let day = startOfZonedDay(start); day <= end; day = addZonedDays(day, 1)) {
-    const weekday = zonedWeekday(day);
-    const key = dateKey(day);
-    for (const fixedBooking of fixedBookings) {
-      if (Number(fixedBooking.weekday) !== weekday) {
-        continue;
-      }
-
-      const slot = fixedSlots.find((entry) => entry.id === fixedBooking.slot_id);
-      if (!slot) {
-        continue;
-      }
-
-      occurrences.push({
-        id: `fixed-${fixedBooking.id}-${key}`,
-        fixed_booking_id: fixedBooking.id,
-        user_name: fixedBooking.label,
-        user_display_name: fixedBooking.label,
-        apartment_label: "Feste Buchung",
-        resource_type: fixedBooking.resource_type,
-        resource_id: fixedBooking.resource_id,
-        start_at: parseZonedDateTime(`${key}T${slot.start}`).toISOString(),
-        end_at: parseZonedDateTime(`${key}T${slot.end}`).toISOString(),
-        released_at: null,
-        created_at: fixedBooking.created_at,
-        is_fixed: 1
-      });
-    }
-  }
-
-  return occurrences;
-}
-
-function compareBookingStart(left, right) {
-  return new Date(left.start_at) - new Date(right.start_at)
-    || String(left.resource_type).localeCompare(String(right.resource_type))
-    || String(left.resource_id).localeCompare(String(right.resource_id));
-}
-
-function isDateKey(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  return date.getFullYear() === year
-    && date.getMonth() === month - 1
-    && date.getDate() === day;
-}
-
-function parseBookingDateTime(value) {
-  const input = String(value || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input)) {
-    return parseZonedDateTime(input);
-  }
-
-  return new Date(input);
-}
-
-function parseZonedDateTime(value) {
-  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-  if (!match) {
-    return new Date(value);
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hours = Number(match[4]);
-  const minutes = Number(match[5]);
-  const assumedUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
-  const offsetMinutes = zonedOffsetMinutes(assumedUtc);
-  return new Date(assumedUtc.getTime() - offsetMinutes * 60 * 1000);
-}
-
-function zonedOffsetMinutes(date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: appTimeZone,
-    timeZoneName: "shortOffset",
-    hour: "2-digit"
-  }).formatToParts(date);
-  const value = parts.find((part) => part.type === "timeZoneName")?.value || "GMT";
-  const match = value.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
-  if (!match) {
-    return 0;
-  }
-
-  const sign = match[1] === "-" ? -1 : 1;
-  return sign * (Number(match[2]) * 60 + Number(match[3] || 0));
-}
-
-function zonedParts(date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: appTimeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-    hourCycle: "h23"
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const weekdays = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+function emailStatus() {
+  const host = String(process.env.SMTP_HOST || '').trim();
+  const from = String(process.env.SMTP_FROM || '').trim();
   return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    time: `${values.hour}:${values.minute}`,
-    weekday: weekdays[values.weekday] ?? date.getUTCDay()
+    configured: Boolean(host && from),
+    label: host && from ? 'bereit' : 'nicht konfiguriert'
   };
 }
 
-function zonedWeekday(date) {
-  return zonedParts(date).weekday;
-}
-
-function startOfZonedDay(date) {
-  return parseZonedDateTime(`${dateKey(date)}T00:00`);
-}
-
-function addZonedDays(date, days) {
-  const [year, month, day] = dateKey(date).split("-").map(Number);
-  const utc = new Date(Date.UTC(year, month - 1, day + days, 0, 0, 0, 0));
-  const key = [
-    utc.getUTCFullYear(),
-    String(utc.getUTCMonth() + 1).padStart(2, "0"),
-    String(utc.getUTCDate()).padStart(2, "0")
-  ].join("-");
-  return parseZonedDateTime(`${key}T00:00`);
-}
-
-function defaultBlockedDateLabel(date) {
-  const labels = {
-    "2026-01-01": "Neujahr",
-    "2026-04-03": "Karfreitag",
-    "2026-04-06": "Ostermontag",
-    "2026-05-01": "Tag der Arbeit",
-    "2026-05-14": "Auffahrt",
-    "2026-05-25": "Pfingstmontag",
-    "2026-08-01": "Bundesfeier",
-    "2026-12-25": "Weihnachten",
-    "2026-12-26": "Stephanstag"
+function smtpConfig() {
+  const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
+  return {
+    host: String(process.env.SMTP_HOST || '').trim(),
+    port: Number(process.env.SMTP_PORT || (secure ? 465 : 587)),
+    secure,
+    user: String(process.env.SMTP_USER || '').trim(),
+    password: String(process.env.SMTP_PASSWORD || ''),
+    from: String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim()
   };
-
-  return labels[date] || "Sperrtag";
 }
 
-function resourceLabel(type) {
-  const labels = {
-    washer: "Waschmaschine",
-    drying_room: "Trockenraum",
-    tumbler: "Tumbler"
-  };
-
-  return labels[type] || type;
-}
-
-function formatServerDate(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    dateStyle: "medium",
-    timeZone: "Europe/Zurich"
-  }).format(new Date(value));
-}
-
-function formatServerTime(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Zurich"
-  }).format(new Date(value));
-}
-
-function dateTimeStamp(date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-    String(date.getHours()).padStart(2, "0"),
-    String(date.getMinutes()).padStart(2, "0"),
-    String(date.getSeconds()).padStart(2, "0")
-  ].join("");
-}
-
-function ensureBookingSchema() {
-  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'bookings'").get();
-  if (!table || table.sql.includes("'tumbler'")) {
-    return;
+async function notifyReleaseSubscribers(req, booking, message) {
+  const config = smtpConfig();
+  if (!config.host || !config.from) {
+    return { configured: false, sent: 0 };
   }
 
-  db.exec(`
-    ALTER TABLE bookings RENAME TO bookings_old;
+  const recipients = db.prepare(`
+    SELECT id, username, email
+    FROM users
+    WHERE active = 1
+      AND notify_releases = 1
+      AND email IS NOT NULL
+      AND email != ''
+      AND id != ?
+    ORDER BY username
+  `).all(booking.user_id);
 
-    CREATE TABLE bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_name TEXT NOT NULL,
-      resource_type TEXT NOT NULL CHECK (resource_type IN ('washer', 'drying_room', 'tumbler')),
-      resource_id TEXT NOT NULL,
-      start_at TEXT NOT NULL,
-      end_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
+  if (!recipients.length) {
+    return { configured: true, sent: 0 };
+  }
 
-    INSERT INTO bookings (id, user_name, resource_type, resource_id, start_at, end_at, created_at)
-    SELECT id, user_name, resource_type, resource_id, start_at, end_at, created_at
-    FROM bookings_old;
+  const appUrl = publicAppUrl(req);
+  let sent = 0;
 
-    DROP TABLE bookings_old;
+  for (const recipient of recipients) {
+    try {
+      await sendMail({
+        config,
+        to: recipient.email,
+        subject: `Waschplan: ${booking.resource_name} frueher frei`,
+        text: [
+          `Hallo ${recipient.username}`,
+          '',
+          message,
+          '',
+          `Du kannst den Slot jetzt im Waschplan ansehen und buchen: ${appUrl}`,
+          '',
+          'Viele Gruesse',
+          'Waschplan Maneggplatz 18'
+        ].join('\n')
+      });
+      sent += 1;
+    } catch (error) {
+      console.error(`E-Mail an ${recipient.email} konnte nicht gesendet werden: ${error.message}`);
+    }
+  }
 
-    CREATE INDEX IF NOT EXISTS idx_bookings_start_at ON bookings(start_at);
-    CREATE INDEX IF NOT EXISTS idx_bookings_user_name ON bookings(user_name);
-  `);
+  return { configured: true, sent };
 }
+
+function extractEmailAddress(value) {
+  const match = String(value || '').match(/<([^>]+)>/);
+  return (match ? match[1] : value).trim();
+}
+
+function mailHeaders({ config, to, subject, text }) {
+  const from = config.from.includes('<') ? config.from : `Waschplan <${config.from}>`;
+  return [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    `Date: ${new Date().toUTCString()}`,
+    '',
+    text
+  ].join('\r\n');
+}
+
+async function sendMail({ config, to, subject, text }) {
+  let socket = await openSmtpSocket(config, config.secure);
+  let session = smtpSession(socket);
+
+  await session.expect([220]);
+  let ehlo = await session.command(`EHLO ${process.env.SMTP_HELO_NAME || 'waschplan.local'}`, [250]);
+
+  if (!config.secure && ehlo.text.includes('STARTTLS')) {
+    await session.command('STARTTLS', [220]);
+    session.closeListeners();
+    socket = await upgradeSmtpSocket(socket, config);
+    session = smtpSession(socket);
+    await session.command(`EHLO ${process.env.SMTP_HELO_NAME || 'waschplan.local'}`, [250]);
+  }
+
+  if (config.user && config.password) {
+    await session.command('AUTH LOGIN', [334]);
+    await session.command(Buffer.from(config.user).toString('base64'), [334]);
+    await session.command(Buffer.from(config.password).toString('base64'), [235]);
+  }
+
+  await session.command(`MAIL FROM:<${extractEmailAddress(config.from)}>`, [250]);
+  await session.command(`RCPT TO:<${extractEmailAddress(to)}>`, [250, 251]);
+  await session.command('DATA', [354]);
+  socket.write(`${mailHeaders({ config, to, subject, text }).replace(/^\./gm, '..')}\r\n.\r\n`);
+  await session.expect([250]);
+  await session.command('QUIT', [221]);
+  session.closeListeners();
+  socket.end();
+}
+
+function openSmtpSocket(config, secure) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      host: config.host,
+      port: config.port,
+      servername: config.host
+    };
+    const socket = secure ? tls.connect(options, () => resolve(socket)) : net.connect(options, () => resolve(socket));
+    socket.setEncoding('utf8');
+    socket.setTimeout(15000, () => {
+      socket.destroy(new Error('SMTP timeout'));
+    });
+    socket.once('error', reject);
+  });
+}
+
+function upgradeSmtpSocket(socket, config) {
+  return new Promise((resolve, reject) => {
+    const secureSocket = tls.connect({
+      socket,
+      servername: config.host
+    }, () => {
+      secureSocket.setEncoding('utf8');
+      secureSocket.setTimeout(15000, () => {
+        secureSocket.destroy(new Error('SMTP timeout'));
+      });
+      resolve(secureSocket);
+    });
+    secureSocket.once('error', reject);
+  });
+}
+
+function smtpSession(socket) {
+  let buffer = '';
+  const waiters = [];
+
+  function onData(chunk) {
+    buffer += chunk;
+    flush();
+  }
+
+  function onError(error) {
+    while (waiters.length) {
+      waiters.shift().reject(error);
+    }
+  }
+
+  function flush() {
+    if (!waiters.length) {
+      return;
+    }
+
+    const match = buffer.match(/(?:^|\r?\n)(\d{3}) [^\r\n]*(?:\r?\n|$)/);
+    if (!match) {
+      return;
+    }
+
+    const endIndex = buffer.indexOf(match[0]) + match[0].length;
+    const text = buffer.slice(0, endIndex);
+    buffer = buffer.slice(endIndex);
+    waiters.shift().resolve({ code: Number(match[1]), text });
+  }
+
+  socket.on('data', onData);
+  socket.on('error', onError);
+
+  return {
+    expect(expectedCodes) {
+      return new Promise((resolve, reject) => {
+        waiters.push({
+          resolve: (response) => {
+            if (!expectedCodes.includes(response.code)) {
+              reject(new Error(`SMTP expected ${expectedCodes.join('/')} but got ${response.code}: ${response.text.trim()}`));
+              return;
+            }
+            resolve(response);
+          },
+          reject
+        });
+        flush();
+      });
+    },
+    command(command, expectedCodes) {
+      socket.write(`${command}\r\n`);
+      return this.expect(expectedCodes);
+    },
+    closeListeners() {
+      socket.off('data', onData);
+      socket.off('error', onError);
+    }
+  };
+}
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, dbPath });
+});
+
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body || {};
+  const loginName = normalizeEmail(username);
+  const user = db.prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?')
+    .get(loginName, loginName);
+
+  if (!user || !bcrypt.compareSync(String(password || ''), user.password_hash)) {
+    return res.status(401).json({ error: 'Login fehlgeschlagen' });
+  }
+  if (!user.active) {
+    return res.status(403).json({ error: 'Dieses Konto ist deaktiviert' });
+  }
+
+  req.session.user = {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    email: user.email || '',
+    notifyReleases: Boolean(user.notify_releases)
+  };
+  res.json({ user: req.session.user });
+});
+
+app.post('/api/register', (req, res) => {
+  const username = String(req.body?.username || '').trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || '');
+  const houseCode = String(req.body?.houseCode || '').trim();
+  const notifyReleases = req.body?.notifyReleases !== false ? 1 : 0;
+  const configuredCode = getSetting('house_code').trim();
+
+  if (username.length < 3) {
+    return res.status(400).json({ error: 'Benutzername muss mindestens 3 Zeichen haben' });
+  }
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
+  }
+  if (houseCode.toLowerCase() !== configuredCode.toLowerCase()) {
+    return res.status(403).json({ error: 'Hauscode ist nicht korrekt' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO users (username, email, password_hash, role, active, notify_releases)
+      VALUES (?, ?, ?, 'user', 1, ?)
+    `).run(username, email, bcrypt.hashSync(password, 10), notifyReleases);
+
+    req.session.user = {
+      id: result.lastInsertRowid,
+      username,
+      role: 'user',
+      email,
+      notifyReleases: Boolean(notifyReleases)
+    };
+    res.status(201).json({ user: req.session.user });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Benutzername oder E-Mail ist bereits vergeben' });
+    }
+    throw error;
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+app.get('/api/me', (req, res) => {
+  res.json({ user: req.session.user || null });
+});
+
+app.put('/api/me/notifications', requireAuth, (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen' });
+  }
+
+  try {
+    db.prepare('UPDATE users SET email = ?, notify_releases = ? WHERE id = ?')
+      .run(email, notifyReleases, req.session.user.id);
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben' });
+    }
+    throw error;
+  }
+
+  req.session.user.email = email;
+  req.session.user.notifyReleases = Boolean(notifyReleases);
+  res.json({ user: req.session.user, message: 'Benachrichtigungen gespeichert.' });
+});
+
+app.get('/api/slots', requireAuth, (req, res) => {
+  res.json({ slots });
+});
+
+app.get('/api/resources', requireAuth, (req, res) => {
+  const resources = db.prepare('SELECT id, name, type FROM resources WHERE active = 1 ORDER BY type, name').all();
+  res.json({ resources });
+});
+
+app.get('/api/my-bookings', requireAuth, (req, res) => {
+  const bookings = db.prepare(`
+    SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name,
+           r.type AS resource_type, u.id AS user_id, u.username
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    JOIN users u ON u.id = b.user_id
+    WHERE b.user_id = ?
+      AND b.booking_date >= date('now', 'localtime')
+    ORDER BY b.booking_date, b.slot, r.name
+    LIMIT 12
+  `).all(req.session.user.id);
+
+  res.json({ bookings });
+});
+
+app.get('/api/bookings', requireAuth, (req, res) => {
+  const date = req.query.date;
+  if (!isDateString(date)) {
+    return res.status(400).json({ error: 'Datum im Format YYYY-MM-DD erforderlich' });
+  }
+
+  const bookings = db.prepare(`
+    SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name,
+           r.type AS resource_type, u.id AS user_id, u.username, 0 AS is_fixed
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    JOIN users u ON u.id = b.user_id
+    WHERE b.booking_date = ?
+    ORDER BY b.slot, r.name
+  `).all(date);
+
+  const fixedBookings = getFixedBookingsForDate(date);
+  const allBookings = [...bookings, ...fixedBookings]
+    .sort((left, right) => left.slot.localeCompare(right.slot) || left.resource_name.localeCompare(right.resource_name));
+
+  res.json({ bookings: allBookings });
+});
+
+app.post('/api/bookings', requireAuth, (req, res) => {
+  const { resourceId, date, slot } = req.body || {};
+
+  if (!Number.isInteger(Number(resourceId)) || !isDateString(date) || !slots.includes(slot)) {
+    return res.status(400).json({ error: 'Ungueltige Buchungsdaten' });
+  }
+  if (isPastDate(date)) {
+    return res.status(400).json({ error: 'Buchungen in der Vergangenheit sind nicht erlaubt' });
+  }
+  if (isPastSlot(date, slot)) {
+    return res.status(400).json({ error: 'Dieser Slot liegt bereits in der Vergangenheit' });
+  }
+  if (isSunday(date)) {
+    return res.status(400).json({ error: 'Sonntags sind keine Buchungen moeglich' });
+  }
+
+  const resource = db.prepare('SELECT id, type FROM resources WHERE id = ? AND active = 1').get(Number(resourceId));
+  if (!resource) {
+    return res.status(404).json({ error: 'Geraet nicht gefunden' });
+  }
+
+  const fixedConflict = fixedBookingConflict(resource.id, date, slot);
+  if (fixedConflict) {
+    return res.status(409).json({
+      error: `${fixedConflict.resource_name} ist in diesem Slot fest fuer ${fixedConflict.label} reserviert.`
+    });
+  }
+
+  let ruleError = '';
+  if (resource.type === 'washer') {
+    ruleError = validateWasherBooking(req.session.user.id, date, slot);
+  } else if (resource.type === 'tumbler') {
+    ruleError = validateTumblerBooking(date, slot);
+  } else if (resource.type === 'drying_room') {
+    ruleError = validateDryingRoomBooking(req.session.user.id, date, slot);
+  }
+
+  if (ruleError) {
+    return res.status(409).json({ error: ruleError });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+      VALUES (?, ?, ?, ?)
+    `).run(req.session.user.id, Number(resourceId), date, slot);
+
+    const created = db.prepare(`
+      SELECT b.id, b.booking_date, b.slot, r.name AS resource_name
+      FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      WHERE b.id = ?
+    `).get(result.lastInsertRowid);
+
+    res.status(201).json({
+      id: result.lastInsertRowid,
+      message: `${created.resource_name} am ${created.booking_date} ${created.slot} gebucht.`
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Dieser Termin ist bereits gebucht' });
+    }
+    throw error;
+  }
+});
+
+app.delete('/api/bookings/:id', requireAuth, (req, res) => {
+  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(req.params.id));
+  if (!booking) {
+    return res.status(404).json({ error: 'Buchung nicht gefunden' });
+  }
+
+  if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+    return res.status(403).json({ error: 'Diese Buchung gehoert dir nicht' });
+  }
+
+  db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+  res.json({ ok: true, message: 'Buchung geloescht.' });
+});
+
+app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
+  try {
+    const booking = db.prepare(`
+      SELECT b.*, r.name AS resource_name
+      FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      WHERE b.id = ?
+    `).get(Number(req.params.id));
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Buchung nicht gefunden' });
+    }
+    if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+      return res.status(403).json({ error: 'Diese Buchung gehoert dir nicht' });
+    }
+
+    db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+    const message = `${booking.resource_name} ist am ${booking.booking_date} bis ${slotEndLabel(booking.slot)} wieder frei.`;
+    db.prepare(`
+      INSERT INTO release_notices (resource_name, booking_date, slot, message, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
+
+    const emailNotifications = await notifyReleaseSubscribers(req, booking, message);
+    res.json({ ok: true, message, emailNotifications });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/release-notices', requireAuth, (req, res) => {
+  const notices = db.prepare(`
+    SELECT rn.id, rn.resource_name, rn.booking_date, rn.slot, rn.message, rn.created_at,
+           u.username AS created_by_name
+    FROM release_notices rn
+    LEFT JOIN users u ON u.id = rn.created_by
+    WHERE rn.created_at >= datetime('now', '-7 days', 'localtime')
+    ORDER BY rn.created_at DESC
+    LIMIT 10
+  `).all();
+
+  res.json({ notices });
+});
+
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  const users = db.prepare('SELECT id, username, email, role, active, notify_releases, created_at FROM users ORDER BY username').all();
+  res.json({ users });
+});
+
+app.get('/api/admin/overview', requireAdmin, (req, res) => {
+  const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1').get().count;
+  const todayBookings = db.prepare(`
+    SELECT COUNT(*) AS count FROM bookings WHERE booking_date = date('now', 'localtime')
+  `).get().count;
+  const activeResources = db.prepare('SELECT COUNT(*) AS count FROM resources WHERE active = 1').get().count;
+  const fixedBookings = db.prepare('SELECT COUNT(*) AS count FROM fixed_bookings WHERE active = 1').get().count;
+  const recentReleases = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM release_notices
+    WHERE created_at >= datetime('now', '-7 days', 'localtime')
+  `).get().count;
+
+  res.json({
+    users,
+    todayBookings,
+    activeResources,
+    fixedBookings,
+    recentReleases,
+    email: emailStatus()
+  });
+});
+
+app.get('/api/admin/settings', requireAdmin, (req, res) => {
+  res.json({
+    houseCode: getSetting('house_code')
+  });
+});
+
+app.get('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
+  const fixedBookings = db.prepare(`
+    SELECT fb.id, fb.resource_id, fb.weekday, fb.slot, fb.label, fb.created_at,
+           r.name AS resource_name, r.type AS resource_type
+    FROM fixed_bookings fb
+    JOIN resources r ON r.id = fb.resource_id
+    WHERE fb.active = 1
+    ORDER BY fb.weekday, fb.slot, r.name
+  `).all();
+
+  res.json({ fixedBookings });
+});
+
+app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
+  const resourceId = Number(req.body?.resourceId);
+  const weekday = Number(req.body?.weekday);
+  const slot = String(req.body?.slot || '');
+  const label = String(req.body?.label || '').trim();
+
+  if (!Number.isInteger(resourceId) || !Number.isInteger(weekday) || weekday < 1 || weekday > 6 || !slots.includes(slot)) {
+    return res.status(400).json({ error: 'Ungueltige feste Buchung' });
+  }
+  if (label.length < 2) {
+    return res.status(400).json({ error: 'Bitte einen Namen oder Hinweis eintragen' });
+  }
+
+  const resource = db.prepare('SELECT id FROM resources WHERE id = ? AND active = 1').get(resourceId);
+  if (!resource) {
+    return res.status(404).json({ error: 'Geraet nicht gefunden' });
+  }
+
+  const conflictingBooking = db.prepare(`
+    SELECT b.id
+    FROM bookings b
+    WHERE b.resource_id = ?
+      AND b.slot = ?
+      AND b.booking_date >= date('now', 'localtime')
+      AND CAST(strftime('%w', b.booking_date) AS INTEGER) = ?
+    LIMIT 1
+  `).get(resourceId, slot, weekday);
+
+  if (conflictingBooking) {
+    return res.status(409).json({ error: 'Es gibt bereits eine normale zukuenftige Buchung in diesem Dauer-Slot. Bitte zuerst klaeren oder loeschen.' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO fixed_bookings (resource_id, weekday, slot, label, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(resourceId, weekday, slot, label, req.session.user.id);
+
+    res.status(201).json({
+      id: result.lastInsertRowid,
+      message: 'Feste Buchung gespeichert.'
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Fuer dieses Geraet gibt es an diesem Wochentag und Slot bereits eine feste Buchung.' });
+    }
+    throw error;
+  }
+});
+
+app.delete('/api/admin/fixed-bookings/:id', requireAdmin, (req, res) => {
+  const fixedBooking = db.prepare('SELECT id FROM fixed_bookings WHERE id = ? AND active = 1').get(Number(req.params.id));
+  if (!fixedBooking) {
+    return res.status(404).json({ error: 'Feste Buchung nicht gefunden' });
+  }
+
+  db.prepare('UPDATE fixed_bookings SET active = 0 WHERE id = ?').run(fixedBooking.id);
+  res.json({ ok: true, message: 'Feste Buchung entfernt.' });
+});
+
+app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
+  const houseCode = String(req.body?.houseCode || '').trim();
+  if (houseCode.length < 4) {
+    return res.status(400).json({ error: 'Hauscode muss mindestens 4 Zeichen haben' });
+  }
+
+  db.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES ('house_code', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `).run(houseCode);
+
+  res.json({ houseCode, message: 'Hauscode gespeichert.' });
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Interner Serverfehler' });
+});
 
 app.listen(port, () => {
-  console.log(`Washraum app listening on port ${port}`);
-  console.log(`SQLite database: ${sqlitePath}`);
+  console.log(`Waschplan App laeuft auf http://localhost:${port}`);
+  console.log(`SQLite: ${dbPath}`);
 });

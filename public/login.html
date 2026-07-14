@@ -3,159 +3,94 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>GBMZ Maneggplatz 18</title>
-    <link rel="stylesheet" href="/styles.css?v=plain-copy">
+    <title>Waschplan Login</title>
+    <link rel="stylesheet" href="/styles.css">
   </head>
   <body class="login-page">
-    <header class="app-header login-header">
-      <a class="brand" href="/login.html" aria-label="GBMZ Maneggplatz 18">GBMZ</a>
-      <span class="site-address">Maneggplatz 18</span>
-    </header>
-
-    <main class="login-landing">
-      <section class="login-hero" aria-labelledby="loginHeading">
-        <div class="login-hero-copy">
-          <p class="login-kicker">Waschraum Maneggplatz 18</p>
-          <h1 id="loginHeading">Waschen und Trocknen eintragen.</h1>
-          <p>Der digitale Waschplan fuer Waschmaschine, Trockenraum und Tumbler. Die wichtigsten Regeln stehen direkt dabei; der Aushang im Waschraum bleibt massgebend.</p>
+    <main class="landing-shell">
+      <section class="landing-hero" aria-labelledby="landingTitle">
+        <div class="brand-lockup">
+          <span class="brand-mark">GBMZ</span>
+          <span>Maneggplatz 18</span>
         </div>
-        <div class="slot-stage" aria-label="Waschraum Tagesuebersicht">
-          <div class="slot-rail">
-            <span>07-12</span>
+        <div class="hero-livebar" aria-hidden="true">
+          <span class="signal-pill"><i></i> Live</span>
+          <span>Frei, geschuetzt und sauber geregelt</span>
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Waschraum Maneggplatz 18</p>
+          <h1 id="landingTitle">Waschplan</h1>
+          <p>Freie Slots sehen, buchen, frueher freigeben und den Waschraum fair teilen.</p>
+          <div class="hero-badges" aria-hidden="true">
+            <span>3 Slots</span>
+            <span>Live frei</span>
+            <span>Feste Buchungen</span>
+          </div>
+        </div>
+        <div class="slot-preview" aria-hidden="true">
+          <div class="preview-card active">
+            <span>07:00</span>
             <strong>Waschen</strong>
-            <small>WM 1 frei</small>
+            <small>2 frei</small>
           </div>
-          <div class="slot-rail slot-rail-active">
-            <span>12-17</span>
+          <div class="preview-card">
+            <span>12:00</span>
             <strong>Trocknen</strong>
-            <small>TR 2 reserviert</small>
+            <small>TR 2 offen</small>
           </div>
-          <div class="slot-rail">
-            <span>17-21</span>
-            <strong>Fertig</strong>
-            <small>Tumbler bleibt frei</small>
+          <div class="preview-card">
+            <span>17:00</span>
+            <strong>Freigeben</strong>
+            <small>Mail geht raus</small>
           </div>
         </div>
       </section>
 
-      <section class="login-shell" aria-labelledby="authHeading">
-        <h2 id="authHeading">Zugang</h2>
-        <div class="auth-switch" role="tablist" aria-label="Anmeldung">
-          <button id="showLoginButton" class="auth-switch-button is-active" type="button">Einloggen</button>
-          <button id="showRegisterButton" class="auth-switch-button" type="button">Account erstellen</button>
-      </div>
-      <form id="loginForm" class="login-form">
-        <label>
-          Name
-          <input id="userName" name="userName" autocomplete="name" required>
-        </label>
-
-        <label>
-          Passwort
-          <input id="password" name="password" type="password" autocomplete="current-password" required>
-        </label>
-
-        <button type="submit">Einloggen</button>
-        <p id="loginMessage" class="message" role="status"></p>
-      </form>
-
-      <form id="registerForm" class="login-form hidden">
-        <label>
-          Name fuer Login
-          <input id="registerUserName" name="registerUserName" autocomplete="username" required>
-        </label>
-
-        <label>
-          Anzeigename
-          <input id="registerDisplayName" name="registerDisplayName" autocomplete="name" maxlength="80" placeholder="z. B. Familie Mueller">
-        </label>
-
-        <label>
-          Partei / Wohnung
-          <input id="registerApartmentLabel" name="registerApartmentLabel" maxlength="40" placeholder="z. B. Partei 12">
-        </label>
-
-        <label>
-          Passwort
-          <input id="registerPassword" name="registerPassword" type="password" autocomplete="new-password" required>
-        </label>
-
-        <section class="register-onboarding" aria-labelledby="registerOnboardingHeading">
-          <div class="register-onboarding-heading">
-            <p class="workspace-kicker">Vor dem ersten Account</p>
-            <h3 id="registerOnboardingHeading">Einfuehrung in Ruhe</h3>
-            <p>Die Regeln werden vorgelesen und stehen als Text darunter. Du kannst pausieren, lesen oder den Ton ausschalten.</p>
-          </div>
-
-          <div class="register-video-card" aria-label="Einfuehrung zu den Waschraumregeln">
-            <div id="registerVideoStage" class="register-video-stage" aria-labelledby="registerVideoTitle" aria-describedby="registerVideoCaption">
-              <div class="video-timeline" aria-label="Kapitel der Einfuehrung">
-                <span data-register-video-step="plan">Planen</span>
-                <span data-register-video-step="washer">Waschen</span>
-                <span data-register-video-step="drying">Trocknen</span>
-                <span data-register-video-step="tumbler">Tumbler</span>
-                <span data-register-video-step="cleaning">Reinigung</span>
-                <span data-register-video-step="consideration">Ruecksicht</span>
-              </div>
-              <div class="video-story">
-                <p id="registerVideoStepLabel" class="video-step-label">Kapitel 1 von 6</p>
-                <h4 id="registerVideoTitle">Waschslot auswaehlen</h4>
-                <p id="registerVideoCaption" aria-live="polite">Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, buche sie am gleichen Tag im selben Zeitfenster.</p>
-              </div>
-              <div class="video-rule-grid" aria-hidden="true">
-                <span class="video-rule-pill">07-12</span>
-                <span class="video-rule-pill">12-17</span>
-                <span class="video-rule-pill">17-21</span>
-              </div>
-              <div id="registerVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einfuehrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="registerVideoProgress"></span></div>
-            </div>
-            <div class="register-video-actions">
-              <button id="playRegisterOnboardingVideo" type="button" aria-controls="registerVideoStage">Intro starten</button>
-              <button id="toggleRegisterNarration" type="button" aria-pressed="true">Ton an</button>
-              <button id="markRegisterOnboardingRead" type="button">Als gelesen markieren</button>
-              <span id="registerVideoStatus" role="status">Dauer: etwa 75 Sekunden. Alles steht auch als Text darunter.</span>
-            </div>
-            <p id="registerAudioStatus" class="register-audio-status" role="status">Wenn dein Browser Sprachausgabe unterstuetzt, werden die Kapitel beim Start vorgelesen.</p>
-            <details class="register-transcript">
-              <summary>Regeln als Text lesen</summary>
-              <ol>
-                <li>Waehle zuerst deinen Waschslot. Wenn du mehrere Waschmaschinen brauchst, buche sie im gleichen Zeitfenster.</li>
-                <li>Eine weitere Buchung im Voraus ist erst am Waschtag moeglich. So bleiben Termine fuer andere frei.</li>
-                <li>Trockenraum: Beim 07:00-12:00-Slot maximal bis 21:00 am gleichen Tag. Beim 12:00-17:00- oder 17:00-21:00-Slot maximal bis 12:00 am Folgetag. Bitte gib den Raum frei, wenn die Waesche frueher trocken ist.</li>
-                <li>Tumbler: Nur waehrend deines eigenen Waschslots buchen. Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.</li>
-                <li>Nach der Nutzung reinigen: Waschmittelschublade, Trommel, Gummidichtung und Filter der Waschmaschine; beim Tumbler Trommel, vier Filter und Dichtung; im Trockenraum Filter, Tisch und Boden.</li>
-                <li>Auch bei kurzen Waschgaengen gilt die Reinigungspflicht. Sonn- und gepflegte Sperrtage sind geschlossen; feste Admin-Buchungen bleiben reserviert.</li>
-              </ol>
-            </details>
-          </div>
-
-          <div class="register-quiz" aria-labelledby="registerQuizHeading">
-            <h3 id="registerQuizHeading">Kurze Fragen</h3>
-            <fieldset>
-              <legend>Du waeschst im Slot 07:00-12:00. Wie lange darf der Trockenraum maximal genutzt werden?</legend>
-              <label><input type="radio" name="registerQuizMorningDrying" value="same-day-21"> Bis 21:00 am gleichen Tag</label>
-              <label><input type="radio" name="registerQuizMorningDrying" value="next-day-12"> Bis 12:00 am Folgetag</label>
-            </fieldset>
-            <fieldset>
-              <legend>Du waeschst im Slot 12:00-17:00 oder 17:00-21:00. Was gilt fuer den Trockenraum?</legend>
-              <label><input type="radio" name="registerQuizLateDrying" value="next-day-12"> Maximal bis 12:00 am Folgetag</label>
-              <label><input type="radio" name="registerQuizLateDrying" value="two-days"> Bis zwei Tage spaeter</label>
-            </fieldset>
-            <fieldset>
-              <legend>Wann ist ein Tumbler passend?</legend>
-              <label><input type="radio" name="registerQuizTumbler" value="own-slot-free"> Nur zum eigenen Waschslot, und ein Tumbler bleibt frei</label>
-              <label><input type="radio" name="registerQuizTumbler" value="any-free"> Immer, wenn irgendwo ein Tumbler frei ist</label>
-            </fieldset>
-            <p id="registerOnboardingMessage" class="message" role="status"></p>
-          </div>
-        </section>
-
-        <button type="submit">Account erstellen</button>
-        <p id="registerMessage" class="message" role="status"></p>
-      </form>
+      <section class="login-panel" aria-label="Anmeldung">
+        <p class="auth-panel-kicker">Sicher einloggen und direkt buchen</p>
+        <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
+          <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
+          <button id="showRegister" class="auth-tab" type="button">Neu hier</button>
+        </div>
+        <form id="loginForm" class="stack auth-form">
+          <label>
+            Benutzername oder E-Mail
+            <input name="username" autocomplete="username" required>
+          </label>
+          <label>
+            Passwort
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button type="submit">Einsteigen</button>
+          <p id="message" class="message" role="status"></p>
+        </form>
+        <form id="registerForm" class="stack auth-form" hidden>
+          <label>
+            Benutzername
+            <input name="username" autocomplete="username" minlength="3" required>
+          </label>
+          <label>
+            E-Mail fuer Freigabe-Hinweise
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            Passwort
+            <input name="password" type="password" autocomplete="new-password" minlength="6" required>
+          </label>
+          <label>
+            Hauscode
+            <input name="houseCode" autocomplete="off" required>
+          </label>
+          <label class="checkbox-label">
+            <input name="notifyReleases" type="checkbox" checked>
+            <span>Mail senden, wenn ein Slot frueher frei wird</span>
+          </label>
+          <button type="submit">Konto erstellen</button>
+          <p class="helper-text">Der Hauscode wird von der Verwaltung oder den Admins mitgeteilt.</p>
+          <p id="registerMessage" class="message" role="status"></p>
+        </form>
       </section>
     </main>
-
-    <script src="/login.js?v=plain-copy"></script>
+    <script src="/login.js"></script>
   </body>
 </html>

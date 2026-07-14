@@ -3,501 +3,145 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Waschraum Buchungen</title>
-    <link rel="stylesheet" href="/styles.css?v=plain-copy">
+    <title>Waschplan</title>
+    <link rel="stylesheet" href="/styles.css">
   </head>
-  <body class="app-page">
-    <header class="app-header">
-      <a class="brand" href="/index.html" aria-label="GBMZ Waschraum">GBMZ</a>
-      <nav class="main-nav" aria-label="Hauptnavigation" role="tablist">
-        <button class="nav-tab is-active" type="button" role="tab" aria-selected="true" data-view="washraum">WASCHRAUM</button>
-        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="bookings">BUCHUNGEN</button>
-        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="logbook">PROTOKOLL</button>
-        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="feedback">FEEDBACK</button>
-        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="rules">REGELN</button>
-        <button class="nav-tab" type="button" role="tab" aria-selected="false" data-view="help">HILFE</button>
-        <button id="adminNavTab" class="nav-tab hidden" type="button" role="tab" aria-selected="false" data-view="admin">ADMIN</button>
-      </nav>
-      <div class="header-actions">
-        <span id="sessionLabel" class="session-pill"></span>
-        <button id="logoutButton" type="button">Abmelden</button>
+  <body>
+    <header class="topbar">
+      <div class="brand-lockup app-brand">
+        <span class="brand-mark">GBMZ</span>
+        <span>Maneggplatz 18</span>
       </div>
+      <div class="topbar-title">
+        <h1>Waschplan</h1>
+        <p id="userLine"></p>
+      </div>
+      <button id="logoutButton" class="ghost-button" type="button">Abmelden</button>
     </header>
 
-    <button class="notice-bar" type="button" data-view="washraum">Waschraum buchen und Eintrag pruefen</button>
-
-    <div id="actionToast" class="action-toast hidden" role="status" aria-live="polite"></div>
-
-    <section class="workspace-hero" aria-labelledby="workspaceHeroHeading">
-      <div class="workspace-hero-copy">
-        <p class="workspace-kicker">GBMZ Waschraum</p>
-        <h1 id="workspaceHeroHeading">Waschraum im Blick</h1>
-        <p>Freie Slots pruefen, Buchung eintragen und den Waschraum sauber verlassen.</p>
-      </div>
-      <div class="workspace-metrics" aria-label="Waschraum Kurzstatus">
-        <article>
-          <span>3</span>
-          <strong>Waschmaschinen</strong>
-          <small>ein Slot pro Tag</small>
-        </article>
-        <article>
-          <span>3</span>
-          <strong>Trockenraeume</strong>
-          <small>bis max. Folgetag 12:00</small>
-        </article>
-        <article>
-          <span>2</span>
-          <strong>Tumbler</strong>
-          <small>einer bleibt frei</small>
-        </article>
-      </div>
-    </section>
-
-    <section id="onboardingOverlay" class="onboarding-overlay hidden" aria-labelledby="onboardingHeading" aria-modal="true" role="dialog">
-      <div class="onboarding-card">
-        <p class="onboarding-kicker">GBMZ, Maneggplatz 18</p>
-        <h1 id="onboardingHeading">Willkommen im Waschraumplan</h1>
-        <p class="onboarding-intro">Hier traegst du Waschmaschine, Trockenraum und Tumbler ein. Die wichtigsten Regeln stehen kurz zusammengefasst hier; der Aushang im Waschraum bleibt massgebend.</p>
-
-        <div class="onboarding-sections">
-          <article>
-            <h2>So buchst du</h2>
-            <ol>
-              <li>Bereich waehlen: Waschmaschine, Trockenraum oder Tumbler.</li>
-              <li>Datum und freies Zeitfenster auswaehlen.</li>
-              <li>Buchen druecken und die Bestaetigung abwarten.</li>
-            </ol>
-          </article>
-          <article>
-            <h2>Die wichtigsten Regeln</h2>
-            <ul>
-              <li>Bitte nur 1x im Voraus eintragen.</li>
-              <li>Eintragen - waschen - wieder eintragen.</li>
-              <li>Tumbler nur zum eigenen Waschslot, dabei bleibt mindestens ein Tumbler frei.</li>
-              <li>Trockenraum je nach Waschslot bis 21:00 oder bis max. am Folgetag 12:00.</li>
-              <li>Sonntage, eingetragene Sperrtage und vergangene Zeiten sind gesperrt.</li>
-              <li>Wer frueher fertig ist, meldet den Slot frei.</li>
-            </ul>
-          </article>
-          <article>
-            <h2>Ruecksicht im Alltag</h2>
-            <ul>
-              <li>Eigene Buchungen loeschen, wenn sie nicht gebraucht werden.</li>
-              <li>Wenn Waesche haengen bleibt, den Hinweis an der Buchung nutzen.</li>
-              <li>Bei Stoerungen das Protokolltagebuch verwenden.</li>
-            </ul>
-          </article>
-        </div>
-
-        <div class="onboarding-quiz" aria-labelledby="onboardingQuizHeading">
-          <h2 id="onboardingQuizHeading">Kurze Fragen</h2>
-          <fieldset>
-            <legend>Wann darf der Trockenraum bei einem Waschslot ab 12:00 maximal genutzt werden?</legend>
-            <label><input type="radio" name="quizDrying" value="same-day"> Bis 21:00 am gleichen Tag</label>
-            <label><input type="radio" name="quizDrying" value="next-noon"> Bis 12:00 am Folgetag</label>
-          </fieldset>
-          <fieldset>
-            <legend>Was gilt fuer den Tumbler?</legend>
-            <label><input type="radio" name="quizTumbler" value="own-slot"> Nur waehrend des eigenen Waschslots und ein Tumbler bleibt frei</label>
-            <label><input type="radio" name="quizTumbler" value="anytime"> Jeder freie Tumbler kann jederzeit reserviert werden</label>
-          </fieldset>
-        </div>
-
-        <button id="finishOnboardingButton" type="button">Verstanden, weiter zur App</button>
-        <p id="onboardingMessage" class="message" role="status"></p>
-      </div>
-    </section>
-
-    <section class="activity-panel" aria-labelledby="activityHeading">
-      <div class="activity-heading">
-        <h2 id="activityHeading">Aktuell</h2>
-        <span>Buchungen, Loeschungen und frueher freie Slots</span>
-      </div>
-      <div id="activityList" class="activity-list"></div>
-    </section>
-
-    <main class="app-layout">
-      <section class="booking-panel">
-        <h2>Buchung eintragen</h2>
-        <div class="washroom-flow" aria-label="Waschraum Ablauf">
-          <article class="flow-card flow-card-active">
-            <span>01</span>
-            <strong>Slot waehlen</strong>
-            <small>freie Maschine oder Raum finden</small>
-          </article>
-          <article class="flow-card">
-            <span>02</span>
-            <strong>Reservieren</strong>
-            <small>nur erlaubte GBMZ-Zeitfenster</small>
-          </article>
-          <article class="flow-card">
-            <span>03</span>
-            <strong>Freigeben</strong>
-            <small>frueher fertig? Slot melden</small>
-          </article>
-        </div>
-        <div class="rule-strip" aria-label="Buchungsregeln">
-          <span>Nach Benutzungsplan</span>
-          <span>Eintragen - waschen - eintragen</span>
-          <span>Sonntag und Sperrtage geschlossen</span>
-        </div>
-        <section id="rulesPanel" class="rules-panel" aria-labelledby="rulesHeading">
-          <h3 id="rulesHeading">Benutzung</h3>
-          <ul>
-            <li>Die Benutzung erfolgt gemaess dem angeschlagenen Benutzungsplan.</li>
-            <li>Mieterinnen nutzen die Waschkueche in der Reihenfolge ihrer Eintragungen im Waschplan nach dem Prinzip eintragen - waschen - eintragen - waschen.</li>
-            <li>Gleiches gilt fuer Tumbler und Trocknungsraeume: eintragen - trocknen - eintragen - trocknen.</li>
-            <li>Auch bei Nutzung von nur einer Maschine oder nur der Trocknung der Kleider ist ein Eintrag im Waschplan erforderlich.</li>
-            <li>Trockenraeume sind je nach Waschslot bis 21:00 am gleichen Tag oder bis 12:00 am Folgetag verfuegbar.</li>
-            <li>Das Waschen ist vor 7 Uhr und nach 22 Uhr nicht erlaubt.</li>
-            <li>An Sonntagen und eingetragenen Sperrtagen darf die Waschkueche nicht benutzt werden.</li>
-            <li>Waschen von Fremd- oder Geschaeftswaesche ist nicht erlaubt.</li>
-          </ul>
-
-          <h3>Reinigung nach der Benutzung</h3>
-          <div class="cleaning-grid">
-            <article>
-              <strong>Waschmaschine</strong>
-              <ul>
-                <li>Waschmittelschublade herausnehmen, abspuelen und reinigen.</li>
-                <li>Trommel ausreiben und Gummidichtung abwischen.</li>
-                <li>Filter unten links herausschrauben, abspuelen, wieder bis zum Anschlag einschrauben.</li>
-                <li>Ausgelaufenes Schmutzwasser in den Abfluss befoerdern und Gehaeuse feucht abwischen.</li>
-              </ul>
-            </article>
-            <article>
-              <strong>Tumbler</strong>
-              <ul>
-                <li>Trommel ausreiben.</li>
-                <li>Vier Filter reinigen: unten links, unten rechts und zwei in der Mitte.</li>
-                <li>Unter den mittleren Filtern den Abflussbereich mit einem Lappen auswischen.</li>
-                <li>Gummidichtung innen und Gehaeuse feucht abwischen.</li>
-              </ul>
-            </article>
-            <article>
-              <strong>Trockenraum und Waschkueche</strong>
-              <ul>
-                <li>Tisch abstauben oder abwischen.</li>
-                <li>Zwei Filter links und rechts reinigen.</li>
-                <li>Boden wischen und feucht aufnehmen.</li>
-                <li>Besen und Wischmop von Fusseln befreien, Wischmop ausspuelen, auswringen und zum Trocknen aufhaengen.</li>
-              </ul>
-            </article>
-          </div>
-          <p class="panel-note">Die Reinigungspflicht gilt auch, wenn die Waschkueche nur zwischendurch fuer einzelne Durchgaenge benutzt wird. Massgebend bleibt der offizielle GBMZ-Aushang in der Waschkueche.</p>
-        </section>
-        <section id="helpPanel" class="help-panel" aria-labelledby="helpHeading">
-          <div class="help-heading">
-            <h3 id="helpHeading">Hilfe</h3>
-            <span>Kurzanleitung fuer alle im Haus</span>
-          </div>
-          <div class="help-grid">
-            <article>
-              <strong>Buchen</strong>
-              <ol>
-                <li>Bereich waehlen: Waschmaschine, Trockenraum oder Tumbler.</li>
-                <li>Freien Slot anklicken oder Datum und Zeitfenster auswaehlen.</li>
-                <li>Mit Buchen speichern und die Bestaetigung abwarten.</li>
-              </ol>
-            </article>
-            <article>
-              <strong>Regeln</strong>
-              <ol>
-                <li>Bitte nur eine Buchung im Voraus eintragen.</li>
-                <li>Tumbler duerfen nur waehrend des eigenen Waschmaschinen-Slots gebucht werden.</li>
-                <li>Sonntag, Sperrtage und vergangene Slots sind nicht buchbar.</li>
-              </ol>
-            </article>
-            <article>
-              <strong>Aendern</strong>
-              <ol>
-                <li>Eigene Buchung in der Liste suchen.</li>
-                <li>Nicht benoetigte Buchung loeschen.</li>
-                <li>Wenn ein Slot frueher frei ist, den Freimelde-Button nutzen, falls WhatsApp konfiguriert ist.</li>
-              </ol>
-            </article>
-            <article>
-              <strong>App ausprobieren</strong>
-              <ol>
-                <li>Einloggen und eine freie Waschmaschine buchen.</li>
-                <li>Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Tag dazubuchen.</li>
-                <li>Eine zweite Buchung im Voraus versuchen und die Meldung pruefen.</li>
-                <li>Monatsplan kontrollieren und kurze Rueckmeldung senden.</li>
-              </ol>
-            </article>
-          </div>
-        </section>
-        <form id="bookingForm" class="booking-form">
-          <label>
-            Bereich
-            <select id="resourceType" name="resourceType">
-              <option value="washer">Waschmaschine</option>
-              <option value="drying_room">Trockenraum</option>
-              <option value="tumbler">Tumbler</option>
-            </select>
-          </label>
-
-          <label>
-            Maschine / Raum
-            <select id="resourceId" name="resourceId"></select>
-          </label>
-
-          <label id="slotGroup">
-            Zeitfenster
-            <select id="bookingSlot" name="bookingSlot"></select>
-          </label>
-
-          <label>
-            Datum
-            <input id="bookingDate" name="bookingDate" type="date" required>
-          </label>
-
-          <label id="adminTargetGroup" class="hidden">
-            Buchen fuer
-            <input id="adminTargetUserName" name="adminTargetUserName" autocomplete="name">
-          </label>
-
-          <label>
-            Start
-            <input id="startAt" name="startAt" type="datetime-local" required>
-          </label>
-
-          <label>
-            Ende
-            <input id="endAt" name="endAt" type="datetime-local" required>
-          </label>
-
-          <button type="submit">Buchen</button>
-          <p id="formMessage" class="message" role="status"></p>
-        </form>
-        <div id="availabilityPanel" class="availability-panel" aria-live="polite"></div>
-
-        <div id="logbookPanel" class="logbook-panel">
-          <h2>Protokolltagebuch</h2>
-          <p class="panel-note">Stoerungen, Schaeden oder besondere Vorkommnisse pro Maschine, Trockenraum oder Tumbler dokumentieren.</p>
-          <form id="machineLogForm" class="booking-form">
-            <label>
-              Bereich
-              <select id="machineLogResourceType" name="machineLogResourceType">
-                <option value="washer">Waschmaschine</option>
-                <option value="drying_room">Trockenraum</option>
-                <option value="tumbler">Tumbler</option>
-              </select>
-            </label>
-
-            <label>
-              Maschine / Raum
-              <select id="machineLogResourceId" name="machineLogResourceId"></select>
-            </label>
-
-            <label>
-              Datum
-              <input id="machineLogDate" name="machineLogDate" type="date" required>
-            </label>
-
-            <label id="machineLogActionGroup" class="hidden">
-              Admin-Aktion
-              <select id="machineLogAction" name="machineLogAction">
-                <option value="log_only">Nur protokollieren</option>
-                <option value="block_resource">Protokollieren und sperren</option>
-                <option value="release_resource">Protokollieren und freigeben</option>
-              </select>
-            </label>
-
-            <label>
-              Eintrag
-              <textarea id="machineLogNote" name="machineLogNote" maxlength="1200" rows="4" required></textarea>
-            </label>
-
-            <button type="submit">Eintrag speichern</button>
-            <p id="machineLogMessage" class="message" role="status"></p>
-          </form>
-          <div class="logbook-tools" aria-label="Protokoll filtern">
-            <label>
-              Suche
-              <input id="machineLogSearch" type="search" autocomplete="off" placeholder="Name, Ressource oder Stichwort">
-            </label>
-            <label>
-              Bereich
-              <select id="machineLogTypeFilter">
-                <option value="all">Alle Bereiche</option>
-                <option value="washer">Waschmaschinen</option>
-                <option value="drying_room">Trockenraeume</option>
-                <option value="tumbler">Tumbler</option>
-              </select>
-            </label>
-            <label>
-              Tag
-              <select id="machineLogTagFilter">
-                <option value="all">Alle Tags</option>
-                <option value="blocked">Gesperrt</option>
-                <option value="released">Freigegeben</option>
-                <option value="note">Hinweis</option>
-              </select>
-            </label>
-            <button id="clearMachineLogFiltersButton" type="button">Filter leeren</button>
-          </div>
-          <div id="machineLogSummary" class="logbook-summary"></div>
-          <div id="machineLogsList" class="machine-logs-list"></div>
-        </div>
-
-        <div class="account-panel">
-          <h2>Passwort aendern</h2>
-          <form id="passwordForm" class="booking-form">
-            <label>
-              Aktuelles Passwort
-              <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
-            </label>
-
-            <label>
-              Neues Passwort
-              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" required>
-            </label>
-
-            <button type="submit">Passwort speichern</button>
-            <p id="passwordMessage" class="message" role="status"></p>
-          </form>
-        </div>
-
-        <div id="feedbackPanel" class="feedback-panel">
-          <h2>Pilot-Feedback</h2>
-          <p class="panel-note">Bitte kurz melden, wenn beim Testen etwas unklar ist, nicht funktioniert oder im Alltag stoert.</p>
-          <form id="pilotFeedbackForm" class="booking-form">
-            <label>
-              Rueckmeldung
-              <textarea id="pilotFeedbackMessage" name="pilotFeedbackMessage" maxlength="1200" rows="4" required></textarea>
-            </label>
-
-            <button type="submit">Feedback senden</button>
-            <p id="pilotFeedbackMessageStatus" class="message" role="status"></p>
-          </form>
-          <div class="feedback-tools" aria-label="Feedback filtern">
-            <label>
-              Suche
-              <input id="pilotFeedbackSearch" type="search" autocomplete="off" placeholder="Name oder Stichwort">
-            </label>
-            <button id="clearPilotFeedbackSearchButton" type="button">Suche leeren</button>
-          </div>
-          <div id="pilotFeedbackList" class="pilot-feedback-list"></div>
-        </div>
-
-        <section class="admin-command-center" aria-labelledby="adminCommandHeading">
-          <div>
-            <p class="workspace-kicker">Adminbereich</p>
-            <h2 id="adminCommandHeading">Betrieb steuern</h2>
-            <p>Feste Buchungen, Ressourcen, Sperrtage und Pilotbetrieb an einem Ort.</p>
-          </div>
-          <div class="admin-command-grid" aria-label="Admin Kurzfunktionen">
-            <span>Feste Slots</span>
-            <span>Ressourcen</span>
-            <span>Backup</span>
-          </div>
-        </section>
-
-        <div id="adminDashboardNav" class="admin-dashboard-nav hidden" aria-label="Adminbereiche">
-          <button class="admin-dashboard-tab is-active" type="button" data-admin-panel="adminOpsPanel">Uebersicht</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminUsersPanel">Nutzer</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminResourcesPanel">Ressourcen</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminFixedBookingsPanel">Feste Buchungen</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminBlockedDatesPanel">Sperrtage</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminAnalyticsPanel">Auswertung</button>
-          <button class="admin-dashboard-tab" type="button" data-admin-panel="adminPilotPanel">Pilot</button>
-        </div>
-
-        <div id="adminUsersPanel" class="admin-panel hidden">
-          <h2>Nutzer verwalten</h2>
-          <p class="panel-note">Bewohnerinnen und Bewohner koennen sich auf der Loginseite selbst registrieren. Admins koennen Konten bearbeiten, deaktivieren oder Passwoerter neu setzen.</p>
-          <form id="userForm" class="booking-form">
-            <input id="editingUserId" type="hidden">
-            <label>
-              Name
-              <input id="managedUserName" name="managedUserName" autocomplete="name" required>
-            </label>
-
-            <label>
-              Anzeigename
-              <input id="managedDisplayName" name="managedDisplayName" autocomplete="name" maxlength="80" placeholder="z. B. Familie Mueller">
-            </label>
-
-            <label>
-              Partei / Wohnung
-              <input id="managedApartmentLabel" name="managedApartmentLabel" maxlength="40" placeholder="z. B. Partei 12">
-            </label>
-
-            <label>
-              Rolle
-              <select id="managedUserRole" name="managedUserRole">
-                <option value="user">Nutzer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-
-            <label>
-              Status
-              <select id="managedUserActive" name="managedUserActive">
-                <option value="1">Aktiv</option>
-                <option value="0">Inaktiv</option>
-              </select>
-            </label>
-
-            <label>
-              Passwort
-              <input id="managedUserPassword" name="managedUserPassword" type="password" autocomplete="new-password">
-            </label>
-
-            <div class="form-actions">
-              <button id="saveUserButton" type="submit">Nutzer speichern</button>
-              <button id="cancelUserEditButton" type="button">Abbrechen</button>
+    <main class="layout">
+      <div class="main-column">
+        <section class="intro-panel">
+          <div class="intro-copy-block">
+            <p class="eyebrow">Heute sauber organisiert</p>
+            <h2>Reservieren. Waschen. Fertig.</h2>
+            <p>Die App zeigt freie Slots, schuetzt feste Buchungen und achtet im Hintergrund auf die wichtigsten GBMZ-Regeln.</p>
+            <div class="intro-metrics" aria-hidden="true">
+              <span><strong>Live</strong> Freigaben</span>
+              <span><strong>Fix</strong> Admin-Schutz</span>
+              <span><strong>Fair</strong> GBMZ-Regeln</span>
             </div>
-            <p id="userMessage" class="message" role="status"></p>
-          </form>
-          <div id="usersList" class="users-list"></div>
+          </div>
+          <div class="intro-panel-actions">
+            <button id="openIntroButton" type="button">Video ansehen</button>
+            <div class="intro-flow-strip" aria-hidden="true">
+              <span><strong>1</strong> Datum</span>
+              <span><strong>2</strong> Bereich</span>
+              <span><strong>3</strong> Slot</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel my-bookings-panel">
+          <div class="section-head">
+            <div>
+              <h2>Meine Buchungen</h2>
+              <p class="muted">Deine naechsten Termine und schnelle Aktionen.</p>
+            </div>
+          </div>
+          <div id="myBookings" class="booking-list"></div>
+        </section>
+
+        <section class="panel booking-panel">
+          <div class="section-head">
+            <div>
+              <h2>Buchen</h2>
+              <p class="muted">Waehle zuerst den Bereich, dann Datum und Slot.</p>
+            </div>
+            <input id="bookingDate" type="date">
+          </div>
+          <div class="booking-rhythm" aria-hidden="true">
+            <span><strong>Waschen</strong> ein Zeitfenster pro Tag</span>
+            <span><strong>TR</strong> passend zum Waschslot</span>
+            <span><strong>Tumbler</strong> einer bleibt frei</span>
+          </div>
+          <div class="filters" role="group" aria-label="Geraetetyp">
+            <button class="filter active" data-type="washer" type="button">Waschmaschinen</button>
+            <button class="filter" data-type="drying_room" type="button">Trockenraeume</button>
+            <button class="filter" data-type="tumbler" type="button">Tumbler</button>
+            <button class="filter" data-type="all" type="button">Alle</button>
+          </div>
+          <div id="schedule" class="schedule"></div>
+        </section>
+      </div>
+
+      <aside class="panel side-panel">
+        <h2>Meine Ansicht</h2>
+        <p id="statusText" class="notice muted"></p>
+        <div class="side-block knowledge-card">
+          <h3>Wissen kompakt</h3>
+          <p>Das kurze Video fuehrt durch Aufbau, Buchung und Regeln.</p>
+          <button id="openKnowledgeButton" class="secondary" type="button">Video oeffnen</button>
         </div>
-
-        <div id="adminResourcesPanel" class="admin-panel hidden">
-          <h2>Ressourcen verwalten</h2>
-          <form id="resourceForm" class="booking-form">
+        <div class="side-block">
+          <h3>Benachrichtigungen</h3>
+          <form id="notificationForm" class="stack compact-form">
             <label>
-              Bereich
-              <select id="managedResourceType" name="managedResourceType">
-                <option value="washer">Waschmaschine</option>
-                <option value="drying_room">Trockenraum</option>
-                <option value="tumbler">Tumbler</option>
-              </select>
+              E-Mail
+              <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
             </label>
-
-            <label>
-              Name
-              <input id="managedResourceId" name="managedResourceId" maxlength="60" placeholder="z. B. WM 4" required>
+            <label class="checkbox-label">
+              <input id="notifyReleases" name="notifyReleases" type="checkbox">
+              <span>Mail senden, wenn ein Slot frueher frei wird</span>
             </label>
-
-            <button type="submit">Ressource hinzufuegen</button>
-            <p id="resourceMessage" class="message" role="status"></p>
+            <button class="secondary" type="submit">Speichern</button>
           </form>
-          <div id="resourcesList" class="resources-list"></div>
         </div>
-
-        <div id="adminFixedBookingsPanel" class="admin-panel hidden">
-          <h2>Feste Buchungen</h2>
-          <p class="panel-note">Feste Buchungen werden von Admins gepflegt und blockieren den Slot dauerhaft. Normale Nutzer koennen sie nicht ueberschreiben.</p>
-          <form id="fixedBookingForm" class="booking-form">
+        <div class="side-block">
+          <h3>Freigaben</h3>
+          <div id="releaseNotices" class="release-list"></div>
+        </div>
+        <div class="side-block rules-block">
+          <h3>Regeln</h3>
+          <ul>
+            <li>Waschmaschinen: pro Waschtag ein Slot. Weitere Waschmaschinen duerfen nur im gleichen Slot gebucht werden.</li>
+            <li>Der naechste Waschslot kann fruehestens am bestehenden Waschtag reserviert werden.</li>
+            <li>Tumbler: pro Slot bleibt mindestens ein Tumbler frei.</li>
+            <li>Trockenraum: 07:00-Slot bis 21:00, 12:00-Slot bis Folgetag 12:00, 17:00-Slot bis Folgetag 12:00.</li>
+          </ul>
+        </div>
+        <div class="side-block rules-block">
+          <h3>Reinigung</h3>
+          <ul>
+            <li>Waschmaschine: Schublade, Trommel, Gummidichtung, Filter und Gehaeuse reinigen.</li>
+            <li>Tumbler: Trommel, vier Filter, Abflussbereich, Tuerdichtung und Gehaeuse reinigen.</li>
+            <li>Trockenraum: Tisch, zwei Filter und Boden reinigen.</li>
+            <li>Waschkueche, Besen und Wischmop sauber und trocken hinterlassen.</li>
+          </ul>
+        </div>
+        <div id="adminBox" class="admin-box" hidden>
+          <h3>Admin</h3>
+          <div id="adminOverview" class="admin-overview"></div>
+          <form id="houseCodeForm" class="stack compact-form">
             <label>
-              Bereich
-              <select id="fixedBookingResourceType" name="fixedBookingResourceType">
-                <option value="washer">Waschmaschine</option>
-                <option value="drying_room">Trockenraum</option>
-                <option value="tumbler">Tumbler</option>
-              </select>
+              Hauscode
+              <input id="houseCodeInput" name="houseCode" required>
             </label>
-
+            <button type="submit">Hauscode speichern</button>
+          </form>
+          <h3>Feste Buchungen</h3>
+          <form id="fixedBookingForm" class="stack compact-form">
             <label>
-              Ressource
-              <select id="fixedBookingResourceId" name="fixedBookingResourceId" required></select>
+              Name / Hinweis
+              <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
             </label>
-
+            <label>
+              Geraet
+              <select id="fixedBookingResource" name="resourceId" required></select>
+            </label>
             <label>
               Wochentag
-              <select id="fixedBookingWeekday" name="fixedBookingWeekday">
+              <select id="fixedBookingWeekday" name="weekday" required>
                 <option value="1">Montag</option>
                 <option value="2">Dienstag</option>
                 <option value="3">Mittwoch</option>
@@ -506,161 +150,72 @@
                 <option value="6">Samstag</option>
               </select>
             </label>
-
             <label>
               Slot
-              <select id="fixedBookingSlot" name="fixedBookingSlot" required></select>
+              <select id="fixedBookingSlot" name="slot" required></select>
             </label>
-
-            <label>
-              Bezeichnung
-              <input id="fixedBookingLabel" name="fixedBookingLabel" maxlength="80" placeholder="z. B. Frau Muster" required>
-            </label>
-
-            <button type="submit">Feste Buchung speichern</button>
-            <p id="fixedBookingMessage" class="message" role="status"></p>
+            <button type="submit">Fest speichern</button>
           </form>
-          <div id="fixedBookingsList" class="blocked-dates-list"></div>
+          <div id="fixedBookingList" class="fixed-booking-list"></div>
+          <h3>Benutzer</h3>
+          <ul id="userList"></ul>
         </div>
-
-        <div id="adminBlockedDatesPanel" class="admin-panel hidden">
-          <h2>Sperrtage verwalten</h2>
-          <form id="blockedDateForm" class="booking-form">
-            <label>
-              Datum
-              <input id="blockedDateInput" name="blockedDate" type="date" required>
-            </label>
-
-            <label>
-              Bezeichnung
-              <input id="blockedDateLabelInput" name="blockedDateLabel" maxlength="80" placeholder="z. B. Sperrtag" required>
-            </label>
-
-            <button type="submit">Sperrtag speichern</button>
-            <p id="blockedDateMessage" class="message" role="status"></p>
-          </form>
-          <div id="blockedDatesList" class="blocked-dates-list"></div>
-        </div>
-
-        <div id="adminOpsPanel" class="admin-panel hidden">
-          <h2>Betrieb</h2>
-          <p class="panel-note">SQLite-Backup vor groesseren Aenderungen herunterladen.</p>
-          <div id="opsStatusGrid" class="ops-status-grid"></div>
-          <div id="opsWarningsList" class="ops-warnings-list"></div>
-          <div class="form-actions">
-            <button id="downloadBackupButton" type="button">Backup herunterladen</button>
-            <button id="sendWhatsappTestButton" type="button">WhatsApp testen</button>
-          </div>
-          <div class="danger-zone">
-            <h3>Alle Buchungen zuruecksetzen</h3>
-            <p>Loescht alle Buchungen und die aktuelle Aktivitaetsliste. Nutzer, Ressourcen, Sperrtage, Protokolltagebuch und Feedback bleiben erhalten.</p>
-            <label>
-              Zur Bestaetigung ZURUECKSETZEN eingeben
-              <input id="resetBookingsConfirmation" autocomplete="off" placeholder="ZURUECKSETZEN">
-            </label>
-            <button id="resetBookingsButton" class="danger-button" type="button" disabled>Alle Buchungen zuruecksetzen</button>
-          </div>
-          <p id="opsMessage" class="message" role="status"></p>
-        </div>
-
-        <div id="adminAnalyticsPanel" class="admin-panel hidden">
-          <h2>Auswertung</h2>
-          <p class="panel-note">Ueberblick ueber Auslastung, Spitzenzeiten und Parteien ohne Buchungen. Gedacht fuer den Pilot und fuer sachliche Anpassungen am Betrieb.</p>
-          <div class="analytics-toolbar">
-            <label>
-              Zeitraum
-              <select id="analyticsRange">
-                <option value="30">Letzte 30 Tage</option>
-                <option value="90">Letzte 90 Tage</option>
-                <option value="365">Letztes Jahr</option>
-              </select>
-            </label>
-          </div>
-          <div id="analyticsSummaryGrid" class="ops-status-grid"></div>
-          <div id="analyticsUsageGrid" class="analytics-grid"></div>
-          <div id="analyticsInsightsList" class="pilot-readiness-list"></div>
-        </div>
-
-        <div id="adminPilotPanel" class="admin-panel hidden">
-          <h2>Pilotstart</h2>
-          <p class="panel-note">Vorbereitung fuer die erste Testrunde mit 3 bis 5 Bewohnerinnen und Bewohnern.</p>
-          <div id="pilotReadinessList" class="pilot-readiness-list"></div>
-          <div class="pilot-guide">
-            <h3>Rueckmeldungen aus dem Pilot</h3>
-            <div id="adminPilotFeedbackList" class="pilot-feedback-list"></div>
-          </div>
-          <div class="pilot-guide">
-            <h3>Kurzanleitung fuer die Testrunde</h3>
-            <textarea id="pilotInviteText" rows="9" readonly></textarea>
-            <div class="form-actions">
-              <button id="copyPilotInviteButton" type="button">Text kopieren</button>
-              <button id="printPilotGuideButton" type="button">Anleitung drucken</button>
-            </div>
-            <p id="pilotMessage" class="message" role="status"></p>
-          </div>
-          <ol class="pilot-timeline">
-            <li>Tag 1: Login pruefen und erste Buchung erstellen.</li>
-            <li>Tag 1-2: Jede Testperson bucht mindestens einen freien Waschslot.</li>
-            <li>Tag 2-4: Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen.</li>
-            <li>Tag 2-4: Zweite Buchung im Voraus testen und die Meldung pruefen.</li>
-            <li>Tag 5-7: Feedback sammeln und Entscheid fuer alle Bewohner treffen.</li>
-          </ol>
-        </div>
-      </section>
-
-      <section id="bookingsSection" class="calendar-panel">
-        <div class="calendar-command-strip" aria-label="Planung">
-          <div>
-            <p class="workspace-kicker">Planung</p>
-            <strong>Wochen- und Monatsplan</strong>
-            <span>Slots scannen, Buchungen pruefen und freie Zeiten sofort erkennen.</span>
-          </div>
-          <div class="calendar-signal">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </div>
-        <div class="calendar-toolbar">
-          <div>
-            <h2>Buchungen</h2>
-            <p id="weekLabel" class="week-label"></p>
-          </div>
-          <div class="calendar-actions">
-            <button id="previousWeekButton" type="button">Zurueck</button>
-            <button id="todayButton" type="button">Heute</button>
-            <button id="nextWeekButton" type="button">Vor</button>
-            <select id="bookingFilter">
-              <option value="all">Alle anzeigen</option>
-              <option value="washer">Waschmaschinen</option>
-              <option value="drying_room">Trockenraeume</option>
-              <option value="tumbler">Tumbler</option>
-            </select>
-          </div>
-        </div>
-        <div id="bookingsList" class="bookings-list"></div>
-        <div id="calendarGrid" class="calendar-grid"></div>
-
-        <section class="month-plan-panel" aria-labelledby="monthPlanHeading">
-          <div class="calendar-toolbar month-plan-toolbar">
-            <div>
-              <h2 id="monthPlanHeading">Monatsplan</h2>
-              <p id="monthPlanSubtitle" class="week-label">Maneggplatz 18</p>
-            </div>
-            <div class="calendar-actions">
-              <button id="previousMonthButton" type="button">Monat zurueck</button>
-              <input id="planMonthInput" type="month" aria-label="Monat fuer Monatsplan">
-              <button id="currentMonthButton" type="button">Aktueller Monat</button>
-              <button id="nextMonthButton" type="button">Monat vor</button>
-              <button id="printMonthButton" type="button">Drucken</button>
-            </div>
-          </div>
-          <div class="month-plan-notice">Bitte nur 1x im Voraus eintragen: eintragen, waschen, wieder eintragen.</div>
-          <div id="monthlyPlanGrid" class="monthly-plan-grid"></div>
-        </section>
-      </section>
+      </aside>
     </main>
 
-    <script src="/app.js?v=plain-copy"></script>
+    <div id="introOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+        <button id="closeIntroButton" class="icon-close" type="button" aria-label="Intro schliessen">x</button>
+        <div class="intro-copy">
+          <p class="eyebrow">Video-Einfuehrung</p>
+          <h2 id="introTitle">Waschplan in zwei Minuten.</h2>
+          <p>Ein lockerer Rundgang durch die App: wo du klickst, wie du schnell buchst und welche Regeln automatisch mitlaufen.</p>
+        </div>
+        <section class="video-guide" aria-label="Gesprochene Video-Einfuehrung">
+          <div id="introVideoStage" class="video-stage" data-step="overview">
+            <div class="video-topline">
+              <span id="introVideoChapter">Kapitel 1 von 6</span>
+              <span>Sprecher an Bord</span>
+            </div>
+            <div class="video-screen">
+              <div class="video-host" aria-hidden="true">
+                <span class="host-avatar">GB</span>
+                <span>Walkthrough</span>
+              </div>
+              <div class="video-ui-mock" aria-hidden="true">
+                <div></div>
+                <div></div>
+                <div></div>
+              </div>
+              <h3 id="introVideoTitle">Willkommen im Waschplan</h3>
+              <p id="introVideoCaption" aria-live="polite">Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Buchungsbereich, rechts stehen Regeln und Freigaben.</p>
+            </div>
+            <div class="video-progress" aria-hidden="true"><span id="introVideoProgress"></span></div>
+          </div>
+
+          <div class="video-controls">
+            <button id="introVideoPlayButton" type="button">Video starten</button>
+            <button id="introVideoMuteButton" class="secondary" type="button" aria-pressed="false">Sprecher an</button>
+          </div>
+
+          <details class="video-transcript">
+            <summary>Text zum Mitlesen</summary>
+            <ol>
+              <li>Nach dem Einloggen siehst du oben deine eigenen Buchungen, darunter den Bereich zum Buchen und rechts die Regeln.</li>
+              <li>Fuer eine schnelle Buchung waehle Datum, Bereich und dann den passenden freien Slot.</li>
+              <li>Waschmaschinen duerfen pro Tag nur in einem Zeitfenster reserviert werden. Mehrere Maschinen gehen im gleichen Slot.</li>
+              <li>Trockenraeume passen zur Waschmaschinen-Buchung: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.</li>
+              <li>Tumbler gehen nur sinnvoll zum Waschslot. Mindestens ein Tumbler bleibt frei. Eigene Buchungen kannst du loeschen oder frueher freigeben.</li>
+              <li>Admins pflegen Hauscode und feste Buchungen. Nach der Nutzung bitte reinigen, damit der Waschraum fuer alle angenehm bleibt.</li>
+            </ol>
+          </details>
+        </section>
+        <div class="intro-actions">
+          <button id="introDoneButton" type="button">Verstanden</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
   </body>
 </html>

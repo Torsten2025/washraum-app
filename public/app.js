@@ -1,2854 +1,623 @@
-const sessionLabel = document.getElementById("sessionLabel");
-const logoutButton = document.getElementById("logoutButton");
-const actionToast = document.getElementById("actionToast");
-const onboardingOverlay = document.getElementById("onboardingOverlay");
-const finishOnboardingButton = document.getElementById("finishOnboardingButton");
-const onboardingMessage = document.getElementById("onboardingMessage");
-const activityList = document.getElementById("activityList");
-const bookingForm = document.getElementById("bookingForm");
-const resourceTypeInput = document.getElementById("resourceType");
-const resourceIdInput = document.getElementById("resourceId");
-const slotGroup = document.getElementById("slotGroup");
-const bookingSlotInput = document.getElementById("bookingSlot");
-const bookingDateInput = document.getElementById("bookingDate");
-const adminTargetGroup = document.getElementById("adminTargetGroup");
-const adminTargetUserNameInput = document.getElementById("adminTargetUserName");
-const startAtInput = document.getElementById("startAt");
-const endAtInput = document.getElementById("endAt");
-const formMessage = document.getElementById("formMessage");
-const availabilityPanel = document.getElementById("availabilityPanel");
-const machineLogForm = document.getElementById("machineLogForm");
-const machineLogResourceTypeInput = document.getElementById("machineLogResourceType");
-const machineLogResourceIdInput = document.getElementById("machineLogResourceId");
-const machineLogDateInput = document.getElementById("machineLogDate");
-const machineLogActionGroup = document.getElementById("machineLogActionGroup");
-const machineLogActionInput = document.getElementById("machineLogAction");
-const machineLogNoteInput = document.getElementById("machineLogNote");
-const machineLogMessage = document.getElementById("machineLogMessage");
-const machineLogSearchInput = document.getElementById("machineLogSearch");
-const machineLogTypeFilterInput = document.getElementById("machineLogTypeFilter");
-const machineLogTagFilterInput = document.getElementById("machineLogTagFilter");
-const clearMachineLogFiltersButton = document.getElementById("clearMachineLogFiltersButton");
-const machineLogSummary = document.getElementById("machineLogSummary");
-const machineLogsList = document.getElementById("machineLogsList");
-const passwordForm = document.getElementById("passwordForm");
-const currentPasswordInput = document.getElementById("currentPassword");
-const newPasswordInput = document.getElementById("newPassword");
-const passwordMessage = document.getElementById("passwordMessage");
-const pilotFeedbackForm = document.getElementById("pilotFeedbackForm");
-const pilotFeedbackMessageInput = document.getElementById("pilotFeedbackMessage");
-const pilotFeedbackMessageStatus = document.getElementById("pilotFeedbackMessageStatus");
-const pilotFeedbackSearchInput = document.getElementById("pilotFeedbackSearch");
-const clearPilotFeedbackSearchButton = document.getElementById("clearPilotFeedbackSearchButton");
-const pilotFeedbackList = document.getElementById("pilotFeedbackList");
-const adminNavTab = document.getElementById("adminNavTab");
-const adminDashboardNav = document.getElementById("adminDashboardNav");
-const adminDashboardTabs = Array.from(document.querySelectorAll(".admin-dashboard-tab[data-admin-panel]"));
-const adminUsersPanel = document.getElementById("adminUsersPanel");
-const userForm = document.getElementById("userForm");
-const editingUserIdInput = document.getElementById("editingUserId");
-const managedUserNameInput = document.getElementById("managedUserName");
-const managedDisplayNameInput = document.getElementById("managedDisplayName");
-const managedApartmentLabelInput = document.getElementById("managedApartmentLabel");
-const managedUserRoleInput = document.getElementById("managedUserRole");
-const managedUserActiveInput = document.getElementById("managedUserActive");
-const managedUserPasswordInput = document.getElementById("managedUserPassword");
-const cancelUserEditButton = document.getElementById("cancelUserEditButton");
-const userMessage = document.getElementById("userMessage");
-const usersList = document.getElementById("usersList");
-const adminBlockedDatesPanel = document.getElementById("adminBlockedDatesPanel");
-const blockedDateForm = document.getElementById("blockedDateForm");
-const blockedDateInput = document.getElementById("blockedDateInput");
-const blockedDateLabelInput = document.getElementById("blockedDateLabelInput");
-const blockedDateMessage = document.getElementById("blockedDateMessage");
-const blockedDatesList = document.getElementById("blockedDatesList");
-const adminResourcesPanel = document.getElementById("adminResourcesPanel");
-const resourceForm = document.getElementById("resourceForm");
-const managedResourceTypeInput = document.getElementById("managedResourceType");
-const managedResourceIdInput = document.getElementById("managedResourceId");
-const resourceMessage = document.getElementById("resourceMessage");
-const resourcesList = document.getElementById("resourcesList");
-const adminFixedBookingsPanel = document.getElementById("adminFixedBookingsPanel");
-const fixedBookingForm = document.getElementById("fixedBookingForm");
-const fixedBookingResourceTypeInput = document.getElementById("fixedBookingResourceType");
-const fixedBookingResourceIdInput = document.getElementById("fixedBookingResourceId");
-const fixedBookingWeekdayInput = document.getElementById("fixedBookingWeekday");
-const fixedBookingSlotInput = document.getElementById("fixedBookingSlot");
-const fixedBookingLabelInput = document.getElementById("fixedBookingLabel");
-const fixedBookingMessage = document.getElementById("fixedBookingMessage");
-const fixedBookingsList = document.getElementById("fixedBookingsList");
-const adminOpsPanel = document.getElementById("adminOpsPanel");
-const downloadBackupButton = document.getElementById("downloadBackupButton");
-const sendWhatsappTestButton = document.getElementById("sendWhatsappTestButton");
-const opsStatusGrid = document.getElementById("opsStatusGrid");
-const opsWarningsList = document.getElementById("opsWarningsList");
-const opsMessage = document.getElementById("opsMessage");
-const resetBookingsConfirmationInput = document.getElementById("resetBookingsConfirmation");
-const resetBookingsButton = document.getElementById("resetBookingsButton");
-const adminAnalyticsPanel = document.getElementById("adminAnalyticsPanel");
-const analyticsRangeInput = document.getElementById("analyticsRange");
-const analyticsSummaryGrid = document.getElementById("analyticsSummaryGrid");
-const analyticsUsageGrid = document.getElementById("analyticsUsageGrid");
-const analyticsInsightsList = document.getElementById("analyticsInsightsList");
-const adminPilotPanel = document.getElementById("adminPilotPanel");
-const pilotReadinessList = document.getElementById("pilotReadinessList");
-const adminPilotFeedbackList = document.getElementById("adminPilotFeedbackList");
-const pilotInviteText = document.getElementById("pilotInviteText");
-const copyPilotInviteButton = document.getElementById("copyPilotInviteButton");
-const printPilotGuideButton = document.getElementById("printPilotGuideButton");
-const pilotMessage = document.getElementById("pilotMessage");
-const bookingFilter = document.getElementById("bookingFilter");
-const bookingsList = document.getElementById("bookingsList");
-const calendarGrid = document.getElementById("calendarGrid");
-const weekLabel = document.getElementById("weekLabel");
-const previousWeekButton = document.getElementById("previousWeekButton");
-const todayButton = document.getElementById("todayButton");
-const nextWeekButton = document.getElementById("nextWeekButton");
-const monthlyPlanGrid = document.getElementById("monthlyPlanGrid");
-const monthPlanHeading = document.getElementById("monthPlanHeading");
-const monthPlanSubtitle = document.getElementById("monthPlanSubtitle");
-const planMonthInput = document.getElementById("planMonthInput");
-const previousMonthButton = document.getElementById("previousMonthButton");
-const currentMonthButton = document.getElementById("currentMonthButton");
-const nextMonthButton = document.getElementById("nextMonthButton");
-const printMonthButton = document.getElementById("printMonthButton");
-const viewControls = Array.from(document.querySelectorAll("[data-view]"));
-const navTabs = Array.from(document.querySelectorAll(".nav-tab[data-view]"));
+const userLine = document.querySelector('#userLine');
+const logoutButton = document.querySelector('#logoutButton');
+const bookingDate = document.querySelector('#bookingDate');
+const schedule = document.querySelector('#schedule');
+const statusText = document.querySelector('#statusText');
+const adminBox = document.querySelector('#adminBox');
+const adminOverview = document.querySelector('#adminOverview');
+const houseCodeForm = document.querySelector('#houseCodeForm');
+const houseCodeInput = document.querySelector('#houseCodeInput');
+const notificationForm = document.querySelector('#notificationForm');
+const notificationEmail = document.querySelector('#notificationEmail');
+const notifyReleasesInput = document.querySelector('#notifyReleases');
+const fixedBookingForm = document.querySelector('#fixedBookingForm');
+const fixedBookingLabel = document.querySelector('#fixedBookingLabel');
+const fixedBookingResource = document.querySelector('#fixedBookingResource');
+const fixedBookingWeekday = document.querySelector('#fixedBookingWeekday');
+const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
+const fixedBookingList = document.querySelector('#fixedBookingList');
+const userList = document.querySelector('#userList');
+const myBookings = document.querySelector('#myBookings');
+const releaseNotices = document.querySelector('#releaseNotices');
+const filterButtons = [...document.querySelectorAll('.filter')];
+const openIntroButton = document.querySelector('#openIntroButton');
+const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
+const introOverlay = document.querySelector('#introOverlay');
+const closeIntroButton = document.querySelector('#closeIntroButton');
+const introDoneButton = document.querySelector('#introDoneButton');
+const introVideoStage = document.querySelector('#introVideoStage');
+const introVideoChapter = document.querySelector('#introVideoChapter');
+const introVideoTitle = document.querySelector('#introVideoTitle');
+const introVideoCaption = document.querySelector('#introVideoCaption');
+const introVideoProgress = document.querySelector('#introVideoProgress');
+const introVideoPlayButton = document.querySelector('#introVideoPlayButton');
+const introVideoMuteButton = document.querySelector('#introVideoMuteButton');
 
-let resources = {
-  washer: [],
-  drying_room: [],
-  tumbler: []
+let currentUser = null;
+let resources = [];
+let bookings = [];
+let slots = [];
+let activeType = 'washer';
+let introVideoElapsedMs = 0;
+let introVideoTimer = null;
+let introVideoLastTick = 0;
+let introVideoPlaying = false;
+let introVideoSpokenStep = '';
+const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+let introVideoSpeechEnabled = introVideoSpeechSupported;
+
+const weekdayLabels = {
+  1: 'Montag',
+  2: 'Dienstag',
+  3: 'Mittwoch',
+  4: 'Donnerstag',
+  5: 'Freitag',
+  6: 'Samstag'
 };
-let allResources = {
-  washer: [],
-  drying_room: [],
-  tumbler: []
-};
-let resourceEntries = [];
-let slotConfig = {
-  washer: [],
-  drying_room: [],
-  tumbler: []
-};
-let authToken = sessionStorage.getItem("washraumAuthToken");
-let userName = sessionStorage.getItem("washraumUserName");
-let role = sessionStorage.getItem("washraumUserRole") || "user";
-let onboardingSeenAt = "";
-let allBookings = [];
-let fixedBookings = [];
-let allUsers = [];
-let allMachineLogs = [];
-let allPilotFeedback = [];
-let allActivities = [];
-let blockedDates = [];
-let activeAdminPanelId = "adminOpsPanel";
-let visibleWeekStart = startOfWeek(new Date());
-let visibleMonth = startOfMonth(new Date());
 
-if (!authToken) {
-  window.location.href = "/login.html";
+const introVideoSteps = [
+  {
+    id: 'overview',
+    durationMs: 9500,
+    title: 'Willkommen im Waschplan',
+    caption: 'Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Buchungsbereich, rechts stehen Regeln und Freigaben.',
+    speech: 'Willkommen im Waschplan. Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Bereich zum Buchen. Rechts findest du Regeln und aktuelle Freigaben.'
+  },
+  {
+    id: 'booking',
+    durationMs: 10500,
+    title: 'Schnell zur Buchung',
+    caption: 'Waehle das Datum, dann Waschmaschine, Trockenraum oder Tumbler. Danach klickst du im freien Slot einfach auf Buchen.',
+    speech: 'So buchst du am schnellsten: Waehle zuerst das Datum. Dann waehlst du den Bereich, also Waschmaschine, Trockenraum oder Tumbler. In einem freien Slot klickst du auf Buchen.'
+  },
+  {
+    id: 'washer',
+    durationMs: 10500,
+    title: 'Waschmaschine: ein Zeitfenster',
+    caption: 'Pro Waschtag gibt es nur ein Zeitfenster. Wenn du mehrere Waschmaschinen brauchst, buche sie im gleichen Slot.',
+    speech: 'Bei den Waschmaschinen gilt: pro Waschtag nur ein Zeitfenster. Wenn du mehrere Waschmaschinen brauchst, ist das im gleichen Slot moeglich.'
+  },
+  {
+    id: 'drying',
+    durationMs: 11500,
+    title: 'Trockenraum passend zum Waschslot',
+    caption: '07:00 darf bis 21:00 trocknen. 12:00 und 17:00 duerfen maximal bis 12:00 am Folgetag trocknen.',
+    speech: 'Der Trockenraum passt immer zu deiner Waschmaschinen Buchung. Beim sieben Uhr Slot maximal bis einundzwanzig Uhr. Beim zwoelf Uhr und siebzehn Uhr Slot maximal bis zwoelf Uhr am Folgetag.'
+  },
+  {
+    id: 'tumbler',
+    durationMs: 9500,
+    title: 'Tumbler, Loeschen und Freigeben',
+    caption: 'Ein Tumbler bleibt frei. Eigene Buchungen findest du oben und kannst sie loeschen oder frueher freigeben.',
+    speech: 'Beim Tumbler bleibt mindestens ein Geraet frei. Deine eigenen Buchungen findest du oben. Dort kannst du sie loeschen oder frueher freigeben.'
+  },
+  {
+    id: 'cleaning',
+    durationMs: 11000,
+    title: 'Admins, feste Buchungen und Reinigung',
+    caption: 'Admins pflegen Hauscode und feste Buchungen. Nach der Nutzung bitte Filter, Trommel, Boden und gemeinsam genutzte Dinge sauber hinterlassen.',
+    speech: 'Admins pflegen den Hauscode und feste Buchungen, zum Beispiel fuer regelmaessige Termine. Und wichtig fuer alle: nach der Nutzung bitte Filter, Trommel, Boden und gemeinsam genutzte Dinge sauber hinterlassen.'
+  }
+];
+const introVideoTotalMs = introVideoSteps.reduce((total, step) => total + step.durationMs, 0);
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-setActiveView(initialViewFromHash(), { replaceHash: true });
-
-for (const control of viewControls) {
-  control.addEventListener("click", (event) => {
-    event.preventDefault();
-    setActiveView(control.dataset.view);
-  });
+function typeLabel(type) {
+  if (type === 'washer') return 'Waschmaschine';
+  if (type === 'drying_room') return 'Trockenraum';
+  if (type === 'tumbler') return 'Tumbler';
+  return type;
 }
 
-for (const tab of adminDashboardTabs) {
-  tab.addEventListener("click", () => {
-    setActiveAdminPanel(tab.dataset.adminPanel);
-  });
+function dateStatus(dateString) {
+  const today = new Date(`${todayString()}T00:00:00`);
+  const date = new Date(`${dateString}T00:00:00`);
+  const diffDays = Math.round((date - today) / 86400000);
+  if (diffDays < 0) return 'vergangen';
+  if (diffDays === 0) return 'heute';
+  if (diffDays === 1) return 'morgen';
+  return 'geplant';
 }
 
-logoutButton.addEventListener("click", async () => {
-  await fetch("/api/logout", {
-    method: "POST",
-    headers: authHeaders()
-  });
-  sessionStorage.removeItem("washraumUserName");
-  sessionStorage.removeItem("washraumUserRole");
-  sessionStorage.removeItem("washraumAuthToken");
-  window.location.href = "/login.html";
-});
-
-finishOnboardingButton.addEventListener("click", async () => {
-  onboardingMessage.textContent = "";
-  const quiz = onboardingQuizResult();
-  if (!quiz.ok) {
-    onboardingMessage.textContent = quiz.message;
-    return;
-  }
-  finishOnboardingButton.disabled = true;
-
-  const response = await fetch("/api/me/onboarding-seen", {
-    method: "POST",
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    finishOnboardingButton.disabled = false;
-    onboardingMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  onboardingSeenAt = data.onboardingSeenAt || new Date().toISOString();
-  sessionStorage.setItem("washraumOnboardingSeenAt", onboardingSeenAt);
-  hideOnboarding();
-});
-
-resourceTypeInput.addEventListener("change", () => {
-  updateResourceOptions();
-  updateSlotControls();
-  renderAvailability();
-});
-resourceIdInput.addEventListener("change", renderAvailability);
-adminTargetUserNameInput.addEventListener("input", renderAvailability);
-machineLogResourceTypeInput.addEventListener("change", () => {
-  updateMachineLogResourceOptions();
-  updateMachineLogActionOptions();
-});
-machineLogResourceIdInput.addEventListener("change", updateMachineLogActionOptions);
-machineLogSearchInput.addEventListener("input", renderMachineLogs);
-machineLogTypeFilterInput.addEventListener("change", renderMachineLogs);
-machineLogTagFilterInput.addEventListener("change", renderMachineLogs);
-clearMachineLogFiltersButton.addEventListener("click", () => {
-  machineLogSearchInput.value = "";
-  machineLogTypeFilterInput.value = "all";
-  machineLogTagFilterInput.value = "all";
-  renderMachineLogs();
-});
-bookingDateInput.addEventListener("change", () => {
-  applySelectedSlot();
-  renderAvailability();
-});
-
-resourceForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  resourceMessage.textContent = "";
-
-  const response = await fetch("/api/admin/resources", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      resourceType: managedResourceTypeInput.value,
-      resourceId: managedResourceIdInput.value.trim()
-    })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    resourceMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  resourceForm.reset();
-  resourceMessage.textContent = "Ressource hinzugefuegt.";
-  await loadResources();
-  updateResourceOptions();
-  updateSlotControls();
-  updateMachineLogResourceOptions();
-  renderResources();
-  renderBookings();
-  renderAvailability();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-fixedBookingResourceTypeInput.addEventListener("change", () => {
-  updateFixedBookingOptions();
-});
-
-fixedBookingForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  fixedBookingMessage.textContent = "";
-
-  const response = await fetch("/api/admin/fixed-bookings", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      resourceType: fixedBookingResourceTypeInput.value,
-      resourceId: fixedBookingResourceIdInput.value,
-      weekday: Number(fixedBookingWeekdayInput.value),
-      slotId: fixedBookingSlotInput.value,
-      label: fixedBookingLabelInput.value.trim()
-    })
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    fixedBookingMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  fixedBookingLabelInput.value = "";
-  fixedBookingMessage.textContent = "Feste Buchung gespeichert.";
-  fixedBookings = data.fixedBookings || [];
-  renderFixedBookings();
-  await loadBookings();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-machineLogForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  machineLogMessage.textContent = "";
-
-  const response = await fetch("/api/machine-logs", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      resourceType: machineLogResourceTypeInput.value,
-      resourceId: machineLogResourceIdInput.value,
-      eventDate: machineLogDateInput.value,
-      availabilityAction: role === "admin" ? machineLogActionInput.value : "log_only",
-      note: machineLogNoteInput.value.trim()
-    })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    machineLogMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  machineLogNoteInput.value = "";
-  machineLogActionInput.value = "log_only";
-  machineLogMessage.textContent = data.availabilityAction === "block_resource"
-    ? "Protokolleintrag gespeichert und Ressource gesperrt."
-    : data.availabilityAction === "release_resource"
-      ? "Protokolleintrag gespeichert und Ressource freigegeben."
-      : "Protokolleintrag gespeichert.";
-  await loadMachineLogs();
-  if (data.availabilityAction && data.availabilityAction !== "log_only") {
-    await loadResources();
-    updateResourceOptions();
-    updateMachineLogResourceOptions();
-    updateSlotControls();
-    setDefaultBookingTimes();
-    renderAvailability();
-    renderBookings();
-    await loadOperations();
-    await loadAnalytics();
-  }
-});
-bookingFilter.addEventListener("change", renderBookings);
-previousWeekButton.addEventListener("click", () => moveWeek(-1));
-todayButton.addEventListener("click", () => {
-  visibleWeekStart = startOfWeek(new Date());
-  renderBookings();
-});
-nextWeekButton.addEventListener("click", () => moveWeek(1));
-previousMonthButton.addEventListener("click", () => moveMonth(-1));
-currentMonthButton.addEventListener("click", () => {
-  visibleMonth = startOfMonth(new Date());
-  renderBookings();
-});
-nextMonthButton.addEventListener("click", () => moveMonth(1));
-planMonthInput.addEventListener("change", () => {
-  const selectedMonth = monthInputDate(planMonthInput.value);
-  if (selectedMonth) {
-    visibleMonth = selectedMonth;
-    renderBookings();
-  }
-});
-printMonthButton.addEventListener("click", () => window.print());
-
-startAtInput.addEventListener("change", () => {
-  applySelectedSlot();
-  updateEndAfterStart({ force: !endAtInput.value });
-});
-
-bookingSlotInput.addEventListener("change", () => {
-  applySelectedSlot();
-  renderAvailability();
-});
-
-passwordForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  passwordMessage.textContent = "";
-
-  const response = await fetch("/api/me/password", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      currentPassword: currentPasswordInput.value,
-      newPassword: newPasswordInput.value
-    })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    passwordMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  passwordForm.reset();
-  passwordMessage.textContent = "Passwort aktualisiert.";
-});
-
-pilotFeedbackForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  pilotFeedbackMessageStatus.textContent = "";
-
-  const response = await fetch("/api/pilot-feedback", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      message: pilotFeedbackMessageInput.value.trim()
-    })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    pilotFeedbackMessageStatus.textContent = messageForError(data.error);
-    return;
-  }
-
-  pilotFeedbackForm.reset();
-  pilotFeedbackMessageStatus.textContent = "Danke, Feedback gespeichert.";
-  await loadPilotFeedback();
-});
-
-pilotFeedbackSearchInput.addEventListener("input", renderPilotFeedback);
-clearPilotFeedbackSearchButton.addEventListener("click", () => {
-  pilotFeedbackSearchInput.value = "";
-  renderPilotFeedback();
-});
-
-userForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  userMessage.textContent = "";
-
-  const editingUserId = editingUserIdInput.value;
-  const body = {
-    userName: managedUserNameInput.value.trim(),
-    displayName: managedDisplayNameInput.value.trim(),
-    apartmentLabel: managedApartmentLabelInput.value.trim(),
-    role: managedUserRoleInput.value,
-    active: managedUserActiveInput.value === "1"
-  };
-
-  if (managedUserPasswordInput.value) {
-    body.password = managedUserPasswordInput.value;
-  }
-
-  const response = await fetch(editingUserId ? `/api/admin/users/${editingUserId}` : "/api/admin/users", {
-    method: editingUserId ? "PATCH" : "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(body)
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  userMessage.textContent = editingUserId ? "Nutzer aktualisiert." : "Nutzer angelegt.";
-  resetUserForm();
-  await loadUsers();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-cancelUserEditButton.addEventListener("click", () => {
-  resetUserForm();
-});
-
-blockedDateForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  blockedDateMessage.textContent = "";
-
-  const response = await fetch("/api/admin/blocked-dates", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      date: blockedDateInput.value,
-      label: blockedDateLabelInput.value.trim()
-    })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    blockedDateMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  blockedDateForm.reset();
-  blockedDateMessage.textContent = "Sperrtag gespeichert.";
-  await loadBlockedDates();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-downloadBackupButton.addEventListener("click", async () => {
-  opsMessage.textContent = "";
-
-  const response = await fetch("/api/admin/backup", {
-    headers: authHeaders()
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    opsMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = backupFileName(response.headers.get("Content-Disposition"));
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  opsMessage.textContent = "Backup wurde vorbereitet.";
-});
-
-sendWhatsappTestButton.addEventListener("click", async () => {
-  opsMessage.textContent = "";
-  const response = await fetch("/api/admin/whatsapp-test", {
-    method: "POST",
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    opsMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  opsMessage.textContent = "WhatsApp-Testnachricht wurde uebergeben.";
-  await loadOperations();
-});
-
-analyticsRangeInput.addEventListener("change", loadAnalytics);
-
-resetBookingsConfirmationInput.addEventListener("input", () => {
-  resetBookingsButton.disabled = resetBookingsConfirmationInput.value.trim() !== "ZURUECKSETZEN";
-});
-
-resetBookingsButton.addEventListener("click", resetAllBookings);
-
-copyPilotInviteButton.addEventListener("click", async () => {
-  pilotMessage.textContent = "";
-  try {
-    await navigator.clipboard.writeText(pilotInviteText.value);
-    pilotMessage.textContent = "Einladungstext kopiert.";
-  } catch (_error) {
-    pilotInviteText.focus();
-    pilotInviteText.select();
-    pilotMessage.textContent = "Text ist markiert und kann kopiert werden.";
-  }
-});
-
-printPilotGuideButton.addEventListener("click", () => {
-  document.body.classList.add("print-pilot-guide");
-  window.print();
-  window.setTimeout(() => document.body.classList.remove("print-pilot-guide"), 200);
-});
-
-bookingForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  formMessage.textContent = "";
-
-  const body = {
-    resourceType: resourceTypeInput.value,
-    resourceId: resourceIdInput.value,
-    startAt: startAtInput.value,
-    endAt: endAtInput.value
-  };
-
-  if (role === "admin" && adminTargetUserNameInput.value.trim()) {
-    body.userName = adminTargetUserNameInput.value.trim();
-  }
-
-  const response = await fetch(role === "admin" ? "/api/admin/addBooking" : "/api/bookings", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(body)
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    formMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  bookingForm.reset();
-  updateResourceOptions();
-  updateSlotControls();
-  updateAdminControls();
-  setDefaultBookingTimes();
-  formMessage.textContent = "Buchung bestaetigt.";
-  showActionToast(`Buchung bestaetigt: ${bookingSummary(data.booking)}`, "success");
-  await loadBookings();
-  await loadActivity();
-  await loadOperations();
-  await loadAnalytics();
-});
-
-function updateResourceOptions() {
-  const selectedType = resourceTypeInput.value;
-  resourceIdInput.innerHTML = "";
-
-  for (const resourceId of resources[selectedType] || []) {
-    const option = document.createElement("option");
-    option.value = resourceId;
-    option.textContent = resourceId;
-    resourceIdInput.append(option);
-  }
-
-  if (resourceIdInput.options.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "Keine verfuegbare Ressource";
-    resourceIdInput.append(option);
-  }
+function isPastSlot(dateString, slot) {
+  const [, end] = slot.split('-');
+  return new Date(`${dateString}T${end}:00`) <= new Date();
 }
 
-function updateMachineLogResourceOptions() {
-  const selectedType = machineLogResourceTypeInput.value;
-  machineLogResourceIdInput.innerHTML = "";
-
-  for (const resourceId of allResources[selectedType] || []) {
-    const option = document.createElement("option");
-    option.value = resourceId;
-    option.textContent = resourceId;
-    machineLogResourceIdInput.append(option);
-  }
-
-  updateMachineLogActionOptions();
+function showStatus(message, tone = 'ok') {
+  statusText.textContent = message;
+  statusText.className = `notice ${tone}`;
 }
 
-function updateMachineLogActionOptions() {
-  if (!machineLogActionInput || !machineLogActionGroup) {
-    return;
-  }
-
-  const isAdmin = role === "admin";
-  machineLogActionGroup.classList.toggle("hidden", !isAdmin);
-  if (!isAdmin) {
-    machineLogActionInput.value = "log_only";
-    return;
-  }
-
-  const selectedResource = selectedMachineLogResource();
-  const blockOption = machineLogActionInput.querySelector("option[value='block_resource']");
-  const releaseOption = machineLogActionInput.querySelector("option[value='release_resource']");
-  const isUnavailable = Boolean(selectedResource?.unavailable_reason);
-  if (blockOption) {
-    blockOption.disabled = isUnavailable;
-  }
-  if (releaseOption) {
-    releaseOption.disabled = !isUnavailable;
-  }
-
-  if (isUnavailable && machineLogActionInput.value === "block_resource") {
-    machineLogActionInput.value = "log_only";
-  }
-  if (!isUnavailable && machineLogActionInput.value === "release_resource") {
-    machineLogActionInput.value = "log_only";
-  }
+function openIntro() {
+  introOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+  renderIntroVideo();
+  closeIntroButton.focus();
 }
 
-function updateSlotControls() {
-  const resourceType = resourceTypeInput.value;
-  const configuredSlots = slotConfig[resourceType] || [];
-  const hasSlots = configuredSlots.length > 0;
-  slotGroup.classList.toggle("hidden", !hasSlots);
-  bookingSlotInput.innerHTML = "";
-
-  for (const slot of configuredSlots) {
-    const option = document.createElement("option");
-    option.value = slot.id;
-    option.textContent = slot.label;
-    bookingSlotInput.append(option);
-  }
-
-  startAtInput.readOnly = hasSlots;
-  endAtInput.readOnly = hasSlots;
-  if (hasSlots) {
-    applySelectedSlot();
-  }
+function closeIntro() {
+  pauseIntroVideo();
+  introOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
 }
 
-function updateDateInputMinimums() {
-  const minValue = formatDateTimeInputValue(new Date());
-  bookingDateInput.min = dateKey(new Date());
-  machineLogDateInput.value = dateKey(new Date());
-  startAtInput.min = minValue;
-  endAtInput.min = minValue;
-}
+function introVideoStepForElapsed(elapsedMs) {
+  let cursor = 0;
+  const cappedElapsed = Math.min(Math.max(elapsedMs, 0), introVideoTotalMs - 1);
 
-function setDefaultBookingTimes() {
-  if ((slotConfig[resourceTypeInput.value] || []).length > 0) {
-    const selection = nextDefaultSlotSelection(resourceTypeInput.value);
-    if (selection) {
-      bookingDateInput.value = dateKey(selection.date);
-      startAtInput.value = formatDateTimeInputValue(selection.date);
-      bookingSlotInput.value = selection.slot.id;
-      applySelectedSlot();
-      renderAvailability();
-      return;
+  for (let index = 0; index < introVideoSteps.length; index += 1) {
+    const step = introVideoSteps[index];
+    cursor += step.durationMs;
+    if (cappedElapsed < cursor) {
+      return { step, index };
     }
   }
 
-  const start = nextDefaultStart();
-  bookingDateInput.value = dateKey(start);
-  startAtInput.value = formatDateTimeInputValue(start);
-  updateEndAfterStart({ force: true });
-  renderAvailability();
+  return { step: introVideoSteps[introVideoSteps.length - 1], index: introVideoSteps.length - 1 };
 }
 
-function updateEndAfterStart({ force = false } = {}) {
-  if (!startAtInput.value) {
-    return;
+function renderIntroVideo() {
+  const { step, index } = introVideoStepForElapsed(introVideoElapsedMs);
+  const progress = Math.min(1, introVideoElapsedMs / introVideoTotalMs);
+
+  introVideoStage.dataset.step = step.id;
+  introVideoChapter.textContent = `Kapitel ${index + 1} von ${introVideoSteps.length}`;
+  introVideoTitle.textContent = step.title;
+  introVideoCaption.textContent = step.caption;
+  introVideoProgress.style.width = `${Math.round(progress * 100)}%`;
+  introVideoPlayButton.textContent = introVideoPlaying ? 'Pause' : introVideoElapsedMs >= introVideoTotalMs ? 'Video erneut ansehen' : 'Video starten';
+
+  if (!introVideoSpeechSupported) {
+    introVideoMuteButton.textContent = 'Sprecher nicht verfuegbar';
+    introVideoMuteButton.disabled = true;
+  } else {
+    introVideoMuteButton.textContent = introVideoSpeechEnabled ? 'Sprecher an' : 'Sprecher aus';
+    introVideoMuteButton.setAttribute('aria-pressed', String(introVideoSpeechEnabled));
   }
 
-  const start = new Date(startAtInput.value);
-  const suggestedEnd = new Date(start.getTime() + 1000 * 60 * 120);
-  endAtInput.min = formatDateTimeInputValue(start);
-
-  if (force || !endAtInput.value || new Date(endAtInput.value) <= start) {
-    endAtInput.value = formatDateTimeInputValue(suggestedEnd);
+  if (introVideoPlaying) {
+    speakIntroVideoStep(step);
   }
 }
 
-function applySelectedSlot() {
-  const resourceType = resourceTypeInput.value;
-  if (!bookingSlotInput.value) {
+function playIntroVideo() {
+  if (introVideoPlaying) {
+    pauseIntroVideo();
+    renderIntroVideo();
     return;
   }
 
-  const slot = (slotConfig[resourceType] || []).find((entry) => entry.id === bookingSlotInput.value);
-  if (!slot) {
+  if (introVideoElapsedMs >= introVideoTotalMs) {
+    introVideoElapsedMs = 0;
+    introVideoSpokenStep = '';
+  }
+
+  introVideoPlaying = true;
+  introVideoLastTick = Date.now();
+  renderIntroVideo();
+
+  introVideoTimer = window.setInterval(() => {
+    const now = Date.now();
+    introVideoElapsedMs += now - introVideoLastTick;
+    introVideoLastTick = now;
+
+    if (introVideoElapsedMs >= introVideoTotalMs) {
+      introVideoElapsedMs = introVideoTotalMs;
+      pauseIntroVideo();
+    }
+
+    renderIntroVideo();
+  }, 250);
+}
+
+function pauseIntroVideo() {
+  introVideoPlaying = false;
+  if (introVideoTimer) {
+    window.clearInterval(introVideoTimer);
+    introVideoTimer = null;
+  }
+  if (introVideoSpeechSupported) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function speakIntroVideoStep(step) {
+  if (!introVideoSpeechSupported || !introVideoSpeechEnabled || introVideoSpokenStep === step.id) {
     return;
   }
 
-  const baseDate = bookingDateInput.value ? dateFromInputDate(bookingDateInput.value) : startAtInput.value ? new Date(startAtInput.value) : nextDefaultStart();
-  const start = withTime(baseDate, slot.start);
-  const end = withTime(baseDate, slot.end);
-  startAtInput.value = formatDateTimeInputValue(start);
-  endAtInput.value = formatDateTimeInputValue(end);
-  endAtInput.min = startAtInput.value;
+  introVideoSpokenStep = step.id;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(step.speech);
+  utterance.lang = 'de-CH';
+  utterance.rate = 0.96;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+function toggleIntroVideoSpeech() {
+  if (!introVideoSpeechSupported) {
+    return;
+  }
+
+  introVideoSpeechEnabled = !introVideoSpeechEnabled;
+  introVideoSpokenStep = '';
+  window.speechSynthesis.cancel();
+  renderIntroVideo();
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options
+  });
+
+  if (response.status === 401) {
+    window.location.href = '/login.html';
+    return null;
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Anfrage fehlgeschlagen');
+  }
+  return data;
+}
+
+async function init() {
+  bookingDate.value = todayString();
+  const me = await api('/api/me');
+  if (!me || !me.user) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  currentUser = me.user;
+  userLine.textContent = `${currentUser.username} (${currentUser.role})`;
+  notificationEmail.value = currentUser.email || '';
+  notifyReleasesInput.checked = currentUser.notifyReleases !== false;
+
+  const [resourceData, slotData] = await Promise.all([
+    api('/api/resources'),
+    api('/api/slots')
+  ]);
+  resources = resourceData.resources;
+  slots = slotData.slots;
+
+  if (currentUser.role === 'admin') {
+    await loadAdmin();
+  }
+
+  await refreshAll();
+}
+
+async function refreshAll() {
+  await Promise.all([
+    loadBookings(),
+    loadMyBookings(),
+    loadReleaseNotices()
+  ]);
 }
 
 async function loadBookings() {
-  const response = await fetch("/api/bookings");
-  const data = await response.json();
-  allBookings = data.bookings;
-  renderBookings();
-  renderAvailability();
+  const data = await api(`/api/bookings?date=${encodeURIComponent(bookingDate.value)}`);
+  bookings = data.bookings;
+  renderSchedule();
 }
 
-async function loadActivity() {
-  const response = await fetch("/api/activity", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    activityList.textContent = messageForError(data.error);
-    return;
-  }
-
-  allActivities = data.activities || [];
-  renderActivity();
+async function loadMyBookings() {
+  const data = await api('/api/my-bookings');
+  renderMyBookings(data.bookings);
 }
 
-async function loadResources() {
-  const response = await fetch("/api/resources");
-  const data = await response.json();
-  resources = data.resources || { washer: [], drying_room: [], tumbler: [] };
-  allResources = data.allResources || resources;
-  resourceEntries = data.resourceEntries || [];
-  slotConfig = data.slots || {};
-  blockedDates = data.blockedDates || [];
-  fixedBookings = data.fixedBookings || fixedBookings;
-  renderResources();
-  updateFixedBookingOptions();
-  renderFixedBookings();
+async function loadReleaseNotices() {
+  const data = await api('/api/release-notices');
+  renderReleaseNotices(data.notices);
 }
 
-async function loadUsers() {
-  if (role !== "admin") {
-    return;
-  }
+function renderSchedule() {
+  const visibleResources = resources.filter((resource) => activeType === 'all' || resource.type === activeType);
+  schedule.innerHTML = '';
 
-  const response = await fetch("/api/admin/users", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-  allUsers = data.users;
-  renderUsers();
-}
+  for (const slot of slots) {
+    const slotGroup = document.createElement('section');
+    slotGroup.className = 'slot-group';
+    slotGroup.innerHTML = `<h3>${slot}</h3>`;
 
-async function loadMachineLogs() {
-  const response = await fetch("/api/machine-logs", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
+    const grid = document.createElement('div');
+    grid.className = 'resource-grid';
 
-  if (!response.ok || !data.ok) {
-    machineLogMessage.textContent = messageForError(data.error);
-    return;
-  }
+    for (const resource of visibleResources) {
+      const booking = bookings.find((item) => item.slot === slot && item.resource_id === resource.id);
+      const slotIsPast = isPastSlot(bookingDate.value, slot);
+      const card = document.createElement('article');
+      card.className = `booking-card ${booking ? 'is-booked' : ''} ${booking?.is_fixed ? 'is-fixed' : ''} ${slotIsPast ? 'is-disabled' : ''}`;
 
-  allMachineLogs = data.logs || [];
-  renderMachineLogs();
-}
+      const owner = booking ? booking.username : slotIsPast ? 'vorbei' : 'frei';
+      const canDelete = booking && !booking.is_fixed && (currentUser.role === 'admin' || booking.user_id === currentUser.id);
+      card.innerHTML = `
+        <div>
+          <strong>${resource.name}</strong>
+          <span>${typeLabel(resource.type)}</span>
+        </div>
+        <p>${booking?.is_fixed ? `Fest: ${owner}` : owner}</p>
+      `;
 
-async function loadPilotFeedback() {
-  const response = await fetch("/api/pilot-feedback", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    pilotFeedbackMessageStatus.textContent = messageForError(data.error);
-    return;
-  }
-
-  allPilotFeedback = data.feedback || [];
-  renderPilotFeedback();
-}
-
-async function loadOperations() {
-  if (role !== "admin") {
-    return;
-  }
-
-  const response = await fetch("/api/admin/overview", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    opsMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  renderOperations(data.status, data.warnings || []);
-}
-
-async function loadAnalytics() {
-  if (role !== "admin") {
-    return;
-  }
-
-  const days = analyticsRangeInput.value || "30";
-  const response = await fetch(`/api/admin/analytics?days=${encodeURIComponent(days)}`, {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    opsMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  renderAnalytics(data.analytics);
-}
-
-async function loadBlockedDates() {
-  if (role !== "admin") {
-    return;
-  }
-
-  const response = await fetch("/api/admin/blocked-dates", {
-    headers: authHeaders()
-  });
-  const data = await response.json();
-  blockedDates = data.blockedDates || [];
-  renderBlockedDates();
-  renderBookings();
-  renderAvailability();
-}
-
-async function loadFixedBookings() {
-  if (role !== "admin") {
-    return;
-  }
-
-  const response = await fetch("/api/admin/fixed-bookings", {
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    fixedBookingMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  fixedBookings = data.fixedBookings || [];
-  renderFixedBookings();
-}
-
-function renderBookings() {
-  const filter = bookingFilter.value;
-  const bookings = allBookings.filter((booking) => {
-    return filter === "all" || booking.resource_type === filter;
-  });
-
-  renderBookingsList(bookings);
-  renderCalendar(bookings);
-  renderMonthlyPlan(allBookings);
-}
-
-function renderActivity() {
-  activityList.innerHTML = "";
-
-  if (allActivities.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "activity-empty";
-    empty.textContent = "Noch keine Aktivitaet.";
-    activityList.append(empty);
-    return;
-  }
-
-  for (const activity of allActivities.slice(0, 8)) {
-    const item = document.createElement("article");
-    item.className = `activity-item activity-item-${activity.event_type}`;
-
-    const marker = document.createElement("span");
-    marker.className = "activity-marker";
-    marker.textContent = activityEventLabel(activity.event_type);
-
-    const body = document.createElement("div");
-    const text = document.createElement("strong");
-    text.textContent = activity.message;
-    const meta = document.createElement("small");
-    meta.textContent = `${formatDate(activity.created_at)} - ${partyLabel(activity)}`;
-    body.append(text, meta);
-
-    item.append(marker, body);
-    activityList.append(item);
-  }
-}
-
-function renderAvailability() {
-  if (!availabilityPanel || !bookingDateInput.value) {
-    return;
-  }
-
-  const resourceType = resourceTypeInput.value;
-  const selectedDate = dateFromInputDate(bookingDateInput.value);
-  const bookingUserName = currentBookingUserName();
-  const blockedDate = blockedDateForDay(selectedDate);
-  availabilityPanel.innerHTML = "";
-
-  const heading = document.createElement("div");
-  heading.className = "availability-heading";
-  const title = document.createElement("strong");
-  title.textContent = `Freie Slots am ${formatDateOnly(selectedDate)}`;
-  const hint = document.createElement("span");
-  hint.textContent = resourceLabel(resourceType);
-  heading.append(title, hint);
-  availabilityPanel.append(heading);
-
-  if (selectedDate.getDay() === 0 || blockedDate) {
-    const closed = document.createElement("p");
-    closed.className = "availability-closed";
-    closed.textContent = blockedDate ? `Geschlossen: ${blockedDate.label}` : "Sonntag ist geschlossen.";
-    availabilityPanel.append(closed);
-    return;
-  }
-
-  const grid = document.createElement("div");
-  grid.className = "availability-grid";
-  for (const resourceId of allResources[resourceType] || []) {
-    const unavailable = resourceUnavailable(resourceType, resourceId);
-    for (const slot of slotConfig[resourceType] || []) {
-      const booking = allBookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day: selectedDate, slot }));
-      const isReleased = Boolean(booking?.released_at);
-      const isPast = isPastSlot(selectedDate, slot);
-      const hasRequiredWasherSlot = resourceType === "tumbler"
-        ? userHasWasherSlotForSlot(bookingUserName, selectedDate, slot)
-        : resourceType === "drying_room"
-        ? userHasWasherSlotForDryingRoomSlot(bookingUserName, selectedDate, slot)
-        : true;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = booking && !isReleased ? "availability-slot availability-slot-booked" : "availability-slot";
-      if (unavailable) {
-        button.classList.add("availability-slot-unavailable");
-      }
-      if (isReleased) {
-        button.classList.add("availability-slot-released");
-      }
-      if (isPast) {
-        button.classList.add("availability-slot-past");
-      }
-      if (!hasRequiredWasherSlot) {
-        button.classList.add("availability-slot-unavailable");
-      }
-      button.disabled = Boolean(unavailable || isPast || !hasRequiredWasherSlot || (booking && !isReleased));
-
-      const resource = document.createElement("strong");
-      resource.textContent = resourceId;
-      const time = document.createElement("span");
-      time.textContent = slot.label;
-      const state = document.createElement("small");
-      state.textContent = unavailable
-        ? `Gesperrt: ${unavailable.unavailable_reason}`
-        : isPast
-        ? "Vorbei"
-        : !hasRequiredWasherSlot
-        ? resourceType === "drying_room" ? "Nur im erlaubten Trockenfenster" : "Nur mit eigenem WM-Slot"
-        : booking
-        ? isReleased ? `Frueher frei: ${partyLabel(booking)}` : `Belegt: ${partyLabel(booking)}`
-        : "Frei";
-
-      button.append(resource, time, state);
-      if (!unavailable && !isPast && hasRequiredWasherSlot && (!booking || isReleased)) {
-        button.addEventListener("click", () => {
-          resourceIdInput.value = resourceId;
-          bookingSlotInput.value = slot.id;
-          applySelectedSlot();
-          formMessage.textContent = isReleased
-            ? `${resourceId} ${slot.label} ausgewaehlt. Dieser Slot wurde frueher frei gemeldet.`
-            : `${resourceId} ${slot.label} ausgewaehlt.`;
-        });
-      }
-      grid.append(button);
-    }
-  }
-
-  availabilityPanel.append(grid);
-}
-
-function renderBookingsList(bookings) {
-  bookingsList.innerHTML = "";
-
-  if (bookings.length === 0) {
-    bookingsList.textContent = "Keine Buchungen vorhanden.";
-    return;
-  }
-
-  for (const booking of bookings) {
-    const item = document.createElement("article");
-    item.className = "booking-item";
-    if (booking.is_fixed) {
-      item.classList.add("booking-item-fixed");
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.textContent = booking?.is_fixed ? 'Geschuetzt' : booking ? 'Loeschen' : 'Buchen';
+      action.disabled = Boolean(slotIsPast || booking?.is_fixed || (booking && !canDelete));
+      action.addEventListener('click', () => booking ? deleteBooking(booking.id) : createBooking(resource.id, slot));
+      card.append(action);
+      grid.append(card);
     }
 
-    const title = document.createElement("h3");
-    title.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
-
-    const meta = document.createElement("p");
-    meta.textContent = `${formatDate(booking.start_at)} bis ${formatDate(booking.end_at)} - ${partyLabel(booking)}${booking.is_fixed ? " (feste Buchung)" : ""}`;
-
-    item.append(title, meta);
-    if (booking.is_fixed) {
-      const fixedNote = document.createElement("p");
-      fixedNote.className = "release-note";
-      fixedNote.textContent = "Diese Buchung wird von den Admins verwaltet.";
-      item.append(fixedNote);
-    }
-    if (booking.released_at) {
-      item.classList.add("booking-item-released");
-      const released = document.createElement("p");
-      released.className = "release-note";
-      released.textContent = `Frueher frei gemeldet am ${formatDate(booking.released_at)}.`;
-      item.append(released);
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "booking-actions";
-
-    if (!booking.released_at && !booking.is_fixed) {
-      const laundryLeftButton = document.createElement("button");
-      laundryLeftButton.type = "button";
-      laundryLeftButton.textContent = "Waesche haengt noch";
-      laundryLeftButton.addEventListener("click", () => reportLaundryLeft(booking));
-      actions.append(laundryLeftButton);
-    }
-
-    if (!booking.is_fixed && (role === "admin" || booking.user_name === userName)) {
-      const shareButton = document.createElement("button");
-      shareButton.type = "button";
-      shareButton.className = "whatsapp-share-button";
-      shareButton.textContent = "Frueher frei melden";
-      shareButton.disabled = Boolean(booking.released_at);
-      shareButton.addEventListener("click", () => shareEarlyRelease(booking));
-
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.textContent = "Loeschen";
-      deleteButton.addEventListener("click", () => deleteBooking(booking.id));
-
-      actions.append(shareButton, deleteButton);
-    }
-
-    if (actions.children.length > 0) {
-      item.append(actions);
-    }
-
-    bookingsList.append(item);
+    slotGroup.append(grid);
+    schedule.append(slotGroup);
   }
 }
 
-function renderCalendar(bookings) {
-  const weekDays = getWeekDays(visibleWeekStart);
-  const weekEnd = addDays(visibleWeekStart, 6);
-  weekLabel.textContent = `${formatDateOnly(visibleWeekStart)} bis ${formatDateOnly(weekEnd)}`;
-  calendarGrid.innerHTML = "";
-
-  for (const day of weekDays) {
-    const column = document.createElement("section");
-    column.className = "calendar-day";
-    if (day.getDay() === 0 || blockedDateForDay(day)) {
-      column.classList.add("calendar-day-closed");
-    }
-
-    const heading = document.createElement("h3");
-    heading.textContent = formatDayHeading(day);
-    column.append(heading);
-
-    const blockedDate = blockedDateForDay(day);
-    if (day.getDay() === 0 || blockedDate) {
-      const closed = document.createElement("p");
-      closed.className = "calendar-closed";
-      closed.textContent = blockedDate ? `Gesperrt: ${blockedDate.label}` : "Sonntag geschlossen";
-      column.append(closed);
-    }
-
-    const dayBookings = bookings
-      .filter((booking) => isSameDay(new Date(booking.start_at), day))
-      .sort((left, right) => new Date(left.start_at) - new Date(right.start_at));
-
-    if (dayBookings.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "calendar-empty";
-      empty.textContent = "Frei";
-      column.append(empty);
-    }
-
-    for (const booking of dayBookings) {
-      const item = document.createElement("article");
-      item.className = `calendar-booking calendar-booking-${booking.resource_type}`;
-      if (booking.released_at) {
-        item.classList.add("calendar-booking-released");
-      }
-      if (booking.is_fixed) {
-        item.classList.add("calendar-booking-fixed");
-      }
-
-      const time = document.createElement("strong");
-      time.textContent = `${formatTime(booking.start_at)}-${formatTime(booking.end_at)}`;
-      const resource = document.createElement("span");
-      resource.textContent = `${resourceLabel(booking.resource_type)} ${booking.resource_id}`;
-      const user = document.createElement("small");
-      user.textContent = booking.is_fixed
-        ? `Feste Buchung: ${partyLabel(booking)}`
-        : booking.released_at ? `Frueher frei: ${partyLabel(booking)}` : partyLabel(booking);
-
-      item.append(time, resource, user);
-      column.append(item);
-    }
-
-    calendarGrid.append(column);
-  }
-}
-
-function renderMonthlyPlan(bookings) {
-  planMonthInput.value = monthInputValue(visibleMonth);
-  monthPlanHeading.textContent = `Waschplan ${monthName(visibleMonth)} ${visibleMonth.getFullYear()}`;
-  monthPlanSubtitle.textContent = "Maneggplatz 18";
-  monthlyPlanGrid.innerHTML = "";
-
-  const resourceTypes = [
-    { type: "washer", label: "Waschmaschinen" },
-    { type: "drying_room", label: "Trockenraeume" },
-    { type: "tumbler", label: "Tumbler" }
-  ];
-  for (const resourceType of resourceTypes) {
-    const group = document.createElement("section");
-    group.className = "month-resource-group";
-    const groupHeading = document.createElement("h3");
-    groupHeading.textContent = resourceType.label;
-    const groupGrid = document.createElement("div");
-    groupGrid.className = "month-resource-group-grid";
-
-    for (const resourceId of allResources[resourceType.type] || []) {
-      groupGrid.append(monthResourceTable({
-        bookings,
-        resourceType: resourceType.type,
-        resourceId,
-        month: visibleMonth
-      }));
-    }
-
-    group.append(groupHeading, groupGrid);
-    monthlyPlanGrid.append(group);
-  }
-}
-
-function monthResourceTable({ bookings, resourceType, resourceId, month }) {
-  const section = document.createElement("section");
-  section.className = "month-resource";
-  const unavailable = resourceUnavailable(resourceType, resourceId);
-  if (unavailable) {
-    section.classList.add("month-resource-unavailable");
-  }
-
-  const heading = document.createElement("h3");
-  heading.textContent = unavailable
-    ? `${resourceLabel(resourceType)} ${resourceId} - gesperrt`
-    : `${resourceLabel(resourceType)} ${resourceId}`;
-  section.append(heading);
-
-  const table = document.createElement("table");
-  table.className = "month-table";
-
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  headerRow.append(monthHeaderCell("Tag"), monthHeaderCell("WT"));
-  for (const slot of slotConfig[resourceType] || []) {
-    headerRow.append(monthHeaderCell(slot.label));
-  }
-  thead.append(headerRow);
-  table.append(thead);
-
-  const tbody = document.createElement("tbody");
-  for (const day of daysInMonth(month)) {
-    tbody.append(monthDayRow({ bookings, resourceType, resourceId, day, unavailable }));
-  }
-  table.append(tbody);
-  section.append(table);
-
-  return section;
-}
-
-function monthHeaderCell(text) {
-  const cell = document.createElement("th");
-  cell.scope = "col";
-  cell.textContent = text;
-  return cell;
-}
-
-function monthDayRow({ bookings, resourceType, resourceId, day, unavailable }) {
-  const row = document.createElement("tr");
-  const blockedDate = blockedDateForDay(day);
-  const isClosed = day.getDay() === 0 || Boolean(blockedDate);
-  if (isClosed) {
-    row.className = "month-row-closed";
-  }
-
-  const dayCell = document.createElement("th");
-  dayCell.scope = "row";
-  dayCell.textContent = String(day.getDate());
-  row.append(dayCell);
-
-  const weekdayCell = document.createElement("td");
-  weekdayCell.textContent = shortWeekday(day);
-  row.append(weekdayCell);
-
-  for (const slot of slotConfig[resourceType] || []) {
-    const cell = document.createElement("td");
-    const booking = bookings.find((entry) => isBookingInSlot({ entry, resourceType, resourceId, day, slot }));
-
-    if (isClosed) {
-      cell.className = "month-slot-closed";
-      cell.textContent = blockedDate ? blockedDate.label : "So";
-    } else if (unavailable) {
-      cell.className = "month-slot-unavailable";
-      cell.textContent = "Gesperrt";
-    } else if (booking?.released_at) {
-      cell.className = "month-slot-released";
-      cell.textContent = `frei: ${partyLabel(booking)}`;
-    } else if (booking) {
-      cell.className = "month-slot-booked";
-      cell.textContent = partyLabel(booking);
-    }
-
-    row.append(cell);
-  }
-
-  return row;
-}
-
-function renderBlockedDates() {
-  blockedDatesList.innerHTML = "";
-
-  if (blockedDates.length === 0) {
-    blockedDatesList.textContent = "Keine Sperrtage gepflegt.";
+function renderMyBookings(items) {
+  myBookings.innerHTML = '';
+  if (!items.length) {
+    myBookings.innerHTML = '<p class="muted">Du hast aktuell keine kommenden Buchungen.</p>';
     return;
   }
 
-  for (const blockedDate of blockedDates) {
-    const item = document.createElement("article");
-    item.className = "blocked-date-item";
+  for (const booking of items) {
+    const item = document.createElement('article');
+    item.className = 'booking-list-item';
+    const status = dateStatus(booking.booking_date);
+    item.innerHTML = `
+      <div>
+        <strong>${booking.resource_name}</strong>
+        <span>${booking.booking_date} - ${booking.slot}</span>
+      </div>
+      <span class="status-chip">${status}</span>
+    `;
 
-    const details = document.createElement("div");
-    const title = document.createElement("h3");
-    title.textContent = blockedDate.label;
-    const meta = document.createElement("p");
-    meta.textContent = formatDateKey(blockedDate.date);
-    details.append(title, meta);
+    const actions = document.createElement('div');
+    actions.className = 'inline-actions';
 
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.textContent = "Entfernen";
-    deleteButton.addEventListener("click", () => deleteBlockedDate(blockedDate.date));
+    const releaseButton = document.createElement('button');
+    releaseButton.type = 'button';
+    releaseButton.className = 'secondary';
+    releaseButton.textContent = 'Freigeben';
+    releaseButton.addEventListener('click', () => releaseBooking(booking.id));
 
-    item.append(details, deleteButton);
-    blockedDatesList.append(item);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'secondary danger';
+    deleteButton.textContent = 'Loeschen';
+    deleteButton.addEventListener('click', () => deleteBooking(booking.id));
+
+    actions.append(releaseButton, deleteButton);
+    item.append(actions);
+    myBookings.append(item);
   }
 }
 
-function renderResources() {
-  if (!resourcesList) {
+function renderReleaseNotices(items) {
+  releaseNotices.innerHTML = '';
+  if (!items.length) {
+    releaseNotices.innerHTML = '<p class="muted">Keine aktuellen Freigaben.</p>';
     return;
   }
 
-  resourcesList.innerHTML = "";
-  const groups = [
-    ["washer", "Waschmaschinen"],
-    ["drying_room", "Trockenraeume"],
-    ["tumbler", "Tumbler"]
-  ];
-
-  for (const [resourceType, label] of groups) {
-    const item = document.createElement("article");
-    item.className = "resource-item";
-    const title = document.createElement("h3");
-    title.textContent = label;
-    const entries = resourceEntries.filter((entry) => entry.resource_type === resourceType);
-    if (entries.length === 0) {
-      const values = document.createElement("p");
-      values.textContent = "Keine Ressourcen";
-      item.append(title, values);
-      resourcesList.append(item);
-      continue;
-    }
-
-    const list = document.createElement("div");
-    list.className = "resource-admin-list";
-    for (const entry of entries) {
-      const row = document.createElement("div");
-      row.className = entry.unavailable_reason ? "resource-admin-row resource-admin-row-unavailable" : "resource-admin-row";
-
-      const info = document.createElement("div");
-      const name = document.createElement("strong");
-      name.textContent = entry.resource_id;
-      const status = document.createElement("span");
-      status.textContent = entry.unavailable_reason
-        ? `Gesperrt: ${entry.unavailable_reason}`
-        : "Verfuegbar";
-      info.append(name, status);
-
-      const actions = document.createElement("div");
-      actions.className = "resource-admin-actions";
-      if (entry.unavailable_reason) {
-        const releaseButton = document.createElement("button");
-        releaseButton.type = "button";
-        releaseButton.textContent = "Freigeben";
-        releaseButton.addEventListener("click", () => setResourceAvailability(entry, false));
-        actions.append(releaseButton);
-      } else {
-        const reasonInput = document.createElement("input");
-        reasonInput.type = "text";
-        reasonInput.maxLength = 160;
-        reasonInput.placeholder = "Grund, z. B. defekt";
-        const blockButton = document.createElement("button");
-        blockButton.type = "button";
-        blockButton.textContent = "Sperren";
-        blockButton.addEventListener("click", () => setResourceAvailability(entry, true, reasonInput.value));
-        actions.append(reasonInput, blockButton);
-      }
-
-      row.append(info, actions);
-      list.append(row);
-    }
-
-    item.append(title, list);
-    resourcesList.append(item);
+  for (const notice of items) {
+    const item = document.createElement('article');
+    item.className = 'release-item';
+    item.innerHTML = `
+      <strong>${notice.resource_name}</strong>
+      <span>${notice.message}</span>
+    `;
+    releaseNotices.append(item);
   }
 }
 
-function updateFixedBookingOptions() {
-  if (!fixedBookingResourceTypeInput || !fixedBookingResourceIdInput || !fixedBookingSlotInput) {
-    return;
+async function createBooking(resourceId, slot) {
+  try {
+    const data = await api('/api/bookings', {
+      method: 'POST',
+      body: JSON.stringify({ resourceId, date: bookingDate.value, slot })
+    });
+    showStatus(data.message || 'Buchung gespeichert.');
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
   }
-
-  const resourceType = fixedBookingResourceTypeInput.value || "washer";
-  fixedBookingResourceIdInput.innerHTML = "";
-  for (const resourceId of allResources[resourceType] || []) {
-    const option = document.createElement("option");
-    option.value = resourceId;
-    option.textContent = resourceId;
-    fixedBookingResourceIdInput.append(option);
-  }
-
-  fixedBookingSlotInput.innerHTML = "";
-  for (const slot of slotConfig[resourceType] || []) {
-    const option = document.createElement("option");
-    option.value = slot.id;
-    option.textContent = slot.label;
-    fixedBookingSlotInput.append(option);
-  }
-}
-
-function renderFixedBookings() {
-  if (!fixedBookingsList) {
-    return;
-  }
-
-  fixedBookingsList.innerHTML = "";
-  if (fixedBookings.length === 0) {
-    fixedBookingsList.textContent = "Keine festen Buchungen vorhanden.";
-    return;
-  }
-
-  for (const fixedBooking of fixedBookings) {
-    const item = document.createElement("article");
-    item.className = "blocked-date-item";
-
-    const details = document.createElement("div");
-    const title = document.createElement("h3");
-    title.textContent = fixedBooking.label;
-    const meta = document.createElement("p");
-    meta.textContent = `${weekdayLabel(fixedBooking.weekday)}, ${slotLabel(fixedBooking.resource_type, fixedBooking.slot_id)} - ${resourceLabel(fixedBooking.resource_type)} ${fixedBooking.resource_id}`;
-    details.append(title, meta);
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.textContent = "Entfernen";
-    deleteButton.addEventListener("click", () => deleteFixedBooking(fixedBooking.id));
-
-    item.append(details, deleteButton);
-    fixedBookingsList.append(item);
-  }
-}
-
-function renderMachineLogs() {
-  machineLogsList.innerHTML = "";
-  machineLogSummary.innerHTML = "";
-
-  if (allMachineLogs.length === 0) {
-    renderMachineLogSummary([]);
-    machineLogsList.textContent = "Noch keine Protokolleintraege.";
-    return;
-  }
-
-  const filteredLogs = filteredMachineLogs();
-  renderMachineLogSummary(filteredLogs);
-
-  if (filteredLogs.length === 0) {
-    machineLogsList.textContent = "Keine passenden Protokolleintraege.";
-    return;
-  }
-
-  for (const logEntry of filteredLogs) {
-    const item = document.createElement("article");
-    item.className = "machine-log-item";
-
-    const heading = document.createElement("div");
-    heading.className = "machine-log-heading";
-    const title = document.createElement("h3");
-    title.textContent = logEntry.resource_id;
-    const typeTag = document.createElement("span");
-    typeTag.className = "log-tag";
-    typeTag.textContent = resourceLabel(logEntry.resource_type);
-    heading.append(title, typeTag);
-
-    const tags = document.createElement("div");
-    tags.className = "log-tags";
-    for (const tag of machineLogTags(logEntry)) {
-      const tagElement = document.createElement("span");
-      tagElement.className = `log-tag log-tag-${tag.key}`;
-      tagElement.textContent = tag.label;
-      tags.append(tagElement);
-    }
-
-    const meta = document.createElement("p");
-    meta.className = "machine-log-meta";
-    meta.textContent = `${formatDateKey(logEntry.event_date)} - ${partyLabel(logEntry)} - erfasst ${formatDate(logEntry.created_at)}`;
-    const note = document.createElement("p");
-    note.className = "machine-log-note";
-    note.textContent = cleanMachineLogNote(logEntry.note);
-
-    item.append(heading, tags, meta, note);
-    machineLogsList.append(item);
-  }
-}
-
-function renderPilotFeedback() {
-  pilotFeedbackList.innerHTML = "";
-  adminPilotFeedbackList.innerHTML = "";
-  const filteredFeedback = filteredPilotFeedback();
-
-  if (allPilotFeedback.length === 0) {
-    pilotFeedbackList.textContent = "Noch keine Rueckmeldungen.";
-    adminPilotFeedbackList.textContent = "Noch keine Rueckmeldungen.";
-    return;
-  }
-
-  if (filteredFeedback.length === 0) {
-    pilotFeedbackList.textContent = "Keine passenden Rueckmeldungen.";
-    if (role === "admin") {
-      adminPilotFeedbackList.textContent = "Keine passenden Rueckmeldungen.";
-    }
-    return;
-  }
-
-  for (const entry of filteredFeedback) {
-    const item = pilotFeedbackItem(entry);
-    pilotFeedbackList.append(item);
-
-    if (role === "admin") {
-      adminPilotFeedbackList.append(pilotFeedbackItem(entry));
-    }
-  }
-}
-
-function pilotFeedbackItem(entry) {
-  const item = document.createElement("article");
-  item.className = "pilot-feedback-item";
-
-  const title = document.createElement("h3");
-  title.textContent = partyLabel(entry);
-  const meta = document.createElement("p");
-  meta.textContent = formatDate(entry.created_at);
-  const message = document.createElement("p");
-  message.className = "pilot-feedback-note";
-  message.textContent = entry.message;
-
-  item.append(title, meta, message);
-  return item;
-}
-
-function filteredMachineLogs() {
-  const search = machineLogSearchInput.value.trim().toLowerCase();
-  const typeFilter = machineLogTypeFilterInput.value;
-  const tagFilter = machineLogTagFilterInput.value;
-
-  return allMachineLogs.filter((entry) => {
-    if (typeFilter !== "all" && entry.resource_type !== typeFilter) {
-      return false;
-    }
-
-    if (tagFilter !== "all" && !machineLogTags(entry).some((tag) => tag.key === tagFilter)) {
-      return false;
-    }
-
-    if (!search) {
-      return true;
-    }
-
-    const haystack = [
-      resourceLabel(entry.resource_type),
-      entry.resource_id,
-      partyLabel(entry),
-      entry.user_name,
-      entry.note,
-      formatDateKey(entry.event_date)
-    ].join(" ").toLowerCase();
-    return haystack.includes(search);
-  });
-}
-
-function renderMachineLogSummary(entries) {
-  const counts = {
-    total: entries.length,
-    blocked: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "blocked")).length,
-    released: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "released")).length,
-    note: entries.filter((entry) => machineLogTags(entry).some((tag) => tag.key === "note")).length
-  };
-  const summaryItems = [
-    ["Treffer", counts.total],
-    ["Gesperrt", counts.blocked],
-    ["Freigegeben", counts.released],
-    ["Hinweise", counts.note]
-  ];
-
-  for (const [label, value] of summaryItems) {
-    const item = document.createElement("div");
-    item.className = "logbook-summary-item";
-    const name = document.createElement("span");
-    name.textContent = label;
-    const count = document.createElement("strong");
-    count.textContent = String(value);
-    item.append(name, count);
-    machineLogSummary.append(item);
-  }
-}
-
-function machineLogTags(entry) {
-  const note = String(entry.note || "");
-  const tags = [];
-  if (note.startsWith("[Gesperrt]")) {
-    tags.push({ key: "blocked", label: "Gesperrt" });
-  }
-  if (note.startsWith("[Freigegeben]")) {
-    tags.push({ key: "released", label: "Freigegeben" });
-  }
-  if (tags.length === 0) {
-    tags.push({ key: "note", label: "Hinweis" });
-  }
-
-  return tags;
-}
-
-function cleanMachineLogNote(note) {
-  return String(note || "").replace(/^\[(Gesperrt|Freigegeben)\]\s*/, "");
-}
-
-function filteredPilotFeedback() {
-  const search = pilotFeedbackSearchInput.value.trim().toLowerCase();
-  if (!search) {
-    return allPilotFeedback;
-  }
-
-  return allPilotFeedback.filter((entry) => {
-    const haystack = [
-      partyLabel(entry),
-      entry.user_name,
-      entry.message,
-      formatDate(entry.created_at)
-    ].join(" ").toLowerCase();
-    return haystack.includes(search);
-  });
-}
-
-function renderUsers() {
-  usersList.innerHTML = "";
-
-  for (const user of allUsers) {
-    const item = document.createElement("article");
-    item.className = "user-item";
-
-    const details = document.createElement("div");
-
-    const title = document.createElement("h3");
-    title.textContent = user.apartment_label
-      ? `${user.apartment_label} - ${user.user_name}`
-      : user.user_name;
-
-    const meta = document.createElement("p");
-    const displayName = user.display_name ? `${user.display_name} - ` : "";
-    meta.textContent = `${displayName}${user.role === "admin" ? "Admin" : "Nutzer"} - ${user.active ? "aktiv" : "inaktiv"}`;
-
-    const sessionMeta = document.createElement("p");
-    sessionMeta.className = "user-session-meta";
-    const activeSessions = Number(user.active_sessions || 0);
-    const linkedRecords = Number(user.linked_records || 0);
-    const sessionLabel = activeSessions === 1 ? "1 aktives Geraet" : `${activeSessions} aktive Geraete`;
-    const lastSeen = user.last_seen_at ? `zuletzt aktiv ${formatDate(user.last_seen_at)}` : "noch keine Aktivitaet";
-    const recordLabel = linkedRecords === 1 ? "1 Eintrag" : `${linkedRecords} Eintraege`;
-    sessionMeta.textContent = `${sessionLabel} - ${lastSeen} - ${recordLabel}`;
-
-    details.append(title, meta, sessionMeta);
-
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.textContent = "Bearbeiten";
-    editButton.addEventListener("click", () => editUser(user));
-
-    const resetButton = document.createElement("button");
-    resetButton.type = "button";
-    resetButton.textContent = "Passwort neu";
-    resetButton.addEventListener("click", () => resetUserPassword(user));
-
-    const toggleActiveButton = document.createElement("button");
-    toggleActiveButton.type = "button";
-    toggleActiveButton.className = user.active ? "danger-text-button" : "status-toggle-button";
-    toggleActiveButton.textContent = user.active ? "Deaktivieren" : "Aktivieren";
-    toggleActiveButton.addEventListener("click", () => toggleUserActive(user));
-
-    const logoutSessionsButton = document.createElement("button");
-    logoutSessionsButton.type = "button";
-    logoutSessionsButton.className = "subtle-button";
-    logoutSessionsButton.textContent = "Alle Geraete abmelden";
-    logoutSessionsButton.disabled = activeSessions === 0;
-    logoutSessionsButton.addEventListener("click", () => logoutUserSessions(user));
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-text-button";
-    deleteButton.textContent = "Loeschen";
-    deleteButton.disabled = linkedRecords > 0;
-    deleteButton.title = linkedRecords > 0
-      ? "Dieses Konto hat noch Buchungen, Protokolle, Feedback oder Aktivitaeten."
-      : "Konto ohne Eintraege loeschen";
-    deleteButton.addEventListener("click", () => deleteUser(user));
-
-    const actions = document.createElement("div");
-    actions.className = "item-actions";
-    actions.append(editButton, resetButton, logoutSessionsButton, toggleActiveButton, deleteButton);
-
-    item.append(details, actions);
-    usersList.append(item);
-  }
-}
-
-function renderOperations(status, warnings) {
-  opsStatusGrid.innerHTML = "";
-  opsWarningsList.innerHTML = "";
-
-  const entries = [
-    ["Datenbank", status.sqlitePath],
-    ["Aktive Nutzer", String(status.activeUsers)],
-    ["Inaktive Nutzer", String(status.inactiveUsers)],
-    ["Admins", String(status.admins)],
-    ["Buchungen", String(status.bookings)],
-    ["Buchungen im Voraus", String(status.futureBookings)],
-    ["Aktivitaeten", String(status.activities || 0)],
-    ["Pilot-Feedback", String(status.pilotFeedback || 0)],
-    ["Nutzerkonten", String(status.registeredUsers || 0)],
-    ["Ressourcen", `${status.resources.washers} WM, ${status.resources.dryingRooms} TR, ${status.resources.tumblers} Tumbler`],
-    ["Gesperrt", String(status.resources.unavailable || 0)],
-    ["WhatsApp", whatsappStatusLabel(status.whatsapp)]
-  ];
-
-  for (const [label, value] of entries) {
-    const item = document.createElement("div");
-    item.className = "ops-status-item";
-    const name = document.createElement("span");
-    name.textContent = label;
-    const detail = document.createElement("strong");
-    detail.textContent = value;
-    item.append(name, detail);
-    opsStatusGrid.append(item);
-  }
-
-  if (warnings.length === 0) {
-    const clean = document.createElement("p");
-    clean.className = "ops-clean";
-    clean.textContent = "Keine Produktionswarnungen.";
-    opsWarningsList.append(clean);
-    renderPilotReadiness(status, warnings);
-    return;
-  }
-
-  for (const warning of warnings) {
-    const item = document.createElement("p");
-    item.className = "ops-warning";
-    item.textContent = warning.message;
-    opsWarningsList.append(item);
-  }
-
-  renderPilotReadiness(status, warnings);
-}
-
-function renderAnalytics(analytics) {
-  analyticsSummaryGrid.innerHTML = "";
-  analyticsUsageGrid.innerHTML = "";
-  analyticsInsightsList.innerHTML = "";
-
-  const summaryEntries = [
-    ["Zeitraum", analytics.period.label],
-    ["Buchungen", String(analytics.totals.bookings)],
-    ["Aktive Parteien", String(analytics.totals.activeParties)],
-    ["Mit Buchung", String(analytics.totals.partiesWithBookings)],
-    ["Schnitt / Partei", String(analytics.totals.averagePerActiveParty)],
-    ["Buchbare Tage", String(analytics.totals.bookableDays)],
-    ["Protokolle", String(analytics.totals.machineLogs)],
-    ["Aktuell gesperrt", String(analytics.totals.unavailableResources)]
-  ];
-
-  for (const [label, value] of summaryEntries) {
-    const item = document.createElement("div");
-    item.className = "ops-status-item";
-    const name = document.createElement("span");
-    name.textContent = label;
-    const detail = document.createElement("strong");
-    detail.textContent = value;
-    item.append(name, detail);
-    analyticsSummaryGrid.append(item);
-  }
-
-  for (const usage of analytics.usage || []) {
-    const item = document.createElement("article");
-    item.className = "analytics-card";
-    const heading = document.createElement("strong");
-    heading.textContent = usage.label;
-    const meta = document.createElement("span");
-    meta.textContent = `${usage.bookings} von ${usage.capacity} moeglichen Slots`;
-    const bar = document.createElement("div");
-    bar.className = "analytics-bar";
-    const fill = document.createElement("span");
-    fill.style.width = `${Math.min(100, usage.utilizationPercent)}%`;
-    bar.append(fill);
-    const percent = document.createElement("small");
-    percent.textContent = `${usage.utilizationPercent}% Auslastung`;
-    item.append(heading, meta, bar, percent);
-    analyticsUsageGrid.append(item);
-  }
-
-  const insights = analytics.insights || {};
-  const insightRows = [
-    ["Staerkster Wochentag", analyticsInsightText(insights.busiestWeekday)],
-    ["Staerkstes Zeitfenster", analyticsInsightText(insights.busiestSlot)],
-    ["Meistgenutzte Ressource", analyticsInsightText(insights.busiestResource)],
-    ["Aktivste Parteien", analyticsListText(insights.topParties, (entry) => `${entry.label}: ${entry.count}`)],
-    ["Ohne Buchung im Zeitraum", (insights.inactiveParties || []).join(", ") || "Keine"],
-    ["Protokoll-Schwerpunkte", analyticsListText(insights.machineLogsByResource, (entry) => `${entry.label}: ${entry.count}`)],
-    ["Aktuell gesperrt", analyticsListText(insights.unavailableResources, (entry) => `${entry.label}: ${entry.reason}`)]
-  ];
-
-  for (const [label, detail] of insightRows) {
-    const item = document.createElement("div");
-    item.className = detail === "Keine Daten" || detail === "Keine" ? "pilot-readiness-item pilot-readiness-ok" : "pilot-readiness-item";
-    const title = document.createElement("strong");
-    title.textContent = label;
-    const body = document.createElement("span");
-    body.textContent = detail;
-    item.append(title, body);
-    analyticsInsightsList.append(item);
-  }
-}
-
-function analyticsInsightText(entry) {
-  if (!entry) {
-    return "Keine Daten";
-  }
-
-  return `${entry.label}: ${entry.count}`;
-}
-
-function analyticsListText(entries, formatEntry) {
-  if (!entries || entries.length === 0) {
-    return "Keine";
-  }
-
-  return entries.map(formatEntry).join(", ");
-}
-
-function renderPilotReadiness(status, warnings) {
-  if (!pilotReadinessList) {
-    return;
-  }
-
-  pilotReadinessList.innerHTML = "";
-  const namedActiveUsers = allUsers.filter((user) => {
-    return user.role === "user"
-      && user.active
-      && user.display_name
-      && !/^Partei\s*\d{1,2}$/i.test(user.display_name.trim());
-  });
-  const productionDb = status.sqlitePath === "/var/data/washraum.sqlite";
-  const readinessItems = [
-    {
-      ok: productionDb,
-      label: "Produktionsdatenbank",
-      detail: productionDb ? "Render-Disk /var/data ist aktiv." : `Aktueller Pfad: ${status.sqlitePath}`
-    },
-    {
-      ok: namedActiveUsers.length >= 3 && namedActiveUsers.length <= 5,
-      label: "Pilotkonten",
-      detail: `${namedActiveUsers.length} aktive Nutzer mit echtem Anzeigenamen. Ziel: 3 bis 5.`
-    },
-    {
-      ok: warnings.length === 0,
-      label: "Produktionswarnungen",
-      detail: warnings.length === 0 ? "Keine Warnungen im Betriebspanel." : `${warnings.length} Warnung(en) pruefen.`
-    },
-    {
-      ok: true,
-      label: "Regelwerk",
-      detail: "Eine aktive Buchung im Voraus, Sonntage und Sperrtage sind technisch abgesichert."
-    },
-    {
-      ok: false,
-      label: "Backup",
-      detail: "Vor dem Einladen manuell Backup herunterladen und sicher ablegen."
-    }
-  ];
-
-  for (const item of readinessItems) {
-    const row = document.createElement("article");
-    row.className = item.ok ? "pilot-readiness-item pilot-readiness-ok" : "pilot-readiness-item pilot-readiness-action";
-    const title = document.createElement("strong");
-    title.textContent = item.label;
-    const detail = document.createElement("span");
-    detail.textContent = item.detail;
-    row.append(title, detail);
-    pilotReadinessList.append(row);
-  }
-
-  pilotInviteText.value = pilotInviteTemplate(namedActiveUsers);
-}
-
-function pilotInviteTemplate(namedActiveUsers) {
-  const names = namedActiveUsers.slice(0, 5).map((user) => {
-    const apartment = user.apartment_label ? ` (${user.apartment_label})` : "";
-    return `- ${user.display_name}${apartment}`;
-  });
-  const selectedPeople = names.length > 0 ? names.join("\n") : "- Name / Partei eintragen";
-
-  return [
-    "Hallo zusammen",
-    "",
-    "wir testen die neue digitale Waschplan-App fuer den Maneggplatz 18 in einer kleinen Pilotgruppe.",
-    "",
-    "Bitte testet in den naechsten 5 bis 7 Tagen:",
-    "1. Login mit eurem Konto",
-    "2. freie Waschmaschine buchen",
-    "3. Tumbler im eigenen Waschmaschinen-Slot oder Trockenraum am gleichen Waschtag ergaenzen",
-    "4. Monatsplan kontrollieren",
-    "5. eigene Buchung loeschen, falls ihr sie nicht braucht",
-    "6. bewusst eine zweite Buchung im Voraus versuchen und die Meldung pruefen",
-    "7. kurze Rueckmeldung in der App senden, wenn etwas unklar ist",
-    "",
-    "Wichtige Regeln:",
-    "- Bitte nur eine Buchung im Voraus eintragen.",
-    "- Tumbler duerfen nur waehrend des eigenen Waschmaschinen-Slots gebucht werden.",
-    "- Trockenraum je nach Waschslot bis 21:00 am gleichen Tag oder bis 12:00 am Folgetag buchen.",
-    "- Sonntag, Sperrtage und vergangene Slots sind nicht buchbar.",
-    "- Wer eine Buchung nicht braucht, loescht sie bitte selbst wieder.",
-    "",
-    "In der App gibt es den Bereich HILFE mit einer kurzen Anleitung.",
-    "",
-    "Pilotpersonen:",
-    selectedPeople,
-    "",
-    "Link: https://washraum-app.onrender.com",
-    "",
-    "Danke fuers Testen!"
-  ].join("\n");
-}
-
-function editUser(user) {
-  editingUserIdInput.value = user.id;
-  managedUserNameInput.value = user.user_name;
-  managedDisplayNameInput.value = user.display_name || "";
-  managedApartmentLabelInput.value = user.apartment_label || "";
-  managedUserRoleInput.value = user.role;
-  managedUserActiveInput.value = user.active ? "1" : "0";
-  managedUserPasswordInput.value = "";
-  managedUserPasswordInput.placeholder = "Leer lassen, wenn unveraendert";
-  userMessage.textContent = "";
-}
-
-function resetUserForm() {
-  userForm.reset();
-  editingUserIdInput.value = "";
-  managedUserRoleInput.value = "user";
-  managedUserActiveInput.value = "1";
-  managedUserPasswordInput.placeholder = "";
 }
 
 async function deleteBooking(id) {
-  const response = await fetch("/api/user/deleteBooking", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ id })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    formMessage.textContent = messageForError(data.error);
-    return;
+  try {
+    const data = await api(`/api/bookings/${id}`, { method: 'DELETE' });
+    showStatus(data.message || 'Buchung geloescht.');
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
   }
-
-  formMessage.textContent = "Buchung geloescht.";
-  showActionToast(data.activity?.message || "Buchung wurde geloescht.", "neutral");
-  await loadBookings();
-  await loadActivity();
-  await loadOperations();
-  await loadAnalytics();
 }
 
-async function resetAllBookings() {
-  opsMessage.textContent = "";
-  resetBookingsButton.disabled = true;
+async function releaseBooking(id) {
+  try {
+    const data = await api(`/api/bookings/${id}/release`, { method: 'POST' });
+    const emailText = data.emailNotifications?.configured
+      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
+      : ' E-Mail-Versand ist noch nicht konfiguriert.';
+    showStatus(`${data.message || 'Slot wurde freigegeben.'}${emailText}`);
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
 
-  const response = await fetch("/api/admin/bookings/reset", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      confirmation: resetBookingsConfirmationInput.value.trim()
-    })
-  });
-  const data = await response.json().catch(() => ({}));
+async function saveNotifications() {
+  try {
+    const data = await api('/api/me/notifications', {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: notificationEmail.value,
+        notifyReleases: notifyReleasesInput.checked
+      })
+    });
+    currentUser = data.user;
+    showStatus(data.message || 'Benachrichtigungen gespeichert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
 
-  if (!response.ok || !data.ok) {
-    resetBookingsButton.disabled = resetBookingsConfirmationInput.value.trim() !== "ZURUECKSETZEN";
-    opsMessage.textContent = messageForError(data.error);
+async function loadAdmin() {
+  const [usersData, overviewData, settingsData, fixedData] = await Promise.all([
+    api('/api/admin/users'),
+    api('/api/admin/overview'),
+    api('/api/admin/settings'),
+    api('/api/admin/fixed-bookings')
+  ]);
+  adminBox.hidden = false;
+  houseCodeInput.value = settingsData.houseCode;
+  populateFixedBookingControls();
+  renderFixedBookings(fixedData.fixedBookings);
+  adminOverview.innerHTML = `
+    <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
+    <div><strong>${overviewData.todayBookings}</strong><span>Buchungen heute</span></div>
+    <div><strong>${overviewData.activeResources}</strong><span>aktive Ressourcen</span></div>
+    <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
+    <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
+    <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
+  `;
+  userList.innerHTML = '';
+
+  for (const user of usersData.users) {
+    const item = document.createElement('li');
+    const mailInfo = user.email ? `, ${user.email}` : ', keine E-Mail';
+    item.textContent = `${user.username} (${user.role}, ${user.active ? 'aktiv' : 'inaktiv'}${mailInfo})`;
+    userList.append(item);
+  }
+}
+
+function populateFixedBookingControls() {
+  fixedBookingResource.innerHTML = resources.map((resource) => (
+    `<option value="${resource.id}">${resource.name} - ${typeLabel(resource.type)}</option>`
+  )).join('');
+
+  fixedBookingSlot.innerHTML = slots.map((slot) => (
+    `<option value="${slot}">${slot}</option>`
+  )).join('');
+}
+
+function renderFixedBookings(items) {
+  fixedBookingList.innerHTML = '';
+  if (!items.length) {
+    fixedBookingList.innerHTML = '<p class="muted">Noch keine festen Buchungen.</p>';
     return;
   }
 
-  resetBookingsConfirmationInput.value = "";
-  opsMessage.textContent = `${data.deletedBookings} Buchungen und ${data.deletedActivities} Aktivitaeten geloescht.`;
-  showActionToast("Alle Buchungen wurden zurueckgesetzt.", "neutral");
-  await loadBookings();
-  await loadActivity();
-  await loadOperations();
-  await loadAnalytics();
-  renderAvailability();
+  for (const booking of items) {
+    const item = document.createElement('article');
+    item.className = 'fixed-booking-item';
+    item.innerHTML = `
+      <div>
+        <strong>${booking.label}</strong>
+        <span>${weekdayLabels[booking.weekday]} - ${booking.slot}</span>
+        <span>${booking.resource_name}</span>
+      </div>
+    `;
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'secondary danger';
+    deleteButton.textContent = 'Entfernen';
+    deleteButton.addEventListener('click', () => deleteFixedBooking(booking.id));
+
+    item.append(deleteButton);
+    fixedBookingList.append(item);
+  }
+}
+
+async function createFixedBooking() {
+  try {
+    const data = await api('/api/admin/fixed-bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        label: fixedBookingLabel.value,
+        resourceId: Number(fixedBookingResource.value),
+        weekday: Number(fixedBookingWeekday.value),
+        slot: fixedBookingSlot.value
+      })
+    });
+    fixedBookingForm.reset();
+    showStatus(data.message || 'Feste Buchung gespeichert.');
+    await Promise.all([loadAdmin(), loadBookings()]);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
 }
 
 async function deleteFixedBooking(id) {
-  fixedBookingMessage.textContent = "";
-  const response = await fetch(`/api/admin/fixed-bookings/${id}`, {
-    method: "DELETE",
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    fixedBookingMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  fixedBookings = data.fixedBookings || [];
-  fixedBookingMessage.textContent = "Feste Buchung entfernt.";
-  renderFixedBookings();
-  await loadBookings();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-async function shareEarlyRelease(booking) {
-  formMessage.textContent = "";
-  const response = await fetch("/api/user/releaseBooking", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ id: booking.id })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    formMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  formMessage.textContent = "Frueher frei gemeldet.";
-  showActionToast(data.activity?.message || "Slot wurde frueher frei gemeldet.", "success");
-  await loadActivity();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-async function reportLaundryLeft(booking) {
-  formMessage.textContent = "";
-  const response = await fetch("/api/user/laundry-left", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ id: booking.id })
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    formMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  formMessage.textContent = "Hinweis gespeichert.";
-  showActionToast(data.activity?.message || "Hinweis gespeichert: Waesche haengt noch.", "neutral");
-  await loadActivity();
-}
-
-async function setResourceAvailability(resource, unavailable, reason = "") {
-  resourceMessage.textContent = "";
-  const response = await fetch(`/api/admin/resources/${resource.id}/availability`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      unavailable,
-      reason: reason.trim()
-    })
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    resourceMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  resourceMessage.textContent = unavailable
-    ? `${resource.resource_id} wurde gesperrt.`
-    : `${resource.resource_id} wurde freigegeben.`;
-  await loadResources();
-  updateResourceOptions();
-  updateMachineLogResourceOptions();
-  updateSlotControls();
-  setDefaultBookingTimes();
-  renderAvailability();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-async function resetUserPassword(user) {
-  userMessage.textContent = "";
-  const response = await fetch(`/api/admin/users/${user.id}/reset-password`, {
-    method: "POST",
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  userMessage.textContent = `Neues Passwort fuer ${data.userName}: ${data.password}`;
-}
-
-async function toggleUserActive(user) {
-  userMessage.textContent = "";
-  const label = user.apartment_label
-    ? `${user.apartment_label} - ${user.user_name}`
-    : user.user_name;
-  const nextActive = !user.active;
-
-  const response = await fetch(`/api/admin/users/${user.id}`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      userName: user.user_name,
-      displayName: user.display_name || "",
-      apartmentLabel: user.apartment_label || "",
-      role: user.role,
-      active: nextActive
-    })
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  userMessage.textContent = nextActive
-    ? `${label} aktiviert. Bestehende Eintraege bleiben erhalten.`
-    : `${label} deaktiviert. Login ist gesperrt, bestehende Eintraege bleiben erhalten.`;
-  await loadUsers();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-async function logoutUserSessions(user) {
-  userMessage.textContent = "";
-  const label = user.apartment_label
-    ? `${user.apartment_label} - ${user.user_name}`
-    : user.user_name;
-  const response = await fetch(`/api/admin/users/${user.id}/logout-sessions`, {
-    method: "POST",
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  userMessage.textContent = `${label}: ${data.loggedOutSessions || 0} Geraet(e) abgemeldet.`;
-  await loadUsers();
-  await loadOperations();
-}
-
-async function deleteUser(user) {
-  userMessage.textContent = "";
-  const label = user.apartment_label
-    ? `${user.apartment_label} - ${user.user_name}`
-    : user.user_name;
-
-  if (!window.confirm(`${label} wirklich loeschen? Das geht nur, wenn keine Eintraege vorhanden sind.`)) {
-    return;
-  }
-
-  const response = await fetch(`/api/admin/users/${user.id}`, {
-    method: "DELETE",
-    headers: authHeaders()
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || !data.ok) {
-    userMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  userMessage.textContent = `${label} geloescht.`;
-  await loadUsers();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-async function deleteBlockedDate(date) {
-  const response = await fetch(`/api/admin/blocked-dates/${date}`, {
-    method: "DELETE",
-    headers: authHeaders()
-  });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    blockedDateMessage.textContent = messageForError(data.error);
-    return;
-  }
-
-  blockedDateMessage.textContent = "Sperrtag entfernt.";
-  await loadBlockedDates();
-  await loadOperations();
-  await loadAnalytics();
-}
-
-function backupFileName(contentDisposition) {
-  const fallback = `washraum-backup-${dateKey(new Date())}.sqlite`;
-  const match = String(contentDisposition || "").match(/filename="?([^"]+)"?/);
-  return match ? match[1] : fallback;
-}
-
-function showActionToast(message, tone = "neutral") {
-  if (!actionToast) {
-    return;
-  }
-
-  actionToast.textContent = message;
-  actionToast.className = `action-toast action-toast-${tone}`;
-  window.clearTimeout(showActionToast.timeoutId);
-  showActionToast.timeoutId = window.setTimeout(() => {
-    actionToast.classList.add("hidden");
-  }, 5200);
-}
-
-function initialViewFromHash() {
-  const hash = window.location.hash.replace("#", "");
-  const hashMap = {
-    bookingForm: "washraum",
-    bookingsSection: "bookings",
-    rulesPanel: "rules",
-    helpPanel: "help",
-    washraum: "washraum",
-    bookings: "bookings",
-    logbook: "logbook",
-    feedback: "feedback",
-    rules: "rules",
-    help: "help",
-    admin: "admin"
-  };
-
-  return hashMap[hash] || "washraum";
-}
-
-function setActiveView(view, options = {}) {
-  const allowedViews = role === "admin"
-    ? ["washraum", "bookings", "logbook", "feedback", "rules", "help", "admin"]
-    : ["washraum", "bookings", "logbook", "feedback", "rules", "help"];
-  const selectedView = allowedViews.includes(view) ? view : "washraum";
-  document.body.dataset.activeView = selectedView;
-
-  for (const tab of navTabs) {
-    const isActive = tab.dataset.view === selectedView;
-    tab.classList.toggle("is-active", isActive);
-    tab.setAttribute("aria-selected", String(isActive));
-  }
-
-  if (options.replaceHash && window.location.hash) {
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  try {
+    const data = await api(`/api/admin/fixed-bookings/${id}`, { method: 'DELETE' });
+    showStatus(data.message || 'Feste Buchung entfernt.');
+    await Promise.all([loadAdmin(), loadBookings()]);
+  } catch (error) {
+    showStatus(error.message, 'error');
   }
 }
 
-function bookingSummary(booking) {
-  if (!booking) {
-    return "Buchung gespeichert";
-  }
+bookingDate.addEventListener('change', loadBookings);
 
-  return `${resourceLabel(booking.resource_type)} ${booking.resource_id}, ${formatDate(booking.start_at)}-${formatTime(booking.end_at)}`;
-}
-
-function activityEventLabel(eventType) {
-  const labels = {
-    booking_created: "Gebucht",
-    booking_deleted: "Geloescht",
-    booking_released: "Frei",
-    laundry_left: "Hinweis"
-  };
-
-  return labels[eventType] || "Info";
-}
-
-function resourceLabel(type) {
-  const labels = {
-    washer: "Waschmaschine",
-    drying_room: "Trockenraum",
-    tumbler: "Tumbler"
-  };
-
-  return labels[type] || type;
-}
-
-function resourceUnavailable(resourceType, resourceId) {
-  return resourceEntries.find((entry) => {
-    return entry.resource_type === resourceType
-      && entry.resource_id === resourceId
-      && entry.unavailable_reason;
-  });
-}
-
-function currentBookingUserName() {
-  if (role === "admin" && adminTargetUserNameInput.value.trim()) {
-    return adminTargetUserNameInput.value.trim();
-  }
-
-  return userName;
-}
-
-function userHasWasherSlotForSlot(targetUserName, day, slot) {
-  if (!targetUserName) {
-    return false;
-  }
-
-  const slotStart = withTime(day, slot.start);
-  const slotEnd = withTime(day, slot.end);
-  return allBookings.some((entry) => {
-    if (entry.user_name !== targetUserName || entry.resource_type !== "washer" || entry.released_at) {
-      return false;
-    }
-
-    const start = new Date(entry.start_at);
-    const end = new Date(entry.end_at);
-    const sameCalendarDay = isSameDay(start, day) || utcDateKey(start) === dateKey(day);
-    return sameCalendarDay && start <= slotStart && end >= slotEnd;
-  });
-}
-
-function userHasWasherSlotForDryingRoomSlot(targetUserName, day, slot) {
-  if (!targetUserName) {
-    return false;
-  }
-
-  const slotStart = withTime(day, slot.start);
-  const slotEnd = withTime(day, slot.end);
-  return allBookings.some((entry) => {
-    if (entry.user_name !== targetUserName || entry.resource_type !== "washer" || entry.released_at) {
-      return false;
-    }
-
-    return allowedDryingRangesForWasher(entry).some((range) => {
-      return range.start.getTime() === slotStart.getTime() && range.end.getTime() === slotEnd.getTime();
+houseCodeForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const data = await api('/api/admin/settings/house-code', {
+      method: 'PUT',
+      body: JSON.stringify({ houseCode: houseCodeInput.value })
     });
+    showStatus(data.message || 'Hauscode gespeichert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+});
+
+notificationForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await saveNotifications();
+});
+
+fixedBookingForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await createFixedBooking();
+});
+
+filterButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    activeType = button.dataset.type;
+    filterButtons.forEach((item) => item.classList.toggle('active', item === button));
+    renderSchedule();
   });
-}
+});
 
-function allowedDryingRangesForWasher(entry) {
-  const start = new Date(entry.start_at);
-  const end = new Date(entry.end_at);
-  const washerSlot = (slotConfig.washer || []).find((slot) => {
-    return (timeKey(start) === slot.start || utcTimeKey(start) === slot.start)
-      && (timeKey(end) === slot.end || utcTimeKey(end) === slot.end);
-  });
-  if (!washerSlot) {
-    return [];
+openIntroButton.addEventListener('click', openIntro);
+openKnowledgeButton.addEventListener('click', openIntro);
+closeIntroButton.addEventListener('click', closeIntro);
+introDoneButton.addEventListener('click', closeIntro);
+introVideoPlayButton.addEventListener('click', playIntroVideo);
+introVideoMuteButton.addEventListener('click', toggleIntroVideoSpeech);
+introOverlay.addEventListener('click', (event) => {
+  if (event.target === introOverlay) {
+    closeIntro();
   }
-
-  const day = dateFromInputDate(dateKey(start));
-  const nextDay = addDays(day, 1);
-  const ranges = [];
-  if (washerSlot.id === "slot-1") {
-    ranges.push(rangeForSlot(day, "slot-1"), rangeForSlot(day, "slot-2"), rangeForSlot(day, "slot-3"));
-  }
-  if (washerSlot.id === "slot-2") {
-    ranges.push(rangeForSlot(day, "slot-2"), rangeForSlot(day, "slot-3"), rangeForSlot(nextDay, "slot-1"));
-  }
-  if (washerSlot.id === "slot-3") {
-    ranges.push(rangeForSlot(day, "slot-3"), rangeForSlot(nextDay, "slot-1"));
-  }
-
-  return ranges.filter(Boolean);
-}
-
-function rangeForSlot(day, slotId) {
-  const slot = (slotConfig.washer || []).find((entry) => entry.id === slotId);
-  if (!slot) {
-    return null;
-  }
-
-  return {
-    start: withTime(day, slot.start),
-    end: withTime(day, slot.end)
-  };
-}
-
-function selectedMachineLogResource() {
-  return resourceEntries.find((entry) => {
-    return entry.resource_type === machineLogResourceTypeInput.value
-      && entry.resource_id === machineLogResourceIdInput.value;
-  });
-}
-
-function whatsappStatusLabel(status) {
-  if (!status) {
-    return "nicht konfiguriert";
-  }
-
-  const mode = status.mode === "production" ? "Produktiv" : "Test";
-  const target = status.targetMasked ? ` -> ${status.targetMasked}` : "";
-  return status.configured ? `${mode}${target}` : `${mode}: unvollstaendig`;
-}
-
-function authHeaders() {
-  return {
-    "Authorization": `Bearer ${authToken}`,
-    "Content-Type": "application/json"
-  };
-}
-
-async function loadSession() {
-  const response = await fetch("/api/session", {
-    headers: authHeaders()
-  });
-
-  if (!response.ok) {
-    sessionStorage.setItem("washraumSessionNotice", "Sitzung abgelaufen. Bitte neu einloggen.");
-    sessionStorage.removeItem("washraumUserName");
-    sessionStorage.removeItem("washraumUserRole");
-    sessionStorage.removeItem("washraumAuthToken");
-    window.location.href = "/login.html";
-    return false;
-  }
-
-  const data = await response.json();
-  userName = data.user.userName;
-  role = data.user.role;
-  onboardingSeenAt = data.user.onboardingSeenAt || "";
-  sessionStorage.setItem("washraumUserName", userName);
-  sessionStorage.setItem("washraumUserRole", role);
-  sessionStorage.setItem("washraumOnboardingSeenAt", onboardingSeenAt);
-  sessionLabel.textContent = `${userName} (${role})`;
-  updateAdminControls();
-  if (!onboardingSeenAt) {
-    showOnboarding();
-  }
-
-  return true;
-}
-
-function showOnboarding() {
-  if (!onboardingOverlay) {
-    return;
-  }
-
-  onboardingOverlay.classList.remove("hidden");
-  document.body.classList.add("onboarding-open");
-  finishOnboardingButton.focus();
-}
-
-function hideOnboarding() {
-  if (!onboardingOverlay) {
-    return;
-  }
-
-  onboardingOverlay.classList.add("hidden");
-  document.body.classList.remove("onboarding-open");
-}
-
-function onboardingQuizResult() {
-  const dryingAnswer = document.querySelector("input[name='quizDrying']:checked")?.value;
-  const tumblerAnswer = document.querySelector("input[name='quizTumbler']:checked")?.value;
-  if (!dryingAnswer || !tumblerAnswer) {
-    return { ok: false, message: "Bitte beantworte noch beide Fragen." };
-  }
-
-  if (dryingAnswer !== "next-noon" || tumblerAnswer !== "own-slot") {
-    return {
-      ok: false,
-      message: "Bitte pruefe die Antworten: Trockenraum nach dem 12:00- oder 17:00-Waschslot maximal bis 12:00 am Folgetag; Tumbler nur zum eigenen Waschslot und ein Tumbler bleibt frei."
-    };
-  }
-
-  return { ok: true };
-}
-
-function updateAdminControls() {
-  const isAdmin = role === "admin";
-  adminTargetGroup.classList.toggle("hidden", !isAdmin);
-  adminNavTab.classList.toggle("hidden", !isAdmin);
-  adminDashboardNav.classList.toggle("hidden", !isAdmin);
-  renderAdminPanelVisibility(isAdmin);
-  if (!isAdmin && document.body.dataset.activeView === "admin") {
-    setActiveView("washraum");
-  }
-  machineLogActionGroup.classList.toggle("hidden", !isAdmin);
-  if (!isAdmin) {
-    machineLogActionInput.value = "log_only";
-  }
-  adminTargetUserNameInput.required = false;
-  adminTargetUserNameInput.placeholder = isAdmin ? userName : "";
-  updateMachineLogActionOptions();
-}
-
-function setActiveAdminPanel(panelId) {
-  const allowedPanels = [
-    "adminOpsPanel",
-    "adminUsersPanel",
-    "adminResourcesPanel",
-    "adminFixedBookingsPanel",
-    "adminBlockedDatesPanel",
-    "adminAnalyticsPanel",
-    "adminPilotPanel"
-  ];
-  activeAdminPanelId = allowedPanels.includes(panelId) ? panelId : "adminOpsPanel";
-  renderAdminPanelVisibility(role === "admin");
-}
-
-function renderAdminPanelVisibility(isAdmin) {
-  const panels = [
-    adminOpsPanel,
-    adminUsersPanel,
-    adminResourcesPanel,
-    adminFixedBookingsPanel,
-    adminBlockedDatesPanel,
-    adminAnalyticsPanel,
-    adminPilotPanel
-  ];
-
-  for (const panel of panels) {
-    panel.classList.toggle("hidden", !isAdmin || panel.id !== activeAdminPanelId);
-  }
-
-  for (const tab of adminDashboardTabs) {
-    tab.classList.toggle("is-active", tab.dataset.adminPanel === activeAdminPanelId);
-  }
-}
-
-function formatDate(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
-}
-
-function formatDateOnly(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    dateStyle: "medium"
-  }).format(value);
-}
-
-function formatDateKey(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return formatDateOnly(new Date(year, month - 1, day));
-}
-
-function formatTime(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
-function formatDayHeading(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit"
-  }).format(value);
-}
-
-function weekdayLabel(value) {
-  return {
-    1: "Montag",
-    2: "Dienstag",
-    3: "Mittwoch",
-    4: "Donnerstag",
-    5: "Freitag",
-    6: "Samstag"
-  }[Number(value)] || "Wochentag";
-}
-
-function slotLabel(resourceType, slotId) {
-  return (slotConfig[resourceType] || []).find((slot) => slot.id === slotId)?.label || slotId;
-}
-
-function shortWeekday(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    weekday: "short"
-  }).format(value).replace(".", "");
-}
-
-function formatDateTimeInputValue(value) {
-  const date = new Date(value);
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-function nextDefaultStart() {
-  const date = new Date();
-  date.setMinutes(0, 0, 0);
-  date.setHours(date.getHours() + 1);
-
-  if (date.getDay() === 0) {
-    date.setDate(date.getDate() + 1);
-    date.setHours(8, 0, 0, 0);
-  }
-
-  return date;
-}
-
-function nextDefaultSlotSelection(resourceType) {
-  const configuredSlots = slotConfig[resourceType] || [];
-  const now = new Date();
-  const candidate = new Date(now);
-  candidate.setHours(0, 0, 0, 0);
-
-  for (let dayOffset = 0; dayOffset < 14; dayOffset += 1) {
-    const date = addDays(candidate, dayOffset);
-    if (date.getDay() === 0 || blockedDateForDay(date)) {
-      continue;
-    }
-
-    for (const slot of configuredSlots) {
-      const slotStart = withTime(date, slot.start);
-      if (slotStart > now) {
-        return { date: slotStart, slot };
-      }
-    }
-  }
-
-  return configuredSlots[0] ? { date: nextDefaultStart(), slot: configuredSlots[0] } : null;
-}
-
-function withTime(date, time) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const value = new Date(date);
-  value.setHours(hours, minutes, 0, 0);
-  return value;
-}
-
-function isPastSlot(day, slot) {
-  return withTime(day, slot.end) <= new Date();
-}
-
-function startOfWeek(value) {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  const day = date.getDay() || 7;
-  date.setDate(date.getDate() - day + 1);
-  return date;
-}
-
-function startOfMonth(value) {
-  return new Date(value.getFullYear(), value.getMonth(), 1);
-}
-
-function addDays(value, days) {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function daysInMonth(value) {
-  const days = [];
-  const date = startOfMonth(value);
-
-  while (date.getMonth() === value.getMonth()) {
-    days.push(new Date(date));
-    date.setDate(date.getDate() + 1);
-  }
-
-  return days;
-}
-
-function getWeekDays(weekStart) {
-  return [0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(weekStart, offset));
-}
-
-function isSameDay(left, right) {
-  return left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate();
-}
-
-function blockedDateForDay(day) {
-  const key = dateKey(day);
-  return blockedDates.find((blockedDate) => blockedDate.date === key);
-}
-
-function dateKey(date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0")
-  ].join("-");
-}
-
-function moveWeek(direction) {
-  visibleWeekStart = addDays(visibleWeekStart, direction * 7);
-  renderBookings();
-}
-
-function moveMonth(direction) {
-  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + direction, 1);
-  renderBookings();
-}
-
-function monthInputValue(value) {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthInputDate(value) {
-  if (!/^\d{4}-\d{2}$/.test(value || "")) {
-    return null;
-  }
-
-  const [year, month] = value.split("-").map(Number);
-  return new Date(year, month - 1, 1);
-}
-
-function dateFromInputDate(value) {
-  const [year, month, day] = String(value || "").split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function monthName(value) {
-  return new Intl.DateTimeFormat("de-CH", {
-    month: "long"
-  }).format(value);
-}
-
-function messageForError(error) {
-  const messages = {
-    missing_required_fields: "Bitte alle Felder ausfuellen.",
-    missing_login_fields: "Bitte Name und Passwort eingeben.",
-    invalid_login: "Name oder Passwort stimmt nicht.",
-    user_inactive: "Dieses Nutzerkonto ist deaktiviert.",
-    not_authenticated: "Bitte neu einloggen.",
-    admin_required: "Diese Aktion ist nur fuer Admins moeglich.",
-    missing_user_fields: "Bitte Name, Rolle und Passwort ausfuellen.",
-    invalid_user_role: "Unbekannte Rolle.",
-    invalid_user_name: "Der Name muss 2 bis 60 Zeichen lang sein.",
-    invalid_display_name: "Der Anzeigename darf maximal 80 Zeichen lang sein.",
-    invalid_apartment_label: "Partei/Wohnung darf maximal 40 Zeichen lang sein.",
-    password_too_short: "Das Passwort braucht mindestens 6 Zeichen.",
-    invalid_current_password: "Das aktuelle Passwort stimmt nicht.",
-    last_admin_required: "Mindestens ein Admin muss bestehen bleiben.",
-    user_already_exists: "Dieser Nutzer existiert bereits.",
-    user_not_found: "Nutzer nicht gefunden.",
-    user_has_records: "Dieses Konto hat noch Buchungen, Protokolle, Feedback oder Aktivitaeten und kann nicht geloescht werden.",
-    missing_blocked_date_fields: "Bitte Datum und Bezeichnung ausfuellen.",
-    invalid_blocked_date: "Bitte ein gueltiges Datum waehlen.",
-    invalid_blocked_date_label: "Die Bezeichnung muss 2 bis 80 Zeichen lang sein.",
-    blocked_date_already_exists: "Dieser Sperrtag existiert bereits.",
-    blocked_date_not_found: "Sperrtag nicht gefunden.",
-    invalid_resource_type: "Unbekannter Bereich.",
-    invalid_resource_id: "Unbekannte Maschine oder unbekannter Raum.",
-    missing_resource_fields: "Bitte Bereich und Ressourcenname ausfuellen.",
-    invalid_resource_name: "Der Ressourcenname muss 2 bis 60 Zeichen lang sein.",
-    resource_already_exists: "Diese Ressource existiert bereits.",
-    resource_not_found: "Diese Ressource wurde nicht gefunden.",
-    invalid_resource_unavailable_reason: "Bitte einen Sperrgrund mit 3 bis 160 Zeichen eintragen.",
-    resource_unavailable: "Diese Maschine oder dieser Raum ist aktuell gesperrt.",
-    missing_machine_log_fields: "Bitte Ressource, Datum und Eintrag ausfuellen.",
-    invalid_machine_log_date: "Bitte ein gueltiges Protokolldatum waehlen.",
-    invalid_machine_log_note: "Der Protokolleintrag muss 3 bis 1200 Zeichen lang sein.",
-    invalid_machine_log_action: "Bitte eine gueltige Protokoll-Aktion waehlen.",
-    missing_pilot_feedback: "Bitte eine Rueckmeldung eintragen.",
-    invalid_pilot_feedback: "Die Rueckmeldung muss 5 bis 1200 Zeichen lang sein.",
-    invalid_booking_slot: "Bitte ein gueltiges Zeitfenster waehlen.",
-    washer_daily_limit_reached: "Pro Tag koennen maximal drei Waschmaschinen gebucht werden.",
-    washer_daily_slot_mismatch: "Waschmaschinen koennen am selben Tag nur innerhalb desselben Slots reserviert werden.",
-    drying_room_parallel_limit_reached: "Du kannst zur gleichen Zeit nur einen Trockenraum buchen.",
-    drying_room_requires_washer_window: "Trockenraum ist nur im erlaubten Zeitfenster nach deinem Waschslot moeglich.",
-    tumbler_requires_washer_slot: "Tumbler koennen nur waehrend deines gebuchten Waschmaschinen-Slots gebucht werden.",
-    tumbler_free_required: "Am Ende des Waschslots muss mindestens ein Tumbler frei bleiben.",
-    fixed_booking_reserved: "Dieser Slot ist als feste Admin-Buchung reserviert.",
-    missing_fixed_booking_fields: "Bitte alle Felder fuer die feste Buchung ausfuellen.",
-    invalid_fixed_booking_weekday: "Bitte einen gueltigen Wochentag waehlen.",
-    invalid_fixed_booking_label: "Die Bezeichnung muss 2 bis 80 Zeichen lang sein.",
-    fixed_booking_already_exists: "Diese feste Buchung existiert bereits.",
-    fixed_booking_not_found: "Feste Buchung nicht gefunden.",
-    fixed_booking_conflicts_with_existing_booking: "Dort gibt es bereits eine zukuenftige Buchung. Bitte zuerst klaeren oder loeschen.",
-    invalid_time_range: "Bitte Start und Ende pruefen.",
-    booking_must_be_in_future: "Buchungen muessen in der Zukunft liegen.",
-    sunday_not_allowed: "Am Sonntag sind keine Buchungen moeglich.",
-    blocked_date: "An diesem Sperrtag sind keine Buchungen moeglich.",
-    only_one_future_booking_allowed: "Bitte nur 1 x im Voraus eintragen.",
-    only_one_future_sequence_allowed: "Du hast bereits eine Buchung im Voraus eingetragen.",
-    time_range_already_booked: "Dieser Zeitraum ist bereits belegt.",
-    booking_id_required: "Keine Buchung ausgewaehlt.",
-    booking_not_found: "Buchung nicht gefunden.",
-    booking_already_released: "Diese Buchung wurde bereits frueher frei gemeldet.",
-    not_allowed: "Diese Buchung kann nicht geloescht werden.",
-    invalid_party_count: "Bitte eine gueltige Parteienanzahl waehlen.",
-    invalid_reset_confirmation: "Bitte zur Bestaetigung genau ZURUECKSETZEN eingeben.",
-    whatsapp_not_configured: "WhatsApp-Versand ist noch nicht konfiguriert.",
-    whatsapp_send_failed: "WhatsApp konnte die Nachricht nicht senden."
-  };
-
-  return messages[error] || "Die Aktion konnte nicht ausgefuehrt werden.";
-}
-
-function partyLabel(booking) {
-  const parts = [];
-  if (booking.apartment_label) {
-    parts.push(booking.apartment_label);
-  }
-  if (booking.user_display_name) {
-    parts.push(booking.user_display_name);
-  }
-  if (parts.length === 0) {
-    parts.push(booking.user_name);
-  }
-
-  return parts.join(" - ");
-}
-
-function isBookingInSlot({ entry, resourceType, resourceId, day, slot }) {
-  if (entry.resource_type !== resourceType || entry.resource_id !== resourceId) {
-    return false;
-  }
-
-  const start = new Date(entry.start_at);
-  const end = new Date(entry.end_at);
-  const sameCalendarDay = isSameDay(start, day) || utcDateKey(start) === dateKey(day);
-  const sameLocalSlot = timeKey(start) === slot.start && timeKey(end) === slot.end;
-  const sameUtcSlot = utcTimeKey(start) === slot.start && utcTimeKey(end) === slot.end;
-  return sameCalendarDay && (sameLocalSlot || sameUtcSlot);
-}
-
-function timeKey(date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function utcDateKey(date) {
-  return [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0")
-  ].join("-");
-}
-
-function utcTimeKey(date) {
-  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
-}
-
-async function boot() {
-  const validSession = await loadSession();
-  if (!validSession) {
-    return;
-  }
-
-  await loadResources();
-  updateResourceOptions();
-  updateMachineLogResourceOptions();
-  updateSlotControls();
-  updateDateInputMinimums();
-  setDefaultBookingTimes();
-  await loadUsers();
-  await loadMachineLogs();
-  await loadPilotFeedback();
-  await loadActivity();
-  await loadBlockedDates();
-  await loadFixedBookings();
-  await loadOperations();
-  await loadAnalytics();
-  await loadBookings();
-}
-
-boot();
+});
+
+logoutButton.addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+});
+
+init().catch((error) => {
+  statusText.textContent = error.message;
+});
