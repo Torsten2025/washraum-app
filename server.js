@@ -8,6 +8,7 @@ const express = require('express');
 const session = require('express-session');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
+const { releaseWindowStatus } = require('./release-window');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -1501,7 +1502,12 @@ app.get('/api/my-bookings', requireAuth, (req, res) => {
     LIMIT 12
   `).all(req.session.user.id);
 
-  res.json({ bookings });
+  res.json({
+    bookings: bookings.map((booking) => ({
+      ...booking,
+      releaseEligible: releaseWindowStatus(booking.booking_date, booking.slot).eligible
+    }))
+  });
 });
 
 app.get('/api/bookings', requireAuth, (req, res) => {
@@ -1623,15 +1629,31 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
     }
 
+    const releaseWindow = releaseWindowStatus(booking.booking_date, booking.slot);
     db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
-    const message = `${booking.resource_name} ist am ${booking.booking_date} bis ${slotEndLabel(booking.slot)} wieder frei.`;
+
+    if (!releaseWindow.eligible) {
+      const message = releaseWindow.reason === 'ended'
+        ? 'Buchung gelöscht. Das Zeitfenster ist bereits beendet; es wurde kein Freigabe-Hinweis versendet.'
+        : 'Buchung gelöscht. Freigabe-Hinweise werden erst ab 24 Stunden vor Beginn versendet.';
+      return res.json({
+        ok: true,
+        message,
+        releaseNoticeCreated: false,
+        emailNotifications: { configured: emailStatus().configured, sent: 0, skipped: true }
+      });
+    }
+
+    const message = releaseWindow.hasStarted
+      ? `${booking.resource_name} ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
+      : `${booking.resource_name} ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
     db.prepare(`
       INSERT INTO release_notices (resource_name, booking_date, slot, message, created_by)
       VALUES (?, ?, ?, ?, ?)
     `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
 
     const emailNotifications = await notifyReleaseSubscribers(req, booking, message);
-    res.json({ ok: true, message, emailNotifications });
+    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications });
   } catch (error) {
     next(error);
   }
@@ -1646,7 +1668,7 @@ app.get('/api/release-notices', requireAuth, (req, res) => {
     WHERE rn.created_at >= datetime('now', '-7 days', 'localtime')
     ORDER BY rn.created_at DESC
     LIMIT 10
-  `).all();
+  `).all().filter((notice) => releaseWindowStatus(notice.booking_date, notice.slot).eligible);
 
   res.json({ notices });
 });

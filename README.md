@@ -62,6 +62,8 @@ Der Workflow `.github/workflows/deploy-render.yml` fuehrt `npm run check` aus un
 
 Ohne SMTP-Konfiguration bleibt die App normal nutzbar; es werden lediglich keine E-Mails versendet. Fuer den Versand dienen:
 
+Eine Freigabe-Mail und ein sichtbarer Freigabe-Hinweis entstehen nur ab 24 Stunden vor Beginn des gebuchten Zeitfensters und bis zu dessen Ende. Wird ein weiter entfernter Termin geloescht, wird er wieder buchbar, ohne eine Nachricht an das Haus auszulosen. Abgelaufene Hinweise werden nicht mehr angezeigt.
+
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_SECURE`

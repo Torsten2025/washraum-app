@@ -864,7 +864,10 @@ function renderMyBookings(items) {
     deleteButton.textContent = 'L\u00f6schen';
     deleteButton.addEventListener('click', () => deleteBooking(booking.id));
 
-    actions.append(releaseButton, deleteButton);
+    if (booking.releaseEligible) {
+      actions.append(releaseButton);
+    }
+    actions.append(deleteButton);
     item.append(actions);
     myBookings.append(item);
   }
@@ -920,9 +923,11 @@ async function deleteBooking(id) {
 async function releaseBooking(id) {
   try {
     const data = await api(`/api/bookings/${id}/release`, { method: 'POST' });
-    const emailText = data.emailNotifications?.configured
-      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
-      : ' E-Mail-Versand ist noch nicht konfiguriert.';
+    const emailText = !data.releaseNoticeCreated
+      ? ''
+      : data.emailNotifications?.configured
+        ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
+        : ' E-Mail-Versand ist noch nicht konfiguriert.';
     showStatus(`${data.message || 'Slot wurde freigegeben.'}${emailText}`);
     await refreshAll();
   } catch (error) {

@@ -2223,6 +2223,12 @@ aside.panel > * {
   width: 18px;
 }
 
+.notification-note {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
 .scene-days,
 .scene-tabs,
 .scene-machines {

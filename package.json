@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node --check server.js && node --check public/app.js && node --check public/login.js && node --check scripts/app-test.js",
+    "verify": "node --check server.js && node --check release-window.js && node --check public/app.js && node --check public/login.js && node --check scripts/app-test.js",
     "test": "node scripts/app-test.js",
     "check": "npm run verify && npm test"
   },

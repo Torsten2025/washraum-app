@@ -3,6 +3,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const Database = require('better-sqlite3');
+const { releaseWindowStatus } = require('../release-window');
 
 const port = 33000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -54,6 +56,28 @@ function addDays(dateValue, days) {
   const date = new Date(`${dateValue}T12:00:00`);
   date.setDate(date.getDate() + days);
   return dateString(date);
+}
+
+function currentSwissReleaseSlot() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Zurich',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(new Date())
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value])
+  );
+  const dateValue = `${parts.year}-${parts.month}-${parts.day}`;
+  const hour = Number(parts.hour);
+  if (hour < 12) return { date: dateValue, slot: '07:00-12:00' };
+  if (hour < 17) return { date: dateValue, slot: '12:00-17:00' };
+  if (hour < 21) return { date: dateValue, slot: '17:00-21:00' };
+  return { date: addDays(dateValue, 1), slot: '07:00-12:00' };
 }
 
 async function expectStatus(client, urlPath, status, options = {}) {
@@ -118,7 +142,32 @@ async function verifyProductionRecoveryStartup() {
   }
 }
 
+function verifyReleaseWindow() {
+  const shortlyBefore = releaseWindowStatus(
+    '2026-07-14',
+    '07:00-12:00',
+    new Date('2026-07-14T04:30:00Z')
+  );
+  const tooEarly = releaseWindowStatus(
+    '2026-07-14',
+    '07:00-12:00',
+    new Date('2026-07-13T04:00:00Z')
+  );
+  const alreadyEnded = releaseWindowStatus(
+    '2026-07-14',
+    '07:00-12:00',
+    new Date('2026-07-14T10:01:00Z')
+  );
+
+  assert.equal(shortlyBefore.eligible, true);
+  assert.equal(tooEarly.eligible, false);
+  assert.equal(tooEarly.reason, 'too_early');
+  assert.equal(alreadyEnded.eligible, false);
+  assert.equal(alreadyEnded.reason, 'ended');
+}
+
 async function run() {
+  verifyReleaseWindow();
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -141,7 +190,7 @@ async function run() {
     const guest = new ApiClient();
     const user = new ApiClient();
     const admin = new ApiClient();
-    const bookingDate = nextWeekday(1);
+    const bookingDate = addDays(nextWeekday(1), 14);
     const secondWashDate = addDays(bookingDate, 1);
     const fixedDate = nextWeekday(6);
 
@@ -225,9 +274,29 @@ async function run() {
     const recommendation = await expectStatus(user, '/api/recommendation', 200);
     assert.ok(recommendation.body.recommendation.title);
 
-    await expectStatus(user, `/api/bookings/${tumblerBooking.body.id}/release`, 200, { method: 'POST' });
+    const earlyRelease = await expectStatus(user, `/api/bookings/${tumblerBooking.body.id}/release`, 200, { method: 'POST' });
+    assert.equal(earlyRelease.body.releaseNoticeCreated, false);
+    assert.equal(earlyRelease.body.emailNotifications.sent, 0);
+    assert.equal(earlyRelease.body.emailNotifications.skipped, true);
     const notices = await expectStatus(user, '/api/release-notices', 200);
-    assert.ok(notices.body.notices.some((notice) => notice.resource_name === 'Tumbler 1'));
+    assert.ok(!notices.body.notices.some((notice) => notice.resource_name === 'Tumbler 1'));
+
+    const nearTerm = currentSwissReleaseSlot();
+    const testDatabase = new Database(databasePath);
+    const nearTermBooking = testDatabase.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+      VALUES (?, ?, ?, ?)
+    `).run(registration.body.user.id, tumblers[1].id, nearTerm.date, nearTerm.slot);
+    testDatabase.close();
+    const timelyRelease = await expectStatus(
+      user,
+      `/api/bookings/${nearTermBooking.lastInsertRowid}/release`,
+      200,
+      { method: 'POST' }
+    );
+    assert.equal(timelyRelease.body.releaseNoticeCreated, true);
+    const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
+    assert.ok(timelyNotices.body.notices.some((notice) => notice.resource_name === 'Tumbler 2'));
 
     await expectStatus(user, '/api/me/password', 200, {
       method: 'PUT',
@@ -296,6 +365,7 @@ async function run() {
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('knapp vier Minuten'));
+    assert.ok(indexHtml.includes('ab 24 Stunden vor Beginn'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
@@ -321,6 +391,7 @@ async function run() {
         accountManagement: true,
         backup: true,
         narratedVideo: true,
+        releaseWindow: true,
         productionRecovery: true,
         securityHeaders: true
       },
