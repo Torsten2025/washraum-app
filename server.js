@@ -1635,7 +1635,7 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
     if (!releaseWindow.eligible) {
       const message = releaseWindow.reason === 'ended'
         ? 'Buchung gelöscht. Das Zeitfenster ist bereits beendet; es wurde kein Freigabe-Hinweis versendet.'
-        : 'Buchung gelöscht. Freigabe-Hinweise werden erst ab 24 Stunden vor Beginn versendet.';
+        : 'Buchung gelöscht. Freigabe-Hinweise werden nur während des gebuchten Zeitfensters versendet.';
       return res.json({
         ok: true,
         message,

@@ -74,10 +74,10 @@ function currentSwissReleaseSlot() {
   );
   const dateValue = `${parts.year}-${parts.month}-${parts.day}`;
   const hour = Number(parts.hour);
+  if (hour < 7 || hour >= 21) return null;
   if (hour < 12) return { date: dateValue, slot: '07:00-12:00' };
   if (hour < 17) return { date: dateValue, slot: '12:00-17:00' };
-  if (hour < 21) return { date: dateValue, slot: '17:00-21:00' };
-  return { date: addDays(dateValue, 1), slot: '07:00-12:00' };
+  return { date: dateValue, slot: '17:00-21:00' };
 }
 
 async function expectStatus(client, urlPath, status, options = {}) {
@@ -143,25 +143,26 @@ async function verifyProductionRecoveryStartup() {
 }
 
 function verifyReleaseWindow() {
-  const shortlyBefore = releaseWindowStatus(
+  const beforeStart = releaseWindowStatus(
     '2026-07-14',
     '07:00-12:00',
     new Date('2026-07-14T04:30:00Z')
   );
-  const tooEarly = releaseWindowStatus(
+  const duringSlot = releaseWindowStatus(
     '2026-07-14',
     '07:00-12:00',
-    new Date('2026-07-13T04:00:00Z')
+    new Date('2026-07-14T06:30:00Z')
   );
   const alreadyEnded = releaseWindowStatus(
     '2026-07-14',
     '07:00-12:00',
-    new Date('2026-07-14T10:01:00Z')
+    new Date('2026-07-14T10:00:00Z')
   );
 
-  assert.equal(shortlyBefore.eligible, true);
-  assert.equal(tooEarly.eligible, false);
-  assert.equal(tooEarly.reason, 'too_early');
+  assert.equal(beforeStart.eligible, false);
+  assert.equal(beforeStart.reason, 'not_started');
+  assert.equal(duringSlot.eligible, true);
+  assert.equal(duringSlot.reason, 'eligible');
   assert.equal(alreadyEnded.eligible, false);
   assert.equal(alreadyEnded.reason, 'ended');
 }
@@ -282,21 +283,23 @@ async function run() {
     assert.ok(!notices.body.notices.some((notice) => notice.resource_name === 'Tumbler 1'));
 
     const nearTerm = currentSwissReleaseSlot();
-    const testDatabase = new Database(databasePath);
-    const nearTermBooking = testDatabase.prepare(`
-      INSERT INTO bookings (user_id, resource_id, booking_date, slot)
-      VALUES (?, ?, ?, ?)
-    `).run(registration.body.user.id, tumblers[1].id, nearTerm.date, nearTerm.slot);
-    testDatabase.close();
-    const timelyRelease = await expectStatus(
-      user,
-      `/api/bookings/${nearTermBooking.lastInsertRowid}/release`,
-      200,
-      { method: 'POST' }
-    );
-    assert.equal(timelyRelease.body.releaseNoticeCreated, true);
-    const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
-    assert.ok(timelyNotices.body.notices.some((notice) => notice.resource_name === 'Tumbler 2'));
+    if (nearTerm) {
+      const testDatabase = new Database(databasePath);
+      const nearTermBooking = testDatabase.prepare(`
+        INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+        VALUES (?, ?, ?, ?)
+      `).run(registration.body.user.id, tumblers[1].id, nearTerm.date, nearTerm.slot);
+      testDatabase.close();
+      const timelyRelease = await expectStatus(
+        user,
+        `/api/bookings/${nearTermBooking.lastInsertRowid}/release`,
+        200,
+        { method: 'POST' }
+      );
+      assert.equal(timelyRelease.body.releaseNoticeCreated, true);
+      const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
+      assert.ok(timelyNotices.body.notices.some((notice) => notice.resource_name === 'Tumbler 2'));
+    }
 
     await expectStatus(user, '/api/me/password', 200, {
       method: 'PUT',
@@ -365,7 +368,7 @@ async function run() {
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('knapp vier Minuten'));
-    assert.ok(indexHtml.includes('ab 24 Stunden vor Beginn'));
+    assert.ok(indexHtml.includes('nur w&auml;hrend des gebuchten Zeitfensters'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {

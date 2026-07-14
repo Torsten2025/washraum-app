@@ -1,4 +1,3 @@
-const RELEASE_NOTICE_LEAD_MS = 24 * 60 * 60 * 1000;
 const SWISS_TIME_ZONE = 'Europe/Zurich';
 
 const swissClockFormatter = new Intl.DateTimeFormat('en-GB', {
@@ -46,13 +45,12 @@ function releaseWindowStatus(bookingDate, slot, now = new Date()) {
 
   const currentTime = swissClockTimestamp(now);
   const hasStarted = currentTime >= startsAt;
-  const hasEnded = currentTime > endsAt;
-  const opensAt = startsAt - RELEASE_NOTICE_LEAD_MS;
-  const eligible = currentTime >= opensAt && !hasEnded;
+  const hasEnded = currentTime >= endsAt;
+  const eligible = hasStarted && !hasEnded;
 
   return {
     eligible,
-    reason: eligible ? 'eligible' : hasEnded ? 'ended' : 'too_early',
+    reason: eligible ? 'eligible' : hasEnded ? 'ended' : 'not_started',
     hasStarted,
     hasEnded,
     startsInMs: startsAt - currentTime
@@ -60,6 +58,5 @@ function releaseWindowStatus(bookingDate, slot, now = new Date()) {
 }
 
 module.exports = {
-  RELEASE_NOTICE_LEAD_MS,
   releaseWindowStatus
 };
