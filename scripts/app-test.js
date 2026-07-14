@@ -73,6 +73,51 @@ async function waitForServer() {
   throw new Error(`Testserver nicht erreichbar.\n${serverOutput.join('')}`);
 }
 
+async function verifyProductionRecoveryStartup() {
+  const recoveryPort = port + 1;
+  const recoveryDatabasePath = path.join(os.tmpdir(), `waschplan-recovery-${process.pid}.sqlite`);
+  const recoveryOutput = [];
+  const recoveryServer = spawn(process.execPath, ['server.js'], {
+    cwd: path.resolve(__dirname, '..'),
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      PORT: String(recoveryPort),
+      DB_PATH: recoveryDatabasePath,
+      HOUSE_CODE: 'Recovery Test 18',
+      SEED_ADMIN_PASSWORD: '',
+      SESSION_SECRET: 'short'
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  recoveryServer.stdout.on('data', (chunk) => recoveryOutput.push(chunk.toString()));
+  recoveryServer.stderr.on('data', (chunk) => recoveryOutput.push(chunk.toString()));
+
+  try {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${recoveryPort}/api/health`);
+        if (response.ok) {
+          const health = await response.json();
+          assert.equal(health.adminReady, false);
+          assert.ok(recoveryOutput.join('').includes('sicheres, zufaelliges Geheimnis'));
+          return;
+        }
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Produktions-Recovery-Start fehlgeschlagen.\n${recoveryOutput.join('')}`);
+  } finally {
+    if (recoveryServer.exitCode === null) {
+      recoveryServer.kill();
+      await new Promise((resolve) => recoveryServer.once('exit', resolve));
+    }
+    for (const suffix of ['', '-wal', '-shm']) {
+      fs.rmSync(`${recoveryDatabasePath}${suffix}`, { force: true });
+    }
+  }
+}
+
 async function run() {
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
@@ -103,6 +148,7 @@ async function run() {
     const health = await expectStatus(guest, '/api/health', 200);
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
+    assert.equal(health.body.adminReady, true);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     await expectStatus(guest, `/api/bookings?date=${bookingDate}`, 401);
@@ -249,6 +295,7 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
+    assert.ok(indexHtml.includes('knapp vier Minuten'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
@@ -257,7 +304,11 @@ async function run() {
     assert.equal(video.response.headers.get('content-type'), 'video/mp4');
     assert.equal(video.body.length, 1024);
     const captions = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung-de.vtt', 200);
-    assert.ok(captions.body.toString().startsWith('WEBVTT'));
+    const captionText = captions.body.toString();
+    assert.ok(captionText.startsWith('WEBVTT'));
+    assert.ok(captionText.includes('Vorschlag buchen'));
+
+    await verifyProductionRecoveryStartup();
 
     console.log(JSON.stringify({
       ok: true,
@@ -270,6 +321,7 @@ async function run() {
         accountManagement: true,
         backup: true,
         narratedVideo: true,
+        productionRecovery: true,
         securityHeaders: true
       },
       firstBookingId: firstWasher.body.id

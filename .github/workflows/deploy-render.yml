@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -25,7 +25,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -58,15 +58,17 @@ jobs:
         env:
           APP_URL: https://washraum-app.onrender.com
         run: |
-          for attempt in $(seq 1 36); do
-            health="$(curl --fail --silent --show-error "$APP_URL/api/health" || true)"
+          health=""
+          for attempt in $(seq 1 60); do
+            health="$(curl --fail --silent --show-error --connect-timeout 10 --max-time 20 "$APP_URL/api/health" || true)"
             if printf '%s' "$health" | grep --fixed-strings --quiet "$GITHUB_SHA"; then
               echo "Render is live on $GITHUB_SHA"
               exit 0
             fi
-            echo "Waiting for Render deploy ($attempt/36)..."
+            echo "Waiting for Render deploy ($attempt/60)..."
             sleep 10
           done
 
+          echo "Last health response: ${health:-unavailable}"
           echo "::error::Render did not report commit $GITHUB_SHA as live."
           exit 1

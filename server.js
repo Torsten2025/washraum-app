@@ -89,9 +89,12 @@ class BetterSqliteSessionStore extends session.Store {
   }
 }
 
-const sessionSecret = process.env.SESSION_SECRET || 'local-dev-session-secret';
-if (isProduction && sessionSecret.length < 32) {
-  throw new Error('SESSION_SECRET muss in Produktion mindestens 32 Zeichen haben.');
+const configuredSessionSecret = process.env.SESSION_SECRET || 'local-dev-session-secret';
+const sessionSecret = isProduction && configuredSessionSecret.length < 32
+  ? crypto.randomBytes(48).toString('hex')
+  : configuredSessionSecret;
+if (isProduction && configuredSessionSecret.length < 32) {
+  console.warn('SESSION_SECRET ist zu kurz. Fuer diesen Start wurde ein sicheres, zufaelliges Geheimnis erzeugt.');
 }
 const slots = [
   '07:00-12:00',
@@ -453,11 +456,9 @@ function verifyStoredPassword(password, storedHash) {
 
 initDb();
 
-if (isProduction) {
-  const activeAdmin = db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get();
-  if (!activeAdmin) {
-    throw new Error('Kein aktives Admin-Konto vorhanden. Fuer eine neue Datenbank SEED_ADMIN_PASSWORD setzen.');
-  }
+const activeAdminAtStartup = db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get();
+if (isProduction && !activeAdminAtStartup) {
+  console.warn('Kein aktives Admin-Konto vorhanden. Zur Wiederherstellung SEED_ADMIN_PASSWORD in Render setzen.');
 }
 
 app.use((req, res, next) => {
@@ -1323,9 +1324,13 @@ app.get(['/health', '/api/health'], (req, res) => {
   const storage = process.env.RENDER === 'true'
     ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
     : 'local';
+  const adminReady = Boolean(
+    db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get()
+  );
   res.json({
     ok: true,
     storage,
+    adminReady,
     revision: String(process.env.RENDER_GIT_COMMIT || '').trim() || null
   });
 });

@@ -114,6 +114,19 @@ const introVideoSteps = [
       </div>`
   },
   {
+    id: 'suggestion',
+    fallbackDurationMs: 31000,
+    title: 'Dein pers\u00f6nlicher Vorschlag',
+    caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
+    speech: 'Der pers\u00f6nliche Vorschlag nimmt dir die Suche ab. Er verbindet deinen bisherigen Waschrhythmus mit den aktuell freien Zeiten. So bekommst du einen Termin, der wahrscheinlich gut zu deinem Alltag passt. Mit Vorschlag buchen \u00fcbernimmst du ihn direkt. Vorher kannst du Tag, Zeit oder Ger\u00e4t jederzeit \u00e4ndern. Der Vorschlag ist nur eine Abk\u00fcrzung. Alle freien Termine bleiben sichtbar, und du entscheidest selbst.',
+    visual: `
+      <div class="scene-suggestion">
+        <div class="scene-suggestion-head"><span><small>Pers\u00f6nlicher Vorschlag</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
+        <div class="scene-slot scene-suggestion-slot"><span><small>Donnerstag, 16. Juli</small><strong>12:00 - 17:00</strong><em>Waschmaschine 2</em></span><b>Vorschlag buchen</b></div>
+        <div class="scene-suggestion-steps"><span><b>1</b>Pr\u00fcfen</span><span><b>2</b>Bei Bedarf \u00e4ndern</span><span><b>3</b>Direkt buchen</span></div>
+      </div>`
+  },
+  {
     id: 'washer',
     fallbackDurationMs: 24000,
     title: 'Waschmaschine: ein Zeitfenster',

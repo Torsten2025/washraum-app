@@ -2116,6 +2116,7 @@ aside.panel > * {
 
 .scene-overview,
 .scene-booking,
+.scene-suggestion,
 .scene-washer,
 .scene-tumbler,
 .scene-cleaning {
@@ -2162,6 +2163,64 @@ aside.panel > * {
 .scene-panel.scene-accent {
   background: #dff6ec;
   border-color: rgba(0, 120, 90, 0.25);
+}
+
+.scene-suggestion-head {
+  align-items: center;
+  border-bottom: 1px solid rgba(19, 32, 28, 0.1);
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 10px;
+}
+
+.scene-suggestion-head strong {
+  font-size: 17px;
+  margin-top: 3px;
+}
+
+.scene-suggestion-head > b {
+  background: #dff6ec;
+  border-radius: 4px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  padding: 6px 8px;
+}
+
+.scene-suggestion-slot em {
+  color: #5f6f69;
+  display: block;
+  font-size: 10px;
+  font-style: normal;
+  margin-top: 4px;
+}
+
+.scene-suggestion-steps {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.scene-suggestion-steps span {
+  align-items: center;
+  background: #eef5f1;
+  border-radius: 4px;
+  color: #43534d;
+  display: flex;
+  font-size: 9px;
+  gap: 5px;
+  padding: 7px;
+}
+
+.scene-suggestion-steps b {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
 }
 
 .scene-days,
