@@ -4,6 +4,9 @@ const brandHouseName = document.querySelector('#brandHouseName');
 const introHouseName = document.querySelector('#introHouseName');
 const houseSwitcher = document.querySelector('#houseSwitcher');
 const houseSelect = document.querySelector('#houseSelect');
+const viewSwitcher = document.querySelector('#viewSwitcher');
+const bookingViewButton = document.querySelector('#bookingViewButton');
+const adminViewButton = document.querySelector('#adminViewButton');
 const bookingDate = document.querySelector('#bookingDate');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const weekCalendar = document.querySelector('#weekCalendar');
@@ -18,6 +21,7 @@ const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminTitle = document.querySelector('#adminTitle');
 const backupOperation = document.querySelector('#backupOperation');
+const runBackupButton = document.querySelector('#runBackupButton');
 const houseCodeForm = document.querySelector('#houseCodeForm');
 const houseCodeInput = document.querySelector('#houseCodeInput');
 const superadminBox = document.querySelector('#superadminBox');
@@ -25,13 +29,25 @@ const houseForm = document.querySelector('#houseForm');
 const houseNameInput = document.querySelector('#houseNameInput');
 const newHouseCodeInput = document.querySelector('#newHouseCodeInput');
 const houseList = document.querySelector('#houseList');
+const resourceForm = document.querySelector('#resourceForm');
+const resourceNameInput = document.querySelector('#resourceNameInput');
+const resourceTypeInput = document.querySelector('#resourceTypeInput');
+const resourceAdminList = document.querySelector('#resourceAdminList');
+const auditLog = document.querySelector('#auditLog');
 const notificationForm = document.querySelector('#notificationForm');
 const notificationEmail = document.querySelector('#notificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
+const emailVerificationStatus = document.querySelector('#emailVerificationStatus');
+const resendVerificationButton = document.querySelector('#resendVerificationButton');
+const notificationResourceType = document.querySelector('#notificationResourceType');
+const notificationWeekday = document.querySelector('#notificationWeekday');
+const notificationSlot = document.querySelector('#notificationSlot');
 const passwordForm = document.querySelector('#passwordForm');
 const currentPasswordInput = document.querySelector('#currentPassword');
 const newPasswordInput = document.querySelector('#newPassword');
 const newPasswordConfirmation = document.querySelector('#newPasswordConfirmation');
+const deleteAccountForm = document.querySelector('#deleteAccountForm');
+const deleteAccountPassword = document.querySelector('#deleteAccountPassword');
 const fixedBookingForm = document.querySelector('#fixedBookingForm');
 const fixedBookingLabel = document.querySelector('#fixedBookingLabel');
 const fixedBookingResource = document.querySelector('#fixedBookingResource');
@@ -62,6 +78,7 @@ const introVideoVoiceStatus = document.querySelector('#introVideoVoiceStatus');
 const introQuizForm = document.querySelector('#introQuizForm');
 const introQuizResult = document.querySelector('#introQuizResult');
 const recordedIntroVideo = document.querySelector('#recordedIntroVideo');
+const recordedIntroDuration = document.querySelector('#recordedIntroDuration');
 
 let currentUser = null;
 let availableHouses = [];
@@ -130,7 +147,7 @@ const introVideoSteps = [
     fallbackDurationMs: 31000,
     title: 'Dein pers\u00f6nliches Waschpaket',
     caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
-    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten und stellt eine Waschmaschine sowie passende Erg\u00e4nzungen zusammen. Trockenraum und Tumbler kannst du vor dem Buchen an- oder abw\u00e4hlen. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert. Einzelne Termine bleiben im Kalender weiterhin frei w\u00e4hlbar.',
+    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten und stellt eine Waschmaschine sowie passende Erg\u00e4nzungen zusammen. Beim Trockenraum w\u00e4hlst du kurz, Standard oder die maximal erlaubte Dauer. Der Tumbler bleibt optional. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt. Einzelne Termine bleiben im Kalender weiterhin frei w\u00e4hlbar.',
     visual: `
       <div class="scene-suggestion">
         <div class="scene-suggestion-head"><span><small>Pers\u00f6nliches Waschpaket</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
@@ -156,7 +173,7 @@ const introVideoSteps = [
     fallbackDurationMs: 28000,
     title: 'Trockenraum passend einplanen',
     caption: 'Die erlaubte Dauer richtet sich danach, wann dein Waschslot beginnt.',
-    speech: 'Der Trockenraum wird passend zu deiner Waschmaschinen-Buchung reserviert. Wenn du morgens von sieben bis zw\u00f6lf w\u00e4schst, kannst du den Raum bis sp\u00e4testens einundzwanzig Uhr nutzen. Beim Slot von zw\u00f6lf bis siebzehn Uhr und beim Abend-Slot bis einundzwanzig Uhr endet die Nutzung sp\u00e4testens am folgenden Tag um zw\u00f6lf Uhr. Fr\u00fcher freigeben ist nat\u00fcrlich immer hilfreich.',
+    speech: 'Der Trockenraum wird passend zu deiner Waschmaschinen-Buchung reserviert. Wenn du morgens von sieben bis zw\u00f6lf w\u00e4schst, kannst du den Raum bis sp\u00e4testens einundzwanzig Uhr nutzen. Beim Slot von zw\u00f6lf bis siebzehn Uhr und beim Abend-Slot bis einundzwanzig Uhr endet die Nutzung sp\u00e4testens am folgenden Tag um zw\u00f6lf Uhr. Im Waschpaket kannst du bewusst eine k\u00fcrzere Dauer ausw\u00e4hlen. Wenn die W\u00e4sche trocken ist, gibst du den Raum am besten direkt frei.',
     visual: `
       <div class="scene-drying">
         <div><span>Waschen 07:00</span><i></i><strong>bis 21:00</strong></div>
@@ -169,7 +186,7 @@ const introVideoSteps = [
     fallbackDurationMs: 26000,
     title: 'Tumbler und fr\u00fche Freigabe',
     caption: 'Ein Tumbler bleibt frei. Nicht mehr ben\u00f6tigte Termine gibst du f\u00fcr andere frei.',
-    speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Deine eigenen Termine findest du oben. Wenn du fr\u00fcher fertig bist, gib den Termin dort frei. Andere k\u00f6nnen den Platz dann \u00fcbernehmen und auf Wunsch per E-Mail informiert werden.',
+    speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Wenn du w\u00e4hrend deines Slots fr\u00fcher fertig bist, w\u00e4hlst du Fr\u00fcher frei. Vor Slotbeginn nutzt du Absagen und informieren. E-Mails gehen nur an Personen mit best\u00e4tigter Adresse und passend gew\u00e4hltem Interesse.',
     visual: `
       <div class="scene-tumbler">
         <div class="scene-machines"><span class="booked">Tumbler 1<br><b>Gebucht</b></span><span>Tumbler 2<br><b>Bleibt frei</b></span></div>
@@ -628,6 +645,10 @@ async function init() {
   renderHouseContext();
   notificationEmail.value = currentUser.email || '';
   notifyReleasesInput.checked = currentUser.notifyReleases !== false;
+  notificationResourceType.value = me.notificationPreferences?.resourceType || 'all';
+  notificationWeekday.value = String(me.notificationPreferences?.weekday || '');
+  notificationSlot.value = me.notificationPreferences?.slot || '';
+  renderEmailVerificationStatus();
 
   const [resourceData, slotData] = await Promise.all([
     api('/api/resources'),
@@ -637,6 +658,7 @@ async function init() {
   slots = slotData.slots;
 
   if (currentUser.role === 'admin') {
+    viewSwitcher.hidden = false;
     await loadAdmin();
   }
 
@@ -646,6 +668,25 @@ async function init() {
     openIntro();
     window.history.replaceState({}, '', '/index.html');
   }
+}
+
+function setAppView(view) {
+  const adminView = view === 'admin' && currentUser?.role === 'admin';
+  document.body.classList.toggle('admin-view', adminView);
+  bookingViewButton.classList.toggle('active', !adminView);
+  adminViewButton.classList.toggle('active', adminView);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderEmailVerificationStatus() {
+  const configuredAddress = Boolean(currentUser.email);
+  emailVerificationStatus.textContent = !configuredAddress
+    ? 'Noch keine E-Mail-Adresse hinterlegt.'
+    : currentUser.emailVerified
+      ? 'E-Mail-Adresse best\u00e4tigt.'
+      : 'Bitte E-Mail-Adresse best\u00e4tigen. Bis dahin werden keine Hinweise gesendet.';
+  emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
+  resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
 }
 
 function renderHouseContext() {
@@ -1065,6 +1106,14 @@ function renderMyBookings(items) {
 
     const actions = document.createElement('div');
     actions.className = 'inline-actions';
+    if (isPackage && primary.cancellationNoticeEligible) {
+      const notifyButton = document.createElement('button');
+      notifyButton.type = 'button';
+      notifyButton.className = 'secondary';
+      notifyButton.textContent = 'Paket absagen & informieren';
+      notifyButton.addEventListener('click', () => cancelBookingGroupAndNotify(primary.group_id));
+      actions.append(notifyButton);
+    }
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
@@ -1169,11 +1218,24 @@ async function saveNotifications() {
       method: 'PUT',
       body: JSON.stringify({
         email: notificationEmail.value,
-        notifyReleases: notifyReleasesInput.checked
+        notifyReleases: notifyReleasesInput.checked,
+        resourceType: notificationResourceType.value,
+        weekday: notificationWeekday.value,
+        slot: notificationSlot.value
       })
     });
     currentUser = data.user;
+    renderEmailVerificationStatus();
     showStatus(data.message || 'Benachrichtigungen gespeichert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function resendEmailVerification() {
+  try {
+    const data = await api('/api/email-verification/resend', { method: 'POST' });
+    showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
   }
@@ -1186,6 +1248,20 @@ async function deleteBookingGroup(groupId) {
   try {
     const data = await api(`/api/booking-groups/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
     showStatus(data.message || 'Waschpaket gel\u00f6scht.');
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function cancelBookingGroupAndNotify(groupId) {
+  if (!window.confirm('Das ganze Waschpaket absagen und den Waschslot wieder anbieten?')) return;
+  try {
+    const data = await api(`/api/booking-groups/${encodeURIComponent(groupId)}/cancel-notify`, { method: 'POST' });
+    const emailText = data.emailNotifications?.configured
+      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
+      : ' E-Mail-Versand ist noch nicht konfiguriert.';
+    showStatus(`${data.message}${emailText}`);
     await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
@@ -1232,13 +1308,29 @@ async function changePassword() {
   }
 }
 
+async function deleteOwnAccount() {
+  if (!window.confirm('Konto und alle eigenen Buchungen endg\u00fcltig l\u00f6schen?')) return;
+  try {
+    const data = await api('/api/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ password: deleteAccountPassword.value })
+    });
+    window.alert(data.message);
+    window.location.href = '/login.html';
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 async function loadAdmin() {
-  const [usersData, overviewData, settingsData, fixedData, housesData] = await Promise.all([
+  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/settings'),
     api('/api/admin/fixed-bookings'),
-    currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] })
+    currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] }),
+    api('/api/admin/resources'),
+    api('/api/admin/audit-log')
   ]);
   adminBox.hidden = false;
   adminTitle.textContent = `Admin - ${settingsData.houseName}`;
@@ -1252,6 +1344,8 @@ async function loadAdmin() {
   }
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
+  renderAdminResources(adminResources.resources);
+  renderAuditLog(auditData.entries);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
     <div><strong>${overviewData.todayBookings}</strong><span>Buchungen heute</span></div>
@@ -1259,6 +1353,7 @@ async function loadAdmin() {
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
+    <div class="wide"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ''}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}</span></div>
   `;
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
@@ -1273,6 +1368,19 @@ async function sendAdminTestEmail() {
     showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
+  }
+}
+
+async function runBackupNow() {
+  runBackupButton.disabled = true;
+  try {
+    const data = await api('/api/admin/backup/run', { method: 'POST' });
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    runBackupButton.disabled = false;
   }
 }
 
@@ -1334,6 +1442,24 @@ function renderAdminUsers(users) {
         user.role === 'admin' ? 'user' : 'admin'
       ));
       actions.append(roleButton);
+
+      const otherHouses = availableHouses.filter((house) => Number(house.id) !== Number(user.house_id));
+      if (otherHouses.length) {
+        const moveWrap = document.createElement('div');
+        moveWrap.className = 'user-move-control';
+        const moveSelect = document.createElement('select');
+        moveSelect.setAttribute('aria-label', `${user.username} in anderes Haus verschieben`);
+        moveSelect.innerHTML = otherHouses.map((house) => (
+          `<option value="${house.id}">${escapeHtml(house.name)}</option>`
+        )).join('');
+        const moveButton = document.createElement('button');
+        moveButton.type = 'button';
+        moveButton.className = 'secondary';
+        moveButton.textContent = 'Verschieben';
+        moveButton.addEventListener('click', () => moveUserToHouse(user.id, moveSelect.value));
+        moveWrap.append(moveSelect, moveButton);
+        actions.append(moveWrap);
+      }
     }
     if (!user.is_superadmin || user.id === currentUser.id) {
       actions.append(resetForm);
@@ -1343,25 +1469,163 @@ function renderAdminUsers(users) {
   }
 }
 
+async function moveUserToHouse(userId, houseId) {
+  if (!window.confirm('Konto in das gew\u00e4hlte Haus verschieben? Kommende Buchungen m\u00fcssen vorher gel\u00f6scht sein.')) return;
+  try {
+    const data = await api(`/api/admin/users/${userId}/house`, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: Number(houseId) })
+    });
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 function renderHouses(houses) {
   houseList.innerHTML = '';
   for (const house of houses) {
     const item = document.createElement('article');
     item.className = 'house-admin-item';
     const copy = document.createElement('div');
-    const name = document.createElement('strong');
-    name.textContent = house.name;
+    const nameForm = document.createElement('form');
+    nameForm.className = 'house-name-form';
+    const name = document.createElement('input');
+    name.value = house.name;
+    name.maxLength = 80;
+    name.setAttribute('aria-label', `Name von ${house.name}`);
+    const saveName = document.createElement('button');
+    saveName.type = 'submit';
+    saveName.className = 'secondary';
+    saveName.textContent = 'Speichern';
+    nameForm.append(name, saveName);
+    nameForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      updateHouse(house.id, { name: name.value });
+    });
     const meta = document.createElement('span');
-    meta.textContent = `${house.users} Personen - ${house.resources} Ger\u00e4te`;
-    copy.append(name, meta);
+    meta.textContent = `${house.users} Personen - ${house.resources} Ger\u00e4te - ${house.active ? 'aktiv' : 'inaktiv'}`;
+    copy.append(nameForm, meta);
+    const actions = document.createElement('div');
+    actions.className = 'house-admin-actions';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary';
     button.textContent = Number(house.id) === Number(currentUser.activeHouseId) ? 'Aktiv' : 'Anzeigen';
-    button.disabled = Number(house.id) === Number(currentUser.activeHouseId);
+    button.disabled = !house.active || Number(house.id) === Number(currentUser.activeHouseId);
     button.addEventListener('click', () => switchHouse(house.id));
-    item.append(copy, button);
+    const activeButton = document.createElement('button');
+    activeButton.type = 'button';
+    activeButton.className = house.active ? 'secondary danger' : 'secondary';
+    activeButton.textContent = house.active ? 'Deaktivieren' : 'Aktivieren';
+    activeButton.disabled = Number(house.id) === Number(currentUser.activeHouseId);
+    activeButton.addEventListener('click', () => updateHouse(house.id, { active: !Boolean(house.active) }));
+    actions.append(button, activeButton);
+    item.append(copy, actions);
     houseList.append(item);
+  }
+}
+
+async function updateHouse(houseId, changes) {
+  try {
+    const data = await api(`/api/admin/houses/${houseId}`, {
+      method: 'PUT',
+      body: JSON.stringify(changes)
+    });
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+function renderAdminResources(items) {
+  resourceAdminList.innerHTML = '';
+  for (const resource of items) {
+    const item = document.createElement('article');
+    item.className = 'resource-admin-item';
+    const form = document.createElement('form');
+    form.className = 'resource-name-form';
+    const input = document.createElement('input');
+    input.value = resource.name;
+    input.maxLength = 80;
+    input.setAttribute('aria-label', `Name von ${resource.name}`);
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.className = 'secondary';
+    save.textContent = 'Speichern';
+    form.append(input, save);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      updateResource(resource.id, { name: input.value });
+    });
+    const meta = document.createElement('span');
+    meta.textContent = `${typeLabel(resource.type)} - ${resource.active ? 'aktiv' : 'inaktiv'}`;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = resource.active ? 'secondary danger' : 'secondary';
+    toggle.textContent = resource.active ? 'Deaktivieren' : 'Aktivieren';
+    toggle.addEventListener('click', () => updateResource(resource.id, { active: !Boolean(resource.active) }));
+    const copy = document.createElement('div');
+    copy.append(form, meta);
+    item.append(copy, toggle);
+    resourceAdminList.append(item);
+  }
+}
+
+async function updateResource(resourceId, changes) {
+  try {
+    const data = await api(`/api/admin/resources/${resourceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(changes)
+    });
+    const resourceData = await api('/api/resources');
+    resources = resourceData.resources;
+    showStatus(data.message);
+    await Promise.all([loadAdmin(), refreshAll()]);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function createResource() {
+  try {
+    const data = await api('/api/admin/resources', {
+      method: 'POST',
+      body: JSON.stringify({ name: resourceNameInput.value, type: resourceTypeInput.value })
+    });
+    resourceForm.reset();
+    const resourceData = await api('/api/resources');
+    resources = resourceData.resources;
+    showStatus(data.message);
+    await Promise.all([loadAdmin(), refreshAll()]);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+function renderAuditLog(entries) {
+  const actionLabels = {
+    'user.status': 'Kontostatus ge\u00e4ndert',
+    'user.password_reset': 'Passwort neu gesetzt',
+    'user.role': 'Rolle ge\u00e4ndert',
+    'user.move': 'Konto verschoben',
+    'house.create': 'Haus angelegt',
+    'house.update': 'Haus aktualisiert',
+    'house.code': 'Hauscode ge\u00e4ndert',
+    'resource.create': 'Ger\u00e4t angelegt',
+    'resource.update': 'Ger\u00e4t aktualisiert',
+    'fixed_booking.create': 'Feste Buchung angelegt',
+    'fixed_booking.delete': 'Feste Buchung entfernt',
+    'backup.download': 'Backup erstellt'
+  };
+  auditLog.innerHTML = entries.length ? '' : '<p class="muted">Noch keine protokollierten Admin-Aktionen.</p>';
+  for (const entry of entries) {
+    const item = document.createElement('div');
+    item.className = 'audit-item';
+    item.innerHTML = `<strong>${escapeHtml(actionLabels[entry.action] || entry.action)}</strong><span>${escapeHtml(entry.actor || 'System')} - ${escapeHtml(new Date(`${entry.created_at}Z`).toLocaleString('de-CH'))}</span>`;
+    auditLog.append(item);
   }
 }
 
@@ -1490,6 +1754,8 @@ async function createHouse() {
 }
 
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
+bookingViewButton.addEventListener('click', () => setAppView('booking'));
+adminViewButton.addEventListener('click', () => setAppView('admin'));
 
 previousWeekButton.addEventListener('click', () => {
   selectBookingDate(addDaysString(calendarStartDate, -7));
@@ -1531,6 +1797,7 @@ filterButtons.forEach((button) => {
     setActiveType(button.dataset.type);
   });
 });
+resendVerificationButton.addEventListener('click', resendEmailVerification);
 
 houseSelect.addEventListener('change', () => switchHouse(houseSelect.value));
 
@@ -1538,12 +1805,21 @@ houseForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await createHouse();
 });
+resourceForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await createResource();
+});
 
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
+runBackupButton.addEventListener('click', runBackupNow);
 
 passwordForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await changePassword();
+});
+deleteAccountForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await deleteOwnAccount();
 });
 
 openIntroButton.addEventListener('click', openIntro);
@@ -1581,6 +1857,11 @@ document.addEventListener('keydown', (event) => {
 });
 
 recordedIntroVideo.addEventListener('play', stopIntroVideo);
+recordedIntroVideo.addEventListener('loadedmetadata', () => {
+  const minutes = Math.floor(recordedIntroVideo.duration / 60);
+  const seconds = Math.round(recordedIntroVideo.duration % 60);
+  recordedIntroDuration.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+});
 
 if (introVideoSpeechSupported) {
   window.speechSynthesis.addEventListener('voiceschanged', refreshIntroVideoVoice);

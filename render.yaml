@@ -3,7 +3,7 @@ services:
     name: waschplan-app
     env: node
     plan: starter
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -19,6 +19,14 @@ services:
       - key: HOUSE_CODE
         sync: false
       - key: PUBLIC_APP_URL
+        sync: false
+      - key: AUTO_BACKUP
+        value: true
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: BACKUP_UPLOAD_URL
+        sync: false
+      - key: BACKUP_UPLOAD_TOKEN
         sync: false
       - key: SMTP_HOST
         sync: false

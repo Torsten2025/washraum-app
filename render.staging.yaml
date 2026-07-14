@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: waschplan-staging
+    env: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /tmp/waschplan-staging.sqlite
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SEED_ADMIN_NAME
+        value: staging-admin
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: HOUSE_CODE
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false

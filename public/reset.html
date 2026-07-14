@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Neues Passwort | Waschplan</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="login-page compact-auth-page">
+    <main class="reset-shell">
+      <section class="login-panel" aria-labelledby="resetTitle">
+        <p class="auth-panel-kicker">Waschplan</p>
+        <h1 id="resetTitle">Neues Passwort</h1>
+        <form id="resetForm" class="stack auth-form">
+          <label>
+            Neues Passwort
+            <input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+          </label>
+          <label>
+            Passwort wiederholen
+            <input name="confirmation" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+          </label>
+          <button type="submit">Passwort speichern</button>
+          <p id="resetMessage" class="message" role="status"></p>
+        </form>
+        <a class="text-link" href="/login.html">Zur Anmeldung</a>
+      </section>
+    </main>
+    <script src="/reset.js"></script>
+  </body>
+</html>

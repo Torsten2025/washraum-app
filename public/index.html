@@ -9,13 +9,17 @@
   <body>
     <header class="topbar">
       <div class="brand-lockup app-brand">
-        <span class="brand-mark">GBMZ</span>
+        <img class="brand-logo" src="/assets/gbmz-logo.svg" alt="GBMZ">
         <span id="brandHouseName">Maneggplatz 18</span>
       </div>
       <div class="topbar-title">
         <h1>Waschplan</h1>
         <p id="userLine"></p>
       </div>
+      <nav id="viewSwitcher" class="view-switcher" aria-label="Ansicht" hidden>
+        <button id="bookingViewButton" class="active" type="button">Buchen</button>
+        <button id="adminViewButton" type="button">Verwalten</button>
+      </nav>
       <label id="houseSwitcher" class="house-switcher" hidden>
         <span>Hausnummer</span>
         <select id="houseSelect" aria-label="Hausnummer wechseln"></select>
@@ -108,6 +112,37 @@
               <input id="notifyReleases" name="notifyReleases" type="checkbox">
               <span>Mail senden, wenn ein Termin wieder frei wird</span>
             </label>
+            <div id="emailVerificationStatus" class="verification-status" role="status"></div>
+            <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
+            <details class="notification-filters">
+              <summary>Nur passende Hinweise erhalten</summary>
+              <label>
+                Bereich
+                <select id="notificationResourceType" name="resourceType">
+                  <option value="all">Alle Bereiche</option>
+                  <option value="washer">Waschmaschinen</option>
+                  <option value="drying_room">Trockenr&auml;ume</option>
+                  <option value="tumbler">Tumbler</option>
+                </select>
+              </label>
+              <label>
+                Wochentag
+                <select id="notificationWeekday" name="weekday">
+                  <option value="">Alle Tage</option>
+                  <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
+                  <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
+                </select>
+              </label>
+              <label>
+                Zeitfenster
+                <select id="notificationSlot" name="slot">
+                  <option value="">Alle Zeitfenster</option>
+                  <option value="07:00-12:00">07:00-12:00</option>
+                  <option value="12:00-17:00">12:00-17:00</option>
+                  <option value="17:00-21:00">17:00-21:00</option>
+                </select>
+              </label>
+            </details>
             <p class="muted notification-note">Im laufenden Slot meldet &bdquo;Freigeben&ldquo;, dass du fr&uuml;her fertig bist. Vor Slotbeginn kannst du mit &bdquo;Absagen &amp; informieren&ldquo; den ganzen Termin wieder anbieten.</p>
             <button class="secondary" type="submit">Speichern</button>
           </form>
@@ -131,25 +166,45 @@
           </form>
         </div>
         <div class="side-block">
+          <h3>Meine Daten</h3>
+          <p class="muted">Du kannst deine Kontodaten und Buchungen als JSON-Datei herunterladen.</p>
+          <a class="button-link secondary" href="/api/me/export" download>Daten exportieren</a>
+          <details class="delete-account-panel">
+            <summary>Konto l&ouml;schen</summary>
+            <form id="deleteAccountForm" class="stack compact-form">
+              <p class="muted">Dabei werden auch deine Buchungen gel&ouml;scht. Dieser Schritt kann nicht r&uuml;ckg&auml;ngig gemacht werden.</p>
+              <label>
+                Passwort zur Best&auml;tigung
+                <input id="deleteAccountPassword" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="danger" type="submit">Konto endg&uuml;ltig l&ouml;schen</button>
+            </form>
+          </details>
+          <a class="text-link" href="/privacy.html">Datenschutzhinweise</a>
+        </div>
+        <div class="side-block">
           <h3>Freigaben &amp; Absagen</h3>
           <div id="releaseNotices" class="release-list"></div>
         </div>
         <div class="side-block rules-block">
           <h3>Regeln</h3>
+          <p>Massgebend bleibt der offizielle GBMZ-Aushang in der Waschk&uuml;che.</p>
           <ul>
             <li>Waschmaschinen: pro Waschtag ein Zeitfenster. Weitere Waschmaschinen d&uuml;rfen nur im gleichen Zeitfenster gebucht werden.</li>
             <li>Der n&auml;chste Waschslot kann fr&uuml;hestens am bestehenden Waschtag reserviert werden.</li>
             <li>Tumbler: pro Slot bleibt mindestens ein Tumbler frei.</li>
             <li>Trockenraum: 07:00-Slot bis 21:00, 12:00-Slot bis Folgetag 12:00, 17:00-Slot bis Folgetag 12:00.</li>
+            <li>Bitte den Trockenraum fr&uuml;her freigeben, sobald die W&auml;sche trocken ist. &Uuml;ber Nacht hilft das Abh&auml;ngen vor 07:00 Uhr besonders.</li>
           </ul>
         </div>
         <div class="side-block rules-block">
           <h3>Reinigung</h3>
           <ul>
-            <li>Waschmaschine: Schublade, Trommel, Gummidichtung, Filter und Geh&auml;use reinigen.</li>
-            <li>Tumbler: Trommel, vier Filter, Abflussbereich, T&uuml;rdichtung und Geh&auml;use reinigen.</li>
-            <li>Trockenraum: Tisch, zwei Filter und Boden reinigen.</li>
-            <li>Waschk&uuml;che, Besen und Wischmopp sauber und trocken hinterlassen.</li>
+            <li>Waschmaschine: Waschmittelschublade herausnehmen und sp&uuml;len. Trommel und Gummidichtung ausreiben. Filter unten links sp&uuml;len, wieder bis zum Anschlag einschrauben und ausgelaufenes Wasser in den Abfluss geben. Geh&auml;use feucht abwischen.</li>
+            <li>Tumbler: Trommel ausreiben. Alle vier Filter reinigen. Unter den beiden mittleren Filtern den Abflussbereich auswischen. T&uuml;rdichtung und Geh&auml;use feucht abwischen.</li>
+            <li>Trockenraum: Tisch abstauben oder abwischen, beide Filter reinigen, Boden wischen und feucht aufnehmen.</li>
+            <li>Waschk&uuml;che: Boden wischen und feucht aufnehmen. Besen und Wischmopp von Fusseln befreien. Mopp aussp&uuml;len, auswringen und zum Trocknen aufh&auml;ngen.</li>
+            <li>Die Reinigung gilt auch bei einer einzelnen Nutzung zwischendurch. Die Bodenreinigung kann innerhalb desselben Slots abgesprochen werden.</li>
           </ul>
         </div>
         <div id="adminBox" class="admin-box" hidden>
@@ -160,7 +215,10 @@
               <strong>Daten sichern</strong>
               <span>Eine vollst&auml;ndige SQLite-Sicherung herunterladen.</span>
             </div>
-            <a class="button-link secondary" href="/api/admin/backup" download>Backup</a>
+            <div class="inline-actions">
+              <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
+              <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+            </div>
           </div>
           <div class="admin-operation">
             <div>
@@ -192,6 +250,23 @@
             </form>
             <div id="houseList" class="house-admin-list"></div>
           </section>
+          <h3>Ger&auml;te &amp; R&auml;ume</h3>
+          <form id="resourceForm" class="stack compact-form admin-inline-form">
+            <label>
+              Name
+              <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
+            </label>
+            <label>
+              Bereich
+              <select id="resourceTypeInput" name="type" required>
+                <option value="washer">Waschmaschine</option>
+                <option value="drying_room">Trockenraum</option>
+                <option value="tumbler">Tumbler</option>
+              </select>
+            </label>
+            <button type="submit">Hinzuf&uuml;gen</button>
+          </form>
+          <div id="resourceAdminList" class="resource-admin-list"></div>
           <h3>Feste Buchungen</h3>
           <form id="fixedBookingForm" class="stack compact-form">
             <label>
@@ -222,6 +297,10 @@
           <div id="fixedBookingList" class="fixed-booking-list"></div>
           <h3>Benutzer</h3>
           <div id="userList" class="user-admin-list"></div>
+          <details class="audit-panel">
+            <summary>Letzte Admin-Aktionen</summary>
+            <div id="auditLog" class="audit-list"></div>
+          </details>
         </div>
       </aside>
     </main>
@@ -232,15 +311,15 @@
         <div class="intro-copy">
           <p class="eyebrow">Kurze Einf&uuml;hrung</p>
           <h2 id="introTitle">In Ruhe durch den Waschplan.</h2>
-          <p>Das knapp viermin&uuml;tige Video erkl&auml;rt die wichtigsten Wege und Regeln. Deutsche Untertitel und ein interaktiver Rundgang stehen zus&auml;tzlich bereit.</p>
+          <p>Das etwa f&uuml;nfmin&uuml;tige Video erkl&auml;rt Buchung, Waschpaket und Regeln an konkreten Beispielen. Deutsche Untertitel und ein vollst&auml;ndiger Lesetext stehen zus&auml;tzlich bereit.</p>
         </div>
         <section class="recorded-intro" aria-labelledby="recordedIntroTitle">
           <div class="recorded-intro-head">
             <div>
               <p class="eyebrow">Mit Sprecher und Untertiteln</p>
-              <h3 id="recordedIntroTitle">Waschplan in knapp vier Minuten</h3>
+              <h3 id="recordedIntroTitle">Waschplan in etwa f&uuml;nf Minuten</h3>
             </div>
-            <span>03:39</span>
+            <span id="recordedIntroDuration">ca. 05:00</span>
           </div>
           <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/waschplan-einfuehrung-poster.png">
             <source src="/assets/intro/waschplan-einfuehrung.mp4" type="video/mp4">
@@ -282,11 +361,11 @@
             <summary>Text zum Mitlesen</summary>
             <ol>
               <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Wochenkalender mit freien Tagen.</li>
-              <li>Das Waschpaket stellt eine freie Waschmaschine und passende Erg&auml;nzungen zusammen. Trockenraum und Tumbler kannst du vor dem Buchen an- oder abw&auml;hlen.</li>
-              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Mit einer Best&auml;tigung werden alle ausgew&auml;hlten Bestandteile gemeinsam gebucht. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
+              <li>Das Waschpaket stellt eine freie Waschmaschine und passende Erg&auml;nzungen zusammen. Beim Trockenraum w&auml;hlst du kurz, Standard oder die maximal erlaubte Dauer. Der Tumbler bleibt optional.</li>
+              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Alle ausgew&auml;hlten Bestandteile werden gemeinsam gebucht und erscheinen als ein Paket. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
               <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
-              <li>Mindestens ein Tumbler bleibt frei. Eigene Buchungen kannst du l&ouml;schen oder fr&uuml;her freigeben; auf Wunsch werden andere per E-Mail informiert.</li>
+              <li>Mindestens ein Tumbler bleibt frei. W&auml;hrend eines laufenden Slots kannst du fr&uuml;her freigeben. Vor Beginn kannst du absagen und gezielt interessierte Personen per E-Mail informieren.</li>
               <li>Nach jeder Nutzung bitte Trommel, Dichtungen, Filter, Fl&auml;chen und Boden reinigen. Das gilt auch bei einem einzelnen Waschgang. Alle Einzelheiten stehen im Wissensbereich.</li>
             </ol>
           </details>

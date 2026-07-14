@@ -1,7 +1,9 @@
 const assert = require('assert/strict');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const net = require('net');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const { releaseWindowStatus } = require('../release-window');
@@ -143,6 +145,120 @@ async function verifyProductionRecoveryStartup() {
   }
 }
 
+async function verifySmtpDelivery() {
+  const messages = [];
+  const smtpServer = net.createServer((socket) => {
+    socket.setEncoding('utf8');
+    socket.write('220 local.test ESMTP\r\n');
+    let buffer = '';
+    let dataMode = false;
+
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      while (buffer.length) {
+        if (dataMode) {
+          const end = buffer.indexOf('\r\n.\r\n');
+          if (end < 0) return;
+          messages.push(buffer.slice(0, end));
+          buffer = buffer.slice(end + 5);
+          dataMode = false;
+          socket.write('250 queued\r\n');
+          continue;
+        }
+        const end = buffer.indexOf('\r\n');
+        if (end < 0) return;
+        const command = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        if (/^EHLO /i.test(command)) socket.write('250-local.test\r\n250 SIZE 20000000\r\n');
+        else if (/^(MAIL FROM|RCPT TO):/i.test(command)) socket.write('250 OK\r\n');
+        else if (/^DATA$/i.test(command)) {
+          dataMode = true;
+          socket.write('354 End data\r\n');
+        } else if (/^QUIT$/i.test(command)) {
+          socket.write('221 Bye\r\n');
+          socket.end();
+        } else socket.write('250 OK\r\n');
+      }
+    });
+  });
+  await new Promise((resolve) => smtpServer.listen(0, '127.0.0.1', resolve));
+  const smtpPort = smtpServer.address().port;
+  const appPort = port + 2;
+  const smtpDatabasePath = path.join(os.tmpdir(), `waschplan-smtp-${process.pid}.sqlite`);
+  const smtpOutput = [];
+  const smtpApp = spawn(process.execPath, ['server.js'], {
+    cwd: path.resolve(__dirname, '..'),
+    env: {
+      ...process.env,
+      NODE_ENV: 'development',
+      PORT: String(appPort),
+      DB_PATH: smtpDatabasePath,
+      HOUSE_CODE: 'SMTP Testhaus',
+      SEED_ADMIN_NAME: 'smtp-admin',
+      SEED_ADMIN_PASSWORD: 'SMTP-Admin-2026!',
+      SESSION_SECRET: 'smtp-integration-secret-at-least-32-characters',
+      PUBLIC_APP_URL: `http://127.0.0.1:${appPort}`,
+      SMTP_HOST: '127.0.0.1',
+      SMTP_PORT: String(smtpPort),
+      SMTP_FROM: 'waschplan@local.test',
+      SMTP_SECURE: 'false'
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  smtpApp.stdout.on('data', (chunk) => smtpOutput.push(chunk.toString()));
+  smtpApp.stderr.on('data', (chunk) => smtpOutput.push(chunk.toString()));
+
+  try {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${appPort}/api/health`);
+        if (response.ok) break;
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const registration = await fetch(`http://127.0.0.1:${appPort}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'SMTP Person',
+        email: 'smtp-person@example.com',
+        password: 'SMTP-Person-2026!',
+        houseCode: 'SMTP Testhaus',
+        notifyReleases: true
+      })
+    });
+    assert.equal(registration.status, 201, smtpOutput.join(''));
+    const registrationBody = await registration.json();
+    assert.equal(registrationBody.verification.sent, true);
+    assert.ok(messages[0].includes('/api/email-verification/confirm?token='));
+    const verificationLink = messages[0].match(/http:\/\/[^\s]+\/api\/email-verification\/confirm\?token=[a-f0-9]+/)[0];
+    const verification = await fetch(verificationLink, { redirect: 'manual' });
+    assert.equal(verification.status, 302);
+
+    const resetRequest = await fetch(`http://127.0.0.1:${appPort}/api/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'smtp-person@example.com' })
+    });
+    assert.equal(resetRequest.status, 200);
+    assert.ok(messages[1].includes('/reset.html?token='));
+    const resetToken = messages[1].match(/reset\.html\?token=([a-f0-9]+)/)[1];
+    const resetConfirm = await fetch(`http://127.0.0.1:${appPort}/api/password-reset/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: resetToken, newPassword: 'SMTP-Neu-2026!' })
+    });
+    assert.equal(resetConfirm.status, 200);
+  } finally {
+    if (smtpApp.exitCode === null) {
+      smtpApp.kill();
+      await new Promise((resolve) => smtpApp.once('exit', resolve));
+    }
+    await new Promise((resolve) => smtpServer.close(resolve));
+    for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${smtpDatabasePath}${suffix}`, { force: true });
+  }
+}
+
 function verifyReleaseWindow() {
   const beforeStart = releaseWindowStatus(
     '2026-07-14',
@@ -208,6 +324,11 @@ async function run() {
     assert.equal(health.body.adminReady, true);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
+    await expectStatus(guest, '/api/login', 403, {
+      method: 'POST',
+      headers: { Origin: 'https://example.invalid' },
+      body: JSON.stringify({ username: 'admin', password: 'wrong' })
+    });
     await expectStatus(guest, `/api/bookings?date=${bookingDate}`, 401);
 
     await expectStatus(guest, '/api/register', 400, {
@@ -252,6 +373,72 @@ async function run() {
     const hydratedSession = await expectStatus(user, '/api/me', 200);
     assert.equal(hydratedSession.body.user.houseName, 'Maneggplatz 18');
     assert.ok(hydratedSession.body.user.activeHouseId);
+    const preferences = await expectStatus(user, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'bewohner-test@example.com',
+        notifyReleases: true,
+        resourceType: 'drying_room',
+        weekday: 2,
+        slot: '12:00-17:00'
+      })
+    });
+    assert.equal(preferences.body.notificationPreferences.resourceType, 'drying_room');
+    const preferencesMe = await expectStatus(user, '/api/me', 200);
+    assert.equal(preferencesMe.body.notificationPreferences.weekday, 2);
+    const exportResult = await expectStatus(user, '/api/me/export', 200);
+    assert.equal(exportResult.body.account.username, 'Bewohner Test');
+
+    const recoveryClient = new ApiClient();
+    const recoveryRegistration = await expectStatus(recoveryClient, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Passwort Hilfe',
+        email: 'passwort-hilfe@example.com',
+        password: 'Passwort-Alt-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    const resetToken = crypto.randomBytes(24).toString('hex');
+    const resetDatabase = new Database(databasePath);
+    resetDatabase.prepare(`
+      INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+      VALUES (?, ?, ?)
+    `).run(
+      recoveryRegistration.body.user.id,
+      crypto.createHash('sha256').update(resetToken).digest('hex'),
+      String(Date.now() + 60000)
+    );
+    resetDatabase.close();
+    await expectStatus(recoveryClient, '/api/password-reset/confirm', 200, {
+      method: 'POST',
+      body: JSON.stringify({ token: resetToken, newPassword: 'Passwort-Neu-2026!' })
+    });
+    await expectStatus(new ApiClient(), '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'passwort-hilfe@example.com', password: 'Passwort-Neu-2026!' })
+    });
+
+    const deleteClient = new ApiClient();
+    await expectStatus(deleteClient, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Konto Loeschen',
+        email: 'konto-loeschen@example.com',
+        password: 'Konto-Loeschen-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    await expectStatus(deleteClient, '/api/me', 403, {
+      method: 'DELETE',
+      body: JSON.stringify({ password: 'falsch' })
+    });
+    await expectStatus(deleteClient, '/api/me', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({ password: 'Konto-Loeschen-2026!' })
+    });
 
     const resourcesResult = await expectStatus(user, '/api/resources', 200);
     const resources = resourcesResult.body.resources;
@@ -261,6 +448,26 @@ async function run() {
     assert.equal(washers.length, 3);
     assert.equal(dryingRooms.length, 3);
     assert.equal(tumblers.length, 2);
+
+    const concurrentUsers = [new ApiClient(), new ApiClient()];
+    for (let index = 0; index < concurrentUsers.length; index += 1) {
+      await expectStatus(concurrentUsers[index], '/api/register', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          username: `Parallel ${index + 1}`,
+          email: `parallel-${index + 1}@example.com`,
+          password: `Parallel-${index + 1}-2026!`,
+          houseCode: 'Testhaus 18',
+          notifyReleases: false
+        })
+      });
+    }
+    const concurrencyDate = addDays(nextWeekday(3), 35);
+    const concurrentResults = await Promise.all(concurrentUsers.map((client) => client.request('/api/bookings', {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: washers[0].id, date: concurrencyDate, slot: '12:00-17:00' })
+    })));
+    assert.deepEqual(concurrentResults.map((result) => result.response.status).sort(), [201, 409]);
 
     const packageUser = new ApiClient();
     await expectStatus(packageUser, '/api/register', 201, {
@@ -325,6 +532,34 @@ async function run() {
     await expectStatus(packageUser, `/api/booking-groups/${packageBooking.body.groupId}`, 200, { method: 'DELETE' });
     const deletedPackageBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
     assert.equal(deletedPackageBookings.body.bookings.length, 0);
+
+    const cancelPackageUser = new ApiClient();
+    await expectStatus(cancelPackageUser, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Paket Absage',
+        email: 'paket-absage@example.com',
+        password: 'Paket-Absage-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    const cancelRecommendation = await expectStatus(cancelPackageUser, '/api/recommendation', 200);
+    const cancelItems = cancelRecommendation.body.recommendation.components
+      .filter((component) => component.required || component.selectedByDefault)
+      .flatMap((component) => component.bookings);
+    const cancellablePackage = await expectStatus(cancelPackageUser, '/api/booking-package', 201, {
+      method: 'POST',
+      body: JSON.stringify({ items: cancelItems })
+    });
+    const packageCancellation = await expectStatus(
+      cancelPackageUser,
+      `/api/booking-groups/${cancellablePackage.body.groupId}/cancel-notify`,
+      200,
+      { method: 'POST' }
+    );
+    assert.equal(packageCancellation.body.releaseNoticeCreated, true);
+    assert.equal(packageCancellation.body.deleted, cancellablePackage.body.created.length);
 
     const smartPackageUser = new ApiClient();
     await expectStatus(smartPackageUser, '/api/register', 201, {
@@ -514,6 +749,19 @@ async function run() {
       body: JSON.stringify({ houseId: defaultHouseId })
     });
 
+    const addedResource = await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Trockenraum Reserve', type: 'drying_room' })
+    });
+    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ name: 'Trockenraum Reserve', active: false })
+    });
+    const adminResources = await expectStatus(admin, '/api/admin/resources', 200);
+    assert.ok(adminResources.body.resources.some((resource) => (
+      resource.id === addedResource.body.id && resource.active === 0
+    )));
+
     const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
       method: 'POST',
       body: JSON.stringify({ name: 'Maneggplatz 20', code: 'Testhaus 20' })
@@ -541,7 +789,7 @@ async function run() {
     });
     assert.equal(secondHouseRegistration.body.user.houseName, 'Maneggplatz 20');
     const secondWasher = secondHouseResources.body.resources.find((resource) => resource.type === 'washer');
-    await expectStatus(secondHouseUser, '/api/bookings', 201, {
+    const secondHouseWasherBooking = await expectStatus(secondHouseUser, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({ resourceId: secondWasher.id, date: bookingDate, slot: '07:00-12:00' })
     });
@@ -584,6 +832,23 @@ async function run() {
     assert.ok(!isolatedDefaultBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
     const isolatedDefaultUsers = await expectStatus(admin, '/api/admin/users', 200);
     assert.ok(!isolatedDefaultUsers.body.users.some((item) => item.username === 'Bewohner Haus 20'));
+    await expectStatus(admin, `/api/admin/users/${secondResident.id}/house`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: secondHouse.body.house.id })
+    });
+    await expectStatus(admin, `/api/bookings/${secondHouseWasherBooking.body.id}`, 200, { method: 'DELETE' });
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
+    await expectStatus(admin, `/api/admin/users/${secondResident.id}/house`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
 
     await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
       method: 'POST',
@@ -627,15 +892,27 @@ async function run() {
     const backup = await expectStatus(admin, '/api/admin/backup', 200);
     assert.ok(backup.body.length > 1000);
     assert.equal(backup.body.subarray(0, 15).toString(), 'SQLite format 3');
+    const verifiedBackup = await expectStatus(admin, '/api/admin/backup/run', 200, { method: 'POST' });
+    assert.equal(verifiedBackup.body.status.ok, true);
+    const audit = await expectStatus(admin, '/api/admin/audit-log', 200);
+    assert.ok(audit.body.entries.some((entry) => entry.action === 'resource.create'));
+    assert.ok(audit.body.entries.some((entry) => entry.action === 'user.move'));
+
+    await expectStatus(admin, `/api/admin/houses/${secondHouse.body.house.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ name: 'Maneggplatz 20A' })
+    });
 
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('knapp vier Minuten'));
+    assert.ok(indexHtml.includes('etwa f&uuml;nfmin&uuml;tige Video'));
     assert.ok(indexHtml.includes('Absagen &amp; informieren'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
+    assert.ok(indexHtml.includes('viewSwitcher'));
+    assert.ok(indexHtml.includes('/assets/gbmz-logo.svg'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     assert.ok(appScript.body.toString().includes('/api/booking-package'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
@@ -646,8 +923,14 @@ async function run() {
     const captions = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung-de.vtt', 200);
     const captionText = captions.body.toString();
     assert.ok(captionText.startsWith('WEBVTT'));
-    assert.ok(captionText.includes('Vorschlag buchen'));
+    assert.ok(captionText.includes('Waschpaket buchen'));
+    assert.ok(captionText.includes('zwischen kurz'));
+    assert.ok(captionText.includes('Standard und der maximal'));
+    const privacyPage = await expectStatus(guest, '/privacy.html', 200);
+    assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
+    await expectStatus(guest, '/reset.html?token=test', 200);
 
+    await verifySmtpDelivery();
     await verifyProductionRecoveryStartup();
 
     console.log(JSON.stringify({
@@ -656,6 +939,9 @@ async function run() {
         authentication: true,
         legacySessionHydration: true,
         passwordRecovery: true,
+        emailPreferences: true,
+        originProtection: true,
+        privacyControls: true,
         bookingRules: true,
         smartCalendar: true,
         smartPackage: true,
@@ -664,9 +950,13 @@ async function run() {
         fixedBookings: true,
         accountManagement: true,
         backup: true,
+        verifiedBackup: true,
+        adminAudit: true,
         narratedVideo: true,
         releaseWindow: true,
         cancellationNotifications: true,
+        concurrentBookingProtection: true,
+        smtpDelivery: true,
         productionRecovery: true,
         securityHeaders: true
       },

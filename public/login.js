@@ -4,12 +4,18 @@ const registerForm = document.querySelector('#registerForm');
 const registerMessage = document.querySelector('#registerMessage');
 const showLogin = document.querySelector('#showLogin');
 const showRegister = document.querySelector('#showRegister');
+const recoveryForm = document.querySelector('#recoveryForm');
+const recoveryMessage = document.querySelector('#recoveryMessage');
+const showRecovery = document.querySelector('#showRecovery');
+const cancelRecovery = document.querySelector('#cancelRecovery');
 
 function setMode(mode) {
   const isRegister = mode === 'register';
-  form.hidden = isRegister;
+  const isRecovery = mode === 'recovery';
+  form.hidden = isRegister || isRecovery;
   registerForm.hidden = !isRegister;
-  showLogin.classList.toggle('active', !isRegister);
+  recoveryForm.hidden = !isRecovery;
+  showLogin.classList.toggle('active', !isRegister && !isRecovery);
   showRegister.classList.toggle('active', isRegister);
   message.textContent = '';
   registerMessage.textContent = '';
@@ -17,6 +23,15 @@ function setMode(mode) {
 
 showLogin.addEventListener('click', () => setMode('login'));
 showRegister.addEventListener('click', () => setMode('register'));
+showRecovery.addEventListener('click', () => setMode('recovery'));
+cancelRecovery.addEventListener('click', () => setMode('login'));
+
+const verification = new URLSearchParams(window.location.search).get('verification');
+if (verification === 'ok') {
+  message.textContent = 'E-Mail-Adresse best\u00e4tigt. Du kannst dich jetzt anmelden.';
+} else if (verification === 'invalid') {
+  message.textContent = 'Der Best\u00e4tigungslink ist ung\u00fcltig oder abgelaufen.';
+}
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -65,4 +80,17 @@ registerForm.addEventListener('submit', async (event) => {
   }
 
   window.location.href = '/index.html?welcome=1';
+});
+
+recoveryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  recoveryMessage.textContent = '';
+  const formData = new FormData(recoveryForm);
+  const response = await fetch('/api/password-reset/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: formData.get('email') })
+  });
+  const data = await response.json().catch(() => ({}));
+  recoveryMessage.textContent = data.message || data.error || 'Anfrage konnte nicht gesendet werden.';
 });

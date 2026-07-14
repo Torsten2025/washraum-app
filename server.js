@@ -131,6 +131,7 @@ function createCurrentTables() {
       is_superadmin INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       notify_releases INTEGER NOT NULL DEFAULT 1,
+      email_verified INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT
     );
@@ -188,6 +189,45 @@ function createCurrentTables() {
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
       UNIQUE (resource_id, weekday, slot)
     );
+
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      user_id INTEGER PRIMARY KEY,
+      resource_type TEXT NOT NULL DEFAULT 'all' CHECK (resource_type IN ('all', 'washer', 'drying_room', 'tumbler')),
+      weekday INTEGER CHECK (weekday BETWEEN 1 AND 6),
+      slot TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      house_id INTEGER,
+      user_id INTEGER,
+      action TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id TEXT,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE SET NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
   `);
 }
 
@@ -195,6 +235,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('resources', 'house_id', 'INTEGER');
@@ -496,6 +537,14 @@ function getSetting(key) {
   return row ? row.value : '';
 }
 
+function setSetting(key, value) {
+  db.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `).run(key, String(value));
+}
+
 function isBcryptHash(hash) {
   return /^\$2[aby]\$\d{2}\$/.test(String(hash || ''));
 }
@@ -550,6 +599,30 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '32kb' }));
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    return next();
+  }
+  const origin = String(req.get('origin') || '');
+  const fetchSite = String(req.get('sec-fetch-site') || '').toLowerCase();
+  if (!origin) {
+    if (fetchSite === 'cross-site') {
+      return res.status(403).json({ error: 'Anfrage von einer fremden Website abgelehnt.' });
+    }
+    return next();
+  }
+  try {
+    const requestOrigin = new URL(origin).origin;
+    const currentOrigin = new URL(`${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`).origin;
+    const configuredOrigin = process.env.PUBLIC_APP_URL ? new URL(process.env.PUBLIC_APP_URL).origin : '';
+    if (requestOrigin !== currentOrigin && requestOrigin !== configuredOrigin) {
+      return res.status(403).json({ error: 'Anfrage von einer fremden Website abgelehnt.' });
+    }
+  } catch {
+    return res.status(403).json({ error: 'Ung\u00fcltiger Anfrage-Ursprung.' });
+  }
+  next();
+});
 app.use(session({
   store: new BetterSqliteSessionStore(db),
   secret: sessionSecret,
@@ -1191,6 +1264,7 @@ function requireAuth(req, res, next) {
 }
 
 const authRateBuckets = new Map();
+const ipRateBuckets = new Map();
 const authRateWindowMs = 15 * 60 * 1000;
 const authRateMaxAttempts = 20;
 
@@ -1224,6 +1298,40 @@ function authRateLimit(req, res, next) {
   next();
 }
 
+function ipRateLimit({ windowMs, maxAttempts, message }) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = String(req.ip || req.socket.remoteAddress || 'unknown');
+    let bucket = ipRateBuckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      bucket = { attempts: 0, resetAt: now + windowMs };
+    }
+    bucket.attempts += 1;
+    ipRateBuckets.set(key, bucket);
+    if (bucket.attempts > maxAttempts) {
+      res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
+      return res.status(429).json({ error: message });
+    }
+    if (ipRateBuckets.size > 1000) {
+      for (const [bucketKey, value] of ipRateBuckets) {
+        if (value.resetAt <= now) ipRateBuckets.delete(bucketKey);
+      }
+    }
+    next();
+  };
+}
+
+const registrationRateLimit = ipRateLimit({
+  windowMs: 60 * 60 * 1000,
+  maxAttempts: 30,
+  message: 'Zu viele Registrierungsversuche. Bitte versuche es sp\u00e4ter erneut.'
+});
+const recoveryRateLimit = ipRateLimit({
+  windowMs: 60 * 60 * 1000,
+  maxAttempts: 12,
+  message: 'Zu viele Wiederherstellungsversuche. Bitte versuche es sp\u00e4ter erneut.'
+});
+
 function currentHouseId(req) {
   return Number(req.session.activeHouseId || req.session.user?.activeHouseId || req.session.user?.houseId || 0);
 }
@@ -1240,6 +1348,7 @@ function sessionUserFromRow(user, activeHouse = null) {
     role: user.role,
     email: user.email || '',
     notifyReleases: Boolean(user.notify_releases),
+    emailVerified: Boolean(user.email_verified),
     houseId: user.house_id,
     activeHouseId: house?.id || user.house_id,
     houseName: house?.name || '',
@@ -1352,6 +1461,86 @@ function smtpConfig() {
   };
 }
 
+function writeAudit(req, action, targetType, targetId = '', details = {}) {
+  try {
+    db.prepare(`
+      INSERT INTO audit_log (house_id, user_id, action, target_type, target_id, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      currentHouseId(req) || null,
+      req.session?.user?.id || null,
+      action,
+      targetType,
+      String(targetId || ''),
+      JSON.stringify(details).slice(0, 2000)
+    );
+  } catch (error) {
+    console.error(`Audit-Eintrag fehlgeschlagen: ${error.message}`);
+  }
+}
+
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+async function sendEmailVerification(req, user) {
+  const config = smtpConfig();
+  if (!config.host || !config.from || !isValidEmail(user.email)) {
+    return { configured: false, sent: false };
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(user.id);
+  db.prepare(`
+    INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+    VALUES (?, ?, ?)
+  `).run(user.id, tokenHash(token), String(Date.now() + 24 * 60 * 60 * 1000));
+  const link = `${publicAppUrl(req)}/api/email-verification/confirm?token=${encodeURIComponent(token)}`;
+  await sendMail({
+    config,
+    to: user.email,
+    subject: 'Waschplan: E-Mail-Adresse best\u00e4tigen',
+    text: [
+      `Hallo ${user.username}`,
+      '',
+      'Bitte best\u00e4tige deine E-Mail-Adresse. Erst danach werden Freigabe-Hinweise an diese Adresse gesendet.',
+      '',
+      link,
+      '',
+      'Der Link ist 24 Stunden g\u00fcltig.'
+    ].join('\n')
+  });
+  return { configured: true, sent: true };
+}
+
+async function sendPasswordReset(req, user) {
+  const config = smtpConfig();
+  if (!config.host || !config.from || !isValidEmail(user.email) || !user.email_verified) {
+    return false;
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(user.id);
+  db.prepare(`
+    INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+    VALUES (?, ?, ?)
+  `).run(user.id, tokenHash(token), String(Date.now() + 60 * 60 * 1000));
+  const link = `${publicAppUrl(req)}/reset.html?token=${encodeURIComponent(token)}`;
+  await sendMail({
+    config,
+    to: user.email,
+    subject: 'Waschplan: Passwort neu setzen',
+    text: [
+      `Hallo ${user.username}`,
+      '',
+      'Mit diesem Link kannst du ein neues Passwort setzen:',
+      '',
+      link,
+      '',
+      'Der Link ist eine Stunde g\u00fcltig. Falls du nichts angefordert hast, kannst du diese Mail ignorieren.'
+    ].join('\n')
+  });
+  return true;
+}
+
 async function notifyReleaseSubscribers(req, booking, message, subject = `Waschplan: ${booking.resource_name} fr\u00fcher frei`) {
   const config = smtpConfig();
   if (!config.host || !config.from) {
@@ -1359,16 +1548,27 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
   }
 
   const recipients = db.prepare(`
-    SELECT id, username, email
-    FROM users
-    WHERE active = 1
-      AND house_id = ?
-      AND notify_releases = 1
-      AND email IS NOT NULL
-      AND email != ''
-      AND id != ?
+    SELECT u.id, u.username, u.email
+    FROM users u
+    LEFT JOIN notification_preferences np ON np.user_id = u.id
+    WHERE u.active = 1
+      AND u.house_id = ?
+      AND u.notify_releases = 1
+      AND u.email_verified = 1
+      AND u.email IS NOT NULL
+      AND u.email != ''
+      AND u.id != ?
+      AND (np.resource_type IS NULL OR np.resource_type = 'all' OR np.resource_type = ?)
+      AND (np.weekday IS NULL OR np.weekday = ?)
+      AND (np.slot IS NULL OR np.slot = ?)
     ORDER BY username
-  `).all(booking.house_id, booking.user_id);
+  `).all(
+    booking.house_id,
+    booking.user_id,
+    booking.resource_type || 'all',
+    weekdayForDate(booking.booking_date),
+    booking.slot
+  );
 
   if (!recipients.length) {
     return { configured: true, sent: 0 };
@@ -1376,10 +1576,9 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
 
   const appUrl = publicAppUrl(req);
   let sent = 0;
-
-  for (const recipient of recipients) {
-    try {
-      await sendMail({
+  for (let start = 0; start < recipients.length; start += 5) {
+    const batch = recipients.slice(start, start + 5);
+    const results = await Promise.allSettled(batch.map((recipient) => sendMail({
         config,
         to: recipient.email,
         subject,
@@ -1393,11 +1592,14 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
           'Viele Gr\u00fcsse',
           `Waschplan ${booking.house_name || ''}`.trim()
         ].join('\n')
-      });
-      sent += 1;
-    } catch (error) {
-      console.error(`E-Mail an ${recipient.email} konnte nicht gesendet werden: ${error.message}`);
-    }
+      })));
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        sent += 1;
+      } else {
+        console.error(`E-Mail an ${batch[index].email} konnte nicht gesendet werden: ${result.reason.message}`);
+      }
+    });
   }
 
   return { configured: true, sent };
@@ -1546,6 +1748,81 @@ function smtpSession(socket) {
   };
 }
 
+function backupDirectory() {
+  return path.resolve(process.env.BACKUP_DIR || (
+    process.env.RENDER === 'true' ? '/var/data/backups' : path.join(dbDir, 'backups')
+  ));
+}
+
+async function createVerifiedBackup() {
+  const directory = backupDirectory();
+  fs.mkdirSync(directory, { recursive: true });
+  const filename = `washplan-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
+  const backupPath = path.join(directory, filename);
+  await db.backup(backupPath);
+  const verificationDb = new Database(backupPath, { readonly: true, fileMustExist: true });
+  const integrity = verificationDb.pragma('integrity_check', { simple: true });
+  verificationDb.close();
+  if (integrity !== 'ok') {
+    fs.rmSync(backupPath, { force: true });
+    throw new Error(`Backup-Integrit\u00e4tspr\u00fcfung: ${integrity}`);
+  }
+
+  const backups = fs.readdirSync(directory)
+    .filter((name) => name.startsWith('washplan-') && name.endsWith('.sqlite'))
+    .sort()
+    .reverse();
+  for (const oldName of backups.slice(7)) {
+    fs.rmSync(path.join(directory, oldName), { force: true });
+  }
+
+  let uploaded = false;
+  const uploadUrl = String(process.env.BACKUP_UPLOAD_URL || '').trim();
+  if (uploadUrl) {
+    const target = uploadUrl.includes('{filename}')
+      ? uploadUrl.replace('{filename}', encodeURIComponent(filename))
+      : uploadUrl;
+    const response = await fetch(target, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/vnd.sqlite3',
+        ...(process.env.BACKUP_UPLOAD_TOKEN
+          ? { Authorization: `Bearer ${process.env.BACKUP_UPLOAD_TOKEN}` }
+          : {})
+      },
+      body: fs.readFileSync(backupPath)
+    });
+    if (!response.ok) {
+      throw new Error(`Externe Backup-Kopie fehlgeschlagen (${response.status})`);
+    }
+    uploaded = true;
+  }
+  const status = { ok: true, filename, createdAt: new Date().toISOString(), uploaded };
+  setSetting('backup_status', JSON.stringify(status));
+  return status;
+}
+
+async function runScheduledBackup() {
+  try {
+    const status = await createVerifiedBackup();
+    console.log(`Backup gepr\u00fcft: ${status.filename}${status.uploaded ? ' (extern kopiert)' : ''}`);
+  } catch (error) {
+    setSetting('backup_status', JSON.stringify({ ok: false, createdAt: new Date().toISOString(), error: error.message }));
+    console.error(`Automatisches Backup fehlgeschlagen: ${error.message}`);
+  }
+}
+
+function cleanupExpiredData() {
+  db.transaction(() => {
+    db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
+    db.prepare('DELETE FROM email_verification_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
+    db.prepare('DELETE FROM password_reset_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
+    db.prepare("DELETE FROM release_notices WHERE created_at < datetime('now', '-30 days')").run();
+    db.prepare("DELETE FROM bookings WHERE booking_date < date('now', '-365 days')").run();
+    db.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', '-365 days')").run();
+  })();
+}
+
 app.get(['/health', '/api/health'], (req, res) => {
   const storage = process.env.RENDER === 'true'
     ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
@@ -1585,7 +1862,7 @@ app.post('/api/login', authRateLimit, (req, res) => {
   res.json({ user: req.session.user });
 });
 
-app.post('/api/register', authRateLimit, (req, res) => {
+app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
@@ -1611,22 +1888,112 @@ app.post('/api/register', authRateLimit, (req, res) => {
   }
 
   try {
+    const emailVerified = emailStatus().configured ? 0 : 1;
     const result = db.prepare(`
-      INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases)
-      VALUES (?, ?, ?, 'user', ?, 1, ?)
-    `).run(username, email, bcrypt.hashSync(password, 10), house.id, notifyReleases);
+      INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases, email_verified)
+      VALUES (?, ?, ?, 'user', ?, 1, ?, ?)
+    `).run(username, email, bcrypt.hashSync(password, 10), house.id, notifyReleases, emailVerified);
 
     const createdUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     req.session.user = sessionUserFromRow(createdUser, house);
     req.session.activeHouseId = house.id;
     clearAuthRateLimit(req);
-    res.status(201).json({ user: req.session.user });
+    const verification = await sendEmailVerification(req, createdUser).catch((error) => {
+      console.error(`Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`);
+      return { configured: true, sent: false };
+    });
+    res.status(201).json({
+      user: req.session.user,
+      verification,
+      message: verification.sent
+        ? 'Konto erstellt. Bitte best\u00e4tige jetzt deine E-Mail-Adresse.'
+        : 'Konto erstellt.'
+    });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Benutzername oder E-Mail ist bereits vergeben' });
     }
     throw error;
   }
+});
+
+app.get('/api/email-verification/confirm', (req, res) => {
+  const token = String(req.query.token || '');
+  const record = db.prepare(`
+    SELECT evt.id, evt.user_id
+    FROM email_verification_tokens evt
+    JOIN users u ON u.id = evt.user_id
+    WHERE evt.token_hash = ? AND CAST(evt.expires_at AS INTEGER) > ? AND u.active = 1
+  `).get(tokenHash(token), Date.now());
+  if (!record) {
+    return res.redirect('/login.html?verification=invalid');
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(record.user_id);
+    db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(record.user_id);
+  })();
+  if (Number(req.session.user?.id) === Number(record.user_id)) {
+    req.session.user.emailVerified = true;
+  }
+  res.redirect(req.session.user ? '/index.html?emailVerified=1' : '/login.html?verification=ok');
+});
+
+app.post('/api/email-verification/resend', requireAuth, recoveryRateLimit, async (req, res) => {
+  const user = db.prepare('SELECT id, username, email, email_verified FROM users WHERE id = ?')
+    .get(req.session.user.id);
+  if (!user || user.email_verified) {
+    return res.json({ ok: true, message: 'Die E-Mail-Adresse ist bereits best\u00e4tigt.' });
+  }
+  try {
+    const result = await sendEmailVerification(req, user);
+    if (!result.sent) {
+      return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht eingerichtet.' });
+    }
+    res.json({ ok: true, message: 'Best\u00e4tigungsmail wurde erneut gesendet.' });
+  } catch (error) {
+    console.error(`Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`);
+    res.status(502).json({ error: 'Die Best\u00e4tigungsmail konnte gerade nicht gesendet werden.' });
+  }
+});
+
+app.post('/api/password-reset/request', recoveryRateLimit, async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const user = isValidEmail(email)
+    ? db.prepare('SELECT id, username, email, email_verified FROM users WHERE lower(email) = ? AND active = 1').get(email)
+    : null;
+  if (user) {
+    await sendPasswordReset(req, user).catch((error) => {
+      console.error(`Passwort-Mail konnte nicht gesendet werden: ${error.message}`);
+    });
+  }
+  res.json({
+    ok: true,
+    message: 'Wenn ein aktives, best\u00e4tigtes Konto zu dieser Adresse geh\u00f6rt, wurde eine E-Mail gesendet.'
+  });
+});
+
+app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
+  const token = String(req.body?.token || '');
+  const newPassword = String(req.body?.newPassword || '');
+  if (!isValidPassword(newPassword)) {
+    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+  }
+  const record = db.prepare(`
+    SELECT prt.id, prt.user_id
+    FROM password_reset_tokens prt
+    JOIN users u ON u.id = prt.user_id
+    WHERE prt.token_hash = ? AND CAST(prt.expires_at AS INTEGER) > ? AND u.active = 1
+  `).get(tokenHash(token), Date.now());
+  if (!record) {
+    return res.status(400).json({ error: 'Der Link ist ung\u00fcltig oder abgelaufen.' });
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .run(bcrypt.hashSync(newPassword, 10), record.user_id);
+    db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(record.user_id);
+  })();
+  destroyUserSessions(record.user_id);
+  res.json({ ok: true, message: 'Passwort ge\u00e4ndert. Du kannst dich jetzt anmelden.' });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -1640,7 +2007,11 @@ app.get('/api/me', (req, res) => {
   const houses = isSuperadmin(req)
     ? db.prepare('SELECT id, name, active FROM houses WHERE active = 1 ORDER BY name').all()
     : [];
-  res.json({ user: req.session.user, houses });
+  const preferences = db.prepare(`
+    SELECT resource_type AS resourceType, weekday, slot
+    FROM notification_preferences WHERE user_id = ?
+  `).get(req.session.user.id) || { resourceType: 'all', weekday: null, slot: null };
+  res.json({ user: req.session.user, houses, notificationPreferences: preferences });
 });
 
 app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
@@ -1655,17 +2026,50 @@ app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
   res.json({ user: req.session.user, message: `Ansicht gewechselt zu ${house.name}.` });
 });
 
-app.put('/api/me/notifications', requireAuth, (req, res) => {
+app.put('/api/me/notifications', requireAuth, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
+  const resourceType = String(req.body?.resourceType || 'all');
+  const weekday = req.body?.weekday === '' || req.body?.weekday == null ? null : Number(req.body.weekday);
+  const preferredSlot = String(req.body?.slot || '') || null;
 
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
   }
+  if (!['all', 'washer', 'drying_room', 'tumbler'].includes(resourceType)) {
+    return res.status(400).json({ error: 'Ung\u00fcltiger Bereich f\u00fcr Benachrichtigungen.' });
+  }
+  if (weekday !== null && (!Number.isInteger(weekday) || weekday < 1 || weekday > 6)) {
+    return res.status(400).json({ error: 'Ung\u00fcltiger Wochentag f\u00fcr Benachrichtigungen.' });
+  }
+  if (preferredSlot !== null && !slots.includes(preferredSlot)) {
+    return res.status(400).json({ error: 'Ung\u00fcltiges Zeitfenster f\u00fcr Benachrichtigungen.' });
+  }
 
   try {
-    db.prepare('UPDATE users SET email = ?, notify_releases = ? WHERE id = ?')
-      .run(email, notifyReleases, req.session.user.id);
+    const previous = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(req.session.user.id);
+    const emailChanged = normalizeEmail(previous?.email) !== email;
+    const emailVerified = emailChanged && emailStatus().configured ? 0 : previous?.email_verified ?? 1;
+    db.transaction(() => {
+      db.prepare('UPDATE users SET email = ?, notify_releases = ?, email_verified = ? WHERE id = ?')
+        .run(email, notifyReleases, emailVerified, req.session.user.id);
+      db.prepare(`
+        INSERT INTO notification_preferences (user_id, resource_type, weekday, slot)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          resource_type = excluded.resource_type,
+          weekday = excluded.weekday,
+          slot = excluded.slot
+      `).run(req.session.user.id, resourceType, weekday, preferredSlot);
+    })();
+    if (emailChanged && emailStatus().configured) {
+      await sendEmailVerification(req, {
+        id: req.session.user.id,
+        username: req.session.user.username,
+        email
+      }).catch((error) => console.error(`Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`));
+    }
+    req.session.user.emailVerified = Boolean(emailVerified);
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben' });
@@ -1675,7 +2079,13 @@ app.put('/api/me/notifications', requireAuth, (req, res) => {
 
   req.session.user.email = email;
   req.session.user.notifyReleases = Boolean(notifyReleases);
-  res.json({ user: req.session.user, message: 'Benachrichtigungen gespeichert.' });
+  res.json({
+    user: req.session.user,
+    notificationPreferences: { resourceType, weekday, slot: preferredSlot },
+    message: req.session.user.emailVerified
+      ? 'Benachrichtigungen gespeichert.'
+      : 'Benachrichtigungen gespeichert. Bitte best\u00e4tige die neue E-Mail-Adresse.'
+  });
 });
 
 app.put('/api/me/password', requireAuth, (req, res) => {
@@ -1697,6 +2107,54 @@ app.put('/api/me/password', requireAuth, (req, res) => {
     .run(bcrypt.hashSync(newPassword, 10), user.id);
   destroyUserSessions(user.id, req.sessionID);
   res.json({ ok: true, message: 'Dein Passwort wurde ge\u00e4ndert.' });
+});
+
+app.get('/api/me/export', requireAuth, (req, res) => {
+  const user = db.prepare(`
+    SELECT id, username, email, role, active, notify_releases, email_verified, created_at
+    FROM users WHERE id = ?
+  `).get(req.session.user.id);
+  const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(req.session.user.houseId);
+  const bookings = db.prepare(`
+    SELECT b.booking_date, b.slot, b.group_id, b.created_at, r.name AS resource, r.type AS resource_type
+    FROM bookings b JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ? ORDER BY b.booking_date, b.slot
+  `).all(req.session.user.id);
+  const notificationPreferences = db.prepare(`
+    SELECT resource_type, weekday, slot FROM notification_preferences WHERE user_id = ?
+  `).get(req.session.user.id) || null;
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    account: user,
+    house,
+    notificationPreferences,
+    bookings
+  };
+  res.setHeader('Content-Disposition', 'attachment; filename="waschplan-meine-daten.json"');
+  res.type('application/json').send(JSON.stringify(payload, null, 2));
+});
+
+app.delete('/api/me', requireAuth, (req, res) => {
+  const password = String(req.body?.password || '');
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+  if (!user || !verifyStoredPassword(password, user.password_hash)) {
+    return res.status(403).json({ error: 'Das Passwort stimmt nicht.' });
+  }
+  if (user.is_superadmin) {
+    return res.status(400).json({ error: 'Das Superadmin-Konto kann nur nach \u00dcbergabe der Verantwortung entfernt werden.' });
+  }
+  if (user.role === 'admin') {
+    const activeAdmins = db.prepare(`
+      SELECT COUNT(*) AS count FROM users WHERE house_id = ? AND role = 'admin' AND active = 1
+    `).get(user.house_id).count;
+    if (activeAdmins <= 1) {
+      return res.status(409).json({ error: 'Zuerst muss ein anderes aktives Admin-Konto f\u00fcr dieses Haus vorhanden sein.' });
+    }
+  }
+  writeAudit(req, 'user.self_delete', 'user', user.id);
+  destroyUserSessions(user.id, req.sessionID);
+  db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+  req.session.destroy(() => res.json({ ok: true, message: 'Dein Konto und deine Buchungen wurden gel\u00f6scht.' }));
 });
 
 app.get('/api/calendar', requireAuth, (req, res) => {
@@ -1730,6 +2188,69 @@ app.get('/api/resources', requireAuth, (req, res) => {
     ORDER BY type, name
   `).all(currentHouseId(req));
   res.json({ resources });
+});
+
+app.get('/api/admin/resources', requireAdmin, (req, res) => {
+  const resources = db.prepare(`
+    SELECT id, name, type, active
+    FROM resources WHERE house_id = ?
+    ORDER BY type, name
+  `).all(currentHouseId(req));
+  res.json({ resources });
+});
+
+app.post('/api/admin/resources', requireAdmin, (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const type = String(req.body?.type || '');
+  if (name.length < 2 || name.length > 80 || !['washer', 'drying_room', 'tumbler'].includes(type)) {
+    return res.status(400).json({ error: 'Bitte einen g\u00fcltigen Namen und Bereich w\u00e4hlen.' });
+  }
+  if (db.prepare('SELECT id FROM resources WHERE lower(name) = lower(?) AND house_id = ?').get(name, currentHouseId(req))) {
+    return res.status(409).json({ error: 'Ein Ger\u00e4t mit diesem Namen ist bereits vorhanden.' });
+  }
+  const result = db.prepare('INSERT INTO resources (name, type, house_id) VALUES (?, ?, ?)')
+    .run(name, type, currentHouseId(req));
+  writeAudit(req, 'resource.create', 'resource', result.lastInsertRowid, { name, type });
+  res.status(201).json({ id: result.lastInsertRowid, message: `${name} wurde angelegt.` });
+});
+
+app.put('/api/admin/resources/:id', requireAdmin, (req, res) => {
+  const resource = db.prepare('SELECT * FROM resources WHERE id = ? AND house_id = ?')
+    .get(Number(req.params.id), currentHouseId(req));
+  if (!resource) {
+    return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden.' });
+  }
+  const name = String(req.body?.name ?? resource.name).trim();
+  const active = req.body?.active == null ? resource.active : req.body.active === true ? 1 : 0;
+  if (name.length < 2 || name.length > 80) {
+    return res.status(400).json({ error: 'Der Name muss 2 bis 80 Zeichen haben.' });
+  }
+  if (db.prepare('SELECT id FROM resources WHERE lower(name) = lower(?) AND house_id = ? AND id != ?')
+    .get(name, currentHouseId(req), resource.id)) {
+    return res.status(409).json({ error: 'Ein Ger\u00e4t mit diesem Namen ist bereits vorhanden.' });
+  }
+  if (!active && resource.active) {
+    const conflict = db.prepare(`
+      SELECT 1 FROM bookings WHERE resource_id = ? AND booking_date >= ? LIMIT 1
+    `).get(resource.id, todayStringLocal()) || db.prepare(`
+      SELECT 1 FROM fixed_bookings WHERE resource_id = ? AND active = 1 LIMIT 1
+    `).get(resource.id);
+    if (conflict) {
+      return res.status(409).json({ error: 'Das Ger\u00e4t hat kommende oder feste Buchungen und kann noch nicht deaktiviert werden.' });
+    }
+    if (resource.type === 'tumbler') {
+      const activeTumblers = db.prepare(`
+        SELECT COUNT(*) AS count FROM resources
+        WHERE house_id = ? AND type = 'tumbler' AND active = 1
+      `).get(currentHouseId(req)).count;
+      if (activeTumblers <= 2) {
+        return res.status(409).json({ error: 'F\u00fcr die Freihalte-Regel m\u00fcssen mindestens zwei Tumbler aktiv bleiben.' });
+      }
+    }
+  }
+  db.prepare('UPDATE resources SET name = ?, active = ? WHERE id = ?').run(name, active, resource.id);
+  writeAudit(req, 'resource.update', 'resource', resource.id, { name, active: Boolean(active) });
+  res.json({ ok: true, message: `${name} wurde aktualisiert.` });
 });
 
 app.get('/api/my-bookings', requireAuth, (req, res) => {
@@ -2079,6 +2600,68 @@ app.delete('/api/booking-groups/:groupId', requireAuth, (req, res) => {
   res.json({ ok: true, deleted: groupedBookings.length, message: 'Waschpaket gel\u00f6scht.' });
 });
 
+app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, res, next) => {
+  try {
+    const groupId = String(req.params.groupId || '');
+    const groupedBookings = db.prepare(`
+      SELECT b.*, r.name AS resource_name, r.type AS resource_type, r.house_id, h.name AS house_name
+      FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      JOIN houses h ON h.id = r.house_id
+      WHERE b.group_id = ? AND r.house_id = ?
+      ORDER BY b.booking_date, b.slot, r.type
+    `).all(groupId, currentHouseId(req));
+    if (!groupedBookings.length) {
+      return res.status(404).json({ error: 'Waschpaket nicht gefunden' });
+    }
+    if (
+      req.session.user.role !== 'admin'
+      && groupedBookings.some((booking) => booking.user_id !== req.session.user.id)
+    ) {
+      return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
+    }
+    if (groupedBookings.some((booking) => releaseWindowStatus(booking.booking_date, booking.slot).reason !== 'not_started')) {
+      return res.status(409).json({ error: 'Das ganze Paket kann nur vor Beginn abgesagt werden. Laufende Bestandteile bitte einzeln fr\u00fcher freigeben.' });
+    }
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
+      const insertNotice = db.prepare(`
+        INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
+        VALUES (?, ?, ?, 'cancellation', ?, ?, ?)
+      `);
+      for (const booking of groupedBookings) {
+        insertNotice.run(
+          booking.resource_name,
+          booking.booking_date,
+          booking.slot,
+          `${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} ist wieder buchbar.`,
+          booking.house_id,
+          req.session.user.id
+        );
+      }
+    })();
+
+    const washer = groupedBookings.find((booking) => booking.resource_type === 'washer') || groupedBookings[0];
+    const message = `Ein Waschpaket am ${washer.booking_date} im Zeitfenster ${washer.slot} wurde abgesagt. Die enthaltenen Termine sind wieder buchbar.`;
+    const emailNotifications = await notifyReleaseSubscribers(
+      req,
+      washer,
+      message,
+      'Waschplan: Waschpaket wieder frei'
+    );
+    res.json({
+      ok: true,
+      deleted: groupedBookings.length,
+      releaseNoticeCreated: true,
+      emailNotifications,
+      message
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.delete('/api/bookings/:id', requireAuth, (req, res) => {
   const booking = db.prepare(`
     SELECT b.* FROM bookings b
@@ -2100,7 +2683,7 @@ app.delete('/api/bookings/:id', requireAuth, (req, res) => {
 app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) => {
   try {
     const booking = db.prepare(`
-      SELECT b.*, r.name AS resource_name, r.house_id, h.name AS house_name
+      SELECT b.*, r.name AS resource_name, r.type AS resource_type, r.house_id, h.name AS house_name
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN houses h ON h.id = r.house_id
@@ -2143,7 +2726,7 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
 app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
   try {
     const booking = db.prepare(`
-      SELECT b.*, r.name AS resource_name, r.house_id, h.name AS house_name
+      SELECT b.*, r.name AS resource_name, r.type AS resource_type, r.house_id, h.name AS house_name
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN houses h ON h.id = r.house_id
@@ -2209,7 +2792,7 @@ app.get('/api/release-notices', requireAuth, (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const users = db.prepare(`
-    SELECT id, username, email, role, is_superadmin, active, notify_releases, created_at
+    SELECT id, username, email, role, house_id, is_superadmin, active, notify_releases, email_verified, created_at
     FROM users
     WHERE house_id = ?
     ORDER BY username
@@ -2248,6 +2831,7 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   if (!active) {
     destroyUserSessions(user.id);
   }
+  writeAudit(req, 'user.status', 'user', user.id, { active: Boolean(active) });
   res.json({ ok: true, message: `${user.username} ist jetzt ${active ? 'aktiv' : 'deaktiviert'}.` });
 });
 
@@ -2272,6 +2856,7 @@ app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
     .run(bcrypt.hashSync(newPassword, 10), user.id);
   destroyUserSessions(user.id, user.id === req.session.user.id ? req.sessionID : '');
+  writeAudit(req, 'user.password_reset', 'user', user.id);
   res.json({ ok: true, message: `Passwort f\u00fcr ${user.username} wurde neu gesetzt.` });
 });
 
@@ -2293,7 +2878,50 @@ app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res)
   }
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
   destroyUserSessions(user.id);
+  writeAudit(req, 'user.role', 'user', user.id, { role });
   res.json({ message: `${user.username} ist jetzt ${role === 'admin' ? 'Haus-Admin' : 'Bewohner'}.` });
+});
+
+app.put('/api/admin/users/:id/house', requireAdmin, requireSuperadmin, (req, res) => {
+  const userId = Number(req.params.id);
+  const houseId = Number(req.body?.houseId);
+  const user = db.prepare('SELECT id, username, house_id, is_superadmin FROM users WHERE id = ?').get(userId);
+  const house = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1').get(houseId);
+  if (!user || !house) {
+    return res.status(404).json({ error: 'Konto oder Zielhaus nicht gefunden.' });
+  }
+  if (user.is_superadmin) {
+    return res.status(400).json({ error: 'Das Superadmin-Konto kann nicht verschoben werden.' });
+  }
+  if (user.house_id === house.id) {
+    return res.status(400).json({ error: 'Das Konto geh\u00f6rt bereits zu diesem Haus.' });
+  }
+  const futureBookings = db.prepare('SELECT COUNT(*) AS count FROM bookings WHERE user_id = ? AND booking_date >= ?')
+    .get(user.id, todayStringLocal()).count;
+  if (futureBookings) {
+    return res.status(409).json({ error: 'Vor dem Umzug m\u00fcssen die kommenden Buchungen dieses Kontos gel\u00f6scht werden.' });
+  }
+  const previousHouseId = user.house_id;
+  db.prepare('UPDATE users SET house_id = ?, role = ? WHERE id = ?').run(house.id, 'user', user.id);
+  destroyUserSessions(user.id);
+  writeAudit(req, 'user.move', 'user', user.id, { fromHouseId: previousHouseId, toHouseId: house.id });
+  res.json({ ok: true, message: `${user.username} wurde nach ${house.name} verschoben.` });
+});
+
+app.get('/api/admin/audit-log', requireAdmin, (req, res) => {
+  const entries = db.prepare(`
+    SELECT al.id, al.action, al.target_type, al.target_id, al.details, al.created_at,
+           u.username AS actor
+    FROM audit_log al
+    LEFT JOIN users u ON u.id = al.user_id
+    WHERE al.house_id = ? OR ? = 1
+    ORDER BY al.id DESC
+    LIMIT 80
+  `).all(currentHouseId(req), isSuperadmin(req) ? 1 : 0).map((entry) => ({
+    ...entry,
+    details: (() => { try { return JSON.parse(entry.details || '{}'); } catch { return {}; } })()
+  }));
+  res.json({ entries });
 });
 
 app.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req, res, next) => {
@@ -2303,6 +2931,7 @@ app.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req, res, n
 
   try {
     await db.backup(backupPath);
+    writeAudit(req, 'backup.download', 'database');
     res.download(backupPath, downloadName, (error) => {
       fs.rm(backupPath, { force: true }, () => {});
       if (error && !res.headersSent) {
@@ -2312,6 +2941,17 @@ app.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req, res, n
   } catch (error) {
     fs.rm(backupPath, { force: true }, () => {});
     next(error);
+  }
+});
+
+app.post('/api/admin/backup/run', requireAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const status = await createVerifiedBackup();
+    writeAudit(req, 'backup.create', 'database', '', status);
+    res.json({ status, message: 'Backup wurde erstellt und gepr\u00fcft.' });
+  } catch (error) {
+    setSetting('backup_status', JSON.stringify({ ok: false, createdAt: new Date().toISOString(), error: error.message }));
+    res.status(500).json({ error: `Backup fehlgeschlagen: ${error.message}` });
   }
 });
 
@@ -2341,7 +2981,10 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     activeResources,
     fixedBookings,
     recentReleases,
-    email: emailStatus()
+    email: emailStatus(),
+    backup: (() => {
+      try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
+    })()
   });
 });
 
@@ -2418,6 +3061,7 @@ app.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
       seedHouseResources(result.lastInsertRowid);
       return db.prepare('SELECT id, name, code, active FROM houses WHERE id = ?').get(result.lastInsertRowid);
     })();
+    writeAudit(req, 'house.create', 'house', house.id, { name: house.name });
     res.status(201).json({ house, message: `${house.name} wurde mit eigenen Ger\u00e4ten angelegt.` });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -2425,6 +3069,38 @@ app.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
     }
     throw error;
   }
+});
+
+app.put('/api/admin/houses/:id', requireAdmin, requireSuperadmin, (req, res) => {
+  const house = db.prepare('SELECT id, name, active FROM houses WHERE id = ?').get(Number(req.params.id));
+  if (!house) {
+    return res.status(404).json({ error: 'Hausnummer nicht gefunden.' });
+  }
+  const name = String(req.body?.name ?? house.name).trim();
+  const active = req.body?.active == null ? house.active : req.body.active === true ? 1 : 0;
+  if (name.length < 2 || name.length > 80) {
+    return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
+  }
+  if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?) AND id != ?').get(name, house.id)) {
+    return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });
+  }
+  if (!active && house.active) {
+    if (Number(house.id) === Number(currentHouseId(req))) {
+      return res.status(409).json({ error: 'Wechsle zuerst zu einem anderen Haus.' });
+    }
+    const activeUsers = db.prepare('SELECT COUNT(*) AS count FROM users WHERE house_id = ? AND active = 1').get(house.id).count;
+    const futureBookings = db.prepare(`
+      SELECT COUNT(*) AS count FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      WHERE r.house_id = ? AND b.booking_date >= ?
+    `).get(house.id, todayStringLocal()).count;
+    if (activeUsers || futureBookings) {
+      return res.status(409).json({ error: 'Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.' });
+    }
+  }
+  db.prepare('UPDATE houses SET name = ?, active = ? WHERE id = ?').run(name, active, house.id);
+  writeAudit(req, 'house.update', 'house', house.id, { name, active: Boolean(active) });
+  res.json({ ok: true, message: `${name} wurde aktualisiert.` });
 });
 
 app.get('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
@@ -2498,6 +3174,10 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `).run(resourceId, weekday, slot, label, req.session.user.id);
 
+    writeAudit(req, 'fixed_booking.create', 'fixed_booking', result.lastInsertRowid, {
+      resourceId, weekday, slot, label
+    });
+
     res.status(201).json({
       id: result.lastInsertRowid,
       message: 'Feste Buchung gespeichert.'
@@ -2522,6 +3202,7 @@ app.delete('/api/admin/fixed-bookings/:id', requireAdmin, (req, res) => {
   }
 
   db.prepare('UPDATE fixed_bookings SET active = 0 WHERE id = ?').run(fixedBooking.id);
+  writeAudit(req, 'fixed_booking.delete', 'fixed_booking', fixedBooking.id);
   res.json({ ok: true, message: 'Feste Buchung entfernt.' });
 });
 
@@ -2533,6 +3214,7 @@ app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
 
   try {
     db.prepare('UPDATE houses SET code = ? WHERE id = ?').run(houseCode, currentHouseId(req));
+    writeAudit(req, 'house.code', 'house', currentHouseId(req));
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Dieser Hauscode wird bereits f\u00fcr eine andere Hausnummer verwendet.' });
@@ -2553,6 +3235,16 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Interner Serverfehler' });
 });
+
+cleanupExpiredData();
+const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
+cleanupTimer.unref();
+if (isProduction || String(process.env.AUTO_BACKUP || '').toLowerCase() === 'true') {
+  const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
+  initialBackupTimer.unref();
+  const backupTimer = setInterval(runScheduledBackup, 24 * 60 * 60 * 1000);
+  backupTimer.unref();
+}
 
 app.listen(port, () => {
   console.log(`Waschplan App laeuft auf http://localhost:${port}`);
