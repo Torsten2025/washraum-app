@@ -26,6 +26,11 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+app.disable('x-powered-by');
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 class BetterSqliteSessionStore extends session.Store {
   constructor(database) {
     super();
@@ -442,6 +447,28 @@ function verifyStoredPassword(password, storedHash) {
 
 initDb();
 
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data:",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'"
+  ].join('; '));
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(session({
   store: new BetterSqliteSessionStore(db),
@@ -674,6 +701,8 @@ function calendarDaySummary(userId, date) {
     const typeResources = activeResources.filter((resource) => resource.type === type);
     let free = 0;
     let total = 0;
+    let freeSlots = 0;
+    let totalSlots = 0;
 
     for (const slot of slots) {
       if (isPastSlot(date, slot)) {
@@ -684,11 +713,14 @@ function calendarDaySummary(userId, date) {
         : typeResources.length;
       const occupiedCount = typeResources
         .filter((resource) => occupied.has(`${resource.id}|${slot}`)).length;
+      const freeCapacity = Math.max(0, capacity - occupiedCount);
       total += capacity;
-      free += Math.max(0, capacity - occupiedCount);
+      free += freeCapacity;
+      totalSlots += capacity > 0 ? 1 : 0;
+      freeSlots += freeCapacity > 0 ? 1 : 0;
     }
 
-    availability[type] = { free, total };
+    availability[type] = { free, total, freeSlots, totalSlots };
   }
 
   return {
@@ -937,6 +969,46 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Nicht angemeldet' });
   }
   next();
+}
+
+const authRateBuckets = new Map();
+const authRateWindowMs = 15 * 60 * 1000;
+const authRateMaxAttempts = 60;
+
+function authRateLimit(req, res, next) {
+  const now = Date.now();
+  const identity = normalizeEmail(req.body?.username || req.body?.email || 'unknown');
+  const key = `${String(req.ip || req.socket.remoteAddress || 'unknown')}|${identity}`;
+  let bucket = authRateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { attempts: 0, resetAt: now + authRateWindowMs };
+  }
+  bucket.attempts += 1;
+  authRateBuckets.set(key, bucket);
+  req.authRateKey = key;
+
+  if (bucket.attempts > authRateMaxAttempts) {
+    res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
+    return res.status(429).json({ error: 'Zu viele Anmeldeversuche. Bitte versuche es in einigen Minuten erneut.' });
+  }
+
+  if (authRateBuckets.size > 500) {
+    for (const [bucketKey, value] of authRateBuckets) {
+      if (value.resetAt <= now) {
+        authRateBuckets.delete(bucketKey);
+      }
+    }
+    if (authRateBuckets.size > 1000) {
+      authRateBuckets.delete(authRateBuckets.keys().next().value);
+    }
+  }
+  next();
+}
+
+function clearAuthRateLimit(req) {
+  if (req.authRateKey) {
+    authRateBuckets.delete(req.authRateKey);
+  }
 }
 
 function requireAdmin(req, res, next) {
@@ -1214,7 +1286,7 @@ app.get(['/health', '/api/health'], (req, res) => {
   res.json({ ok: true, storage });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', authRateLimit, (req, res) => {
   const { username, password } = req.body || {};
   const loginName = normalizeEmail(username);
   const user = db.prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?')
@@ -1239,10 +1311,11 @@ app.post('/api/login', (req, res) => {
     email: user.email || '',
     notifyReleases: Boolean(user.notify_releases)
   };
+  clearAuthRateLimit(req);
   res.json({ user: req.session.user });
 });
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', authRateLimit, (req, res) => {
   const username = String(req.body?.username || '').trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
@@ -1276,6 +1349,7 @@ app.post('/api/register', (req, res) => {
       email,
       notifyReleases: Boolean(notifyReleases)
     };
+    clearAuthRateLimit(req);
     res.status(201).json({ user: req.session.user });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {

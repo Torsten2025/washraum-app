@@ -64,5 +64,5 @@ registerForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  window.location.href = '/index.html';
+  window.location.href = '/index.html?welcome=1';
 });

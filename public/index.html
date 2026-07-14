@@ -177,51 +177,78 @@
       <section class="intro-modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">
         <button id="closeIntroButton" class="icon-close" type="button" aria-label="Intro schliessen">x</button>
         <div class="intro-copy">
-          <p class="eyebrow">Video-Einfuehrung</p>
-          <h2 id="introTitle">Waschplan in zwei Minuten.</h2>
-          <p>Ein lockerer Rundgang durch die App: wo du klickst, wie du schnell buchst und welche Regeln automatisch mitlaufen.</p>
+          <p class="eyebrow">Kurze Einf&uuml;hrung</p>
+          <h2 id="introTitle">In Ruhe durch den Waschplan.</h2>
+          <p>Sechs kurze Kapitel zeigen dir die wichtigsten Wege und Regeln. Du kannst jederzeit pausieren, vor- oder zur&uuml;ckspringen und den Text mitlesen.</p>
         </div>
-        <section class="video-guide" aria-label="Gesprochene Video-Einfuehrung">
+        <section class="video-guide" aria-label="Gesprochene Video-Einf&uuml;hrung">
           <div id="introVideoStage" class="video-stage" data-step="overview">
             <div class="video-topline">
               <span id="introVideoChapter">Kapitel 1 von 6</span>
-              <span>Sprecher an Bord</span>
+              <span id="introVideoVoiceStatus">Mit deutscher Stimme</span>
             </div>
             <div class="video-screen">
               <div class="video-host" aria-hidden="true">
-                <span class="host-avatar">GB</span>
-                <span>Walkthrough</span>
+                <span class="host-avatar">18</span>
+                <span>Maneggplatz 18</span>
               </div>
-              <div class="video-ui-mock" aria-hidden="true">
-                <div></div>
-                <div></div>
-                <div></div>
+              <div id="introVideoVisual" class="video-scene" aria-hidden="true"></div>
+              <div class="video-narration">
+                <h3 id="introVideoTitle">Willkommen im Waschplan</h3>
+                <p id="introVideoCaption" aria-live="polite">Deine Termine, ein passender Vorschlag und die freien Tage liegen direkt beieinander.</p>
               </div>
-              <h3 id="introVideoTitle">Willkommen im Waschplan</h3>
-              <p id="introVideoCaption" aria-live="polite">Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Buchungsbereich, rechts stehen Regeln und Freigaben.</p>
             </div>
-            <div class="video-progress" aria-hidden="true"><span id="introVideoProgress"></span></div>
+            <div id="introVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einf&uuml;hrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="introVideoProgress"></span></div>
           </div>
 
           <div class="video-controls">
+            <button id="introVideoPreviousButton" class="secondary video-skip" type="button" aria-label="Vorheriges Kapitel" title="Vorheriges Kapitel">&larr;</button>
             <button id="introVideoPlayButton" type="button">Video starten</button>
-            <button id="introVideoMuteButton" class="secondary" type="button" aria-pressed="false">Sprecher an</button>
+            <button id="introVideoNextButton" class="secondary video-skip" type="button" aria-label="N&auml;chstes Kapitel" title="N&auml;chstes Kapitel">&rarr;</button>
+            <button id="introVideoMuteButton" class="secondary" type="button" aria-pressed="false">Stimme einschalten</button>
           </div>
 
           <details class="video-transcript">
             <summary>Text zum Mitlesen</summary>
             <ol>
-              <li>Nach dem Einloggen siehst du oben deine eigenen Buchungen, darunter den Bereich zum Buchen und rechts die Regeln.</li>
-              <li>Fuer eine schnelle Buchung waehle Datum, Bereich und dann den passenden freien Slot.</li>
-              <li>Waschmaschinen duerfen pro Tag nur in einem Zeitfenster reserviert werden. Mehrere Maschinen gehen im gleichen Slot.</li>
-              <li>Trockenraeume passen zur Waschmaschinen-Buchung: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.</li>
-              <li>Tumbler gehen nur sinnvoll zum Waschslot. Mindestens ein Tumbler bleibt frei. Eigene Buchungen kannst du loeschen oder frueher freigeben.</li>
-              <li>Admins pflegen Hauscode und feste Buchungen. Nach der Nutzung bitte reinigen, damit der Waschraum fuer alle angenehm bleibt.</li>
+              <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Wochenkalender mit freien Tagen.</li>
+              <li>W&auml;hle einen Tag und einen Bereich. In einem freien Zeitfenster gen&uuml;gt ein Klick auf Buchen. Der Termin erscheint danach unter Meine Buchungen.</li>
+              <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
+              <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
+              <li>Mindestens ein Tumbler bleibt frei. Eigene Buchungen kannst du l&ouml;schen oder fr&uuml;her freigeben; auf Wunsch werden andere per E-Mail informiert.</li>
+              <li>Nach jeder Nutzung bitte Trommel, Dichtungen, Filter, Fl&auml;chen und Boden reinigen. Das gilt auch bei einem einzelnen Waschgang. Alle Einzelheiten stehen im Wissensbereich.</li>
             </ol>
           </details>
+
+          <section class="intro-quiz" aria-labelledby="introQuizTitle">
+            <div>
+              <p class="eyebrow">Kurz ausprobiert</p>
+              <h3 id="introQuizTitle">Drei Fragen f&uuml;r den Alltag</h3>
+              <p>Kein Test und keine Zugangsh&uuml;rde. Die Fragen helfen nur dabei, die wichtigsten Punkte noch einmal einzuordnen.</p>
+            </div>
+            <form id="introQuizForm">
+              <fieldset data-answer="same-slot">
+                <legend>Du brauchst an einem Waschtag zwei Waschmaschinen. Wie buchst du?</legend>
+                <label><input type="radio" name="quizWasher" value="same-slot"> Beide im gleichen Zeitfenster</label>
+                <label><input type="radio" name="quizWasher" value="different-slots"> Eine morgens und eine abends</label>
+              </fieldset>
+              <fieldset data-answer="next-noon">
+                <legend>Du w&auml;schst von 17:00 bis 21:00 Uhr. Bis wann darf der Trockenraum maximal reserviert werden?</legend>
+                <label><input type="radio" name="quizDrying" value="next-noon"> Bis 12:00 Uhr am Folgetag</label>
+                <label><input type="radio" name="quizDrying" value="next-evening"> Bis 21:00 Uhr am Folgetag</label>
+              </fieldset>
+              <fieldset data-answer="release">
+                <legend>Du bist fr&uuml;her fertig. Was hilft den anderen im Haus?</legend>
+                <label><input type="radio" name="quizRelease" value="release"> Die Buchung fr&uuml;her freigeben</label>
+                <label><input type="radio" name="quizRelease" value="leave"> Nichts, der Slot bleibt einfach belegt</label>
+              </fieldset>
+              <button type="submit">Antworten ansehen</button>
+              <p id="introQuizResult" class="quiz-result" role="status" aria-live="polite"></p>
+            </form>
+          </section>
         </section>
         <div class="intro-actions">
-          <button id="introDoneButton" type="button">Verstanden</button>
+          <button id="introDoneButton" type="button">Zur App</button>
         </div>
       </section>
     </div>

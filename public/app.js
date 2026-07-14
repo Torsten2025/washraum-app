@@ -35,9 +35,16 @@ const introVideoStage = document.querySelector('#introVideoStage');
 const introVideoChapter = document.querySelector('#introVideoChapter');
 const introVideoTitle = document.querySelector('#introVideoTitle');
 const introVideoCaption = document.querySelector('#introVideoCaption');
+const introVideoVisual = document.querySelector('#introVideoVisual');
 const introVideoProgress = document.querySelector('#introVideoProgress');
+const introVideoProgressTrack = document.querySelector('#introVideoProgressTrack');
 const introVideoPlayButton = document.querySelector('#introVideoPlayButton');
 const introVideoMuteButton = document.querySelector('#introVideoMuteButton');
+const introVideoPreviousButton = document.querySelector('#introVideoPreviousButton');
+const introVideoNextButton = document.querySelector('#introVideoNextButton');
+const introVideoVoiceStatus = document.querySelector('#introVideoVoiceStatus');
+const introQuizForm = document.querySelector('#introQuizForm');
+const introQuizResult = document.querySelector('#introQuizResult');
 
 let currentUser = null;
 let resources = [];
@@ -47,11 +54,16 @@ let activeType = 'washer';
 let calendarStartDate = '';
 let calendarDays = [];
 let currentRecommendation = null;
-let introVideoElapsedMs = 0;
+let introVideoStepIndex = 0;
+let introVideoStepElapsedMs = 0;
 let introVideoTimer = null;
 let introVideoLastTick = 0;
 let introVideoPlaying = false;
-let introVideoSpokenStep = '';
+let introVideoFinished = false;
+let introVideoUtterance = null;
+let introVideoSpeechPaused = false;
+let introVideoSpeechRun = 0;
+let introVideoPreferredVoice = null;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
@@ -67,48 +79,86 @@ const weekdayLabels = {
 const introVideoSteps = [
   {
     id: 'overview',
-    durationMs: 9500,
+    fallbackDurationMs: 18000,
     title: 'Willkommen im Waschplan',
-    caption: 'Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Buchungsbereich, rechts stehen Regeln und Freigaben.',
-    speech: 'Willkommen im Waschplan. Nach dem Einloggen siehst du zuerst deine eigenen Buchungen. Darunter liegt der Bereich zum Buchen. Rechts findest du Regeln und aktuelle Freigaben.'
+    caption: 'Deine Termine, ein passender Vorschlag und die freien Tage liegen direkt beieinander.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter schl\u00e4gt dir die App einen passenden Termin vor. Im Wochenkalender siehst du, an welchen Tagen noch etwas frei ist.',
+    visual: `
+      <div class="scene-overview">
+        <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
+        <div class="scene-grid">
+          <div class="scene-panel"><small>Meine Buchung</small><strong>Di, 07:00</strong><span>Waschmaschine 2</span></div>
+          <div class="scene-panel scene-accent"><small>Pers\u00f6nlicher Vorschlag</small><strong>Do, 12:00</strong><span>Direkt buchen</span></div>
+          <div class="scene-panel"><small>Diese Woche</small><strong>5 Tage frei</strong><span>Kalender ansehen</span></div>
+        </div>
+      </div>`
   },
   {
     id: 'booking',
-    durationMs: 10500,
-    title: 'Schnell zur Buchung',
-    caption: 'Waehle das Datum, dann Waschmaschine, Trockenraum oder Tumbler. Danach klickst du im freien Slot einfach auf Buchen.',
-    speech: 'So buchst du am schnellsten: Waehle zuerst das Datum. Dann waehlst du den Bereich, also Waschmaschine, Trockenraum oder Tumbler. In einem freien Slot klickst du auf Buchen.'
+    fallbackDurationMs: 21000,
+    title: 'In drei Schritten buchen',
+    caption: 'Tag ausw\u00e4hlen, Bereich festlegen und im freien Zeitfenster auf Buchen klicken.',
+    speech: 'F\u00fcr eine Buchung gehst du so vor. W\u00e4hle im Kalender den gew\u00fcnschten Tag. Danach w\u00e4hlst du Waschmaschine, Trockenraum oder Tumbler. Freie Zeiten haben eine Schaltfl\u00e4che mit der Aufschrift Buchen. Ein Klick gen\u00fcgt. Danach erscheint der Termin unter Meine Buchungen.',
+    visual: `
+      <div class="scene-booking">
+        <div class="scene-days"><span>Mo<br><b>15</b></span><span class="active">Di<br><b>16</b></span><span>Mi<br><b>17</b></span><span>Do<br><b>18</b></span></div>
+        <div class="scene-tabs"><span class="active">Waschmaschine</span><span>Trockenraum</span><span>Tumbler</span></div>
+        <div class="scene-slot"><span><small>Waschmaschine 2</small><strong>12:00 - 17:00</strong></span><b>Buchen</b></div>
+      </div>`
   },
   {
     id: 'washer',
-    durationMs: 10500,
+    fallbackDurationMs: 24000,
     title: 'Waschmaschine: ein Zeitfenster',
-    caption: 'Pro Waschtag gibt es nur ein Zeitfenster. Wenn du mehrere Waschmaschinen brauchst, buche sie im gleichen Slot.',
-    speech: 'Bei den Waschmaschinen gilt: pro Waschtag nur ein Zeitfenster. Wenn du mehrere Waschmaschinen brauchst, ist das im gleichen Slot moeglich.'
+    caption: 'Mehrere Maschinen sind m\u00f6glich, aber nur gemeinsam im selben Zeitfenster.',
+    speech: 'Bei den Waschmaschinen gilt: Du reservierst pro Waschtag nur ein Zeitfenster. Brauchst du mehrere Maschinen, buchst du sie im selben Zeitfenster. Einen weiteren zuk\u00fcnftigen Waschtag kannst du erst reservieren, wenn dein bereits gebuchter Waschtag erreicht ist. Die App pr\u00fcft das automatisch.',
+    visual: `
+      <div class="scene-washer">
+        <div class="scene-time"><small>Dein Waschtag</small><strong>12:00 - 17:00</strong></div>
+        <div class="scene-machines"><span class="booked">WM 1<br><b>Gebucht</b></span><span class="booked">WM 2<br><b>Gebucht</b></span><span>WM 3<br><b>Frei</b></span></div>
+        <div class="scene-rule">Ein Tag. Ein Zeitfenster. Mehrere Maschinen sind hier m\u00f6glich.</div>
+      </div>`
   },
   {
     id: 'drying',
-    durationMs: 11500,
-    title: 'Trockenraum passend zum Waschslot',
-    caption: '07:00 darf bis 21:00 trocknen. 12:00 und 17:00 duerfen maximal bis 12:00 am Folgetag trocknen.',
-    speech: 'Der Trockenraum passt immer zu deiner Waschmaschinen Buchung. Beim sieben Uhr Slot maximal bis einundzwanzig Uhr. Beim zwoelf Uhr und siebzehn Uhr Slot maximal bis zwoelf Uhr am Folgetag.'
+    fallbackDurationMs: 28000,
+    title: 'Trockenraum passend einplanen',
+    caption: 'Die erlaubte Dauer richtet sich danach, wann dein Waschslot beginnt.',
+    speech: 'Der Trockenraum wird passend zu deiner Waschmaschinen-Buchung reserviert. Wenn du morgens von sieben bis zw\u00f6lf w\u00e4schst, kannst du den Raum bis sp\u00e4testens einundzwanzig Uhr nutzen. Beim Slot von zw\u00f6lf bis siebzehn Uhr und beim Abend-Slot bis einundzwanzig Uhr endet die Nutzung sp\u00e4testens am folgenden Tag um zw\u00f6lf Uhr. Fr\u00fcher freigeben ist nat\u00fcrlich immer hilfreich.',
+    visual: `
+      <div class="scene-drying">
+        <div><span>Waschen 07:00</span><i></i><strong>bis 21:00</strong></div>
+        <div><span>Waschen 12:00</span><i></i><strong>bis Folgetag 12:00</strong></div>
+        <div><span>Waschen 17:00</span><i></i><strong>bis Folgetag 12:00</strong></div>
+      </div>`
   },
   {
     id: 'tumbler',
-    durationMs: 9500,
-    title: 'Tumbler, Loeschen und Freigeben',
-    caption: 'Ein Tumbler bleibt frei. Eigene Buchungen findest du oben und kannst sie loeschen oder frueher freigeben.',
-    speech: 'Beim Tumbler bleibt mindestens ein Geraet frei. Deine eigenen Buchungen findest du oben. Dort kannst du sie loeschen oder frueher freigeben.'
+    fallbackDurationMs: 26000,
+    title: 'Tumbler und fr\u00fche Freigabe',
+    caption: 'Ein Tumbler bleibt frei. Nicht mehr ben\u00f6tigte Termine gibst du f\u00fcr andere frei.',
+    speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Deine eigenen Termine findest du oben. Wenn du fr\u00fcher fertig bist, gib den Termin dort frei. Andere k\u00f6nnen den Platz dann \u00fcbernehmen und auf Wunsch per E-Mail informiert werden.',
+    visual: `
+      <div class="scene-tumbler">
+        <div class="scene-machines"><span class="booked">Tumbler 1<br><b>Gebucht</b></span><span>Tumbler 2<br><b>Bleibt frei</b></span></div>
+        <div class="scene-release"><span><small>Du bist fr\u00fcher fertig?</small><strong>Termin wieder freigeben</strong></span><b>Freigeben</b></div>
+      </div>`
   },
   {
     id: 'cleaning',
-    durationMs: 11000,
-    title: 'Admins, feste Buchungen und Reinigung',
-    caption: 'Admins pflegen Hauscode und feste Buchungen. Nach der Nutzung bitte Filter, Trommel, Boden und gemeinsam genutzte Dinge sauber hinterlassen.',
-    speech: 'Admins pflegen den Hauscode und feste Buchungen, zum Beispiel fuer regelmaessige Termine. Und wichtig fuer alle: nach der Nutzung bitte Filter, Trommel, Boden und gemeinsam genutzte Dinge sauber hinterlassen.'
+    fallbackDurationMs: 28000,
+    title: 'Sauber fertig werden',
+    caption: 'Reinigen geh\u00f6rt zu jeder Nutzung, auch bei einem einzelnen Waschgang.',
+    speech: 'Zum Schluss noch das, was den Alltag f\u00fcr alle angenehmer macht. Bitte reinige nach der Nutzung Trommel, Dichtungen und Filter. Wische die benutzten Fl\u00e4chen und den Boden, und h\u00e4nge den ausgesp\u00fclten Wischmopp zum Trocknen auf. Das gilt auch, wenn du nur einen einzelnen Waschgang machst. Die vollst\u00e4ndige \u00dcbersicht findest du jederzeit im Wissensbereich. Und damit bist du startklar.',
+    visual: `
+      <div class="scene-cleaning">
+        <span><b>1</b>Trommel und Dichtungen</span>
+        <span><b>2</b>Filter und Fl\u00e4chen</span>
+        <span><b>3</b>Boden und Wischmopp</span>
+        <strong>Danke, dass du den Waschraum sauber hinterl\u00e4sst.</strong>
+      </div>`
   }
 ];
-const introVideoTotalMs = introVideoSteps.reduce((total, step) => total + step.durationMs, 0);
 
 function todayString() {
   return formatDateString(new Date());
@@ -185,48 +235,173 @@ function openIntro() {
 }
 
 function closeIntro() {
-  pauseIntroVideo();
+  stopIntroVideo();
   introOverlay.hidden = true;
   document.body.classList.remove('modal-open');
 }
 
-function introVideoStepForElapsed(elapsedMs) {
-  let cursor = 0;
-  const cappedElapsed = Math.min(Math.max(elapsedMs, 0), introVideoTotalMs - 1);
+function introVideoStepDuration(step) {
+  const spokenWords = step.speech.trim().split(/\s+/).length;
+  const naturalReadingTime = Math.ceil((spokenWords / 2.25) * 1000 + 1400);
+  return Math.max(step.fallbackDurationMs, naturalReadingTime);
+}
 
-  for (let index = 0; index < introVideoSteps.length; index += 1) {
-    const step = introVideoSteps[index];
-    cursor += step.durationMs;
-    if (cappedElapsed < cursor) {
-      return { step, index };
-    }
+function introVoiceScore(voice) {
+  const name = voice.name.toLowerCase();
+  let score = 0;
+  if (/natural|online/.test(name)) score += 100;
+  if (voice.lang.toLowerCase() === 'de-ch') score += 35;
+  if (voice.lang.toLowerCase() === 'de-de') score += 30;
+  if (/google|microsoft|apple/.test(name)) score += 20;
+  if (voice.default) score += 5;
+  return score;
+}
+
+function refreshIntroVideoVoice() {
+  if (!introVideoSpeechSupported) {
+    return;
   }
+  const germanVoices = window.speechSynthesis.getVoices()
+    .filter((voice) => voice.lang.toLowerCase().startsWith('de'))
+    .sort((left, right) => introVoiceScore(right) - introVoiceScore(left));
+  introVideoPreferredVoice = germanVoices[0] || null;
+  renderIntroVideo();
+}
 
-  return { step: introVideoSteps[introVideoSteps.length - 1], index: introVideoSteps.length - 1 };
+function clearIntroVideoTimer() {
+  if (introVideoTimer) {
+    window.clearInterval(introVideoTimer);
+    introVideoTimer = null;
+  }
+}
+
+function cancelIntroVideoSpeech() {
+  introVideoSpeechRun += 1;
+  introVideoSpeechPaused = false;
+  introVideoUtterance = null;
+  if (introVideoSpeechSupported) {
+    window.speechSynthesis.cancel();
+  }
 }
 
 function renderIntroVideo() {
-  const { step, index } = introVideoStepForElapsed(introVideoElapsedMs);
-  const progress = Math.min(1, introVideoElapsedMs / introVideoTotalMs);
+  const step = introVideoSteps[introVideoStepIndex];
+  const duration = introVideoStepDuration(step);
+  const rawStepProgress = Math.min(1, introVideoStepElapsedMs / duration);
+  const stepProgress = introVideoSpeechSupported && introVideoSpeechEnabled && !introVideoFinished
+    ? Math.min(0.94, rawStepProgress)
+    : rawStepProgress;
+  const progress = introVideoFinished
+    ? 1
+    : (introVideoStepIndex + stepProgress) / introVideoSteps.length;
 
   introVideoStage.dataset.step = step.id;
-  introVideoChapter.textContent = `Kapitel ${index + 1} von ${introVideoSteps.length}`;
+  introVideoChapter.textContent = `Kapitel ${introVideoStepIndex + 1} von ${introVideoSteps.length}`;
   introVideoTitle.textContent = step.title;
   introVideoCaption.textContent = step.caption;
+  if (introVideoVisual.dataset.step !== step.id) {
+    introVideoVisual.dataset.step = step.id;
+    introVideoVisual.innerHTML = step.visual;
+  }
   introVideoProgress.style.width = `${Math.round(progress * 100)}%`;
-  introVideoPlayButton.textContent = introVideoPlaying ? 'Pause' : introVideoElapsedMs >= introVideoTotalMs ? 'Video erneut ansehen' : 'Video starten';
+  introVideoProgressTrack.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+  introVideoPlayButton.textContent = introVideoPlaying
+    ? 'Pause'
+    : introVideoFinished
+      ? 'Erneut ansehen'
+      : introVideoStepElapsedMs > 0
+        ? 'Fortsetzen'
+        : 'Einf\u00fchrung starten';
+  introVideoPreviousButton.disabled = introVideoStepIndex === 0;
+  introVideoNextButton.disabled = introVideoStepIndex === introVideoSteps.length - 1;
 
   if (!introVideoSpeechSupported) {
-    introVideoMuteButton.textContent = 'Sprecher nicht verfuegbar';
+    introVideoMuteButton.textContent = 'Stimme nicht verf\u00fcgbar';
     introVideoMuteButton.disabled = true;
+    introVideoVoiceStatus.textContent = 'Mit Text zum Mitlesen';
   } else {
-    introVideoMuteButton.textContent = introVideoSpeechEnabled ? 'Sprecher an' : 'Sprecher aus';
+    const voiceName = introVideoPreferredVoice?.name.toLowerCase() || '';
+    introVideoMuteButton.textContent = introVideoSpeechEnabled ? 'Stimme ausschalten' : 'Stimme einschalten';
     introVideoMuteButton.setAttribute('aria-pressed', String(introVideoSpeechEnabled));
+    introVideoVoiceStatus.textContent = introVideoSpeechEnabled
+      ? (/natural|online/.test(voiceName) ? 'Nat\u00fcrliche deutsche Stimme' : 'Mit deutscher Stimme')
+      : 'Ohne Sprachausgabe';
+  }
+}
+
+function startIntroVideoTimer() {
+  clearIntroVideoTimer();
+  introVideoLastTick = Date.now();
+  introVideoTimer = window.setInterval(() => {
+    const now = Date.now();
+    introVideoStepElapsedMs += now - introVideoLastTick;
+    introVideoLastTick = now;
+
+    const step = introVideoSteps[introVideoStepIndex];
+    const speechControlsChapter = introVideoSpeechSupported
+      && introVideoSpeechEnabled
+      && Boolean(introVideoUtterance);
+    if (!speechControlsChapter && introVideoStepElapsedMs >= introVideoStepDuration(step)) {
+      advanceIntroVideoStep();
+      return;
+    }
+    renderIntroVideo();
+  }, 200);
+}
+
+function speakIntroVideoStep(step) {
+  if (!introVideoSpeechSupported || !introVideoSpeechEnabled) {
+    return;
   }
 
-  if (introVideoPlaying) {
-    speakIntroVideoStep(step);
+  cancelIntroVideoSpeech();
+  const speechRun = introVideoSpeechRun;
+  const utterance = new SpeechSynthesisUtterance(step.speech);
+  introVideoUtterance = utterance;
+  if (introVideoPreferredVoice) {
+    utterance.voice = introVideoPreferredVoice;
+    utterance.lang = introVideoPreferredVoice.lang;
+  } else {
+    utterance.lang = 'de-DE';
   }
+  utterance.rate = 0.92;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  utterance.onend = () => {
+    if (speechRun !== introVideoSpeechRun || !introVideoPlaying) {
+      return;
+    }
+    introVideoUtterance = null;
+    introVideoSpeechPaused = false;
+    introVideoStepElapsedMs = introVideoStepDuration(step);
+    advanceIntroVideoStep(true);
+  };
+  utterance.onerror = (event) => {
+    if (speechRun !== introVideoSpeechRun || ['canceled', 'interrupted'].includes(event.error)) {
+      return;
+    }
+    introVideoUtterance = null;
+    introVideoSpeechPaused = false;
+    introVideoSpeechEnabled = false;
+    introVideoLastTick = Date.now();
+    renderIntroVideo();
+  };
+  window.speechSynthesis.speak(utterance);
+}
+
+function startIntroVideoPlayback() {
+  introVideoPlaying = true;
+  introVideoFinished = false;
+  renderIntroVideo();
+  if (introVideoSpeechSupported && introVideoSpeechEnabled) {
+    if (introVideoSpeechPaused && introVideoUtterance) {
+      window.speechSynthesis.resume();
+      introVideoSpeechPaused = false;
+    } else {
+      speakIntroVideoStep(introVideoSteps[introVideoStepIndex]);
+    }
+  }
+  startIntroVideoTimer();
 }
 
 function playIntroVideo() {
@@ -236,52 +411,69 @@ function playIntroVideo() {
     return;
   }
 
-  if (introVideoElapsedMs >= introVideoTotalMs) {
-    introVideoElapsedMs = 0;
-    introVideoSpokenStep = '';
+  if (introVideoFinished) {
+    introVideoStepIndex = 0;
+    introVideoStepElapsedMs = 0;
+    introVideoFinished = false;
   }
-
-  introVideoPlaying = true;
-  introVideoLastTick = Date.now();
-  renderIntroVideo();
-
-  introVideoTimer = window.setInterval(() => {
-    const now = Date.now();
-    introVideoElapsedMs += now - introVideoLastTick;
-    introVideoLastTick = now;
-
-    if (introVideoElapsedMs >= introVideoTotalMs) {
-      introVideoElapsedMs = introVideoTotalMs;
-      pauseIntroVideo();
-    }
-
-    renderIntroVideo();
-  }, 250);
+  startIntroVideoPlayback();
 }
 
 function pauseIntroVideo() {
   introVideoPlaying = false;
-  if (introVideoTimer) {
-    window.clearInterval(introVideoTimer);
-    introVideoTimer = null;
-  }
-  if (introVideoSpeechSupported) {
-    window.speechSynthesis.cancel();
+  clearIntroVideoTimer();
+  if (introVideoSpeechSupported && introVideoUtterance) {
+    window.speechSynthesis.pause();
+    introVideoSpeechPaused = true;
   }
 }
 
-function speakIntroVideoStep(step) {
-  if (!introVideoSpeechSupported || !introVideoSpeechEnabled || introVideoSpokenStep === step.id) {
+function stopIntroVideo() {
+  introVideoPlaying = false;
+  introVideoStepElapsedMs = 0;
+  clearIntroVideoTimer();
+  cancelIntroVideoSpeech();
+}
+
+function advanceIntroVideoStep(fromSpeech = false) {
+  const continuePlaying = introVideoPlaying;
+  clearIntroVideoTimer();
+  introVideoSpeechRun += 1;
+  introVideoSpeechPaused = false;
+  introVideoUtterance = null;
+  if (!fromSpeech && introVideoSpeechSupported) {
+    window.speechSynthesis.cancel();
+  }
+
+  if (introVideoStepIndex >= introVideoSteps.length - 1) {
+    introVideoStepElapsedMs = introVideoStepDuration(introVideoSteps[introVideoStepIndex]);
+    introVideoFinished = true;
+    introVideoPlaying = false;
+    renderIntroVideo();
     return;
   }
 
-  introVideoSpokenStep = step.id;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(step.speech);
-  utterance.lang = 'de-CH';
-  utterance.rate = 0.96;
-  utterance.pitch = 1;
-  window.speechSynthesis.speak(utterance);
+  introVideoStepIndex += 1;
+  introVideoStepElapsedMs = 0;
+  renderIntroVideo();
+  if (continuePlaying) {
+    startIntroVideoPlayback();
+  }
+}
+
+function moveIntroVideoStep(direction) {
+  const continuePlaying = introVideoPlaying;
+  stopIntroVideo();
+  introVideoStepIndex = Math.min(
+    introVideoSteps.length - 1,
+    Math.max(0, introVideoStepIndex + direction)
+  );
+  introVideoStepElapsedMs = 0;
+  introVideoFinished = false;
+  renderIntroVideo();
+  if (continuePlaying) {
+    startIntroVideoPlayback();
+  }
 }
 
 function toggleIntroVideoSpeech() {
@@ -290,9 +482,48 @@ function toggleIntroVideoSpeech() {
   }
 
   introVideoSpeechEnabled = !introVideoSpeechEnabled;
-  introVideoSpokenStep = '';
-  window.speechSynthesis.cancel();
+  cancelIntroVideoSpeech();
+  if (introVideoPlaying) {
+    introVideoStepElapsedMs = 0;
+    introVideoLastTick = Date.now();
+    if (introVideoSpeechEnabled) {
+      speakIntroVideoStep(introVideoSteps[introVideoStepIndex]);
+    }
+  }
   renderIntroVideo();
+}
+
+function checkIntroQuiz(event) {
+  event.preventDefault();
+  const questions = [...introQuizForm.querySelectorAll('fieldset[data-answer]')];
+  let answered = 0;
+  let correct = 0;
+
+  for (const question of questions) {
+    const selected = question.querySelector('input:checked');
+    question.classList.remove('is-correct', 'needs-review', 'is-unanswered');
+    if (!selected) {
+      question.classList.add('is-unanswered');
+      continue;
+    }
+    answered += 1;
+    if (selected.value === question.dataset.answer) {
+      correct += 1;
+      question.classList.add('is-correct');
+    } else {
+      question.classList.add('needs-review');
+    }
+  }
+
+  if (answered < questions.length) {
+    introQuizResult.textContent = 'W\u00e4hle bitte bei jeder Frage eine Antwort. Danach schauen wir sie gemeinsam an.';
+    return;
+  }
+  if (correct === questions.length) {
+    introQuizResult.textContent = 'Passt. Die wichtigsten Punkte sitzen, und du kannst direkt loslegen.';
+    return;
+  }
+  introQuizResult.textContent = `${correct} von ${questions.length} Antworten passen schon. Die orange markierten Fragen kannst du oben noch einmal nachlesen. Du kannst die App nat\u00fcrlich trotzdem nutzen.`;
 }
 
 async function api(path, options = {}) {
@@ -339,6 +570,11 @@ async function init() {
   }
 
   await refreshAll();
+  const pageUrl = new URL(window.location.href);
+  if (pageUrl.searchParams.get('welcome') === '1') {
+    openIntro();
+    window.history.replaceState({}, '', '/index.html');
+  }
 }
 
 async function refreshAll() {
@@ -381,12 +617,14 @@ async function loadRecommendation() {
 
 function availabilityForDay(day) {
   if (activeType !== 'all') {
-    return day.availability[activeType] || { free: 0, total: 0 };
+    return day.availability[activeType] || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
   }
   return Object.values(day.availability).reduce((summary, item) => ({
     free: summary.free + item.free,
-    total: summary.total + item.total
-  }), { free: 0, total: 0 });
+    total: summary.total + item.total,
+    freeSlots: summary.freeSlots + item.freeSlots,
+    totalSlots: summary.totalSlots + item.totalSlots
+  }), { free: 0, total: 0, freeSlots: 0, totalSlots: 0 });
 }
 
 function renderCalendar() {
@@ -414,12 +652,15 @@ function renderCalendar() {
     button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${availability.free} freie Buchungsmoeglichkeiten${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
+      `${formatShortDate(day.date)}, ${availability.freeSlots} freie Zeitfenster${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
     );
+    const availabilityLabel = activeType === 'all'
+      ? `${availability.freeSlots} Optionen frei`
+      : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Slot' : 'Slots'} frei`;
     button.innerHTML = `
       <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(new Date(`${day.date}T12:00:00`))}</span>
       <strong>${new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit' }).format(new Date(`${day.date}T12:00:00`))}</strong>
-      <span class="calendar-availability">${availability.total ? `<b>${availability.free}</b> frei` : 'vorbei'}</span>
+      <span class="calendar-availability">${availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
     button.addEventListener('click', () => selectBookingDate(day.date));
@@ -816,11 +1057,24 @@ closeIntroButton.addEventListener('click', closeIntro);
 introDoneButton.addEventListener('click', closeIntro);
 introVideoPlayButton.addEventListener('click', playIntroVideo);
 introVideoMuteButton.addEventListener('click', toggleIntroVideoSpeech);
+introVideoPreviousButton.addEventListener('click', () => moveIntroVideoStep(-1));
+introVideoNextButton.addEventListener('click', () => moveIntroVideoStep(1));
+introQuizForm.addEventListener('submit', checkIntroQuiz);
 introOverlay.addEventListener('click', (event) => {
   if (event.target === introOverlay) {
     closeIntro();
   }
 });
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !introOverlay.hidden) {
+    closeIntro();
+  }
+});
+
+if (introVideoSpeechSupported) {
+  window.speechSynthesis.addEventListener('voiceschanged', refreshIntroVideoVoice);
+  refreshIntroVideoVoice();
+}
 
 logoutButton.addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
