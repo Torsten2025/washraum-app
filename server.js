@@ -885,23 +885,6 @@ function userHasBookingInWindow(userId, type, window, houseId) {
   `).get(userId, type, houseId, date, slot)));
 }
 
-function companionPreference(userId, houseId) {
-  const rows = db.prepare(`
-    SELECT r.type, COUNT(*) AS count
-    FROM bookings b
-    JOIN resources r ON r.id = b.resource_id
-    WHERE b.user_id = ?
-      AND b.booking_date < date('now', 'localtime')
-      AND r.house_id = ?
-      AND r.type IN ('drying_room', 'tumbler')
-    GROUP BY r.type
-  `).all(userId, houseId);
-  const counts = Object.fromEntries(rows.map((row) => [row.type, row.count]));
-  return (counts.tumbler || 0) > (counts.drying_room || 0)
-    ? ['tumbler', 'drying_room']
-    : ['drying_room', 'tumbler'];
-}
-
 function findAvailableResourceForWindow(type, window, houseId) {
   if (!window.length || window.some((item) => isPastSlot(item.date, item.slot) || isSunday(item.date))) {
     return null;
@@ -938,6 +921,7 @@ function packageComponent(type, resource, bookings, options = {}) {
     required: Boolean(options.required),
     existing: Boolean(options.existing),
     selectedByDefault: Boolean(options.required || options.selectedByDefault),
+    recommendationLabel: String(options.recommendationLabel || ''),
     bookings: bookings.map((booking) => ({
       resourceId: resource.id,
       date: booking.date,
@@ -947,7 +931,6 @@ function packageComponent(type, resource, bookings, options = {}) {
 }
 
 function companionPackageRecommendation(userId, washerBooking, houseId) {
-  const preferredType = companionPreference(userId, houseId)[0];
   const components = [packageComponent('washer', {
     id: washerBooking.resource_id,
     name: washerBooking.resource_name
@@ -959,7 +942,8 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
     const dryingRoom = findAvailableResourceForWindow('drying_room', suggestedWindow, houseId);
     if (dryingRoom) {
       components.push(packageComponent('drying_room', dryingRoom, suggestedWindow, {
-        selectedByDefault: preferredType === 'drying_room'
+        selectedByDefault: true,
+        recommendationLabel: 'Empfohlen'
       }));
     }
   }
@@ -974,8 +958,10 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
       houseId
     );
     if (tumbler) {
+      const hasDryingRoom = components.some((component) => component.type === 'drying_room');
       components.push(packageComponent('tumbler', tumbler, tumblerWindow, {
-        selectedByDefault: preferredType === 'tumbler'
+        selectedByDefault: !hasDryingRoom,
+        recommendationLabel: hasDryingRoom ? 'Optional' : 'Alternative'
       }));
     }
   }
@@ -983,9 +969,7 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
   if (components.length === 1) {
     return null;
   }
-  if (!components.some((component) => component.selectedByDefault && !component.required)) {
-    components[1].selectedByDefault = true;
-  }
+  const hasDryingRoom = components.some((component) => component.type === 'drying_room');
 
   return {
     kind: 'package',
@@ -994,7 +978,9 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
     slot: washerBooking.slot,
     resourceType: 'washer',
     title: 'Waschpaket erg\u00e4nzen',
-    reason: 'Die Waschmaschine ist bereits gebucht. W\u00e4hle die passenden Erg\u00e4nzungen und best\u00e4tige alles gemeinsam.',
+    reason: hasDryingRoom
+      ? 'Die Waschmaschine ist bereits gebucht. Der Trockenraum ist passend eingeplant; den Tumbler kannst du bei Bedarf zus\u00e4tzlich ausw\u00e4hlen.'
+      : 'Die Waschmaschine ist bereits gebucht. F\u00fcr diesen Zeitraum ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar; der Tumbler ist die passende Alternative.',
     actionLabel: 'Paket erg\u00e4nzen',
     components
   };
@@ -1019,7 +1005,6 @@ function washerHistoryPreference(userId, houseId) {
 }
 
 function washerPackageRecommendation(userId, washer, reason, houseId) {
-  const preferredType = companionPreference(userId, houseId)[0];
   const washWindow = [{ date: washer.date, slot: washer.slot }];
   const components = [packageComponent('washer', washer.resource, washWindow, { required: true })];
   const suggestedDryingWindow = defaultDryingWindow(washer.date, washer.slot);
@@ -1028,20 +1013,21 @@ function washerPackageRecommendation(userId, washer, reason, houseId) {
 
   if (dryingRoom) {
     components.push(packageComponent('drying_room', dryingRoom, suggestedDryingWindow, {
-      selectedByDefault: preferredType === 'drying_room'
+      selectedByDefault: true,
+      recommendationLabel: 'Empfohlen'
     }));
   }
   if (tumbler) {
+    const hasDryingRoom = components.some((component) => component.type === 'drying_room');
     components.push(packageComponent('tumbler', tumbler, washWindow, {
-      selectedByDefault: preferredType === 'tumbler'
+      selectedByDefault: !hasDryingRoom,
+      recommendationLabel: hasDryingRoom ? 'Optional' : 'Alternative'
     }));
   }
   if (components.length === 1) {
     return null;
   }
-  if (!components.some((component) => component.selectedByDefault && !component.required)) {
-    components[1].selectedByDefault = true;
-  }
+  const hasDryingRoom = components.some((component) => component.type === 'drying_room');
 
   return {
     kind: 'package',
@@ -1049,7 +1035,9 @@ function washerPackageRecommendation(userId, washer, reason, houseId) {
     slot: washer.slot,
     resourceType: 'washer',
     title: 'Dein Waschpaket',
-    reason: `${reason} Zusatzger\u00e4te kannst du vor dem Buchen an- oder abw\u00e4hlen.`,
+    reason: hasDryingRoom
+      ? `${reason} Der Trockenraum ist passend eingeplant; den Tumbler kannst du bei Bedarf zus\u00e4tzlich ausw\u00e4hlen.`
+      : `${reason} In den n\u00e4chsten passenden Zeiten ist kein Trockenraum durchg\u00e4ngig frei; der Tumbler ist die verf\u00fcgbare Alternative.`,
     actionLabel: 'Waschpaket buchen',
     components
   };
@@ -1059,6 +1047,8 @@ function nextWasherRecommendation(userId, startDate, houseId) {
   const preference = washerHistoryPreference(userId, houseId);
   const candidates = [];
   let fallback = null;
+  let compactPackage = null;
+  let compactPackageScore = Number.POSITIVE_INFINITY;
 
   for (let offset = 0; offset < 21; offset += 1) {
     const date = addDays(startDate, offset);
@@ -1077,6 +1067,9 @@ function nextWasherRecommendation(userId, startDate, houseId) {
   candidates.sort((left, right) => left.score - right.score || left.date.localeCompare(right.date));
 
   for (const candidate of candidates) {
+    if (compactPackage && candidate.score > compactPackageScore + 4) {
+      break;
+    }
     const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot, houseId);
     if (!resource) {
       continue;
@@ -1109,10 +1102,16 @@ function nextWasherRecommendation(userId, startDate, houseId) {
       slot: candidate.slot
     }, reason, houseId);
     if (packageRecommendation) {
-      return packageRecommendation;
+      if (packageRecommendation.components.some((component) => component.type === 'drying_room')) {
+        return packageRecommendation;
+      }
+      if (!compactPackage) {
+        compactPackage = packageRecommendation;
+        compactPackageScore = candidate.score;
+      }
     }
   }
-  return fallback;
+  return compactPackage || fallback;
 }
 
 function bookingRecommendation(userId, houseId) {

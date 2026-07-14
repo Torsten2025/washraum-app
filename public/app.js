@@ -834,6 +834,13 @@ function renderRecommendation() {
       optionDetail.textContent = packageComponentDetail(component, recommendation);
       optionCopy.append(optionTitle, optionDetail);
       option.append(optionCopy);
+      if (!component.required) {
+        const optionBadge = document.createElement('span');
+        optionBadge.className = `package-option-badge${component.selectedByDefault ? ' is-recommended' : ''}`;
+        optionBadge.textContent = component.recommendationLabel
+          || (component.selectedByDefault ? 'Empfohlen' : 'Optional');
+        option.append(optionBadge);
+      }
       packageOptions.append(option);
     }
     copy.append(packageOptions);

@@ -1764,7 +1764,7 @@ select:focus-visible {
   cursor: pointer;
   display: grid;
   gap: 12px;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   min-height: 58px;
   padding: 10px 2px;
 }
@@ -1806,6 +1806,23 @@ select:focus-visible {
   padding: 5px 7px;
   text-align: center;
   text-transform: uppercase;
+}
+
+.package-option-badge {
+  border: 1px solid rgba(19, 32, 28, 0.14);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  padding: 4px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.package-option-badge.is-recommended {
+  background: var(--accent-soft);
+  border-color: rgba(0, 120, 90, 0.2);
+  color: var(--accent-dark);
 }
 
 .suggestion-actions {
@@ -2831,6 +2848,15 @@ aside.panel > * {
   .suggestion-actions {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     min-width: 0;
+  }
+
+  .package-option:not(.is-required) {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .package-option-badge {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .calendar-toolbar {

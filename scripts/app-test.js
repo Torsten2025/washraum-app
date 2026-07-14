@@ -269,6 +269,17 @@ async function run() {
     const packageRecommendation = await expectStatus(packageUser, '/api/recommendation', 200);
     assert.equal(packageRecommendation.body.recommendation.kind, 'package');
     assert.ok(packageRecommendation.body.recommendation.components.some((component) => component.type === 'washer'));
+    const recommendedDryingRoom = packageRecommendation.body.recommendation.components
+      .find((component) => component.type === 'drying_room');
+    const optionalTumbler = packageRecommendation.body.recommendation.components
+      .find((component) => component.type === 'tumbler');
+    assert.ok(recommendedDryingRoom);
+    assert.equal(recommendedDryingRoom.selectedByDefault, true);
+    assert.equal(recommendedDryingRoom.recommendationLabel, 'Empfohlen');
+    if (optionalTumbler) {
+      assert.equal(optionalTumbler.selectedByDefault, false);
+      assert.equal(optionalTumbler.recommendationLabel, 'Optional');
+    }
     const selectedPackageComponents = packageRecommendation.body.recommendation.components.filter((component) => (
       component.required || component.selectedByDefault
     ));
@@ -296,6 +307,43 @@ async function run() {
         })
       });
     }
+
+    const smartPackageUser = new ApiClient();
+    await expectStatus(smartPackageUser, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Paket Auswahl',
+        email: 'paket-auswahl@example.com',
+        password: 'Paket-Auswahl-2026!',
+        houseCode: 'Testhaus 18',
+        notifyReleases: false
+      })
+    });
+    const firstSmartRecommendation = await expectStatus(smartPackageUser, '/api/recommendation', 200);
+    const firstSmartDryingRoom = firstSmartRecommendation.body.recommendation.components
+      .find((component) => component.type === 'drying_room');
+    assert.ok(firstSmartDryingRoom);
+
+    const rankingDatabase = new Database(databasePath);
+    const occupyDryingRoom = rankingDatabase.prepare(`
+      INSERT OR IGNORE INTO bookings (user_id, resource_id, booking_date, slot)
+      VALUES (?, ?, ?, ?)
+    `);
+    for (const room of dryingRooms) {
+      for (const booking of firstSmartDryingRoom.bookings) {
+        occupyDryingRoom.run(registration.body.user.id, room.id, booking.date, booking.slot);
+      }
+    }
+    rankingDatabase.close();
+
+    const smarterRecommendation = await expectStatus(smartPackageUser, '/api/recommendation', 200);
+    const smarterDryingRoom = smarterRecommendation.body.recommendation.components
+      .find((component) => component.type === 'drying_room');
+    assert.ok(smarterDryingRoom, 'Eine nahe Kombination mit Trockenraum soll vor einem reinen Tumbler-Paket stehen.');
+    assert.notEqual(
+      `${smarterRecommendation.body.recommendation.date}|${smarterRecommendation.body.recommendation.slot}`,
+      `${firstSmartRecommendation.body.recommendation.date}|${firstSmartRecommendation.body.recommendation.slot}`
+    );
 
     const rollbackUser = new ApiClient();
     await expectStatus(rollbackUser, '/api/register', 201, {
