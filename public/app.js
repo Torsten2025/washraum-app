@@ -858,14 +858,23 @@ function renderMyBookings(items) {
     releaseButton.textContent = 'Freigeben';
     releaseButton.addEventListener('click', () => releaseBooking(booking.id));
 
+    const cancelNotifyButton = document.createElement('button');
+    cancelNotifyButton.type = 'button';
+    cancelNotifyButton.className = 'secondary';
+    cancelNotifyButton.textContent = 'Absagen & informieren';
+    cancelNotifyButton.addEventListener('click', () => cancelBookingAndNotify(booking.id));
+
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = 'L\u00f6schen';
+    deleteButton.textContent = 'Nur l\u00f6schen';
     deleteButton.addEventListener('click', () => deleteBooking(booking.id));
 
     if (booking.releaseEligible) {
       actions.append(releaseButton);
+    }
+    if (booking.cancellationNoticeEligible) {
+      actions.append(cancelNotifyButton);
     }
     actions.append(deleteButton);
     item.append(actions);
@@ -946,6 +955,24 @@ async function saveNotifications() {
     });
     currentUser = data.user;
     showStatus(data.message || 'Benachrichtigungen gespeichert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function cancelBookingAndNotify(id) {
+  const confirmed = window.confirm(
+    'Termin absagen und alle Personen mit aktivierten Freigabe-Hinweisen informieren?'
+  );
+  if (!confirmed) return;
+
+  try {
+    const data = await api(`/api/bookings/${id}/cancel-notify`, { method: 'POST' });
+    const emailText = data.emailNotifications?.configured
+      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
+      : ' E-Mail-Versand ist noch nicht konfiguriert.';
+    showStatus(`${data.message}${emailText}`);
+    await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
   }

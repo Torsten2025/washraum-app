@@ -146,6 +146,7 @@ function createCurrentTables() {
       resource_name TEXT NOT NULL,
       booking_date TEXT NOT NULL,
       slot TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'early_release',
       message TEXT NOT NULL,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -172,6 +173,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   const seededAdminPassword = String(process.env.SEED_ADMIN_PASSWORD || '');
   if (seededAdminPassword) {
@@ -1128,7 +1130,7 @@ function smtpConfig() {
   };
 }
 
-async function notifyReleaseSubscribers(req, booking, message) {
+async function notifyReleaseSubscribers(req, booking, message, subject = `Waschplan: ${booking.resource_name} fr\u00fcher frei`) {
   const config = smtpConfig();
   if (!config.host || !config.from) {
     return { configured: false, sent: 0 };
@@ -1157,7 +1159,7 @@ async function notifyReleaseSubscribers(req, booking, message) {
       await sendMail({
         config,
         to: recipient.email,
-        subject: `Waschplan: ${booking.resource_name} fr\u00fcher frei`,
+        subject,
         text: [
           `Hallo ${recipient.username}`,
           '',
@@ -1503,10 +1505,14 @@ app.get('/api/my-bookings', requireAuth, (req, res) => {
   `).all(req.session.user.id);
 
   res.json({
-    bookings: bookings.map((booking) => ({
-      ...booking,
-      releaseEligible: releaseWindowStatus(booking.booking_date, booking.slot).eligible
-    }))
+    bookings: bookings.map((booking) => {
+      const windowStatus = releaseWindowStatus(booking.booking_date, booking.slot);
+      return {
+        ...booking,
+        releaseEligible: windowStatus.eligible,
+        cancellationNoticeEligible: windowStatus.reason === 'not_started'
+      };
+    })
   });
 });
 
@@ -1613,6 +1619,48 @@ app.delete('/api/bookings/:id', requireAuth, (req, res) => {
   res.json({ ok: true, message: 'Buchung gel\u00f6scht.' });
 });
 
+app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) => {
+  try {
+    const booking = db.prepare(`
+      SELECT b.*, r.name AS resource_name
+      FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      WHERE b.id = ?
+    `).get(Number(req.params.id));
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Buchung nicht gefunden' });
+    }
+    if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+      return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
+    }
+
+    const windowStatus = releaseWindowStatus(booking.booking_date, booking.slot);
+    if (windowStatus.reason !== 'not_started') {
+      return res.status(409).json({
+        error: 'Absagen mit Benachrichtigung ist nur vor Beginn m\u00f6glich. Im laufenden Slot bitte Freigeben verwenden.'
+      });
+    }
+
+    db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+    const message = `${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} wurde abgesagt und ist wieder buchbar.`;
+    db.prepare(`
+      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, created_by)
+      VALUES (?, ?, ?, 'cancellation', ?, ?)
+    `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
+
+    const emailNotifications = await notifyReleaseSubscribers(
+      req,
+      booking,
+      message,
+      `Waschplan: Termin f\u00fcr ${booking.resource_name} wieder frei`
+    );
+    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
   try {
     const booking = db.prepare(`
@@ -1648,8 +1696,8 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       ? `${booking.resource_name} ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
       : `${booking.resource_name} ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
     db.prepare(`
-      INSERT INTO release_notices (resource_name, booking_date, slot, message, created_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, created_by)
+      VALUES (?, ?, ?, 'early_release', ?, ?)
     `).run(booking.resource_name, booking.booking_date, booking.slot, message, req.session.user.id);
 
     const emailNotifications = await notifyReleaseSubscribers(req, booking, message);
@@ -1661,14 +1709,19 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
 
 app.get('/api/release-notices', requireAuth, (req, res) => {
   const notices = db.prepare(`
-    SELECT rn.id, rn.resource_name, rn.booking_date, rn.slot, rn.message, rn.created_at,
+    SELECT rn.id, rn.resource_name, rn.booking_date, rn.slot, rn.kind, rn.message, rn.created_at,
            u.username AS created_by_name
     FROM release_notices rn
     LEFT JOIN users u ON u.id = rn.created_by
     WHERE rn.created_at >= datetime('now', '-7 days', 'localtime')
     ORDER BY rn.created_at DESC
     LIMIT 10
-  `).all().filter((notice) => releaseWindowStatus(notice.booking_date, notice.slot).eligible);
+  `).all().filter((notice) => {
+    const windowStatus = releaseWindowStatus(notice.booking_date, notice.slot);
+    return notice.kind === 'cancellation'
+      ? ['not_started', 'eligible'].includes(windowStatus.reason)
+      : windowStatus.eligible;
+  });
 
   res.json({ notices });
 });

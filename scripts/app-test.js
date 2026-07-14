@@ -282,6 +282,27 @@ async function run() {
     const notices = await expectStatus(user, '/api/release-notices', 200);
     assert.ok(!notices.body.notices.some((notice) => notice.resource_name === 'Tumbler 1'));
 
+    const cancellationBooking = await expectStatus(user, '/api/bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: tumblers[0].id, date: bookingDate, slot: '07:00-12:00' })
+    });
+    const upcomingBookings = await expectStatus(user, '/api/my-bookings', 200);
+    const cancellableBooking = upcomingBookings.body.bookings.find((booking) => booking.id === cancellationBooking.body.id);
+    assert.equal(cancellableBooking.releaseEligible, false);
+    assert.equal(cancellableBooking.cancellationNoticeEligible, true);
+    const cancellation = await expectStatus(
+      user,
+      `/api/bookings/${cancellationBooking.body.id}/cancel-notify`,
+      200,
+      { method: 'POST' }
+    );
+    assert.equal(cancellation.body.releaseNoticeCreated, true);
+    assert.ok(cancellation.body.message.includes('wurde abgesagt'));
+    const cancellationNotices = await expectStatus(user, '/api/release-notices', 200);
+    assert.ok(cancellationNotices.body.notices.some((notice) => (
+      notice.resource_name === 'Tumbler 1' && notice.kind === 'cancellation'
+    )));
+
     const nearTerm = currentSwissReleaseSlot();
     if (nearTerm) {
       const testDatabase = new Database(databasePath);
@@ -290,6 +311,12 @@ async function run() {
         VALUES (?, ?, ?, ?)
       `).run(registration.body.user.id, tumblers[1].id, nearTerm.date, nearTerm.slot);
       testDatabase.close();
+      await expectStatus(
+        user,
+        `/api/bookings/${nearTermBooking.lastInsertRowid}/cancel-notify`,
+        409,
+        { method: 'POST' }
+      );
       const timelyRelease = await expectStatus(
         user,
         `/api/bookings/${nearTermBooking.lastInsertRowid}/release`,
@@ -368,7 +395,7 @@ async function run() {
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('knapp vier Minuten'));
-    assert.ok(indexHtml.includes('nur w&auml;hrend des gebuchten Zeitfensters'));
+    assert.ok(indexHtml.includes('Absagen &amp; informieren'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
@@ -395,6 +422,7 @@ async function run() {
         backup: true,
         narratedVideo: true,
         releaseWindow: true,
+        cancellationNotifications: true,
         productionRecovery: true,
         securityHeaders: true
       },

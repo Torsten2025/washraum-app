@@ -62,7 +62,7 @@ Der Workflow `.github/workflows/deploy-render.yml` fuehrt `npm run check` aus un
 
 Ohne SMTP-Konfiguration bleibt die App normal nutzbar; es werden lediglich keine E-Mails versendet. Fuer den Versand dienen:
 
-Eine Freigabe-Mail und ein sichtbarer Freigabe-Hinweis entstehen nur waehrend des gebuchten Zeitfensters. So kann jemand mitteilen, dass ein Raum oder Geraet vor dem gebuchten Ende wieder frei ist. Vor Slotbeginn und nach Slotende wird beim Loeschen keine Nachricht an das Haus ausgeloest. Abgelaufene Hinweise werden nicht mehr angezeigt.
+Im laufenden Zeitfenster meldet `Freigeben`, dass ein Raum oder Geraet vor dem gebuchten Ende wieder frei ist. Vor Slotbeginn bietet `Absagen & informieren` den vollstaendigen Termin wieder an und benachrichtigt Personen mit aktivierten Hinweisen. `Nur loeschen` bleibt in beiden Faellen die stille Variante ohne Nachricht. Nach Slotende wird keine Benachrichtigung mehr ausgeloest; abgelaufene Hinweise werden nicht mehr angezeigt.
 
 - `SMTP_HOST`
 - `SMTP_PORT`
