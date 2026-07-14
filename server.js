@@ -1,6 +1,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const net = require('net');
+const os = require('os');
 const path = require('path');
 const tls = require('tls');
 const express = require('express');
@@ -89,6 +90,9 @@ class BetterSqliteSessionStore extends session.Store {
 }
 
 const sessionSecret = process.env.SESSION_SECRET || 'local-dev-session-secret';
+if (isProduction && sessionSecret.length < 32) {
+  throw new Error('SESSION_SECRET muss in Produktion mindestens 32 Zeichen haben.');
+}
 const slots = [
   '07:00-12:00',
   '12:00-17:00',
@@ -182,7 +186,9 @@ function seedCurrentDefaults() {
   seedResource('Trockenraum 3', 'drying_room');
   seedResource('Tumbler 1', 'tumbler');
   seedResource('Tumbler 2', 'tumbler');
-  seedSetting('house_code', process.env.HOUSE_CODE || 'GBMZ Maneggplatz 18');
+  const initialHouseCode = process.env.HOUSE_CODE
+    || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
+  seedSetting('house_code', initialHouseCode);
 }
 
 function tableExists(table) {
@@ -447,6 +453,13 @@ function verifyStoredPassword(password, storedHash) {
 
 initDb();
 
+if (isProduction) {
+  const activeAdmin = db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get();
+  if (!activeAdmin) {
+    throw new Error('Kein aktives Admin-Konto vorhanden. Fuer eine neue Datenbank SEED_ADMIN_PASSWORD setzen.');
+  }
+}
+
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
@@ -469,7 +482,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
 app.use(session({
   store: new BetterSqliteSessionStore(db),
   secret: sessionSecret,
@@ -609,7 +622,7 @@ function validateWasherBooking(userId, date, slot) {
     booking.booking_date > today && booking.booking_date !== date
   ));
   if (date > today && otherFutureWashDay) {
-    return 'Der naechste Waschslot kann fruehestens am bestehenden Waschtag reserviert werden.';
+    return 'Der n\u00e4chste Waschslot kann fr\u00fchestens am bestehenden Waschtag reserviert werden.';
   }
 
   return '';
@@ -665,7 +678,7 @@ function validateDryingRoomBooking(userId, date, slot) {
   }
 
   if (!hasAllowedDryingRoomWindow(userId, date, slot)) {
-    return 'Trockenraeume koennen nur passend zu deiner Waschmaschinen-Buchung reserviert werden: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.';
+    return 'Trockenr\u00e4ume k\u00f6nnen nur passend zu deiner Waschmaschinen-Buchung reserviert werden: 07:00 bis 21:00, 12:00 bis Folgetag 12:00, 17:00 bis Folgetag 12:00.';
   }
 
   return '';
@@ -814,7 +827,7 @@ function companionRecommendation(userId, washerBooking) {
           resource,
           date: option.date,
           slot: option.slot,
-          title: 'Trockenraum ergaenzen',
+          title: 'Trockenraum erg\u00e4nzen',
           reason: 'Passt zu deiner vorhandenen Waschmaschinen-Buchung.'
         };
         break;
@@ -835,7 +848,7 @@ function companionRecommendation(userId, washerBooking) {
         resource,
         date: washerBooking.booking_date,
         slot: washerBooking.slot,
-        title: 'Tumbler ergaenzen',
+        title: 'Tumbler erg\u00e4nzen',
         reason: 'Liegt im gleichen Zeitfenster wie deine Waschmaschinen-Buchung.'
       };
     }
@@ -911,12 +924,12 @@ function nextWasherRecommendation(userId, startDate) {
       resourceType: resource.type,
       date: candidate.date,
       slot: candidate.slot,
-      title: preference ? 'Dein passender Waschslot' : 'Naechster freier Waschslot',
+      title: preference ? 'Dein passender Waschslot' : 'N\u00e4chster freier Waschslot',
       reason: preference
         ? (matchesHabit
-          ? 'Dieser freie Termin entspricht deinem bisher haeufigsten Waschrhythmus.'
-          : 'Dein ueblicher Termin ist belegt. Dies ist die naechste passende freie Option.')
-        : 'Ein frueher freier Termin fuer deinen ersten Waschrhythmus.',
+          ? 'Dieser freie Termin entspricht deinem bisher h\u00e4ufigsten Waschrhythmus.'
+          : 'Dein \u00fcblicher Termin ist belegt. Dies ist die n\u00e4chste passende freie Option.')
+        : 'Ein fr\u00fcher freier Termin f\u00fcr deinen ersten Waschrhythmus.',
       actionLabel: 'Direkt buchen'
     };
   }
@@ -949,8 +962,8 @@ function bookingRecommendation(userId) {
       kind: 'info',
       date: futureWasher.booking_date,
       slot: futureWasher.slot,
-      title: 'Dein naechster Waschtag steht',
-      reason: 'Waschmaschine und sinnvolle Ergaenzungen sind bereits geplant.'
+      title: 'Dein n\u00e4chster Waschtag steht',
+      reason: 'Waschmaschine und sinnvolle Erg\u00e4nzungen sind bereits geplant.'
     };
   }
 
@@ -960,7 +973,7 @@ function bookingRecommendation(userId) {
   return nextWasherRecommendation(userId, startDate) || {
     kind: 'info',
     title: 'Im Moment kein freier Vorschlag',
-    reason: 'In den naechsten drei Wochen ist kein regelkonformer Waschslot frei.'
+    reason: 'In den n\u00e4chsten drei Wochen ist kein regelkonformer Waschslot frei.'
   };
 }
 
@@ -973,7 +986,7 @@ function requireAuth(req, res, next) {
 
 const authRateBuckets = new Map();
 const authRateWindowMs = 15 * 60 * 1000;
-const authRateMaxAttempts = 60;
+const authRateMaxAttempts = 20;
 
 function authRateLimit(req, res, next) {
   const now = Date.now();
@@ -1013,7 +1026,7 @@ function clearAuthRateLimit(req) {
 
 function requireAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Nur fuer Admins erlaubt' });
+    return res.status(403).json({ error: 'Nur f\u00fcr Admins erlaubt' });
   }
   next();
 }
@@ -1052,7 +1065,34 @@ function normalizeEmail(value) {
 }
 
 function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+  return String(value || '').length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+}
+
+function isValidUsername(value) {
+  return /^[\p{L}\p{N}][\p{L}\p{N} ._'\u2019-]{2,39}$/u.test(String(value || ''));
+}
+
+function isValidPassword(value) {
+  const length = String(value || '').length;
+  return length >= 8 && length <= 128;
+}
+
+function destroyUserSessions(userId, exceptSessionId = '') {
+  const sessions = db.prepare('SELECT sid, sess FROM sessions').all();
+  const remove = db.prepare('DELETE FROM sessions WHERE sid = ?');
+
+  for (const row of sessions) {
+    if (row.sid === exceptSessionId) {
+      continue;
+    }
+    try {
+      if (Number(JSON.parse(row.sess)?.user?.id) === Number(userId)) {
+        remove.run(row.sid);
+      }
+    } catch {
+      remove.run(row.sid);
+    }
+  }
 }
 
 function publicAppUrl(req) {
@@ -1115,7 +1155,7 @@ async function notifyReleaseSubscribers(req, booking, message) {
       await sendMail({
         config,
         to: recipient.email,
-        subject: `Waschplan: ${booking.resource_name} frueher frei`,
+        subject: `Waschplan: ${booking.resource_name} fr\u00fcher frei`,
         text: [
           `Hallo ${recipient.username}`,
           '',
@@ -1123,7 +1163,7 @@ async function notifyReleaseSubscribers(req, booking, message) {
           '',
           `Du kannst den Slot jetzt im Waschplan ansehen und buchen: ${appUrl}`,
           '',
-          'Viele Gruesse',
+          'Viele Gr\u00fcsse',
           'Waschplan Maneggplatz 18'
         ].join('\n')
       });
@@ -1283,7 +1323,11 @@ app.get(['/health', '/api/health'], (req, res) => {
   const storage = process.env.RENDER === 'true'
     ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
     : 'local';
-  res.json({ ok: true, storage });
+  res.json({
+    ok: true,
+    storage,
+    revision: String(process.env.RENDER_GIT_COMMIT || '').trim() || null
+  });
 });
 
 app.post('/api/login', authRateLimit, (req, res) => {
@@ -1323,14 +1367,14 @@ app.post('/api/register', authRateLimit, (req, res) => {
   const notifyReleases = req.body?.notifyReleases !== false ? 1 : 0;
   const configuredCode = getSetting('house_code').trim();
 
-  if (username.length < 3) {
-    return res.status(400).json({ error: 'Benutzername muss mindestens 3 Zeichen haben' });
+  if (!isValidUsername(username)) {
+    return res.status(400).json({ error: 'Der Benutzername darf 3 bis 40 Buchstaben, Zahlen, Leerzeichen, Punkte, Binde- oder Unterstriche enthalten.' });
   }
   if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen' });
+    return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
+  if (!isValidPassword(password)) {
+    return res.status(400).json({ error: 'Das Passwort muss 8 bis 128 Zeichen haben.' });
   }
   if (houseCode.toLowerCase() !== configuredCode.toLowerCase()) {
     return res.status(403).json({ error: 'Hauscode ist nicht korrekt' });
@@ -1372,7 +1416,7 @@ app.put('/api/me/notifications', requireAuth, (req, res) => {
   const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
 
   if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen' });
+    return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
   }
 
   try {
@@ -1390,11 +1434,32 @@ app.put('/api/me/notifications', requireAuth, (req, res) => {
   res.json({ user: req.session.user, message: 'Benachrichtigungen gespeichert.' });
 });
 
+app.put('/api/me/password', requireAuth, (req, res) => {
+  const currentPassword = String(req.body?.currentPassword || '');
+  const newPassword = String(req.body?.newPassword || '');
+  const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.session.user.id);
+
+  if (!user || !verifyStoredPassword(currentPassword, user.password_hash)) {
+    return res.status(403).json({ error: 'Das bisherige Passwort stimmt nicht.' });
+  }
+  if (!isValidPassword(newPassword)) {
+    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+  }
+  if (verifyStoredPassword(newPassword, user.password_hash)) {
+    return res.status(400).json({ error: 'Bitte verwende ein anderes neues Passwort.' });
+  }
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .run(bcrypt.hashSync(newPassword, 10), user.id);
+  destroyUserSessions(user.id, req.sessionID);
+  res.json({ ok: true, message: 'Dein Passwort wurde ge\u00e4ndert.' });
+});
+
 app.get('/api/calendar', requireAuth, (req, res) => {
   const from = String(req.query.from || todayStringLocal());
   const days = Number(req.query.days || 7);
   if (!isDateString(from) || !Number.isInteger(days) || days < 1 || days > 14) {
-    return res.status(400).json({ error: 'Ungueltiger Kalenderzeitraum' });
+    return res.status(400).json({ error: 'Ung\u00fcltiger Kalenderzeitraum' });
   }
 
   res.json({
@@ -1461,7 +1526,7 @@ app.post('/api/bookings', requireAuth, (req, res) => {
   const { resourceId, date, slot } = req.body || {};
 
   if (!Number.isInteger(Number(resourceId)) || !isDateString(date) || !slots.includes(slot)) {
-    return res.status(400).json({ error: 'Ungueltige Buchungsdaten' });
+    return res.status(400).json({ error: 'Ung\u00fcltige Buchungsdaten' });
   }
   if (isPastDate(date)) {
     return res.status(400).json({ error: 'Buchungen in der Vergangenheit sind nicht erlaubt' });
@@ -1470,18 +1535,18 @@ app.post('/api/bookings', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Dieser Slot liegt bereits in der Vergangenheit' });
   }
   if (isSunday(date)) {
-    return res.status(400).json({ error: 'Sonntags sind keine Buchungen moeglich' });
+    return res.status(400).json({ error: 'Sonntags sind keine Buchungen m\u00f6glich' });
   }
 
   const resource = db.prepare('SELECT id, type FROM resources WHERE id = ? AND active = 1').get(Number(resourceId));
   if (!resource) {
-    return res.status(404).json({ error: 'Geraet nicht gefunden' });
+    return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
   }
 
   const fixedConflict = fixedBookingConflict(resource.id, date, slot);
   if (fixedConflict) {
     return res.status(409).json({
-      error: `${fixedConflict.resource_name} ist in diesem Slot fest fuer ${fixedConflict.label} reserviert.`
+      error: `${fixedConflict.resource_name} ist in diesem Slot fest f\u00fcr ${fixedConflict.label} reserviert.`
     });
   }
 
@@ -1530,11 +1595,11 @@ app.delete('/api/bookings/:id', requireAuth, (req, res) => {
   }
 
   if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
-    return res.status(403).json({ error: 'Diese Buchung gehoert dir nicht' });
+    return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
   }
 
   db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
-  res.json({ ok: true, message: 'Buchung geloescht.' });
+  res.json({ ok: true, message: 'Buchung gel\u00f6scht.' });
 });
 
 app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
@@ -1550,7 +1615,7 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: 'Buchung nicht gefunden' });
     }
     if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
-      return res.status(403).json({ error: 'Diese Buchung gehoert dir nicht' });
+      return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
     }
 
     db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
@@ -1586,6 +1651,68 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
   res.json({ users });
 });
 
+app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
+  const userId = Number(req.params.id);
+  const active = req.body?.active === true ? 1 : 0;
+  const user = db.prepare('SELECT id, username, role, active FROM users WHERE id = ?').get(userId);
+
+  if (!user) {
+    return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (!active && user.id === req.session.user.id) {
+    return res.status(400).json({ error: 'Du kannst dein eigenes Admin-Konto nicht deaktivieren.' });
+  }
+  if (!active && user.role === 'admin') {
+    const activeAdmins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1").get().count;
+    if (activeAdmins <= 1) {
+      return res.status(400).json({ error: 'Mindestens ein aktives Admin-Konto muss erhalten bleiben.' });
+    }
+  }
+
+  db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active, user.id);
+  if (!active) {
+    destroyUserSessions(user.id);
+  }
+  res.json({ ok: true, message: `${user.username} ist jetzt ${active ? 'aktiv' : 'deaktiviert'}.` });
+});
+
+app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
+  const userId = Number(req.params.id);
+  const newPassword = String(req.body?.newPassword || '');
+  const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId);
+
+  if (!user) {
+    return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (!isValidPassword(newPassword)) {
+    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+  }
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .run(bcrypt.hashSync(newPassword, 10), user.id);
+  destroyUserSessions(user.id, user.id === req.session.user.id ? req.sessionID : '');
+  res.json({ ok: true, message: `Passwort f\u00fcr ${user.username} wurde neu gesetzt.` });
+});
+
+app.get('/api/admin/backup', requireAdmin, async (req, res, next) => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const downloadName = `waschplan-backup-${stamp}.sqlite`;
+  const backupPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${downloadName}`);
+
+  try {
+    await db.backup(backupPath);
+    res.download(backupPath, downloadName, (error) => {
+      fs.rm(backupPath, { force: true }, () => {});
+      if (error && !res.headersSent) {
+        next(error);
+      }
+    });
+  } catch (error) {
+    fs.rm(backupPath, { force: true }, () => {});
+    next(error);
+  }
+});
+
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1').get().count;
   const todayBookings = db.prepare(`
@@ -1607,6 +1734,37 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     recentReleases,
     email: emailStatus()
   });
+});
+
+app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
+  const config = smtpConfig();
+  const user = db.prepare('SELECT username, email FROM users WHERE id = ?').get(req.session.user.id);
+
+  if (!config.host || !config.from) {
+    return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht in Render konfiguriert.' });
+  }
+  if (!user || !isValidEmail(user.email)) {
+    return res.status(400).json({ error: 'Bitte zuerst unter Benachrichtigungen eine g\u00fcltige E-Mail-Adresse speichern.' });
+  }
+
+  try {
+    await sendMail({
+      config,
+      to: user.email,
+      subject: 'Waschplan: Testmail',
+      text: [
+        `Hallo ${user.username}`,
+        '',
+        'Der E-Mail-Versand des Waschplans funktioniert.',
+        '',
+        'Viele Gr\u00fcsse',
+        'Waschplan Maneggplatz 18'
+      ].join('\n')
+    });
+    res.json({ ok: true, message: `Testmail wurde an ${user.email} gesendet.` });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/admin/settings', requireAdmin, (req, res) => {
@@ -1635,15 +1793,15 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
   const label = String(req.body?.label || '').trim();
 
   if (!Number.isInteger(resourceId) || !Number.isInteger(weekday) || weekday < 1 || weekday > 6 || !slots.includes(slot)) {
-    return res.status(400).json({ error: 'Ungueltige feste Buchung' });
+    return res.status(400).json({ error: 'Ung\u00fcltige feste Buchung' });
   }
-  if (label.length < 2) {
+  if (label.length < 2 || label.length > 80) {
     return res.status(400).json({ error: 'Bitte einen Namen oder Hinweis eintragen' });
   }
 
   const resource = db.prepare('SELECT id FROM resources WHERE id = ? AND active = 1').get(resourceId);
   if (!resource) {
-    return res.status(404).json({ error: 'Geraet nicht gefunden' });
+    return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
   }
 
   const conflictingBooking = db.prepare(`
@@ -1657,7 +1815,7 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
   `).get(resourceId, slot, weekday);
 
   if (conflictingBooking) {
-    return res.status(409).json({ error: 'Es gibt bereits eine normale zukuenftige Buchung in diesem Dauer-Slot. Bitte zuerst klaeren oder loeschen.' });
+    return res.status(409).json({ error: 'Es gibt bereits eine normale zuk\u00fcnftige Buchung in diesem Dauer-Slot. Bitte zuerst kl\u00e4ren oder l\u00f6schen.' });
   }
 
   try {
@@ -1672,7 +1830,7 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
     });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return res.status(409).json({ error: 'Fuer dieses Geraet gibt es an diesem Wochentag und Slot bereits eine feste Buchung.' });
+      return res.status(409).json({ error: 'F\u00fcr dieses Ger\u00e4t gibt es an diesem Wochentag und Slot bereits eine feste Buchung.' });
     }
     throw error;
   }
@@ -1690,8 +1848,8 @@ app.delete('/api/admin/fixed-bookings/:id', requireAdmin, (req, res) => {
 
 app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
   const houseCode = String(req.body?.houseCode || '').trim();
-  if (houseCode.length < 4) {
-    return res.status(400).json({ error: 'Hauscode muss mindestens 4 Zeichen haben' });
+  if (houseCode.length < 4 || houseCode.length > 80) {
+    return res.status(400).json({ error: 'Hauscode muss 4 bis 80 Zeichen haben' });
   }
 
   db.prepare(`

@@ -103,6 +103,25 @@ button.danger {
   color: var(--danger);
 }
 
+.button-link {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 8px;
+  color: #fff;
+  display: inline-flex;
+  font-weight: 750;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  text-decoration: none;
+}
+
+.button-link.secondary {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
 input,
 select {
   background: #fff;
@@ -672,6 +691,71 @@ aside.panel {
   font-size: 13px;
 }
 
+.admin-operation {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 20px;
+  padding: 12px;
+}
+
+.admin-operation strong,
+.admin-operation span {
+  display: block;
+}
+
+.admin-operation span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.user-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.user-admin-item {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.user-admin-identity strong,
+.user-admin-identity span {
+  display: block;
+}
+
+.user-admin-identity span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.user-admin-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.user-password-reset {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.user-password-reset input,
+.user-password-reset button {
+  min-height: 40px;
+}
+
 .admin-box ul {
   margin: 0;
   padding-left: 18px;
@@ -736,6 +820,66 @@ aside.panel {
 .intro-copy p:last-child {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.recorded-intro {
+  background: var(--night);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(11, 23, 20, 0.22);
+  color: #fff;
+  margin: 22px 0 16px;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.recorded-intro-head {
+  align-items: end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 2px 2px 14px;
+}
+
+.recorded-intro-head .eyebrow {
+  color: #a8ddca;
+  margin-bottom: 4px;
+}
+
+.recorded-intro-head h3 {
+  color: #fff;
+  font-size: 22px;
+  margin: 0;
+}
+
+.recorded-intro-head > span {
+  color: rgba(255, 255, 255, 0.72);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.recorded-intro video {
+  aspect-ratio: 16 / 9;
+  background: #07100d;
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.interactive-guide {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  margin: 18px 0 22px;
+}
+
+.interactive-guide > summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 16px 2px;
+}
+
+.interactive-guide[open] > summary {
+  border-bottom: 1px solid var(--line);
 }
 
 .video-guide {
@@ -2288,6 +2432,8 @@ aside.panel > * {
 .intro-quiz input {
   flex: 0 0 auto;
   margin-top: 3px;
+  min-height: 0;
+  width: auto;
 }
 
 .intro-quiz form > button {

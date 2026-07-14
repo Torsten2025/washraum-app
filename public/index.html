@@ -23,9 +23,9 @@
       <div class="main-column">
         <section class="intro-panel">
           <div class="intro-copy-block">
-            <p class="eyebrow">Heute sauber organisiert</p>
-            <h2>Reservieren. Waschen. Fertig.</h2>
-            <p>Die App zeigt freie Slots, schuetzt feste Buchungen und achtet im Hintergrund auf die wichtigsten GBMZ-Regeln.</p>
+            <p class="eyebrow">Waschraum Maneggplatz 18</p>
+            <h2>Dein Waschplan f&uuml;r diese Woche.</h2>
+            <p>Freie Zeiten, deine n&auml;chsten Buchungen und die wichtigsten GBMZ-Regeln stehen direkt beieinander.</p>
             <div class="intro-metrics" aria-hidden="true">
               <span><strong>Live</strong> Freigaben</span>
               <span><strong>Fix</strong> Admin-Schutz</span>
@@ -46,7 +46,7 @@
           <div class="section-head">
             <div>
               <h2>Meine Buchungen</h2>
-              <p class="muted">Deine naechsten Termine und schnelle Aktionen.</p>
+              <p class="muted">Deine n&auml;chsten Termine und schnelle Aktionen.</p>
             </div>
           </div>
           <div id="myBookings" class="booking-list"></div>
@@ -56,7 +56,7 @@
           <div class="section-head">
             <div>
               <h2>Buchen</h2>
-              <p class="muted">Waehle zuerst den Bereich, dann Datum und Slot.</p>
+              <p class="muted">W&auml;hle zuerst den Bereich, dann Datum und Zeitfenster.</p>
             </div>
             <input id="bookingDate" type="date">
           </div>
@@ -71,13 +71,13 @@
               <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
               <strong id="calendarRange"></strong>
               <button id="todayButton" class="secondary calendar-today" type="button">Heute</button>
-              <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="Naechste Woche" title="Naechste Woche">&rarr;</button>
+              <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="N&auml;chste Woche" title="N&auml;chste Woche">&rarr;</button>
             </div>
             <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
           </div>
-          <div class="filters" role="group" aria-label="Geraetetyp">
+          <div class="filters" role="group" aria-label="Ger&auml;tetyp">
             <button class="filter active" data-type="washer" type="button">Waschmaschinen</button>
-            <button class="filter" data-type="drying_room" type="button">Trockenraeume</button>
+            <button class="filter" data-type="drying_room" type="button">Trockenr&auml;ume</button>
             <button class="filter" data-type="tumbler" type="button">Tumbler</button>
             <button class="filter" data-type="all" type="button">Alle</button>
           </div>
@@ -90,8 +90,8 @@
         <p id="statusText" class="notice muted"></p>
         <div class="side-block knowledge-card">
           <h3>Wissen kompakt</h3>
-          <p>Das kurze Video fuehrt durch Aufbau, Buchung und Regeln.</p>
-          <button id="openKnowledgeButton" class="secondary" type="button">Video oeffnen</button>
+          <p>Das kurze Video f&uuml;hrt durch Aufbau, Buchung und Regeln.</p>
+          <button id="openKnowledgeButton" class="secondary" type="button">Video &ouml;ffnen</button>
         </div>
         <div class="side-block">
           <h3>Benachrichtigungen</h3>
@@ -102,9 +102,27 @@
             </label>
             <label class="checkbox-label">
               <input id="notifyReleases" name="notifyReleases" type="checkbox">
-              <span>Mail senden, wenn ein Slot frueher frei wird</span>
+              <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
             </label>
             <button class="secondary" type="submit">Speichern</button>
+          </form>
+        </div>
+        <div class="side-block">
+          <h3>Zugang &amp; Sicherheit</h3>
+          <form id="passwordForm" class="stack compact-form">
+            <label>
+              Bisheriges Passwort
+              <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
+            </label>
+            <label>
+              Neues Passwort
+              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+            </label>
+            <label>
+              Neues Passwort wiederholen
+              <input id="newPasswordConfirmation" name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+            </label>
+            <button class="secondary" type="submit">Passwort &auml;ndern</button>
           </form>
         </div>
         <div class="side-block">
@@ -114,8 +132,8 @@
         <div class="side-block rules-block">
           <h3>Regeln</h3>
           <ul>
-            <li>Waschmaschinen: pro Waschtag ein Slot. Weitere Waschmaschinen duerfen nur im gleichen Slot gebucht werden.</li>
-            <li>Der naechste Waschslot kann fruehestens am bestehenden Waschtag reserviert werden.</li>
+            <li>Waschmaschinen: pro Waschtag ein Zeitfenster. Weitere Waschmaschinen d&uuml;rfen nur im gleichen Zeitfenster gebucht werden.</li>
+            <li>Der n&auml;chste Waschslot kann fr&uuml;hestens am bestehenden Waschtag reserviert werden.</li>
             <li>Tumbler: pro Slot bleibt mindestens ein Tumbler frei.</li>
             <li>Trockenraum: 07:00-Slot bis 21:00, 12:00-Slot bis Folgetag 12:00, 17:00-Slot bis Folgetag 12:00.</li>
           </ul>
@@ -123,15 +141,29 @@
         <div class="side-block rules-block">
           <h3>Reinigung</h3>
           <ul>
-            <li>Waschmaschine: Schublade, Trommel, Gummidichtung, Filter und Gehaeuse reinigen.</li>
-            <li>Tumbler: Trommel, vier Filter, Abflussbereich, Tuerdichtung und Gehaeuse reinigen.</li>
+            <li>Waschmaschine: Schublade, Trommel, Gummidichtung, Filter und Geh&auml;use reinigen.</li>
+            <li>Tumbler: Trommel, vier Filter, Abflussbereich, T&uuml;rdichtung und Geh&auml;use reinigen.</li>
             <li>Trockenraum: Tisch, zwei Filter und Boden reinigen.</li>
-            <li>Waschkueche, Besen und Wischmop sauber und trocken hinterlassen.</li>
+            <li>Waschk&uuml;che, Besen und Wischmopp sauber und trocken hinterlassen.</li>
           </ul>
         </div>
         <div id="adminBox" class="admin-box" hidden>
           <h3>Admin</h3>
           <div id="adminOverview" class="admin-overview"></div>
+          <div class="admin-operation">
+            <div>
+              <strong>Daten sichern</strong>
+              <span>Eine vollst&auml;ndige SQLite-Sicherung herunterladen.</span>
+            </div>
+            <a class="button-link secondary" href="/api/admin/backup" download>Backup</a>
+          </div>
+          <div class="admin-operation">
+            <div>
+              <strong>E-Mail pr&uuml;fen</strong>
+              <span>Eine Testmail an deine hinterlegte Adresse senden.</span>
+            </div>
+            <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
+          </div>
           <form id="houseCodeForm" class="stack compact-form">
             <label>
               Hauscode
@@ -146,7 +178,7 @@
               <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
             </label>
             <label>
-              Geraet
+              Ger&auml;t
               <select id="fixedBookingResource" name="resourceId" required></select>
             </label>
             <label>
@@ -168,7 +200,7 @@
           </form>
           <div id="fixedBookingList" class="fixed-booking-list"></div>
           <h3>Benutzer</h3>
-          <ul id="userList"></ul>
+          <div id="userList" class="user-admin-list"></div>
         </div>
       </aside>
     </main>
@@ -179,9 +211,26 @@
         <div class="intro-copy">
           <p class="eyebrow">Kurze Einf&uuml;hrung</p>
           <h2 id="introTitle">In Ruhe durch den Waschplan.</h2>
-          <p>Sechs kurze Kapitel zeigen dir die wichtigsten Wege und Regeln. Du kannst jederzeit pausieren, vor- oder zur&uuml;ckspringen und den Text mitlesen.</p>
+          <p>Das dreimin&uuml;tige Video erkl&auml;rt die wichtigsten Wege und Regeln. Deutsche Untertitel und ein interaktiver Rundgang stehen zus&auml;tzlich bereit.</p>
         </div>
-        <section class="video-guide" aria-label="Gesprochene Video-Einf&uuml;hrung">
+        <section class="recorded-intro" aria-labelledby="recordedIntroTitle">
+          <div class="recorded-intro-head">
+            <div>
+              <p class="eyebrow">Mit Sprecher und Untertiteln</p>
+              <h3 id="recordedIntroTitle">Waschplan in drei Minuten</h3>
+            </div>
+            <span>03:08</span>
+          </div>
+          <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/waschplan-einfuehrung-poster.png">
+            <source src="/assets/intro/waschplan-einfuehrung.mp4" type="video/mp4">
+            <track kind="captions" srclang="de" label="Deutsch" src="/assets/intro/waschplan-einfuehrung-de.vtt" default>
+            Dein Browser kann das Video nicht abspielen. Nutze bitte den interaktiven Rundgang oder den Text zum Mitlesen.
+          </video>
+        </section>
+
+        <details class="interactive-guide">
+          <summary>Interaktiven Rundgang und vollst&auml;ndigen Lesetext &ouml;ffnen</summary>
+          <section class="video-guide" aria-label="Interaktive gesprochene Einf&uuml;hrung">
           <div id="introVideoStage" class="video-stage" data-step="overview">
             <div class="video-topline">
               <span id="introVideoChapter">Kapitel 1 von 6</span>
@@ -203,7 +252,7 @@
 
           <div class="video-controls">
             <button id="introVideoPreviousButton" class="secondary video-skip" type="button" aria-label="Vorheriges Kapitel" title="Vorheriges Kapitel">&larr;</button>
-            <button id="introVideoPlayButton" type="button">Video starten</button>
+            <button id="introVideoPlayButton" type="button">Rundgang starten</button>
             <button id="introVideoNextButton" class="secondary video-skip" type="button" aria-label="N&auml;chstes Kapitel" title="N&auml;chstes Kapitel">&rarr;</button>
             <button id="introVideoMuteButton" class="secondary" type="button" aria-pressed="false">Stimme einschalten</button>
           </div>
@@ -219,8 +268,10 @@
               <li>Nach jeder Nutzung bitte Trommel, Dichtungen, Filter, Fl&auml;chen und Boden reinigen. Das gilt auch bei einem einzelnen Waschgang. Alle Einzelheiten stehen im Wissensbereich.</li>
             </ol>
           </details>
+          </section>
+        </details>
 
-          <section class="intro-quiz" aria-labelledby="introQuizTitle">
+        <section class="intro-quiz" aria-labelledby="introQuizTitle">
             <div>
               <p class="eyebrow">Kurz ausprobiert</p>
               <h3 id="introQuizTitle">Drei Fragen f&uuml;r den Alltag</h3>
@@ -245,7 +296,6 @@
               <button type="submit">Antworten ansehen</button>
               <p id="introQuizResult" class="quiz-result" role="status" aria-live="polite"></p>
             </form>
-          </section>
         </section>
         <div class="intro-actions">
           <button id="introDoneButton" type="button">Zur App</button>

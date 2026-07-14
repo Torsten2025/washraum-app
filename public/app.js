@@ -11,11 +11,16 @@ const schedule = document.querySelector('#schedule');
 const statusText = document.querySelector('#statusText');
 const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
+const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const houseCodeForm = document.querySelector('#houseCodeForm');
 const houseCodeInput = document.querySelector('#houseCodeInput');
 const notificationForm = document.querySelector('#notificationForm');
 const notificationEmail = document.querySelector('#notificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
+const passwordForm = document.querySelector('#passwordForm');
+const currentPasswordInput = document.querySelector('#currentPassword');
+const newPasswordInput = document.querySelector('#newPassword');
+const newPasswordConfirmation = document.querySelector('#newPasswordConfirmation');
 const fixedBookingForm = document.querySelector('#fixedBookingForm');
 const fixedBookingLabel = document.querySelector('#fixedBookingLabel');
 const fixedBookingResource = document.querySelector('#fixedBookingResource');
@@ -45,6 +50,7 @@ const introVideoNextButton = document.querySelector('#introVideoNextButton');
 const introVideoVoiceStatus = document.querySelector('#introVideoVoiceStatus');
 const introQuizForm = document.querySelector('#introQuizForm');
 const introQuizResult = document.querySelector('#introQuizResult');
+const recordedIntroVideo = document.querySelector('#recordedIntroVideo');
 
 let currentUser = null;
 let resources = [];
@@ -64,6 +70,7 @@ let introVideoUtterance = null;
 let introVideoSpeechPaused = false;
 let introVideoSpeechRun = 0;
 let introVideoPreferredVoice = null;
+let introReturnFocus = null;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
@@ -207,6 +214,15 @@ function typeLabel(type) {
   return type;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function dateStatus(dateString) {
   const today = new Date(`${todayString()}T00:00:00`);
   const date = new Date(`${dateString}T00:00:00`);
@@ -228,6 +244,7 @@ function showStatus(message, tone = 'ok') {
 }
 
 function openIntro() {
+  introReturnFocus = document.activeElement;
   introOverlay.hidden = false;
   document.body.classList.add('modal-open');
   renderIntroVideo();
@@ -236,8 +253,12 @@ function openIntro() {
 
 function closeIntro() {
   stopIntroVideo();
+  recordedIntroVideo.pause();
   introOverlay.hidden = true;
   document.body.classList.remove('modal-open');
+  if (introReturnFocus instanceof HTMLElement) {
+    introReturnFocus.focus();
+  }
 }
 
 function introVideoStepDuration(step) {
@@ -390,6 +411,7 @@ function speakIntroVideoStep(step) {
 }
 
 function startIntroVideoPlayback() {
+  recordedIntroVideo.pause();
   introVideoPlaying = true;
   introVideoFinished = false;
   renderIntroVideo();
@@ -672,7 +694,7 @@ function renderRecommendation() {
   bookingSuggestion.innerHTML = '';
   const recommendation = currentRecommendation;
   if (!recommendation) {
-    bookingSuggestion.innerHTML = '<p class="muted">Noch kein persoenlicher Vorschlag verfuegbar.</p>';
+    bookingSuggestion.innerHTML = '<p class="muted">Noch kein pers\u00f6nlicher Vorschlag verf\u00fcgbar.</p>';
     return;
   }
 
@@ -680,7 +702,7 @@ function renderRecommendation() {
   copy.className = 'suggestion-copy';
   const eyebrow = document.createElement('span');
   eyebrow.className = 'suggestion-label';
-  eyebrow.textContent = 'Persoenlicher Vorschlag';
+  eyebrow.textContent = 'Pers\u00f6nlicher Vorschlag';
   const title = document.createElement('h3');
   title.textContent = recommendation.title;
   const detail = document.createElement('p');
@@ -775,15 +797,15 @@ function renderSchedule() {
       const canDelete = booking && !booking.is_fixed && (currentUser.role === 'admin' || booking.user_id === currentUser.id);
       card.innerHTML = `
         <div>
-          <strong>${resource.name}</strong>
-          <span>${typeLabel(resource.type)}</span>
+          <strong>${escapeHtml(resource.name)}</strong>
+          <span>${escapeHtml(typeLabel(resource.type))}</span>
         </div>
-        <p>${booking?.is_fixed ? `Fest: ${owner}` : owner}</p>
+        <p>${booking?.is_fixed ? `Fest: ${escapeHtml(owner)}` : escapeHtml(owner)}</p>
       `;
 
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = booking?.is_fixed ? 'Geschuetzt' : booking ? 'Loeschen' : 'Buchen';
+      action.textContent = booking?.is_fixed ? 'Gesch\u00fctzt' : booking ? 'L\u00f6schen' : 'Buchen';
       action.disabled = Boolean(slotIsPast || booking?.is_fixed || (booking && !canDelete));
       action.addEventListener('click', () => booking ? deleteBooking(booking.id) : createBooking(resource.id, slot));
       card.append(action);
@@ -808,10 +830,10 @@ function renderMyBookings(items) {
     const status = dateStatus(booking.booking_date);
     item.innerHTML = `
       <div>
-        <strong>${booking.resource_name}</strong>
-        <span>${booking.booking_date} - ${booking.slot}</span>
+        <strong>${escapeHtml(booking.resource_name)}</strong>
+        <span>${escapeHtml(booking.booking_date)} - ${escapeHtml(booking.slot)}</span>
       </div>
-      <span class="status-chip">${status}</span>
+      <span class="status-chip">${escapeHtml(status)}</span>
     `;
 
     const actions = document.createElement('div');
@@ -826,7 +848,7 @@ function renderMyBookings(items) {
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = 'Loeschen';
+    deleteButton.textContent = 'L\u00f6schen';
     deleteButton.addEventListener('click', () => deleteBooking(booking.id));
 
     actions.append(releaseButton, deleteButton);
@@ -846,8 +868,8 @@ function renderReleaseNotices(items) {
     const item = document.createElement('article');
     item.className = 'release-item';
     item.innerHTML = `
-      <strong>${notice.resource_name}</strong>
-      <span>${notice.message}</span>
+      <strong>${escapeHtml(notice.resource_name)}</strong>
+      <span>${escapeHtml(notice.message)}</span>
     `;
     releaseNotices.append(item);
   }
@@ -875,7 +897,7 @@ async function createBooking(resourceId, slot, date = bookingDate.value, type = 
 async function deleteBooking(id) {
   try {
     const data = await api(`/api/bookings/${id}`, { method: 'DELETE' });
-    showStatus(data.message || 'Buchung geloescht.');
+    showStatus(data.message || 'Buchung gel\u00f6scht.');
     await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
@@ -911,6 +933,28 @@ async function saveNotifications() {
   }
 }
 
+async function changePassword() {
+  if (newPasswordInput.value !== newPasswordConfirmation.value) {
+    showStatus('Die beiden neuen Passw\u00f6rter stimmen nicht \u00fcberein.', 'error');
+    newPasswordConfirmation.focus();
+    return;
+  }
+
+  try {
+    const data = await api('/api/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: currentPasswordInput.value,
+        newPassword: newPasswordInput.value
+      })
+    });
+    passwordForm.reset();
+    showStatus(data.message || 'Dein Passwort wurde ge\u00e4ndert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 async function loadAdmin() {
   const [usersData, overviewData, settingsData, fixedData] = await Promise.all([
     api('/api/admin/users'),
@@ -930,19 +974,103 @@ async function loadAdmin() {
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
   `;
+  adminEmailTestButton.disabled = !overviewData.email.configured;
+  adminEmailTestButton.title = overviewData.email.configured
+    ? 'Testmail an deine hinterlegte Adresse senden'
+    : 'Zuerst SMTP in Render konfigurieren';
+  renderAdminUsers(usersData.users);
+}
+
+async function sendAdminTestEmail() {
+  try {
+    const data = await api('/api/admin/email-test', { method: 'POST' });
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+function renderAdminUsers(users) {
   userList.innerHTML = '';
 
-  for (const user of usersData.users) {
-    const item = document.createElement('li');
-    const mailInfo = user.email ? `, ${user.email}` : ', keine E-Mail';
-    item.textContent = `${user.username} (${user.role}, ${user.active ? 'aktiv' : 'inaktiv'}${mailInfo})`;
+  for (const user of users) {
+    const item = document.createElement('article');
+    item.className = 'user-admin-item';
+
+    const identity = document.createElement('div');
+    identity.className = 'user-admin-identity';
+    const name = document.createElement('strong');
+    name.textContent = user.username;
+    const meta = document.createElement('span');
+    meta.textContent = `${user.role === 'admin' ? 'Admin' : 'Bewohner'} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ''}`;
+    identity.append(name, meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'user-admin-actions';
+
+    const statusButton = document.createElement('button');
+    statusButton.type = 'button';
+    statusButton.className = user.active ? 'secondary danger' : 'secondary';
+    statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
+    statusButton.disabled = user.id === currentUser.id;
+    statusButton.title = statusButton.disabled ? 'Das eigene Konto bleibt aktiv' : `${user.username} ${statusButton.textContent.toLowerCase()}`;
+    statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
+
+    const resetForm = document.createElement('form');
+    resetForm.className = 'user-password-reset';
+    const password = document.createElement('input');
+    password.type = 'password';
+    password.autocomplete = 'new-password';
+    password.minLength = 8;
+    password.maxLength = 128;
+    password.placeholder = 'Neues Passwort';
+    password.setAttribute('aria-label', `Neues Passwort f\u00fcr ${user.username}`);
+    password.required = true;
+    const resetButton = document.createElement('button');
+    resetButton.type = 'submit';
+    resetButton.className = 'secondary';
+    resetButton.textContent = 'Neu setzen';
+    resetForm.append(password, resetButton);
+    resetForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      resetUserPassword(user.id, password.value, resetForm);
+    });
+
+    actions.append(statusButton, resetForm);
+    item.append(identity, actions);
     userList.append(item);
+  }
+}
+
+async function updateUserStatus(userId, active) {
+  try {
+    const data = await api(`/api/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ active })
+    });
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function resetUserPassword(userId, newPassword, form) {
+  try {
+    const data = await api(`/api/admin/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword })
+    });
+    form.reset();
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
   }
 }
 
 function populateFixedBookingControls() {
   fixedBookingResource.innerHTML = resources.map((resource) => (
-    `<option value="${resource.id}">${resource.name} - ${typeLabel(resource.type)}</option>`
+    `<option value="${resource.id}">${escapeHtml(resource.name)} - ${escapeHtml(typeLabel(resource.type))}</option>`
   )).join('');
 
   fixedBookingSlot.innerHTML = slots.map((slot) => (
@@ -962,9 +1090,9 @@ function renderFixedBookings(items) {
     item.className = 'fixed-booking-item';
     item.innerHTML = `
       <div>
-        <strong>${booking.label}</strong>
-        <span>${weekdayLabels[booking.weekday]} - ${booking.slot}</span>
-        <span>${booking.resource_name}</span>
+        <strong>${escapeHtml(booking.label)}</strong>
+        <span>${escapeHtml(weekdayLabels[booking.weekday])} - ${escapeHtml(booking.slot)}</span>
+        <span>${escapeHtml(booking.resource_name)}</span>
       </div>
     `;
 
@@ -1051,6 +1179,13 @@ filterButtons.forEach((button) => {
   });
 });
 
+adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
+
+passwordForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await changePassword();
+});
+
 openIntroButton.addEventListener('click', openIntro);
 openKnowledgeButton.addEventListener('click', openIntro);
 closeIntroButton.addEventListener('click', closeIntro);
@@ -1068,8 +1203,24 @@ introOverlay.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !introOverlay.hidden) {
     closeIntro();
+    return;
+  }
+  if (event.key === 'Tab' && !introOverlay.hidden) {
+    const focusable = [...introOverlay.querySelectorAll('button, summary, input, video, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.disabled && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 });
+
+recordedIntroVideo.addEventListener('play', stopIntroVideo);
 
 if (introVideoSpeechSupported) {
   window.speechSynthesis.addEventListener('voiceschanged', refreshIntroVideoVoice);

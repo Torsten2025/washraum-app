@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Verify application
-        run: npm run verify
+        run: npm run check
 
       - name: Trigger Render deploy
         env:
@@ -43,8 +43,30 @@ jobs:
             exit 1
           fi
 
+          separator='?'
+          case "$RENDER_DEPLOY_HOOK_URL" in
+            *\?*) separator='&' ;;
+          esac
+
           curl --fail --silent --show-error \
             --request POST \
             --retry 3 \
             --retry-all-errors \
-            "$RENDER_DEPLOY_HOOK_URL"
+            "${RENDER_DEPLOY_HOOK_URL}${separator}ref=${GITHUB_SHA}"
+
+      - name: Verify deployed commit
+        env:
+          APP_URL: https://washraum-app.onrender.com
+        run: |
+          for attempt in $(seq 1 36); do
+            health="$(curl --fail --silent --show-error "$APP_URL/api/health" || true)"
+            if printf '%s' "$health" | grep --fixed-strings --quiet "$GITHUB_SHA"; then
+              echo "Render is live on $GITHUB_SHA"
+              exit 0
+            fi
+            echo "Waiting for Render deploy ($attempt/36)..."
+            sleep 10
+          done
+
+          echo "::error::Render did not report commit $GITHUB_SHA as live."
+          exit 1
