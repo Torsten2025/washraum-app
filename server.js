@@ -9,6 +9,14 @@ const session = require('express-session');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const { releaseWindowStatus } = require('./release-window');
+const {
+  addDays,
+  isDateString,
+  isPastSwissDate,
+  isPastSwissSlot,
+  swissDateString,
+  weekdayForDate
+} = require('./swiss-time');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -141,6 +149,7 @@ function createCurrentTables() {
       resource_id INTEGER NOT NULL,
       booking_date TEXT NOT NULL,
       slot TEXT NOT NULL,
+      group_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
@@ -189,10 +198,12 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('resources', 'house_id', 'INTEGER');
+  ensureColumn('bookings', 'group_id', 'TEXT');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
   const initialHouseCode = getSetting('house_code').trim()
     || process.env.HOUSE_CODE
     || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
@@ -573,25 +584,8 @@ app.use((req, res, next) => {
   next();
 });
 
-function formatDateLocal(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function todayStringLocal() {
-  return formatDateLocal(new Date());
-}
-
-function addDays(dateString, days) {
-  const date = new Date(`${dateString}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return formatDateLocal(date);
-}
-
-function weekdayForDate(dateString) {
-  return new Date(`${dateString}T12:00:00`).getDay();
+  return swissDateString();
 }
 
 function getFixedBookingsForDate(dateString, houseId) {
@@ -909,8 +903,34 @@ function findAvailableResourceForWindow(type, window, houseId) {
   ))) || null;
 }
 
-function defaultDryingWindow(washDate, washSlot) {
-  return allowedDryingRoomSlots(washDate, washSlot).slice(0, 2);
+function bestDryingRoomWindow(washDate, washSlot, houseId) {
+  const allowedWindow = allowedDryingRoomSlots(washDate, washSlot);
+  for (let length = allowedWindow.length; length >= 1; length -= 1) {
+    const window = allowedWindow.slice(0, length);
+    const resource = findAvailableResourceForWindow('drying_room', window, houseId);
+    if (resource) {
+      return { resource, maxWindow: window };
+    }
+  }
+  return null;
+}
+
+function dryingWindowOptions(resource, maxWindow) {
+  const lengths = [...new Set([1, Math.min(2, maxWindow.length), maxWindow.length])];
+  return lengths.map((length) => {
+    const window = maxWindow.slice(0, length);
+    const end = window[window.length - 1];
+    const dateLabel = end.date === window[0].date ? '' : ` am ${end.date}`;
+    return {
+      id: length === 1 ? 'short' : length === maxWindow.length ? 'max' : 'standard',
+      label: `${length === 1 ? 'Kurz' : length === maxWindow.length ? 'Maximal' : 'Standard'} - bis ${end.slot.split('-')[1]}${dateLabel}`,
+      bookings: window.map((booking) => ({
+        resourceId: resource.id,
+        date: booking.date,
+        slot: booking.slot
+      }))
+    };
+  });
 }
 
 function packageComponent(type, resource, bookings, options = {}) {
@@ -922,6 +942,8 @@ function packageComponent(type, resource, bookings, options = {}) {
     existing: Boolean(options.existing),
     selectedByDefault: Boolean(options.required || options.selectedByDefault),
     recommendationLabel: String(options.recommendationLabel || ''),
+    bookingOptions: options.bookingOptions || [],
+    selectedOption: String(options.selectedOption || ''),
     bookings: bookings.map((booking) => ({
       resourceId: resource.id,
       date: booking.date,
@@ -938,12 +960,15 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
   const dryingWindow = allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
 
   if (!userHasBookingInWindow(userId, 'drying_room', dryingWindow, houseId)) {
-    const suggestedWindow = defaultDryingWindow(washerBooking.booking_date, washerBooking.slot);
-    const dryingRoom = findAvailableResourceForWindow('drying_room', suggestedWindow, houseId);
-    if (dryingRoom) {
-      components.push(packageComponent('drying_room', dryingRoom, suggestedWindow, {
+    const drying = bestDryingRoomWindow(washerBooking.booking_date, washerBooking.slot, houseId);
+    if (drying) {
+      const suggestedWindow = drying.maxWindow.slice(0, Math.min(2, drying.maxWindow.length));
+      const options = dryingWindowOptions(drying.resource, drying.maxWindow);
+      components.push(packageComponent('drying_room', drying.resource, suggestedWindow, {
         selectedByDefault: true,
-        recommendationLabel: 'Empfohlen'
+        recommendationLabel: 'Empfohlen',
+        bookingOptions: options,
+        selectedOption: options.find((option) => option.bookings.length === suggestedWindow.length)?.id
       }));
     }
   }
@@ -997,24 +1022,27 @@ function washerHistoryPreference(userId, houseId) {
     WHERE b.user_id = ?
       AND r.type = 'washer'
       AND r.house_id = ?
-      AND b.booking_date < date('now', 'localtime')
+      AND b.booking_date < ?
     GROUP BY weekday, b.slot
     ORDER BY count DESC, last_date DESC
     LIMIT 1
-  `).get(userId, houseId) || null;
+  `).get(userId, houseId, todayStringLocal()) || null;
 }
 
 function washerPackageRecommendation(userId, washer, reason, houseId) {
   const washWindow = [{ date: washer.date, slot: washer.slot }];
   const components = [packageComponent('washer', washer.resource, washWindow, { required: true })];
-  const suggestedDryingWindow = defaultDryingWindow(washer.date, washer.slot);
-  const dryingRoom = findAvailableResourceForWindow('drying_room', suggestedDryingWindow, houseId);
+  const drying = bestDryingRoomWindow(washer.date, washer.slot, houseId);
   const tumbler = findAvailableResource(userId, 'tumbler', washer.date, washer.slot, houseId);
 
-  if (dryingRoom) {
-    components.push(packageComponent('drying_room', dryingRoom, suggestedDryingWindow, {
+  if (drying) {
+    const suggestedWindow = drying.maxWindow.slice(0, Math.min(2, drying.maxWindow.length));
+    const options = dryingWindowOptions(drying.resource, drying.maxWindow);
+    components.push(packageComponent('drying_room', drying.resource, suggestedWindow, {
       selectedByDefault: true,
-      recommendationLabel: 'Empfohlen'
+      recommendationLabel: 'Empfohlen',
+      bookingOptions: options,
+      selectedOption: options.find((option) => option.bookings.length === suggestedWindow.length)?.id
     }));
   }
   if (tumbler) {
@@ -1239,29 +1267,19 @@ function requireSuperadmin(req, res, next) {
   next();
 }
 
-function isDateString(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value || '');
-}
-
 function isSunday(dateString) {
-  return new Date(`${dateString}T12:00:00`).getDay() === 0;
+  return weekdayForDate(dateString) === 0;
 }
 
 function isPastDate(dateString) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${dateString}T00:00:00`);
-  return date < today;
+  return isPastSwissDate(dateString);
 }
 
 function isPastSlot(dateString, slot) {
   if (!isDateString(dateString) || !slots.includes(slot)) {
     return false;
   }
-
-  const [, end] = slot.split('-');
-  const slotEnd = new Date(`${dateString}T${end}:00`);
-  return slotEnd <= new Date();
+  return isPastSwissSlot(dateString, slot);
 }
 
 function slotEndLabel(slot) {
@@ -1716,17 +1734,17 @@ app.get('/api/resources', requireAuth, (req, res) => {
 
 app.get('/api/my-bookings', requireAuth, (req, res) => {
   const bookings = db.prepare(`
-    SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name,
+    SELECT b.id, b.booking_date, b.slot, b.group_id, r.id AS resource_id, r.name AS resource_name,
            r.type AS resource_type, u.id AS user_id, u.username
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     JOIN users u ON u.id = b.user_id
     WHERE b.user_id = ?
       AND r.house_id = ?
-      AND b.booking_date >= date('now', 'localtime')
+      AND b.booking_date >= ?
     ORDER BY b.booking_date, b.slot, r.name
-    LIMIT 12
-  `).all(req.session.user.id, currentHouseId(req));
+    LIMIT 30
+  `).all(req.session.user.id, currentHouseId(req), todayStringLocal());
 
   res.json({
     bookings: bookings.map((booking) => {
@@ -1879,7 +1897,8 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
 
     if (washerBookingId) {
       existingWasher = db.prepare(`
-        SELECT b.id, b.user_id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name
+        SELECT b.id, b.user_id, b.booking_date, b.slot, b.group_id,
+               r.id AS resource_id, r.name AS resource_name
         FROM bookings b
         JOIN resources r ON r.id = b.resource_id
         WHERE b.id = ? AND r.type = 'washer' AND r.house_id = ?
@@ -1970,19 +1989,24 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
       }
     }
 
+    const groupId = existingWasher?.group_id || crypto.randomUUID();
     const createPackage = db.transaction(() => {
       const created = [];
       const insert = db.prepare(`
-        INSERT INTO bookings (user_id, resource_id, booking_date, slot)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO bookings (user_id, resource_id, booking_date, slot, group_id)
+        VALUES (?, ?, ?, ?, ?)
       `);
+
+      if (existingWasher && !existingWasher.group_id) {
+        db.prepare('UPDATE bookings SET group_id = ? WHERE id = ?').run(groupId, existingWasher.id);
+      }
 
       if (newWasher) {
         const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
         if (washerError) {
           throw packageRequestError(409, washerError);
         }
-        const result = insert.run(req.session.user.id, newWasher.resourceId, washDate, washSlot);
+        const result = insert.run(req.session.user.id, newWasher.resourceId, washDate, washSlot, groupId);
         created.push({ id: result.lastInsertRowid, type: 'washer' });
       }
 
@@ -1991,7 +2015,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
         if (dryingError) {
           throw packageRequestError(409, dryingError);
         }
-        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot);
+        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot, groupId);
         created.push({ id: result.lastInsertRowid, type: 'drying_room' });
       }
 
@@ -2000,7 +2024,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
         if (tumblerError) {
           throw packageRequestError(409, tumblerError);
         }
-        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot);
+        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot, groupId);
         created.push({ id: result.lastInsertRowid, type: 'tumbler' });
       }
       return created;
@@ -2016,6 +2040,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
     const summary = bookedTypes.map((type) => typeLabels[type]).join(', ');
     res.status(201).json({
       created,
+      groupId,
       message: existingWasher
         ? `Waschpaket erg\u00e4nzt: ${summary}.`
         : `Waschpaket gebucht: ${summary}.`
@@ -2029,6 +2054,29 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
     }
     throw error;
   }
+});
+
+app.delete('/api/booking-groups/:groupId', requireAuth, (req, res) => {
+  const groupId = String(req.params.groupId || '');
+  const houseId = currentHouseId(req);
+  const groupedBookings = db.prepare(`
+    SELECT b.id, b.user_id
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.group_id = ? AND r.house_id = ?
+  `).all(groupId, houseId);
+  if (!groupedBookings.length) {
+    return res.status(404).json({ error: 'Waschpaket nicht gefunden' });
+  }
+  if (
+    req.session.user.role !== 'admin'
+    && groupedBookings.some((booking) => booking.user_id !== req.session.user.id)
+  ) {
+    return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
+  }
+
+  db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
+  res.json({ ok: true, deleted: groupedBookings.length, message: 'Waschpaket gel\u00f6scht.' });
 });
 
 app.delete('/api/bookings/:id', requireAuth, (req, res) => {
@@ -2273,8 +2321,8 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const todayBookings = db.prepare(`
     SELECT COUNT(*) AS count
     FROM bookings b JOIN resources r ON r.id = b.resource_id
-    WHERE b.booking_date = date('now', 'localtime') AND r.house_id = ?
-  `).get(houseId).count;
+    WHERE b.booking_date = ? AND r.house_id = ?
+  `).get(todayStringLocal(), houseId).count;
   const activeResources = db.prepare('SELECT COUNT(*) AS count FROM resources WHERE active = 1 AND house_id = ?').get(houseId).count;
   const fixedBookings = db.prepare(`
     SELECT COUNT(*) AS count
@@ -2284,7 +2332,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const recentReleases = db.prepare(`
     SELECT COUNT(*) AS count
     FROM release_notices
-    WHERE house_id = ? AND created_at >= datetime('now', '-7 days', 'localtime')
+    WHERE house_id = ? AND created_at >= datetime('now', '-7 days')
   `).get(houseId).count;
 
   res.json({
@@ -2406,11 +2454,28 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
   }
 
   const resource = db.prepare(`
-    SELECT id FROM resources
+    SELECT id, type FROM resources
     WHERE id = ? AND active = 1 AND house_id = ?
   `).get(resourceId, currentHouseId(req));
   if (!resource) {
     return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
+  }
+
+  if (resource.type === 'tumbler') {
+    const totalTumblers = db.prepare(`
+      SELECT COUNT(*) AS count FROM resources
+      WHERE active = 1 AND type = 'tumbler' AND house_id = ?
+    `).get(currentHouseId(req)).count;
+    const fixedTumblers = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM fixed_bookings fb
+      JOIN resources r ON r.id = fb.resource_id
+      WHERE fb.active = 1 AND r.type = 'tumbler' AND r.house_id = ?
+        AND fb.weekday = ? AND fb.slot = ?
+    `).get(currentHouseId(req), weekday, slot).count;
+    if (fixedTumblers >= Math.max(0, totalTumblers - 1)) {
+      return res.status(409).json({ error: 'Mindestens ein Tumbler muss in diesem Slot frei bleiben.' });
+    }
   }
 
   const conflictingBooking = db.prepare(`
@@ -2418,10 +2483,10 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
     FROM bookings b
     WHERE b.resource_id = ?
       AND b.slot = ?
-      AND b.booking_date >= date('now', 'localtime')
+      AND b.booking_date >= ?
       AND CAST(strftime('%w', b.booking_date) AS INTEGER) = ?
     LIMIT 1
-  `).get(resourceId, slot, weekday);
+  `).get(resourceId, slot, todayStringLocal(), weekday);
 
   if (conflictingBooking) {
     return res.status(409).json({ error: 'Es gibt bereits eine normale zuk\u00fcnftige Buchung in diesem Dauer-Slot. Bitte zuerst kl\u00e4ren oder l\u00f6schen.' });

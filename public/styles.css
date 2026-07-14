@@ -618,6 +618,42 @@ aside.panel {
   min-height: 36px;
 }
 
+.booking-package-item {
+  border-left: 3px solid var(--accent);
+}
+
+.package-booking-lines {
+  border-block: 1px solid var(--line);
+  display: grid;
+  grid-column: 1 / -1;
+}
+
+.package-booking-line {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 9px 0;
+}
+
+.package-booking-line + .package-booking-line {
+  border-top: 1px solid var(--line);
+}
+
+.package-booking-line > span {
+  display: grid;
+  gap: 2px;
+}
+
+.package-booking-line small {
+  color: var(--muted);
+}
+
+.compact-actions {
+  grid-column: auto;
+  justify-content: end;
+}
+
 .notice {
   border-radius: 8px;
   margin-bottom: 18px;
@@ -1794,6 +1830,20 @@ select:focus-visible {
 .package-option small {
   color: var(--muted);
   line-height: 1.35;
+}
+
+.package-duration-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+
+.package-option select {
+  font-size: 13px;
+  min-height: 36px;
+  padding: 7px 32px 7px 9px;
 }
 
 .package-option-status {

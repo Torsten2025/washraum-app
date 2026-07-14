@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const { releaseWindowStatus } = require('../release-window');
+const { isDateString, isPastSwissSlot, swissDateString } = require('../swiss-time');
 
 const port = 33000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -165,6 +166,12 @@ function verifyReleaseWindow() {
   assert.equal(duringSlot.reason, 'eligible');
   assert.equal(alreadyEnded.eligible, false);
   assert.equal(alreadyEnded.reason, 'ended');
+
+  assert.equal(swissDateString(new Date('2026-07-14T22:30:00Z')), '2026-07-15');
+  assert.equal(isPastSwissSlot('2026-07-14', '17:00-21:00', new Date('2026-07-14T18:59:00Z')), false);
+  assert.equal(isPastSwissSlot('2026-07-14', '17:00-21:00', new Date('2026-07-14T19:00:00Z')), true);
+  assert.equal(isDateString('2026-02-29'), false);
+  assert.equal(isDateString('2028-02-29'), true);
 }
 
 async function run() {
@@ -276,6 +283,8 @@ async function run() {
     assert.ok(recommendedDryingRoom);
     assert.equal(recommendedDryingRoom.selectedByDefault, true);
     assert.equal(recommendedDryingRoom.recommendationLabel, 'Empfohlen');
+    assert.ok(recommendedDryingRoom.bookingOptions.length >= 2);
+    assert.ok(recommendedDryingRoom.bookingOptions.some((option) => option.id === 'max'));
     if (optionalTumbler) {
       assert.equal(optionalTumbler.selectedByDefault, false);
       assert.equal(optionalTumbler.recommendationLabel, 'Optional');
@@ -283,7 +292,11 @@ async function run() {
     const selectedPackageComponents = packageRecommendation.body.recommendation.components.filter((component) => (
       component.required || component.selectedByDefault
     ));
-    const selectedPackageItems = selectedPackageComponents.flatMap((component) => component.bookings);
+    const selectedPackageItems = selectedPackageComponents.flatMap((component) => (
+      component.type === 'drying_room'
+        ? component.bookingOptions.find((option) => option.id === 'max').bookings
+        : component.bookings
+    ));
     assert.ok(selectedPackageComponents.length >= 2);
     const packageBooking = await expectStatus(packageUser, '/api/booking-package', 201, {
       method: 'POST',
@@ -292,6 +305,8 @@ async function run() {
     assert.ok(packageBooking.body.created.length >= 2);
     const packageUserBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
     assert.equal(packageUserBookings.body.bookings.length, packageBooking.body.created.length);
+    assert.ok(packageBooking.body.groupId);
+    assert.ok(packageUserBookings.body.bookings.every((booking) => booking.group_id === packageBooking.body.groupId));
 
     const packageSupplement = await expectStatus(packageUser, '/api/recommendation', 200);
     if (packageSupplement.body.recommendation.kind === 'package') {
@@ -307,6 +322,9 @@ async function run() {
         })
       });
     }
+    await expectStatus(packageUser, `/api/booking-groups/${packageBooking.body.groupId}`, 200, { method: 'DELETE' });
+    const deletedPackageBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
+    assert.equal(deletedPackageBookings.body.bookings.length, 0);
 
     const smartPackageUser = new ApiClient();
     await expectStatus(smartPackageUser, '/api/register', 201, {
@@ -536,6 +554,26 @@ async function run() {
     await expectStatus(admin, `/api/admin/users/${secondResident.id}/role`, 200, {
       method: 'PUT',
       body: JSON.stringify({ role: 'admin' })
+    });
+
+    const secondHouseTumblers = secondHouseResources.body.resources.filter((resource) => resource.type === 'tumbler');
+    await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Gesch\u00fctzter Tumbler',
+        resourceId: secondHouseTumblers[0].id,
+        weekday: 4,
+        slot: '17:00-21:00'
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 409, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Nicht erlaubt',
+        resourceId: secondHouseTumblers[1].id,
+        weekday: 4,
+        slot: '17:00-21:00'
+      })
     });
 
     await expectStatus(admin, '/api/me/active-house', 200, {

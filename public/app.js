@@ -192,27 +192,50 @@ const introVideoSteps = [
   }
 ];
 
+const swissClockFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Zurich',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23'
+});
+
+function swissClockParts(date = new Date()) {
+  return Object.fromEntries(swissClockFormatter.formatToParts(date)
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+}
+
+function swissClockTimestamp(date = new Date()) {
+  const parts = swissClockParts(date);
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
+
 function todayString() {
-  return formatDateString(new Date());
+  const parts = swissClockParts();
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
 function formatDateString(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
 function addDaysString(dateString, days) {
-  const date = new Date(`${dateString}T12:00:00`);
-  date.setDate(date.getDate() + days);
+  const date = new Date(`${dateString}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
   return formatDateString(date);
 }
 
 function startOfWeek(dateString) {
-  const date = new Date(`${dateString}T12:00:00`);
-  const weekday = date.getDay() || 7;
-  date.setDate(date.getDate() - weekday + 1);
+  const date = new Date(`${dateString}T12:00:00Z`);
+  const weekday = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() - weekday + 1);
   return formatDateString(date);
 }
 
@@ -220,15 +243,17 @@ function formatShortDate(dateString) {
   return new Intl.DateTimeFormat('de-CH', {
     weekday: 'short',
     day: '2-digit',
-    month: '2-digit'
-  }).format(new Date(`${dateString}T12:00:00`));
+    month: '2-digit',
+    timeZone: 'UTC'
+  }).format(new Date(`${dateString}T12:00:00Z`));
 }
 
 function formatCalendarRange(from, to) {
-  const start = new Date(`${from}T12:00:00`);
-  const end = new Date(`${to}T12:00:00`);
-  const startLabel = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' }).format(start);
-  const endLabel = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' }).format(end);
+  const start = new Date(`${from}T12:00:00Z`);
+  const end = new Date(`${to}T12:00:00Z`);
+  const dateOptions = { day: 'numeric', month: 'short', timeZone: 'UTC' };
+  const startLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(start);
+  const endLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(end);
   return `${startLabel} - ${endLabel}`;
 }
 
@@ -249,9 +274,7 @@ function escapeHtml(value) {
 }
 
 function dateStatus(dateString) {
-  const today = new Date(`${todayString()}T00:00:00`);
-  const date = new Date(`${dateString}T00:00:00`);
-  const diffDays = Math.round((date - today) / 86400000);
+  const diffDays = Math.round((Date.parse(`${dateString}T00:00:00Z`) - Date.parse(`${todayString()}T00:00:00Z`)) / 86400000);
   if (diffDays < 0) return 'vergangen';
   if (diffDays === 0) return 'heute';
   if (diffDays === 1) return 'morgen';
@@ -260,7 +283,7 @@ function dateStatus(dateString) {
 
 function isPastSlot(dateString, slot) {
   const [, end] = slot.split('-');
-  return new Date(`${dateString}T${end}:00`) <= new Date();
+  return Date.parse(`${dateString}T${end}:00Z`) <= swissClockTimestamp();
 }
 
 function showStatus(message, tone = 'ok') {
@@ -744,8 +767,8 @@ function renderCalendar() {
       ? `${availability.freeSlots} Optionen frei`
       : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Slot' : 'Slots'} frei`;
     button.innerHTML = `
-      <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(new Date(`${day.date}T12:00:00`))}</span>
-      <strong>${new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit' }).format(new Date(`${day.date}T12:00:00`))}</strong>
+      <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
+      <strong>${new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</strong>
       <span class="calendar-availability">${availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
@@ -754,8 +777,8 @@ function renderCalendar() {
   }
 }
 
-function packageComponentDetail(component, recommendation) {
-  const componentBookings = component.bookings || [];
+function packageComponentDetail(component, recommendation, bookings = component.bookings || []) {
+  const componentBookings = bookings;
   if (component.existing) {
     return `${component.resourceName} - ${formatShortDate(recommendation.date)} - ${recommendation.slot} - bereits gebucht`;
   }
@@ -823,7 +846,7 @@ function renderRecommendation() {
         input.type = 'checkbox';
         input.checked = component.selectedByDefault !== false;
         input.setAttribute('aria-label', `${typeLabel(component.type)} in das Waschpaket aufnehmen`);
-        packageSelections.set(component.id, input);
+        packageSelections.set(component.id, { checkbox: input, select: null });
         option.append(input);
       }
 
@@ -833,6 +856,29 @@ function renderRecommendation() {
       const optionDetail = document.createElement('small');
       optionDetail.textContent = packageComponentDetail(component, recommendation);
       optionCopy.append(optionTitle, optionDetail);
+      if (component.type === 'drying_room' && component.bookingOptions?.length > 1) {
+        const durationLabel = document.createElement('span');
+        durationLabel.className = 'package-duration-label';
+        durationLabel.textContent = 'Trocknungsdauer';
+        const durationSelect = document.createElement('select');
+        durationSelect.setAttribute('aria-label', 'Trocknungsdauer w\u00e4hlen');
+        for (const duration of component.bookingOptions) {
+          const durationOption = document.createElement('option');
+          durationOption.value = duration.id;
+          durationOption.textContent = duration.label;
+          durationOption.selected = duration.id === component.selectedOption;
+          durationSelect.append(durationOption);
+        }
+        durationSelect.addEventListener('change', () => {
+          const duration = component.bookingOptions.find((item) => item.id === durationSelect.value);
+          optionDetail.textContent = packageComponentDetail(component, recommendation, duration?.bookings || component.bookings);
+        });
+        optionCopy.append(durationLabel, durationSelect);
+        const selection = packageSelections.get(component.id);
+        if (selection) {
+          selection.select = durationSelect;
+        }
+      }
       option.append(optionCopy);
       if (!component.required) {
         const optionBadge = document.createElement('span');
@@ -855,9 +901,13 @@ function renderRecommendation() {
     packageButton.textContent = recommendation.actionLabel || 'Waschpaket buchen';
     packageButton.addEventListener('click', () => {
       const selectedComponents = (recommendation.components || []).filter((component) => (
-        component.required || packageSelections.get(component.id)?.checked
+        component.required || packageSelections.get(component.id)?.checkbox.checked
       ));
-      const items = selectedComponents.flatMap((component) => component.bookings || []);
+      const items = selectedComponents.flatMap((component) => {
+        const selectedDuration = packageSelections.get(component.id)?.select?.value;
+        const duration = component.bookingOptions?.find((item) => item.id === selectedDuration);
+        return duration?.bookings || component.bookings || [];
+      });
       createBookingPackage(items, recommendation);
     });
     actions.append(packageButton);
@@ -961,45 +1011,67 @@ function renderMyBookings(items) {
     return;
   }
 
+  const groups = new Map();
   for (const booking of items) {
+    const key = booking.group_id ? `group-${booking.group_id}` : `booking-${booking.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(booking);
+  }
+
+  for (const group of groups.values()) {
+    const isPackage = Boolean(group[0].group_id);
+    const primary = group.find((booking) => booking.resource_type === 'washer') || group[0];
     const item = document.createElement('article');
-    item.className = 'booking-list-item';
-    const status = dateStatus(booking.booking_date);
+    item.className = `booking-list-item${isPackage ? ' booking-package-item' : ''}`;
+    const status = dateStatus(primary.booking_date);
     item.innerHTML = `
       <div>
-        <strong>${escapeHtml(booking.resource_name)}</strong>
-        <span>${escapeHtml(booking.booking_date)} - ${escapeHtml(booking.slot)}</span>
+        <strong>${isPackage ? 'Waschpaket' : escapeHtml(primary.resource_name)}</strong>
+        <span>${escapeHtml(primary.booking_date)} - ${escapeHtml(primary.slot)}</span>
       </div>
       <span class="status-chip">${escapeHtml(status)}</span>
     `;
 
+    const bookingLines = document.createElement('div');
+    bookingLines.className = 'package-booking-lines';
+    for (const booking of group) {
+      const line = document.createElement('div');
+      line.className = 'package-booking-line';
+      line.innerHTML = `<span><strong>${escapeHtml(booking.resource_name)}</strong><small>${escapeHtml(booking.booking_date)} - ${escapeHtml(booking.slot)}</small></span>`;
+      const lineActions = document.createElement('div');
+      lineActions.className = 'inline-actions compact-actions';
+      if (booking.releaseEligible) {
+        const releaseButton = document.createElement('button');
+        releaseButton.type = 'button';
+        releaseButton.className = 'secondary';
+        releaseButton.textContent = 'Fr\u00fcher frei';
+        releaseButton.addEventListener('click', () => releaseBooking(booking.id));
+        lineActions.append(releaseButton);
+      }
+      if (booking.cancellationNoticeEligible && !isPackage) {
+        const notifyButton = document.createElement('button');
+        notifyButton.type = 'button';
+        notifyButton.className = 'secondary';
+        notifyButton.textContent = 'Absagen & informieren';
+        notifyButton.addEventListener('click', () => cancelBookingAndNotify(booking.id));
+        lineActions.append(notifyButton);
+      }
+      line.append(lineActions);
+      bookingLines.append(line);
+    }
+    item.append(bookingLines);
+
     const actions = document.createElement('div');
     actions.className = 'inline-actions';
-
-    const releaseButton = document.createElement('button');
-    releaseButton.type = 'button';
-    releaseButton.className = 'secondary';
-    releaseButton.textContent = 'Freigeben';
-    releaseButton.addEventListener('click', () => releaseBooking(booking.id));
-
-    const cancelNotifyButton = document.createElement('button');
-    cancelNotifyButton.type = 'button';
-    cancelNotifyButton.className = 'secondary';
-    cancelNotifyButton.textContent = 'Absagen & informieren';
-    cancelNotifyButton.addEventListener('click', () => cancelBookingAndNotify(booking.id));
-
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = 'Nur l\u00f6schen';
-    deleteButton.addEventListener('click', () => deleteBooking(booking.id));
-
-    if (booking.releaseEligible) {
-      actions.append(releaseButton);
-    }
-    if (booking.cancellationNoticeEligible) {
-      actions.append(cancelNotifyButton);
-    }
+    deleteButton.textContent = isPackage ? 'Ganzes Paket l\u00f6schen' : 'L\u00f6schen';
+    deleteButton.addEventListener('click', () => (
+      isPackage ? deleteBookingGroup(primary.group_id) : deleteBooking(primary.id)
+    ));
     actions.append(deleteButton);
     item.append(actions);
     myBookings.append(item);
@@ -1064,6 +1136,9 @@ async function createBookingPackage(items, recommendation) {
 }
 
 async function deleteBooking(id) {
+  if (!window.confirm('Diese Buchung wirklich l\u00f6schen?')) {
+    return;
+  }
   try {
     const data = await api(`/api/bookings/${id}`, { method: 'DELETE' });
     showStatus(data.message || 'Buchung gel\u00f6scht.');
@@ -1099,6 +1174,19 @@ async function saveNotifications() {
     });
     currentUser = data.user;
     showStatus(data.message || 'Benachrichtigungen gespeichert.');
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function deleteBookingGroup(groupId) {
+  if (!window.confirm('Das gesamte Waschpaket mit allen Bestandteilen l\u00f6schen?')) {
+    return;
+  }
+  try {
+    const data = await api(`/api/booking-groups/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
+    showStatus(data.message || 'Waschpaket gel\u00f6scht.');
+    await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
   }
