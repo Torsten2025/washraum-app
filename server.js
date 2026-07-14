@@ -1,4 +1,5 @@
 const fs = require('fs');
+const crypto = require('crypto');
 const net = require('net');
 const path = require('path');
 const tls = require('tls');
@@ -10,7 +11,13 @@ const bcrypt = require('bcryptjs');
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
-const dbPath = path.resolve(process.env.DB_PATH || path.join(__dirname, 'data', 'washraum.sqlite'));
+const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
+const renderDbPath = '/var/data/washraum.sqlite';
+const dbPath = path.resolve(
+  process.env.DB_PATH
+  || process.env.SQLITE_PATH
+  || (process.env.RENDER === 'true' ? renderDbPath : localDbPath)
+);
 const dbDir = path.dirname(dbPath);
 
 fs.mkdirSync(dbDir, { recursive: true });
@@ -77,22 +84,13 @@ class BetterSqliteSessionStore extends session.Store {
 }
 
 const sessionSecret = process.env.SESSION_SECRET || 'local-dev-session-secret';
+const slots = [
+  '07:00-12:00',
+  '12:00-17:00',
+  '17:00-21:00'
+];
 
-app.use(express.json());
-app.use(session({
-  store: new BetterSqliteSessionStore(db),
-  secret: sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction,
-    maxAge: 1000 * 60 * 60 * 8
-  }
-}));
-
-function initDb() {
+function createCurrentTables() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,13 +153,22 @@ function initDb() {
       UNIQUE (resource_id, weekday, slot)
     );
   `);
+}
 
+function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
-  seedUser('admin', 'admin123', 'admin');
-  seedUser('user', 'user123', 'user');
+  const seededAdminPassword = String(process.env.SEED_ADMIN_PASSWORD || '');
+  if (seededAdminPassword) {
+    seedUser(process.env.SEED_ADMIN_NAME || 'admin', seededAdminPassword, 'admin');
+  } else if (!isProduction) {
+    seedUser('admin', 'admin123', 'admin');
+  }
+  if (!isProduction) {
+    seedUser('user', 'user123', 'user');
+  }
   seedResource('Waschmaschine 1', 'washer');
   seedResource('Waschmaschine 2', 'washer');
   seedResource('Waschmaschine 3', 'washer');
@@ -171,6 +178,208 @@ function initDb() {
   seedResource('Tumbler 1', 'tumbler');
   seedResource('Tumbler 2', 'tumbler');
   seedSetting('house_code', process.env.HOUSE_CODE || 'GBMZ Maneggplatz 18');
+}
+
+function tableExists(table) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+
+function tableColumns(table) {
+  if (!tableExists(table)) {
+    return [];
+  }
+  return db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
+}
+
+function readLegacyDatabase() {
+  const userColumns = tableColumns('users');
+  if (!userColumns.includes('user_name') || userColumns.includes('username')) {
+    return null;
+  }
+
+  return {
+    users: db.prepare('SELECT * FROM users').all(),
+    bookings: tableExists('bookings') ? db.prepare('SELECT * FROM bookings').all() : [],
+    fixedBookings: tableExists('fixed_bookings') ? db.prepare('SELECT * FROM fixed_bookings').all() : []
+  };
+}
+
+function migrateLegacyUsers(users) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO users
+      (id, username, email, password_hash, role, active, notify_releases, created_at)
+    VALUES
+      (@id, @username, @email, @passwordHash, @role, @active, @notifyReleases, @createdAt)
+  `);
+
+  for (const user of users) {
+    const username = String(user.user_name || '').trim();
+    const passwordHash = String(user.password_hash || '');
+    const isTestAccount = username === 'user'
+      || /^(PartyTest-|Smoke-|Managed-)/i.test(username);
+    if (!username || !passwordHash || isTestAccount) {
+      continue;
+    }
+
+    insert.run({
+      id: user.id,
+      username,
+      email: user.email || null,
+      passwordHash,
+      role: user.role === 'admin' ? 'admin' : 'user',
+      active: user.active === 0 ? 0 : 1,
+      notifyReleases: user.notify_releases === 0 ? 0 : 1,
+      createdAt: user.created_at || new Date().toISOString()
+    });
+  }
+}
+
+function legacySlot(row) {
+  const slotById = {
+    'slot-1': slots[0],
+    'slot-2': slots[1],
+    'slot-3': slots[2]
+  };
+  if (slotById[row.slot_id]) {
+    return slotById[row.slot_id];
+  }
+
+  const match = String(row.start_at || '').match(/[T ](\d{2}:\d{2})/);
+  const slotByStart = {
+    '07:00': slots[0],
+    '12:00': slots[1],
+    '17:00': slots[2]
+  };
+  return match ? slotByStart[match[1]] || '' : '';
+}
+
+function legacyResourceName(type, resourceId) {
+  const number = String(resourceId || '').match(/(\d+)/)?.[1];
+  if (!number) {
+    return '';
+  }
+  if (type === 'washer') {
+    return `Waschmaschine ${number}`;
+  }
+  if (type === 'drying_room') {
+    return `Trockenraum ${number}`;
+  }
+  if (type === 'tumbler') {
+    return `Tumbler ${number}`;
+  }
+  return '';
+}
+
+function findMigratedUser(username) {
+  return db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(String(username || '').trim());
+}
+
+function findMigratedResource(type, resourceId) {
+  const name = legacyResourceName(type, resourceId);
+  return name ? db.prepare('SELECT id FROM resources WHERE type = ? AND name = ?').get(type, name) : null;
+}
+
+function migrateLegacyBookings(bookings) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO bookings
+      (id, user_id, resource_id, booking_date, slot, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  let migrated = 0;
+
+  for (const booking of bookings) {
+    if (booking.released_at) {
+      continue;
+    }
+    const user = findMigratedUser(booking.user_name);
+    const resource = findMigratedResource(booking.resource_type, booking.resource_id);
+    const bookingDate = String(booking.start_at || '').slice(0, 10);
+    const slot = legacySlot(booking);
+    if (!user || !resource || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate) || !slot) {
+      continue;
+    }
+
+    const result = insert.run(
+      booking.id || null,
+      user.id,
+      resource.id,
+      bookingDate,
+      slot,
+      booking.created_at || new Date().toISOString()
+    );
+    migrated += result.changes;
+  }
+  return migrated;
+}
+
+function migrateLegacyFixedBookings(fixedBookings) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO fixed_bookings
+      (id, resource_id, weekday, slot, label, active, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  let migrated = 0;
+
+  for (const booking of fixedBookings) {
+    const resource = findMigratedResource(booking.resource_type, booking.resource_id);
+    const creator = findMigratedUser(booking.created_by);
+    const slot = legacySlot(booking);
+    const weekday = Number(booking.weekday);
+    if (!resource || !slot || !Number.isInteger(weekday) || weekday < 1 || weekday > 6) {
+      continue;
+    }
+
+    const result = insert.run(
+      booking.id || null,
+      resource.id,
+      weekday,
+      slot,
+      String(booking.label || 'Feste Buchung'),
+      booking.active === 0 ? 0 : 1,
+      creator?.id || null,
+      booking.created_at || new Date().toISOString()
+    );
+    migrated += result.changes;
+  }
+  return migrated;
+}
+
+function migrateLegacyDatabase(legacy) {
+  db.pragma('foreign_keys = OFF');
+  let migratedBookings = 0;
+  let migratedFixedBookings = 0;
+  try {
+    db.transaction(() => {
+      db.exec(`
+        DROP TABLE IF EXISTS sessions;
+        DROP TABLE IF EXISTS fixed_bookings;
+        DROP TABLE IF EXISTS bookings;
+        DROP TABLE IF EXISTS users;
+      `);
+      createCurrentTables();
+      migrateLegacyUsers(legacy.users);
+      seedCurrentDefaults();
+      migratedBookings = migrateLegacyBookings(legacy.bookings);
+      migratedFixedBookings = migrateLegacyFixedBookings(legacy.fixedBookings);
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+
+  console.log(
+    `Legacy-Datenbank migriert: ${legacy.users.length} Konten, ${migratedBookings} Buchungen, ${migratedFixedBookings} feste Buchungen.`
+  );
+}
+
+function initDb() {
+  const legacy = readLegacyDatabase();
+  if (legacy) {
+    migrateLegacyDatabase(legacy);
+    return;
+  }
+
+  createCurrentTables();
+  seedCurrentDefaults();
 }
 
 function ensureColumn(table, column, definition) {
@@ -207,13 +416,45 @@ function getSetting(key) {
   return row ? row.value : '';
 }
 
+function isBcryptHash(hash) {
+  return /^\$2[aby]\$\d{2}\$/.test(String(hash || ''));
+}
+
+function verifyStoredPassword(password, storedHash) {
+  const hash = String(storedHash || '');
+  if (isBcryptHash(hash)) {
+    return bcrypt.compareSync(password, hash);
+  }
+
+  const [salt, legacyHash] = hash.split(':');
+  if (!salt || !/^[a-f\d]{128}$/i.test(legacyHash || '')) {
+    return false;
+  }
+
+  try {
+    const candidate = crypto.scryptSync(password, salt, 64);
+    const expected = Buffer.from(legacyHash, 'hex');
+    return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+  } catch {
+    return false;
+  }
+}
+
 initDb();
 
-const slots = [
-  '07:00-12:00',
-  '12:00-17:00',
-  '17:00-21:00'
-];
+app.use(express.json());
+app.use(session({
+  store: new BetterSqliteSessionStore(db),
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    maxAge: 1000 * 60 * 60 * 8
+  }
+}));
 
 function formatDateLocal(date) {
   const year = date.getFullYear();
@@ -679,7 +920,10 @@ function smtpSession(socket) {
 }
 
 app.get(['/health', '/api/health'], (req, res) => {
-  res.json({ ok: true, dbPath });
+  const storage = process.env.RENDER === 'true'
+    ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
+    : 'local';
+  res.json({ ok: true, storage });
 });
 
 app.post('/api/login', (req, res) => {
@@ -688,11 +932,16 @@ app.post('/api/login', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?')
     .get(loginName, loginName);
 
-  if (!user || !bcrypt.compareSync(String(password || ''), user.password_hash)) {
+  if (!user || !verifyStoredPassword(String(password || ''), user.password_hash)) {
     return res.status(401).json({ error: 'Login fehlgeschlagen' });
   }
   if (!user.active) {
     return res.status(403).json({ error: 'Dieses Konto ist deaktiviert' });
+  }
+
+  if (!isBcryptHash(user.password_hash)) {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .run(bcrypt.hashSync(String(password || ''), 10), user.id);
   }
 
   req.session.user = {
