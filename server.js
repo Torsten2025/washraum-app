@@ -552,6 +552,27 @@ app.use(session({
   }
 }));
 
+app.use((req, res, next) => {
+  if (!req.session.user?.id) {
+    return next();
+  }
+  const storedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+  if (!storedUser || !storedUser.active) {
+    req.session.user = null;
+    req.session.activeHouseId = null;
+    return next();
+  }
+
+  const requestedHouseId = storedUser.is_superadmin
+    ? Number(req.session.activeHouseId || req.session.user.activeHouseId || storedUser.house_id)
+    : storedUser.house_id;
+  const activeHouse = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1').get(requestedHouseId)
+    || db.prepare('SELECT id, name FROM houses WHERE id = ?').get(storedUser.house_id);
+  req.session.activeHouseId = activeHouse?.id || storedUser.house_id;
+  req.session.user = sessionUserFromRow(storedUser, activeHouse);
+  next();
+});
+
 function formatDateLocal(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

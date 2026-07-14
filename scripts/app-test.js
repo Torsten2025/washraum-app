@@ -225,6 +225,27 @@ async function run() {
     });
     assert.equal(registration.body.user.username, 'Bewohner Test');
 
+    const sessionDatabase = new Database(databasePath);
+    const storedSession = sessionDatabase.prepare('SELECT sid, sess FROM sessions').all()
+      .map((row) => ({ ...row, data: JSON.parse(row.sess) }))
+      .find((row) => row.data.user?.id === registration.body.user.id);
+    assert.ok(storedSession, 'Registrierungssitzung wurde nicht gespeichert.');
+    storedSession.data.user = {
+      id: registration.body.user.id,
+      username: registration.body.user.username,
+      role: registration.body.user.role,
+      email: registration.body.user.email,
+      notifyReleases: registration.body.user.notifyReleases
+    };
+    delete storedSession.data.activeHouseId;
+    sessionDatabase.prepare('UPDATE sessions SET sess = ? WHERE sid = ?')
+      .run(JSON.stringify(storedSession.data), storedSession.sid);
+    sessionDatabase.close();
+
+    const hydratedSession = await expectStatus(user, '/api/me', 200);
+    assert.equal(hydratedSession.body.user.houseName, 'Maneggplatz 18');
+    assert.ok(hydratedSession.body.user.activeHouseId);
+
     const resourcesResult = await expectStatus(user, '/api/resources', 200);
     const resources = resourcesResult.body.resources;
     const washers = resources.filter((item) => item.type === 'washer');
@@ -547,6 +568,7 @@ async function run() {
       ok: true,
       checks: {
         authentication: true,
+        legacySessionHydration: true,
         passwordRecovery: true,
         bookingRules: true,
         smartCalendar: true,
