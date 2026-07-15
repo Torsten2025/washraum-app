@@ -1,8 +1,8 @@
-# Waschplan-Handbuch
+# WaschZeit-Handbuch
 
 Stand: 15. Juli 2026
 
-Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der Waschplan-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
+Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der WaschZeit-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
 
 ## Dokument pflegen
 
@@ -42,7 +42,7 @@ Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die Ap
 
 | Bereich | Funktion | Zugang |
 | --- | --- | --- |
-| Landingpage | GBMZ-Logo, Kurzuebersicht und direkter Einstieg | Oeffentlich |
+| Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Anmeldung mit Benutzername oder E-Mail und Passwort | Oeffentlich |
 | Neu hier | Konto mit Benutzername, E-Mail, Passwort und Hauscode erstellen | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
@@ -81,6 +81,8 @@ Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten 
 | Sicher abmelden | Ja | Ja | Ja |
 
 `Abmelden` steht als kontrastreicher, dunkelgruener Button oben rechts in der Kopfzeile. Er sendet ein eigenes Abmeldeformular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
+
+Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht die vollstaendige Adresse des aktiven Hauses dauerhaft direkt unter der Wortmarke und wird beim Hauswechsel sofort aktualisiert. Auf oeffentlichen Seiten ohne bekannte Hauszuordnung erscheint stattdessen `Der Waschplan fuer dein Haus`.
 
 ### Meine Buchungen
 
@@ -237,7 +239,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 ### Automatisch gepruefte Kernablaeufe
 
 - Registrierung, Hauscode, Anmeldung mit Benutzername oder E-Mail und Abmeldung.
-- E-Mail-Bestaetigung, Passwort-Wiederherstellung und Passwortwechsel.
+- E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
 - Waschmaschinen-, Trockenraum- und Tumblerregeln inklusive Parallelzugriff.
 - Bewohner-, Haus-Admin- und Superadminrechte sowie Fremdhaus-Isolation.
@@ -310,6 +312,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Jahressimulation auf 100 Bewohner, das bestehende und fuenf weitere Testhaeuser sowie 5.200 Waschpakete erweitert; Hausgrenzen werden dabei fuer jede Buchung kontrolliert.
 - Waschpaket mit schneller Auswahl fuer eine bis drei Waschmaschinen sowie direkten Schaltern fuer Trockenraum und Tumbler vereinfacht; alle Bestandteile werden weiterhin atomar und regelkonform gebucht.
 - Kontrastfehler in der hellen Kopfzeile behoben: Kontoinformationen sind dunkel lesbar und `Abmelden` ist oben rechts als dunkelgruener Button klar sichtbar.
+- App als `WaschZeit` neu benannt und das GBMZ-Bildlogo durch eine Text-Wortmarke ersetzt; die Kopfzeile zeigt dauerhaft die Adresse des aktiven Hauses und aktualisiert sie beim Hauswechsel.
+- Mailinfo beim Freigeben zusaetzlich als SMTP-Integrationstest abgesichert: Nur ein bestaetigter Abonnent im selben Haus erhaelt Betreff, Ressource und Freigabehinweis.
 - Dieses gemeinsame Benutzer-, Admin- und Entwicklerhandbuch eingefuehrt.
 
 ### Pflegehinweis fuer den naechsten Stand

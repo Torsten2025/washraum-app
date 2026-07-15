@@ -1528,7 +1528,7 @@ async function sendEmailVerification(req, user) {
   await sendMail({
     config,
     to: user.email,
-    subject: 'Waschplan: E-Mail-Adresse best\u00e4tigen',
+    subject: 'WaschZeit: E-Mail-Adresse best\u00e4tigen',
     text: [
       `Hallo ${user.username}`,
       '',
@@ -1557,7 +1557,7 @@ async function sendPasswordReset(req, user) {
   await sendMail({
     config,
     to: user.email,
-    subject: 'Waschplan: Passwort neu setzen',
+    subject: 'WaschZeit: Passwort neu setzen',
     text: [
       `Hallo ${user.username}`,
       '',
@@ -1573,6 +1573,7 @@ async function sendPasswordReset(req, user) {
 
 async function notifyReleaseSubscribers(req, booking, message, subject = `Waschplan: ${booking.resource_name} fr\u00fcher frei`) {
   const config = smtpConfig();
+  subject = String(subject).replace(/^Waschplan:/, 'WaschZeit:');
   if (!config.host || !config.from) {
     return { configured: false, sent: 0 };
   }
@@ -1620,7 +1621,7 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
           `Du kannst den Slot jetzt im Waschplan ansehen und buchen: ${appUrl}`,
           '',
           'Viele Gr\u00fcsse',
-          `Waschplan ${booking.house_name || ''}`.trim()
+          `WaschZeit ${booking.house_name || ''}`.trim()
         ].join('\n')
       })));
     results.forEach((result, index) => {
@@ -1641,7 +1642,7 @@ function extractEmailAddress(value) {
 }
 
 function mailHeaders({ config, to, subject, text }) {
-  const from = config.from.includes('<') ? config.from : `Waschplan <${config.from}>`;
+  const from = config.from.includes('<') ? config.from : `WaschZeit <${config.from}>`;
   return [
     `From: ${from}`,
     `To: ${to}`,
@@ -2712,7 +2713,7 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
       req,
       washer,
       message,
-      'Waschplan: Waschpaket wieder frei'
+      'WaschZeit: Waschpaket wieder frei'
     );
     res.json({
       ok: true,
@@ -3077,14 +3078,14 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
     await sendMail({
       config,
       to: user.email,
-      subject: 'Waschplan: Testmail',
+      subject: 'WaschZeit: Testmail',
       text: [
         `Hallo ${user.username}`,
         '',
         'Der E-Mail-Versand des Waschplans funktioniert.',
         '',
         'Viele Gr\u00fcsse',
-        `Waschplan ${house?.name || 'GBMZ'}`
+        `WaschZeit ${house?.name || ''}`.trim()
       ].join('\n')
     });
     res.json({ ok: true, message: `Testmail wurde an ${user.email} gesendet.` });

@@ -120,7 +120,7 @@ const introVideoSteps = [
   {
     id: 'overview',
     fallbackDurationMs: 18000,
-    title: 'Willkommen im Waschplan',
+    title: 'Willkommen bei WaschZeit',
     caption: 'Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.',
     speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter stellt dir die App ein passendes Waschpaket zusammen. Im Wochenkalender siehst du, an welchen Tagen noch etwas frei ist.',
     visual: `
@@ -713,8 +713,10 @@ function renderHouseContext() {
     : currentUser.role === 'admin'
       ? 'Haus-Admin'
       : 'Bewohner';
-  userLine.textContent = `${currentUser.username} - ${roleLabel} - ${currentUser.houseName}`;
+  userLine.textContent = `${currentUser.username} - ${roleLabel}`;
   brandHouseName.textContent = currentUser.houseName;
+  brandHouseName.title = `Aktuelles Haus: ${currentUser.houseName}`;
+  document.title = `WaschZeit | ${currentUser.houseName}`;
   introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
   adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
 

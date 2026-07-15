@@ -230,6 +230,7 @@ async function verifySmtpDelivery() {
     assert.equal(registration.status, 201, smtpOutput.join(''));
     const registrationBody = await registration.json();
     assert.equal(registrationBody.verification.sent, true);
+    assert.ok(messages[0].includes('Subject: WaschZeit:'));
     assert.ok(messages[0].includes('/api/email-verification/confirm?token='));
     const verificationLink = messages[0].match(/http:\/\/[^\s]+\/api\/email-verification\/confirm\?token=[a-f0-9]+/)[0];
     const verification = await fetch(verificationLink, { redirect: 'manual' });
@@ -241,6 +242,7 @@ async function verifySmtpDelivery() {
       body: JSON.stringify({ email: 'smtp-person@example.com' })
     });
     assert.equal(resetRequest.status, 200);
+    assert.ok(messages[1].includes('Subject: WaschZeit:'));
     assert.ok(messages[1].includes('/reset.html?token='));
     const resetToken = messages[1].match(/reset\.html\?token=([a-f0-9]+)/)[1];
     const resetConfirm = await fetch(`http://127.0.0.1:${appPort}/api/password-reset/confirm`, {
@@ -249,6 +251,46 @@ async function verifySmtpDelivery() {
       body: JSON.stringify({ token: resetToken, newPassword: 'SMTP-Neu-2026!' })
     });
     assert.equal(resetConfirm.status, 200);
+
+    const smtpAdminLogin = await fetch(`http://127.0.0.1:${appPort}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'smtp-admin', password: 'SMTP-Admin-2026!' })
+    });
+    assert.equal(smtpAdminLogin.status, 200);
+    const smtpAdminCookie = String(smtpAdminLogin.headers.get('set-cookie') || '').split(';')[0];
+    assert.ok(smtpAdminCookie.includes('connect.sid='));
+
+    const resourcesResponse = await fetch(`http://127.0.0.1:${appPort}/api/resources`, {
+      headers: { Cookie: smtpAdminCookie }
+    });
+    assert.equal(resourcesResponse.status, 200);
+    const smtpWasher = (await resourcesResponse.json()).resources.find((resource) => resource.type === 'washer');
+    assert.ok(smtpWasher);
+
+    const smtpBookingDate = addDays(nextWeekday(1), 14);
+    const smtpBooking = await fetch(`http://127.0.0.1:${appPort}/api/bookings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: smtpAdminCookie },
+      body: JSON.stringify({ resourceId: smtpWasher.id, date: smtpBookingDate, slot: '07:00-12:00' })
+    });
+    assert.equal(smtpBooking.status, 201);
+    const smtpBookingBody = await smtpBooking.json();
+
+    const releaseMail = await fetch(`http://127.0.0.1:${appPort}/api/bookings/${smtpBookingBody.id}/cancel-notify`, {
+      method: 'POST',
+      headers: { Cookie: smtpAdminCookie }
+    });
+    assert.equal(releaseMail.status, 200);
+    const releaseMailBody = await releaseMail.json();
+    assert.equal(releaseMailBody.releaseNoticeCreated, true);
+    assert.equal(releaseMailBody.emailNotifications.configured, true);
+    assert.equal(releaseMailBody.emailNotifications.sent, 1);
+    assert.equal(messages.length, 3);
+    assert.ok(messages[2].includes('To: smtp-person@example.com'));
+    assert.ok(messages[2].includes('Subject: WaschZeit: Termin'));
+    assert.ok(messages[2].includes(smtpWasher.name));
+    assert.ok(messages[2].includes('wieder frei'));
   } finally {
     if (smtpApp.exitCode === null) {
       smtpApp.kill();
@@ -971,17 +1013,21 @@ async function run() {
     assert.ok(indexHtml.includes('data-admin-target="people"'));
     assert.ok(indexHtml.includes('data-admin-target="system"'));
     assert.ok(indexHtml.includes('action="/logout"'));
-    assert.ok(indexHtml.includes('/assets/gbmz-logo.svg'));
+    assert.ok(indexHtml.includes('class="app-wordmark"'));
+    assert.ok(indexHtml.includes('id="brandHouseName"'));
+    assert.ok(!indexHtml.includes('/assets/gbmz-logo.svg'));
     const styles = await expectStatus(guest, '/styles.css', 200);
     const stylesText = styles.body.toString();
     assert.ok(stylesText.includes('.topbar .logout-form .ghost-button'));
     assert.ok(stylesText.includes('background: var(--night)'));
+    assert.ok(stylesText.includes('.app-wordmark'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
     assert.ok(appScriptText.includes('Anzahl Waschmaschinen waehlen'));
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
+    assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
@@ -995,6 +1041,10 @@ async function run() {
     assert.ok(captionText.includes('Standard und der maximal'));
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
+    assert.ok(!privacyPage.body.toString().includes('/assets/gbmz-logo.svg'));
+    const loginPage = await expectStatus(guest, '/login.html', 200);
+    assert.ok(loginPage.body.toString().includes('Wasch<strong>Zeit</strong>'));
+    assert.ok(!loginPage.body.toString().includes('/assets/gbmz-logo.svg'));
     await expectStatus(guest, '/reset.html?token=test', 200);
 
     await verifySmtpDelivery();

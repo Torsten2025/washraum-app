@@ -1,6 +1,6 @@
-# Waschplan App
+# WaschZeit
 
-Schlanke Buchungsapp fuer GBMZ-Waschraeume mit mehreren Hausnummern.
+Schlanke Buchungsapp fuer gemeinsame Waschraeume mit mehreren Hausadressen.
 
 Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testreferenz und das Aenderungsprotokoll stehen in [HANDBUCH.md](HANDBUCH.md). Bei Funktionsaenderungen wird dieses Handbuch zusammen mit Code und Tests aktualisiert.
 
