@@ -7,7 +7,7 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 ## Enthalten
 
 - Wochenkalender mit Einzelbuchung und persoenlichen Waschpaketen aus Waschrhythmus und aktuell freien Geraeten.
-- Waschpakete reservieren Waschmaschine, waehlbare Trocknungsdauer und optional einen Tumbler gemeinsam und atomar. Sie koennen gemeinsam verwaltet werden.
+- Waschpakete reservieren per Schnellwahl eine bis drei Waschmaschinen im gleichen Slot, eine waehlbare Trockenraumdauer und den Tumbler gemeinsam und atomar. Alle Bestandteile koennen gemeinsam verwaltet werden.
 - Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
 - Haus-Admins verwalten ihr Haus. Der Superadmin verwaltet Haeuser, Geraete, Rollen und kontrollierte Umzuege zwischen Hausnummern.
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume werden serverseitig in Schweizer Zeit geprueft.

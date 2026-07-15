@@ -900,9 +900,9 @@ function calendarDaySummary(userId, date, houseId) {
   };
 }
 
-function findAvailableResource(userId, type, date, slot, houseId) {
+function findAvailableResources(userId, type, date, slot, houseId, limit = 1) {
   if (isPastSlot(date, slot)) {
-    return null;
+    return [];
   }
 
   let ruleError = '';
@@ -914,9 +914,10 @@ function findAvailableResource(userId, type, date, slot, houseId) {
     ruleError = validateTumblerBooking(date, slot, houseId);
   }
   if (ruleError) {
-    return null;
+    return [];
   }
 
+  const safeLimit = Math.max(1, Math.min(20, Number(limit) || 1));
   return db.prepare(`
     SELECT r.id, r.name, r.type
     FROM resources r
@@ -939,8 +940,12 @@ function findAvailableResource(userId, type, date, slot, houseId) {
           AND fb.slot = ?
       )
     ORDER BY r.name
-    LIMIT 1
-  `).get(type, houseId, date, slot, weekdayForDate(date), slot) || null;
+    LIMIT ?
+  `).all(type, houseId, date, slot, weekdayForDate(date), slot, safeLimit);
+}
+
+function findAvailableResource(userId, type, date, slot, houseId) {
+  return findAvailableResources(userId, type, date, slot, houseId, 1)[0] || null;
 }
 
 function userHasBookingInWindow(userId, type, window, houseId) {
@@ -1013,7 +1018,7 @@ function dryingWindowOptions(resource, maxWindow) {
 
 function packageComponent(type, resource, bookings, options = {}) {
   return {
-    id: type,
+    id: String(options.id || type),
     type,
     resourceName: resource.name,
     required: Boolean(options.required),
@@ -1061,10 +1066,9 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
       houseId
     );
     if (tumbler) {
-      const hasDryingRoom = components.some((component) => component.type === 'drying_room');
       components.push(packageComponent('tumbler', tumbler, tumblerWindow, {
-        selectedByDefault: !hasDryingRoom,
-        recommendationLabel: hasDryingRoom ? 'Optional' : 'Alternative'
+        selectedByDefault: true,
+        recommendationLabel: 'Ausgew\u00e4hlt'
       }));
     }
   }
@@ -1082,8 +1086,8 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
     resourceType: 'washer',
     title: 'Waschpaket erg\u00e4nzen',
     reason: hasDryingRoom
-      ? 'Die Waschmaschine ist bereits gebucht. Der Trockenraum ist passend eingeplant; den Tumbler kannst du bei Bedarf zus\u00e4tzlich ausw\u00e4hlen.'
-      : 'Die Waschmaschine ist bereits gebucht. F\u00fcr diesen Zeitraum ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar; der Tumbler ist die passende Alternative.',
+      ? 'Die Waschmaschine ist bereits gebucht. Trockenraum und Tumbler sind passend vorausgew\u00e4hlt und lassen sich mit einem Klick anpassen.'
+      : 'Die Waschmaschine ist bereits gebucht. F\u00fcr diesen Zeitraum ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar; der Tumbler ist vorausgew\u00e4hlt.',
     actionLabel: 'Paket erg\u00e4nzen',
     components
   };
@@ -1109,7 +1113,22 @@ function washerHistoryPreference(userId, houseId) {
 
 function washerPackageRecommendation(userId, washer, reason, houseId) {
   const washWindow = [{ date: washer.date, slot: washer.slot }];
-  const components = [packageComponent('washer', washer.resource, washWindow, { required: true })];
+  const washerResources = washer.resources?.length
+    ? washer.resources
+    : findAvailableResources(userId, 'washer', washer.date, washer.slot, houseId, 3);
+  if (!washerResources.length) {
+    return null;
+  }
+  const components = washerResources.map((resource, index) => packageComponent(
+    'washer',
+    resource,
+    washWindow,
+    {
+      id: `washer-${resource.id}`,
+      required: index === 0,
+      recommendationLabel: index === 0 ? 'Dabei' : 'Bei Bedarf'
+    }
+  ));
   const drying = bestDryingRoomWindow(washer.date, washer.slot, houseId);
   const tumbler = findAvailableResource(userId, 'tumbler', washer.date, washer.slot, houseId);
 
@@ -1124,16 +1143,16 @@ function washerPackageRecommendation(userId, washer, reason, houseId) {
     }));
   }
   if (tumbler) {
-    const hasDryingRoom = components.some((component) => component.type === 'drying_room');
     components.push(packageComponent('tumbler', tumbler, washWindow, {
-      selectedByDefault: !hasDryingRoom,
-      recommendationLabel: hasDryingRoom ? 'Optional' : 'Alternative'
+      selectedByDefault: true,
+      recommendationLabel: 'Ausgew\u00e4hlt'
     }));
   }
-  if (components.length === 1) {
+  if (components.every((component) => component.type === 'washer')) {
     return null;
   }
   const hasDryingRoom = components.some((component) => component.type === 'drying_room');
+  const hasTumbler = components.some((component) => component.type === 'tumbler');
 
   return {
     kind: 'package',
@@ -1141,9 +1160,11 @@ function washerPackageRecommendation(userId, washer, reason, houseId) {
     slot: washer.slot,
     resourceType: 'washer',
     title: 'Dein Waschpaket',
-    reason: hasDryingRoom
-      ? `${reason} Der Trockenraum ist passend eingeplant; den Tumbler kannst du bei Bedarf zus\u00e4tzlich ausw\u00e4hlen.`
-      : `${reason} In den n\u00e4chsten passenden Zeiten ist kein Trockenraum durchg\u00e4ngig frei; der Tumbler ist die verf\u00fcgbare Alternative.`,
+    reason: hasDryingRoom && hasTumbler
+      ? `${reason} W\u00e4hle oben eine bis drei Waschmaschinen; Trockenraum und Tumbler sind bereits markiert.`
+      : hasDryingRoom
+        ? `${reason} W\u00e4hle oben eine bis drei Waschmaschinen und den passenden Trockenraum.`
+        : `${reason} W\u00e4hle oben eine bis drei Waschmaschinen; der Tumbler ist als Trocknungsoption markiert.`,
     actionLabel: 'Waschpaket buchen',
     components
   };
@@ -1179,7 +1200,8 @@ function nextWasherRecommendation(userId, startDate, houseId) {
     if (releaseWindowStatus(candidate.date, candidate.slot).reason !== 'not_started') {
       continue;
     }
-    const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot, houseId);
+    const resources = findAvailableResources(userId, 'washer', candidate.date, candidate.slot, houseId, 3);
+    const resource = resources[0];
     if (!resource) {
       continue;
     }
@@ -1206,7 +1228,7 @@ function nextWasherRecommendation(userId, startDate, houseId) {
     };
     fallback ||= washer;
     const packageRecommendation = washerPackageRecommendation(userId, {
-      resource,
+      resources,
       date: candidate.date,
       slot: candidate.slot
     }, reason, houseId);
@@ -2413,8 +2435,8 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
   const rawItems = req.body?.items;
   const washerBookingId = Number(req.body?.washerBookingId || 0);
   const houseId = currentHouseId(req);
-  if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 5) {
-    return res.status(400).json({ error: 'Ein Waschpaket muss ein bis f\u00fcnf Buchungen enthalten.' });
+  if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 8) {
+    return res.status(400).json({ error: 'Ein Waschpaket muss ein bis acht Buchungen enthalten.' });
   }
 
   try {
@@ -2444,7 +2466,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
     const dryingItems = items.filter((item) => item.resource.type === 'drying_room');
     const tumblerItems = items.filter((item) => item.resource.type === 'tumbler');
     let existingWasher = null;
-    let newWasher = null;
+    let newWashers = [];
 
     if (washerBookingId) {
       existingWasher = db.prepare(`
@@ -2464,19 +2486,23 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
         throw packageRequestError(400, 'Eine bereits gebuchte Waschmaschine darf im Paket nicht erneut reserviert werden.');
       }
     } else {
-      if (washerItems.length !== 1) {
-        throw packageRequestError(400, 'Ein neues Waschpaket braucht genau eine Waschmaschine.');
+      if (washerItems.length < 1 || washerItems.length > 3) {
+        throw packageRequestError(400, 'Ein neues Waschpaket braucht eine bis drei Waschmaschinen.');
       }
-      newWasher = washerItems[0];
+      newWashers = washerItems;
     }
 
-    const washDate = existingWasher?.booking_date || newWasher.date;
-    const washSlot = existingWasher?.slot || newWasher.slot;
+    const washDate = existingWasher?.booking_date || newWashers[0].date;
+    const washSlot = existingWasher?.slot || newWashers[0].slot;
     if (isPastDate(washDate) || isPastSlot(washDate, washSlot)) {
       throw packageRequestError(400, 'Der vorgeschlagene Waschslot ist bereits vorbei. Bitte lade einen neuen Vorschlag.');
     }
     if (isSunday(washDate)) {
       throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
+    }
+
+    if (newWashers.some((item) => item.date !== washDate || item.slot !== washSlot)) {
+      throw packageRequestError(400, 'Alle Waschmaschinen im Paket m\u00fcssen im gleichen Zeitfenster liegen.');
     }
 
     if (tumblerItems.length > 1 || tumblerItems.some((item) => item.date !== washDate || item.slot !== washSlot)) {
@@ -2527,7 +2553,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
       }
     }
 
-    if (newWasher) {
+    if (newWashers.length) {
       const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
       if (washerError) {
         throw packageRequestError(409, washerError);
@@ -2552,13 +2578,15 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
         db.prepare('UPDATE bookings SET group_id = ? WHERE id = ?').run(groupId, existingWasher.id);
       }
 
-      if (newWasher) {
+      if (newWashers.length) {
         const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
         if (washerError) {
           throw packageRequestError(409, washerError);
         }
-        const result = insert.run(req.session.user.id, newWasher.resourceId, washDate, washSlot, groupId);
-        created.push({ id: result.lastInsertRowid, type: 'washer' });
+        for (const washer of newWashers) {
+          const result = insert.run(req.session.user.id, washer.resourceId, washDate, washSlot, groupId);
+          created.push({ id: result.lastInsertRowid, type: 'washer' });
+        }
       }
 
       for (const item of sortedDryingItems) {
@@ -2588,7 +2616,13 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
       drying_room: 'Trockenraum',
       tumbler: 'Tumbler'
     };
-    const summary = bookedTypes.map((type) => typeLabels[type]).join(', ');
+    const summary = bookedTypes.map((type) => {
+      const count = created.filter((item) => item.type === type).length;
+      if (type === 'washer' && count > 1) {
+        return `${count} Waschmaschinen`;
+      }
+      return typeLabels[type];
+    }).join(', ');
     res.status(201).json({
       created,
       groupId,

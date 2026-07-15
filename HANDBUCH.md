@@ -20,7 +20,7 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 1. Auf der Anmeldeseite `Neu hier` waehlen.
 2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
 3. Nach der Anmeldung unter `Buchen` zuerst den persoenlichen Vorschlag oder `Waschpaket zusammenstellen` verwenden.
-4. Datum und Waschslot waehlen. Die App sucht dazu eine Waschmaschine sowie eine passende Trocknungsoption und auf Wunsch einen Tumbler.
+4. Datum und Waschslot waehlen. Im Vorschlag mit einem Feld eine bis drei Waschmaschinen einstellen und Trockenraum sowie Tumbler direkt ein- oder ausschalten.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
 6. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
 
@@ -97,9 +97,10 @@ Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten 
 | Funktion | Beschreibung |
 | --- | --- |
 | Persoenlicher Vorschlag | Noch nicht begonnenen freien Waschslot anhand bisheriger Nutzung und aktueller Verfuegbarkeit vorschlagen |
-| Waschpaket | Waschmaschine und passende Trocknungsoption gemeinsam reservieren |
+| Waschpaket | Eine bis drei freie Waschmaschinen im gleichen Slot, einen Trockenraum und optional einen Tumbler gemeinsam reservieren |
+| Schnellwahl Waschmaschinen | Gewuenschte Anzahl mit einem Auswahlfeld auf `1`, `2` oder `3` setzen; angeboten werden nur gleichzeitig freie Maschinen |
 | Trocknungsdauer | Kurz, Standard oder maximal erlaubte Dauer auswaehlen |
-| Optionaler Tumbler | Tumbler bei Bedarf zum Waschslot ergaenzen |
+| Trockenraum und Tumbler | Beide Optionen sind im vollstaendigen Vorschlag vorausgewaehlt und koennen mit je einem Klick entfernt werden |
 | Wochenkalender | Freie Kapazitaet und eigene Termine pro Tag anzeigen |
 | Datumsnavigation | Vorherige Woche, heute oder naechste Woche waehlen |
 | Filter | Waschmaschinen, Trockenraeume, Tumbler oder alle Ressourcen anzeigen |
@@ -307,6 +308,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Abmeldung fuer Bewohner, Haus-Admin und Superadmin ueber einen serverseitigen Formularweg abgesichert und getestet.
 - Bestehendes konfiguriertes Start-Admin-Konto wird beim Start zu einem aktiven Superadmin vervollstaendigt; ein vorhandenes Passwort bleibt unveraendert.
 - Jahressimulation auf 100 Bewohner, das bestehende und fuenf weitere Testhaeuser sowie 5.200 Waschpakete erweitert; Hausgrenzen werden dabei fuer jede Buchung kontrolliert.
+- Waschpaket mit schneller Auswahl fuer eine bis drei Waschmaschinen sowie direkten Schaltern fuer Trockenraum und Tumbler vereinfacht; alle Bestandteile werden weiterhin atomar und regelkonform gebucht.
 - Dieses gemeinsame Benutzer-, Admin- und Entwicklerhandbuch eingefuehrt.
 
 ### Pflegehinweis fuer den naechsten Stand

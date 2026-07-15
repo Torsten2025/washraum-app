@@ -151,7 +151,7 @@ const introVideoSteps = [
     fallbackDurationMs: 31000,
     title: 'Dein pers\u00f6nliches Waschpaket',
     caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
-    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten und stellt eine Waschmaschine sowie passende Erg\u00e4nzungen zusammen. Beim Trockenraum w\u00e4hlst du kurz, Standard oder die maximal erlaubte Dauer. Der Tumbler bleibt optional. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt. Einzelne Termine bleiben im Kalender weiterhin frei w\u00e4hlbar.',
+    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten. Du stellst mit einer schnellen Auswahl ein, ob du eine, zwei oder drei Waschmaschinen brauchst. Trockenraum und Tumbler kannst du direkt ein- oder ausschalten. Beim Trockenraum w\u00e4hlst du kurz, Standard oder die maximal erlaubte Dauer. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt.',
     visual: `
       <div class="scene-suggestion">
         <div class="scene-suggestion-head"><span><small>Pers\u00f6nliches Waschpaket</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
@@ -888,12 +888,38 @@ function renderRecommendation() {
   copy.append(reason);
 
   const packageSelections = new Map();
+  let washerCountSelect = null;
   if (recommendation.kind === 'package') {
     const packageOptions = document.createElement('div');
     packageOptions.className = 'package-options';
+    const washerComponents = (recommendation.components || [])
+      .filter((component) => component.type === 'washer');
+    if (washerComponents.length) {
+      const washerControl = document.createElement('label');
+      washerControl.className = 'package-washer-control';
+      const washerCopy = document.createElement('span');
+      const washerTitle = document.createElement('strong');
+      washerTitle.textContent = 'Waschmaschinen';
+      const washerDetail = document.createElement('small');
+      washerDetail.textContent = washerComponents.some((component) => component.existing)
+        ? `${washerComponents[0].resourceName} ist bereits gebucht`
+        : `${washerComponents.length} im vorgeschlagenen Slot frei`;
+      washerCopy.append(washerTitle, washerDetail);
+      washerCountSelect = document.createElement('select');
+      washerCountSelect.setAttribute('aria-label', 'Anzahl Waschmaschinen waehlen');
+      for (let count = 1; count <= washerComponents.length; count += 1) {
+        const countOption = document.createElement('option');
+        countOption.value = String(count);
+        countOption.textContent = `${count} ${count === 1 ? 'Maschine' : 'Maschinen'}`;
+        washerCountSelect.append(countOption);
+      }
+      washerCountSelect.disabled = washerComponents.length === 1;
+      washerControl.append(washerCopy, washerCountSelect);
+      packageOptions.append(washerControl);
+    }
     for (const component of recommendation.components || []) {
       const option = document.createElement(component.required ? 'div' : 'label');
-      option.className = `package-option${component.required ? ' is-required' : ''}`;
+      option.className = `package-option${component.required ? ' is-required' : ''}${component.type === 'washer' ? ' is-washer-detail' : ''}`;
 
       if (component.required) {
         const status = document.createElement('span');
@@ -947,6 +973,19 @@ function renderRecommendation() {
         option.append(optionBadge);
       }
       packageOptions.append(option);
+    }
+    if (washerCountSelect) {
+      const syncWasherSelection = () => {
+        const selectedCount = Number(washerCountSelect.value);
+        washerComponents.forEach((component, index) => {
+          const selection = packageSelections.get(component.id);
+          if (selection?.checkbox) {
+            selection.checkbox.checked = index < selectedCount;
+          }
+        });
+      };
+      washerCountSelect.addEventListener('change', syncWasherSelection);
+      syncWasherSelection();
     }
     copy.append(packageOptions);
   }

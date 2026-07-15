@@ -482,7 +482,32 @@ async function run() {
     });
     const packageRecommendation = await expectStatus(packageUser, '/api/recommendation', 200);
     assert.equal(packageRecommendation.body.recommendation.kind, 'package');
-    assert.ok(packageRecommendation.body.recommendation.components.some((component) => component.type === 'washer'));
+    const washerPackageComponents = packageRecommendation.body.recommendation.components
+      .filter((component) => component.type === 'washer');
+    assert.equal(washerPackageComponents.length, 3);
+    assert.equal(washerPackageComponents.filter((component) => component.required).length, 1);
+    const packageRuleDatabase = new Database(databasePath);
+    const packageHouse = packageRuleDatabase.prepare('SELECT house_id FROM resources WHERE id = ?')
+      .get(washerPackageComponents[0].bookings[0].resourceId);
+    const fourthWasher = packageRuleDatabase.prepare(`
+      INSERT INTO resources (name, type, house_id) VALUES ('Waschmaschine 4 Test', 'washer', ?)
+    `).run(packageHouse.house_id);
+    packageRuleDatabase.close();
+    const fourWasherItems = [
+      ...washerPackageComponents.flatMap((component) => component.bookings),
+      {
+        resourceId: Number(fourthWasher.lastInsertRowid),
+        date: packageRecommendation.body.recommendation.date,
+        slot: packageRecommendation.body.recommendation.slot
+      }
+    ];
+    await expectStatus(packageUser, '/api/booking-package', 400, {
+      method: 'POST',
+      body: JSON.stringify({ items: fourWasherItems })
+    });
+    const packageRuleCleanup = new Database(databasePath);
+    packageRuleCleanup.prepare('DELETE FROM resources WHERE id = ?').run(Number(fourthWasher.lastInsertRowid));
+    packageRuleCleanup.close();
     const recommendedDryingRoom = packageRecommendation.body.recommendation.components
       .find((component) => component.type === 'drying_room');
     const optionalTumbler = packageRecommendation.body.recommendation.components
@@ -493,11 +518,11 @@ async function run() {
     assert.ok(recommendedDryingRoom.bookingOptions.length >= 2);
     assert.ok(recommendedDryingRoom.bookingOptions.some((option) => option.id === 'max'));
     if (optionalTumbler) {
-      assert.equal(optionalTumbler.selectedByDefault, false);
-      assert.equal(optionalTumbler.recommendationLabel, 'Optional');
+      assert.equal(optionalTumbler.selectedByDefault, true);
+      assert.equal(optionalTumbler.recommendationLabel, 'Ausgew\u00e4hlt');
     }
     const selectedPackageComponents = packageRecommendation.body.recommendation.components.filter((component) => (
-      component.required || component.selectedByDefault
+      component.type === 'washer' || component.required || component.selectedByDefault
     ));
     const selectedPackageItems = selectedPackageComponents.flatMap((component) => (
       component.type === 'drying_room'
@@ -509,7 +534,9 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ items: selectedPackageItems })
     });
-    assert.ok(packageBooking.body.created.length >= 2);
+    assert.equal(packageBooking.body.created.filter((item) => item.type === 'washer').length, 3);
+    assert.ok(packageBooking.body.created.some((item) => item.type === 'drying_room'));
+    assert.ok(packageBooking.body.created.some((item) => item.type === 'tumbler'));
     const packageUserBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
     assert.equal(packageUserBookings.body.bookings.length, packageBooking.body.created.length);
     assert.ok(packageBooking.body.groupId);
@@ -666,12 +693,18 @@ async function run() {
     const recommendation = await expectStatus(user, '/api/recommendation', 200);
     assert.ok(recommendation.body.recommendation.title);
 
+    const noticesBeforeEarlyRelease = await expectStatus(user, '/api/release-notices', 200);
+    const tumblerNoticesBefore = noticesBeforeEarlyRelease.body.notices
+      .filter((notice) => notice.resource_name === 'Tumbler 1').length;
     const earlyRelease = await expectStatus(user, `/api/bookings/${tumblerBooking.body.id}/release`, 200, { method: 'POST' });
     assert.equal(earlyRelease.body.releaseNoticeCreated, false);
     assert.equal(earlyRelease.body.emailNotifications.sent, 0);
     assert.equal(earlyRelease.body.emailNotifications.skipped, true);
     const notices = await expectStatus(user, '/api/release-notices', 200);
-    assert.ok(!notices.body.notices.some((notice) => notice.resource_name === 'Tumbler 1'));
+    assert.equal(
+      notices.body.notices.filter((notice) => notice.resource_name === 'Tumbler 1').length,
+      tumblerNoticesBefore
+    );
 
     const cancellationBooking = await expectStatus(user, '/api/bookings', 201, {
       method: 'POST',
@@ -942,6 +975,7 @@ async function run() {
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
+    assert.ok(appScriptText.includes('Anzahl Waschmaschinen waehlen'));
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
