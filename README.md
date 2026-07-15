@@ -43,7 +43,7 @@ Danach `http://localhost:3000` oeffnen. Nur lokal werden diese Konten automatisc
 npm run check
 ```
 
-Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, eine eigene Rollenmatrix, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 20 Bewohnerkonten 52 Waschwochen und 1.040 Waschpakete.
+Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, eine eigene Rollenmatrix, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
 
 ## Registrierung und Hauscode
 

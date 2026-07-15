@@ -488,13 +488,18 @@ function seedUser(username, password, role, houseId, isSuperadmin = false) {
   if (!exists) {
     db.prepare('INSERT INTO users (username, password_hash, role, house_id, is_superadmin) VALUES (?, ?, ?, ?, ?)')
       .run(username, bcrypt.hashSync(password, 10), role, houseId, isSuperadmin ? 1 : 0);
-  } else {
+  } else if (isSuperadmin) {
     db.prepare(`
       UPDATE users
       SET house_id = COALESCE(house_id, ?),
-          is_superadmin = CASE WHEN ? = 1 THEN 1 ELSE is_superadmin END
+          role = 'admin',
+          active = 1,
+          is_superadmin = 1
       WHERE id = ?
-    `).run(houseId, isSuperadmin ? 1 : 0, exists.id);
+    `).run(houseId, exists.id);
+  } else {
+    db.prepare('UPDATE users SET house_id = COALESCE(house_id, ?) WHERE id = ?')
+      .run(houseId, exists.id);
   }
 }
 

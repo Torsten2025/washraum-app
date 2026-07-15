@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const Database = require('better-sqlite3');
 
 const port = 37000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -65,6 +66,95 @@ async function waitForServer() {
   throw new Error(`Rollentestserver nicht erreichbar.\n${output.join('')}`);
 }
 
+async function verifyConfiguredSuperadminRecovery() {
+  const recoveryPort = port + 1;
+  const recoveryUrl = `http://127.0.0.1:${recoveryPort}`;
+  const recoveryDatabasePath = path.join(os.tmpdir(), `waschplan-role-recovery-${process.pid}.sqlite`);
+  const recoveryOutput = [];
+  const initialPassword = 'Bestehender-Admin-2026!';
+  const configuredPassword = 'Nicht-Ueberschreiben-2026!';
+
+  function start(password) {
+    const child = spawn(process.execPath, ['server.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORT: String(recoveryPort),
+        DB_PATH: recoveryDatabasePath,
+        HOUSE_NAME: 'Recoveryhaus 18',
+        HOUSE_CODE: 'Recoverycode 18',
+        SEED_ADMIN_NAME: 'bestehender-admin',
+        SEED_ADMIN_PASSWORD: password,
+        SESSION_SECRET: 'rollen-recovery-session-secret-at-least-32-characters',
+        AUTO_BACKUP: 'false'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    child.stdout.on('data', (chunk) => recoveryOutput.push(chunk.toString()));
+    child.stderr.on('data', (chunk) => recoveryOutput.push(chunk.toString()));
+    return child;
+  }
+
+  async function waitUntilReady() {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      try {
+        const response = await fetch(`${recoveryUrl}/api/health`);
+        if (response.ok) return;
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Superadmin-Recovery-Testserver nicht erreichbar.\n${recoveryOutput.join('')}`);
+  }
+
+  async function stop(child) {
+    if (child.exitCode === null) {
+      child.kill();
+      await new Promise((resolve) => child.once('exit', resolve));
+    }
+  }
+
+  let child;
+  try {
+    child = start(initialPassword);
+    await waitUntilReady();
+    await stop(child);
+
+    const database = new Database(recoveryDatabasePath);
+    database.prepare(`
+      UPDATE users
+      SET role = 'user', active = 0, is_superadmin = 0
+      WHERE username = 'bestehender-admin'
+    `).run();
+    database.close();
+
+    child = start(configuredPassword);
+    await waitUntilReady();
+
+    const restoredLogin = await fetch(`${recoveryUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'bestehender-admin', password: initialPassword })
+    });
+    assert.equal(restoredLogin.status, 200);
+    const restored = await restoredLogin.json();
+    assert.equal(restored.user.role, 'admin');
+    assert.equal(restored.user.isSuperadmin, true);
+
+    const overwrittenPasswordLogin = await fetch(`${recoveryUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'bestehender-admin', password: configuredPassword })
+    });
+    assert.equal(overwrittenPasswordLogin.status, 401);
+  } finally {
+    if (child) await stop(child);
+    for (const suffix of ['', '-wal', '-shm']) {
+      fs.rmSync(`${recoveryDatabasePath}${suffix}`, { force: true });
+    }
+  }
+}
+
 async function register(client, { username, email, password, houseCode }) {
   return expectStatus(client, '/api/register', 201, {
     method: 'POST',
@@ -80,6 +170,8 @@ async function login(client, username, password) {
 }
 
 async function run() {
+  await verifyConfiguredSuperadminRecovery();
+
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -330,6 +422,7 @@ async function run() {
         houseAdminOwnHouse: true,
         houseAdminPeerAdminProtection: true,
         superadminGlobalActions: true,
+        configuredAdminRecovery: true,
         crossHouseIsolation: true,
         roleSpecificLogout: true
       },

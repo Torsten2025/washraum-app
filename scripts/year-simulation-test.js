@@ -4,12 +4,16 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
+const bcrypt = require('bcryptjs');
 
 const port = 36000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
 const databasePath = path.join(os.tmpdir(), `waschplan-year-${process.pid}.sqlite`);
 const output = [];
 const slots = ['07:00-12:00', '12:00-17:00', '17:00-21:00'];
+const simulatedWeeks = 52;
+const totalHouseCount = 6;
+const totalResidentCount = 100;
 
 class ApiClient {
   constructor() {
@@ -122,85 +126,137 @@ async function run() {
       })
     });
 
-    const resourceResult = await expectStatus(admin, '/api/resources', 200);
-    const washers = resourceResult.body.resources.filter((resource) => resource.type === 'washer');
-    const dryingRooms = resourceResult.body.resources.filter((resource) => resource.type === 'drying_room');
-    const tumblers = resourceResult.body.resources.filter((resource) => resource.type === 'tumbler');
-    assert.equal(washers.length, 3);
-    assert.equal(dryingRooms.length, 3);
-    assert.equal(tumblers.length, 2);
-
-    await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
-      method: 'POST',
-      body: JSON.stringify({
-        resourceId: washers[0].id,
-        weekday: 2,
-        slot: slots[0],
-        label: 'Geschuetzter Dauertermin'
-      })
-    });
-
-    const residents = [];
-    for (let index = 0; index < 20; index += 1) {
-      const client = new ApiClient();
-      const username = `Jahrestest Person ${String(index + 1).padStart(2, '0')}`;
-      await expectStatus(client, '/api/register', 201, {
-        method: 'POST',
-        body: JSON.stringify({
-          username,
-          email: `jahrestest-${index + 1}@example.test`,
-          password: `Jahrestest-${index + 1}-Sicher!`,
-          houseCode: 'Jahrestest 18',
-          notifyReleases: true
-        })
-      });
-      residents.push({ client, username });
-    }
-
     db = new Database(databasePath);
     db.pragma('busy_timeout = 5000');
+    const seededResidentPassword = 'Jahrestest-Skalierung-Sicher!';
+    const seededResidentHash = bcrypt.hashSync(seededResidentPassword, 10);
+    const insertSeededResident = db.prepare(`
+      INSERT INTO users (
+        username, password_hash, role, active, email, notify_releases,
+        house_id, is_superadmin, email_verified
+      ) VALUES (?, ?, 'user', 1, ?, 1, ?, 0, 1)
+    `);
+
+    const houseResult = await expectStatus(admin, '/api/admin/houses', 200);
+    const defaultHouse = houseResult.body.houses.find((house) => house.id === houseResult.body.activeHouseId);
+    assert.ok(defaultHouse);
+    const houses = [{ ...defaultHouse, code: 'Jahrestest 18' }];
+    for (let index = 1; index < totalHouseCount; index += 1) {
+      const created = await expectStatus(admin, '/api/admin/houses', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `Jahrestest Haus ${index + 1}`,
+          code: `Jahrestest Code ${index + 1}`
+        })
+      });
+      houses.push({ ...created.body.house, code: `Jahrestest Code ${index + 1}` });
+    }
+    assert.equal(houses.length, totalHouseCount);
+
+    const residents = [];
+    let residentNumber = 0;
+    for (let houseIndex = 0; houseIndex < houses.length; houseIndex += 1) {
+      const house = houses[houseIndex];
+      await expectStatus(admin, '/api/me/active-house', 200, {
+        method: 'PUT',
+        body: JSON.stringify({ houseId: house.id })
+      });
+      const resourceResult = await expectStatus(admin, '/api/resources', 200);
+      house.washers = resourceResult.body.resources.filter((resource) => resource.type === 'washer');
+      house.dryingRooms = resourceResult.body.resources.filter((resource) => resource.type === 'drying_room');
+      house.tumblers = resourceResult.body.resources.filter((resource) => resource.type === 'tumbler');
+      assert.equal(house.washers.length, 3);
+      assert.equal(house.dryingRooms.length, 3);
+      assert.equal(house.tumblers.length, 2);
+
+      await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          resourceId: house.washers[0].id,
+          weekday: 2,
+          slot: slots[0],
+          label: `Geschuetzter Dauertermin Haus ${houseIndex + 1}`
+        })
+      });
+
+      const houseResidentCount = Math.floor(totalResidentCount / totalHouseCount)
+        + (houseIndex < totalResidentCount % totalHouseCount ? 1 : 0);
+      house.residents = [];
+      for (let index = 0; index < houseResidentCount; index += 1) {
+        residentNumber += 1;
+        const client = new ApiClient();
+        const username = `Jahrestest Person ${String(residentNumber).padStart(3, '0')}`;
+        const email = `jahrestest-${residentNumber}@example.test`;
+        if (residentNumber <= 30) {
+          await expectStatus(client, '/api/register', 201, {
+            method: 'POST',
+            body: JSON.stringify({
+              username,
+              email,
+              password: `Jahrestest-${residentNumber}-Sicher!`,
+              houseCode: house.code,
+              notifyReleases: true
+            })
+          });
+        } else {
+          insertSeededResident.run(username, seededResidentHash, email, house.id);
+          await expectStatus(client, '/api/login', 200, {
+            method: 'POST',
+            body: JSON.stringify({ username, password: seededResidentPassword })
+          });
+        }
+        const resident = { client, username, houseId: house.id };
+        house.residents.push(resident);
+        residents.push(resident);
+      }
+    }
+    assert.equal(residents.length, totalResidentCount);
+
     const templateMonday = nextMonday();
-    const historyStart = addDays(previousMonday(), -52 * 7);
+    const historyStart = addDays(previousMonday(), -simulatedWeeks * 7);
     const moveGroupToHistory = db.prepare('UPDATE bookings SET booking_date = ? WHERE group_id = ?');
     const expectedWashSlots = new Map();
     let packageCount = 0;
-    let fixedConflictChecked = false;
+    const fixedConflictHouses = new Set();
 
-    for (let week = 0; week < 52; week += 1) {
+    for (let week = 0; week < simulatedWeeks; week += 1) {
       const createdGroups = [];
-      for (let residentIndex = 0; residentIndex < residents.length; residentIndex += 1) {
-        const pairSlot = Math.floor(residentIndex / 2);
-        const dayOffset = Math.floor(pairSlot / slots.length);
-        const slot = slots[pairSlot % slots.length];
-        const date = addDays(templateMonday, dayOffset);
-        const historicalDate = addDays(historyStart, (week * 7) + dayOffset);
-        const isFixedWindow = dayOffset === 1 && slot === slots[0];
-        const positionInPair = residentIndex % 2;
-        const washer = isFixedWindow
-          ? washers[positionInPair + 1]
-          : washers[positionInPair];
-        const dryingRoom = dryingRooms[positionInPair];
-        const tumbler = positionInPair === 0 ? tumblers[0] : null;
+      for (const house of houses) {
+        for (let residentIndex = 0; residentIndex < house.residents.length; residentIndex += 1) {
+          const resident = house.residents[residentIndex];
+          const pairSlot = Math.floor(residentIndex / 2);
+          const dayOffset = Math.floor(pairSlot / slots.length);
+          const slot = slots[pairSlot % slots.length];
+          const date = addDays(templateMonday, dayOffset);
+          const historicalDate = addDays(historyStart, (week * 7) + dayOffset);
+          const isFixedWindow = dayOffset === 1 && slot === slots[0];
+          const positionInPair = residentIndex % 2;
+          const washer = isFixedWindow
+            ? house.washers[positionInPair + 1]
+            : house.washers[positionInPair];
+          const dryingRoom = house.dryingRooms[positionInPair];
+          const tumbler = positionInPair === 0 ? house.tumblers[0] : null;
 
-        if (isFixedWindow && !fixedConflictChecked) {
-          await expectStatus(residents[residentIndex].client, '/api/booking-package', 409, {
+          if (isFixedWindow && !fixedConflictHouses.has(house.id)) {
+            await expectStatus(resident.client, '/api/booking-package', 409, {
+              method: 'POST',
+              body: JSON.stringify(payloadFor({
+                washer: house.washers[0], dryingRoom, tumbler: null, date, slot
+              }))
+            });
+            fixedConflictHouses.add(house.id);
+          }
+
+          const booking = await expectStatus(resident.client, '/api/booking-package', 201, {
             method: 'POST',
-            body: JSON.stringify(payloadFor({
-              washer: washers[0], dryingRoom, tumbler: null, date, slot
-            }))
+            body: JSON.stringify(payloadFor({ washer, dryingRoom, tumbler, date, slot }))
           });
-          fixedConflictChecked = true;
+          assert.ok(booking.body.groupId);
+          assert.equal(booking.body.created.length, tumbler ? 3 : 2);
+          createdGroups.push({ groupId: booking.body.groupId, historicalDate });
+          expectedWashSlots.set(resident.username, slot);
+          packageCount += 1;
         }
-
-        const booking = await expectStatus(residents[residentIndex].client, '/api/booking-package', 201, {
-          method: 'POST',
-          body: JSON.stringify(payloadFor({ washer, dryingRoom, tumbler, date, slot }))
-        });
-        assert.ok(booking.body.groupId);
-        assert.equal(booking.body.created.length, tumbler ? 3 : 2);
-        createdGroups.push({ groupId: booking.body.groupId, historicalDate });
-        expectedWashSlots.set(residents[residentIndex].username, slot);
-        packageCount += 1;
       }
 
       const archiveWeek = db.transaction((groups) => {
@@ -210,13 +266,18 @@ async function run() {
 
       if ([0, 13, 26, 39, 51].includes(week)) {
         const sampleDate = addDays(historyStart, week * 7);
-        const calendar = await expectStatus(residents[0].client, `/api/bookings?date=${sampleDate}`, 200);
-        assert.ok(calendar.body.bookings.length >= 2, `Keine Buchungen in Stichprobenwoche ${week + 1}`);
+        for (const house of houses) {
+          const calendar = await expectStatus(house.residents[0].client, `/api/bookings?date=${sampleDate}`, 200);
+          assert.ok(calendar.body.bookings.length >= 2, `Keine Buchungen fuer Haus ${house.id} in Stichprobenwoche ${week + 1}`);
+          const houseUsernames = new Set(house.residents.map((resident) => resident.username));
+          assert.ok(calendar.body.bookings.every((booking) => booking.is_fixed || houseUsernames.has(booking.username)));
+        }
       }
     }
 
-    assert.equal(packageCount, 1040);
-    assert.equal(fixedConflictChecked, true);
+    const expectedPackageCount = totalResidentCount * simulatedWeeks;
+    assert.equal(packageCount, expectedPackageCount);
+    assert.equal(fixedConflictHouses.size, totalHouseCount);
 
     const totals = db.prepare(`
       SELECT r.type, COUNT(*) AS count
@@ -224,9 +285,13 @@ async function run() {
       JOIN resources r ON r.id = b.resource_id
       GROUP BY r.type
     `).all().reduce((result, row) => ({ ...result, [row.type]: row.count }), {});
-    assert.equal(totals.washer, 1040);
-    assert.equal(totals.drying_room, 1040);
-    assert.equal(totals.tumbler, 520);
+    assert.equal(totals.washer, expectedPackageCount);
+    assert.equal(totals.drying_room, expectedPackageCount);
+    const expectedTumblerBookings = houses.reduce(
+      (sum, house) => sum + Math.ceil(house.residents.length / 2),
+      0
+    ) * simulatedWeeks;
+    assert.equal(totals.tumbler, expectedTumblerBookings);
 
     const collisions = db.prepare(`
       SELECT resource_id, booking_date, slot, COUNT(*) AS count
@@ -247,11 +312,11 @@ async function run() {
     assert.equal(washerRuleViolations.length, 0);
 
     const tumblerCapacityViolations = db.prepare(`
-      SELECT b.booking_date, b.slot, COUNT(*) AS booked
+      SELECT r.house_id, b.booking_date, b.slot, COUNT(*) AS booked
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE r.type = 'tumbler'
-      GROUP BY b.booking_date, b.slot
+      GROUP BY r.house_id, b.booking_date, b.slot
       HAVING COUNT(*) > 1
     `).all();
     assert.equal(tumblerCapacityViolations.length, 0);
@@ -260,8 +325,23 @@ async function run() {
       SELECT COUNT(DISTINCT user_id) AS users, COUNT(DISTINCT booking_date) AS days
       FROM bookings
     `).get();
-    assert.equal(historyCoverage.users, 20);
-    assert.ok(historyCoverage.days >= 200);
+    assert.equal(historyCoverage.users, totalResidentCount);
+    assert.ok(historyCoverage.days >= 150);
+
+    const crossHouseViolations = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM bookings b
+      JOIN users u ON u.id = b.user_id
+      JOIN resources r ON r.id = b.resource_id
+      WHERE u.house_id <> r.house_id
+    `).get();
+    assert.equal(crossHouseViolations.count, 0);
+    const populatedHouses = db.prepare(`
+      SELECT COUNT(DISTINCT house_id) AS count
+      FROM users
+      WHERE role = 'user' AND username LIKE 'Jahrestest Person %'
+    `).get();
+    assert.equal(populatedHouses.count, totalHouseCount);
 
     for (const resident of residents) {
       const result = await expectStatus(resident.client, '/api/recommendation', 200);
@@ -300,18 +380,28 @@ async function run() {
       { method: 'POST' }
     );
 
-    const fixedBookings = await expectStatus(admin, '/api/admin/fixed-bookings', 200);
-    assert.equal(fixedBookings.body.fixedBookings.length, 1);
+    let protectedBookings = 0;
+    for (const house of houses) {
+      await expectStatus(admin, '/api/me/active-house', 200, {
+        method: 'PUT',
+        body: JSON.stringify({ houseId: house.id })
+      });
+      const fixedBookings = await expectStatus(admin, '/api/admin/fixed-bookings', 200);
+      assert.equal(fixedBookings.body.fixedBookings.length, 1);
+      protectedBookings += fixedBookings.body.fixedBookings.length;
+    }
 
     const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(JSON.stringify({
       ok: true,
+      houses: houses.length,
       residents: residents.length,
-      simulatedWeeks: 52,
+      simulatedWeeks,
       washPackages: packageCount,
       bookings: totals,
       historicalDays: historyCoverage.days,
-      protectedBookings: fixedBookings.body.fixedBookings.length,
+      protectedBookings,
+      crossHouseViolations: crossHouseViolations.count,
       elapsedSeconds
     }, null, 2));
   } finally {

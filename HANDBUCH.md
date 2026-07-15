@@ -36,6 +36,8 @@ Einzelne Maschinen oder Raeume koennen weiterhin direkt im Wochenkalender gebuch
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
 
+Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die App sicher, dass dieses Konto aktiv ist und die Adminrolle besitzt. In einer aelteren Datenbank ohne Superadmin wird der erste vorhandene Admin einmalig zum Superadmin hochgestuft.
+
 ## Seite: Anmeldung (`/login.html`)
 
 | Bereich | Funktion | Zugang |
@@ -241,7 +243,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - Schutz von Haus-Admins vor Eingriffen durch gleichrangige Haus-Admins.
 - Feste Buchungen, Benutzerverwaltung, Geraeteverwaltung, Audit und Backups.
 - Datenschutzexport, Kontoloeschung, Sicherheitsheader und Barrierefreiheit.
-- Jahressimulation mit 20 Personen, 52 Wochen und 1.040 Waschpaketen.
+- Mehrhaus-Jahressimulation mit 100 Personen in sechs Haeusern, 52 Wochen und 5.200 Waschpaketen.
 
 ### Testbefehle
 
@@ -250,7 +252,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `npm run verify` | Syntax aller zentralen Dateien pruefen |
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
-| `npm run test:year` | Ein Jahr mit 20 Bewohnerkonten simulieren |
+| `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
 | `npm run check` | Alle oben genannten Pruefungen nacheinander ausfuehren |
 
@@ -286,6 +288,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
 - Nur der Superadmin darf das aktive Haus wechseln und hausuebergreifende Aktionen ausfuehren.
 - Rollen- und Hausgrenzen muessen immer serverseitig durchgesetzt und im Rollentest abgedeckt werden.
+- `SEED_ADMIN_NAME` bezeichnet das bestehende oder neu anzulegende Superadmin-Konto. Ist `SEED_ADMIN_PASSWORD` gesetzt, wird dieses Konto beim Start als aktiver Superadmin sichergestellt, ohne ein bereits geaendertes Passwort zu ueberschreiben.
 
 ### Deployment
 
@@ -302,6 +305,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Persoenlicher Vorschlag schliesst bereits begonnene Waschslots aus.
 - Eigener Rollen- und Hausisolationstest fuer Bewohner, Haus-Admin und Superadmin ergaenzt.
 - Abmeldung fuer Bewohner, Haus-Admin und Superadmin ueber einen serverseitigen Formularweg abgesichert und getestet.
+- Bestehendes konfiguriertes Start-Admin-Konto wird beim Start zu einem aktiven Superadmin vervollstaendigt; ein vorhandenes Passwort bleibt unveraendert.
+- Jahressimulation auf 100 Bewohner, das bestehende und fuenf weitere Testhaeuser sowie 5.200 Waschpakete erweitert; Hausgrenzen werden dabei fuer jede Buchung kontrolliert.
 - Dieses gemeinsame Benutzer-, Admin- und Entwicklerhandbuch eingefuehrt.
 
 ### Pflegehinweis fuer den naechsten Stand

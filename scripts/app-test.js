@@ -931,10 +931,19 @@ async function run() {
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     assert.ok(indexHtml.includes('viewSwitcher'));
+    assert.ok(indexHtml.includes('adminSectionNav'));
+    assert.ok(indexHtml.includes('data-admin-target="overview"'));
+    assert.ok(indexHtml.includes('data-admin-target="house"'));
+    assert.ok(indexHtml.includes('data-admin-target="fixed"'));
+    assert.ok(indexHtml.includes('data-admin-target="people"'));
+    assert.ok(indexHtml.includes('data-admin-target="system"'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('/assets/gbmz-logo.svg'));
     const appScript = await expectStatus(guest, '/app.js', 200);
-    assert.ok(appScript.body.toString().includes('/api/booking-package'));
+    const appScriptText = appScript.body.toString();
+    assert.ok(appScriptText.includes('/api/booking-package'));
+    assert.ok(appScriptText.includes('canManageAccount'));
+    assert.ok(appScriptText.includes('setAdminSection'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
