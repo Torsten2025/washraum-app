@@ -3177,8 +3177,28 @@ body:not(.login-page):not(.document-page) {
   background: rgba(248, 251, 250, 0.94);
   border-bottom: 1px solid var(--line);
   box-shadow: none;
+  color: var(--text);
   grid-template-columns: auto minmax(180px, 1fr) auto auto auto;
   padding: 12px 24px;
+}
+
+.topbar p,
+.topbar .brand-lockup {
+  color: var(--muted);
+}
+
+.topbar .logout-form .ghost-button {
+  background: var(--night);
+  border-color: var(--night);
+  color: #fff;
+  min-height: 38px;
+  padding: 8px 16px;
+}
+
+.topbar .logout-form .ghost-button:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
 }
 
 .topbar .brand-logo {

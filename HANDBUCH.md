@@ -80,7 +80,7 @@ Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten 
 | Aktives Haus wechseln | Nein | Nein | Ja |
 | Sicher abmelden | Ja | Ja | Ja |
 
-`Abmelden` sendet ein eigenes Abmeldeformular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
+`Abmelden` steht als kontrastreicher, dunkelgruener Button oben rechts in der Kopfzeile. Er sendet ein eigenes Abmeldeformular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
 
 ### Meine Buchungen
 
@@ -309,6 +309,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Bestehendes konfiguriertes Start-Admin-Konto wird beim Start zu einem aktiven Superadmin vervollstaendigt; ein vorhandenes Passwort bleibt unveraendert.
 - Jahressimulation auf 100 Bewohner, das bestehende und fuenf weitere Testhaeuser sowie 5.200 Waschpakete erweitert; Hausgrenzen werden dabei fuer jede Buchung kontrolliert.
 - Waschpaket mit schneller Auswahl fuer eine bis drei Waschmaschinen sowie direkten Schaltern fuer Trockenraum und Tumbler vereinfacht; alle Bestandteile werden weiterhin atomar und regelkonform gebucht.
+- Kontrastfehler in der hellen Kopfzeile behoben: Kontoinformationen sind dunkel lesbar und `Abmelden` ist oben rechts als dunkelgruener Button klar sichtbar.
 - Dieses gemeinsame Benutzer-, Admin- und Entwicklerhandbuch eingefuehrt.
 
 ### Pflegehinweis fuer den naechsten Stand

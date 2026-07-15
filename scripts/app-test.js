@@ -972,6 +972,10 @@ async function run() {
     assert.ok(indexHtml.includes('data-admin-target="system"'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('/assets/gbmz-logo.svg'));
+    const styles = await expectStatus(guest, '/styles.css', 200);
+    const stylesText = styles.body.toString();
+    assert.ok(stylesText.includes('.topbar .logout-form .ghost-button'));
+    assert.ok(stylesText.includes('background: var(--night)'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
