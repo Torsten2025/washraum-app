@@ -2,6 +2,8 @@
 
 Schlanke Buchungsapp fuer GBMZ-Waschraeume mit mehreren Hausnummern.
 
+Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testreferenz und das Aenderungsprotokoll stehen in [HANDBUCH.md](HANDBUCH.md). Bei Funktionsaenderungen wird dieses Handbuch zusammen mit Code und Tests aktualisiert.
+
 ## Enthalten
 
 - Wochenkalender mit Einzelbuchung und persoenlichen Waschpaketen aus Waschrhythmus und aktuell freien Geraeten.
@@ -41,7 +43,7 @@ Danach `http://localhost:3000` oeffnen. Nur lokal werden diese Konten automatisc
 npm run check
 ```
 
-Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 20 Bewohnerkonten 52 Waschwochen und 1.040 Waschpakete.
+Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, eine eigene Rollenmatrix, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 20 Bewohnerkonten 52 Waschwochen und 1.040 Waschpakete.
 
 ## Registrierung und Hauscode
 

@@ -5,11 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node --check server.js && node --check swiss-time.js && node --check release-window.js && node --check public/app.js && node --check public/login.js && node --check public/reset.js && node --check scripts/app-test.js && node --check scripts/year-simulation-test.js && node --check scripts/accessibility-check.js",
+    "verify": "node --check server.js && node --check swiss-time.js && node --check release-window.js && node --check public/app.js && node --check public/login.js && node --check public/reset.js && node --check scripts/app-test.js && node --check scripts/role-matrix-test.js && node --check scripts/year-simulation-test.js && node --check scripts/accessibility-check.js",
     "test": "node scripts/app-test.js",
+    "test:roles": "node scripts/role-matrix-test.js",
     "test:year": "node scripts/year-simulation-test.js",
     "test:a11y": "node scripts/accessibility-check.js",
-    "check": "npm run verify && npm test && npm run test:year && npm run test:a11y"
+    "check": "npm run verify && npm test && npm run test:roles && npm run test:year && npm run test:a11y"
   },
   "engines": {
     "node": ">=20"

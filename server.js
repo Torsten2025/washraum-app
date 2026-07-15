@@ -1171,6 +1171,9 @@ function nextWasherRecommendation(userId, startDate, houseId) {
     if (compactPackage && candidate.score > compactPackageScore + 4) {
       break;
     }
+    if (releaseWindowStatus(candidate.date, candidate.slot).reason !== 'not_started') {
+      continue;
+    }
     const resource = findAvailableResource(userId, 'washer', candidate.date, candidate.slot, houseId);
     if (!resource) {
       continue;
@@ -2839,6 +2842,9 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   if (user.is_superadmin && user.id !== req.session.user.id) {
     return res.status(403).json({ error: 'Das Superadmin-Konto kann hier nicht ge\u00e4ndert werden.' });
   }
+  if (!isSuperadmin(req) && user.role === 'admin') {
+    return res.status(403).json({ error: 'Hausadmins k\u00f6nnen andere Admin-Konten nicht verwalten.' });
+  }
   if (!active && user.role === 'admin') {
     const activeAdmins = db.prepare(`
       SELECT COUNT(*) AS count FROM users
@@ -2861,15 +2867,21 @@ app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
   const userId = Number(req.params.id);
   const newPassword = String(req.body?.newPassword || '');
   const user = db.prepare(`
-    SELECT id, username, is_superadmin FROM users
+    SELECT id, username, role, is_superadmin FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
 
   if (!user) {
     return res.status(404).json({ error: 'Konto nicht gefunden.' });
   }
+  if (user.id === req.session.user.id) {
+    return res.status(400).json({ error: 'Dein eigenes Passwort \u00e4nderst du unter Buchen in Zugang & Sicherheit.' });
+  }
   if (user.is_superadmin && user.id !== req.session.user.id) {
     return res.status(403).json({ error: 'Das Superadmin-Passwort kann hier nicht ge\u00e4ndert werden.' });
+  }
+  if (!isSuperadmin(req) && user.role === 'admin') {
+    return res.status(403).json({ error: 'Hausadmins k\u00f6nnen Passw\u00f6rter anderer Admins nicht zur\u00fccksetzen.' });
   }
   if (!isValidPassword(newPassword)) {
     return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });

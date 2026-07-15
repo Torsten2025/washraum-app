@@ -19,6 +19,10 @@ const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminTitle = document.querySelector('#adminTitle');
+const adminRoleLabel = document.querySelector('#adminRoleLabel');
+const adminScopeText = document.querySelector('#adminScopeText');
+const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')];
+const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
 const runBackupButton = document.querySelector('#runBackupButton');
 const houseCodeForm = document.querySelector('#houseCodeForm');
@@ -99,6 +103,7 @@ let introVideoSpeechPaused = false;
 let introVideoSpeechRun = 0;
 let introVideoPreferredVoice = null;
 let introReturnFocus = null;
+let activeAdminSection = 'overview';
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
@@ -674,7 +679,21 @@ function setAppView(view) {
   document.body.classList.toggle('admin-view', adminView);
   bookingViewButton.classList.toggle('active', !adminView);
   adminViewButton.classList.toggle('active', adminView);
+  if (adminView) setAdminSection(activeAdminSection);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setAdminSection(sectionName) {
+  if (!adminSections.some((section) => section.dataset.adminSection === sectionName)) return;
+  activeAdminSection = sectionName;
+  for (const button of adminSectionButtons) {
+    const active = button.dataset.adminTarget === sectionName;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+  }
+  for (const section of adminSections) {
+    section.hidden = section.dataset.adminSection !== sectionName;
+  }
 }
 
 function renderEmailVerificationStatus() {
@@ -697,7 +716,7 @@ function renderHouseContext() {
   userLine.textContent = `${currentUser.username} - ${roleLabel} - ${currentUser.houseName}`;
   brandHouseName.textContent = currentUser.houseName;
   introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
-  adminTitle.textContent = `Admin - ${currentUser.houseName}`;
+  adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
 
   houseSwitcher.hidden = !currentUser.isSuperadmin;
   if (currentUser.isSuperadmin) {
@@ -1332,7 +1351,11 @@ async function loadAdmin() {
     api('/api/admin/audit-log')
   ]);
   adminBox.hidden = false;
-  adminTitle.textContent = `Admin - ${settingsData.houseName}`;
+  adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
+  adminRoleLabel.textContent = currentUser.isSuperadmin ? 'Superadmin' : 'Haus-Admin';
+  adminScopeText.textContent = currentUser.isSuperadmin
+    ? 'Haus\u00fcbergreifende Verwaltung. Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
+    : 'Verwaltung der Personen, Ger\u00e4te und Dauertermine dieses Hauses.';
   houseCodeInput.value = settingsData.houseCode;
   backupOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
@@ -1359,6 +1382,7 @@ async function loadAdmin() {
     ? 'Testmail an deine hinterlegte Adresse senden'
     : 'Zuerst SMTP in Render konfigurieren';
   renderAdminUsers(usersData.users);
+  setAdminSection(activeAdminSection);
 }
 
 async function sendAdminTestEmail() {
@@ -1401,36 +1425,21 @@ function renderAdminUsers(users) {
 
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
+    const isSelf = Number(user.id) === Number(currentUser.id);
+    const canManageAccount = !isSelf
+      && !Boolean(user.is_superadmin)
+      && (currentUser.isSuperadmin || user.role === 'user');
 
-    const statusButton = document.createElement('button');
-    statusButton.type = 'button';
-    statusButton.className = user.active ? 'secondary danger' : 'secondary';
-    statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
-    statusButton.disabled = user.id === currentUser.id || Boolean(user.is_superadmin);
-    statusButton.title = statusButton.disabled ? 'Das eigene Konto bleibt aktiv' : `${user.username} ${statusButton.textContent.toLowerCase()}`;
-    statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
+    if (canManageAccount) {
+      const statusButton = document.createElement('button');
+      statusButton.type = 'button';
+      statusButton.className = user.active ? 'secondary danger' : 'secondary';
+      statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
+      statusButton.title = `${user.username} ${statusButton.textContent.toLowerCase()}`;
+      statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
+      actions.append(statusButton);
+    }
 
-    const resetForm = document.createElement('form');
-    resetForm.className = 'user-password-reset';
-    const password = document.createElement('input');
-    password.type = 'password';
-    password.autocomplete = 'new-password';
-    password.minLength = 8;
-    password.maxLength = 128;
-    password.placeholder = 'Neues Passwort';
-    password.setAttribute('aria-label', `Neues Passwort f\u00fcr ${user.username}`);
-    password.required = true;
-    const resetButton = document.createElement('button');
-    resetButton.type = 'submit';
-    resetButton.className = 'secondary';
-    resetButton.textContent = 'Neu setzen';
-    resetForm.append(password, resetButton);
-    resetForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      resetUserPassword(user.id, password.value, resetForm);
-    });
-
-    actions.append(statusButton);
     if (currentUser.isSuperadmin && !user.is_superadmin) {
       const roleButton = document.createElement('button');
       roleButton.type = 'button';
@@ -1460,8 +1469,37 @@ function renderAdminUsers(users) {
         actions.append(moveWrap);
       }
     }
-    if (!user.is_superadmin || user.id === currentUser.id) {
+
+    if (canManageAccount) {
+      const resetForm = document.createElement('form');
+      resetForm.className = 'user-password-reset';
+      const password = document.createElement('input');
+      password.type = 'password';
+      password.autocomplete = 'new-password';
+      password.minLength = 8;
+      password.maxLength = 128;
+      password.placeholder = 'Neues Passwort';
+      password.setAttribute('aria-label', `Neues Passwort f\u00fcr ${user.username}`);
+      password.required = true;
+      const resetButton = document.createElement('button');
+      resetButton.type = 'submit';
+      resetButton.className = 'secondary';
+      resetButton.textContent = 'Neu setzen';
+      resetForm.append(password, resetButton);
+      resetForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        resetUserPassword(user.id, password.value, resetForm);
+      });
       actions.append(resetForm);
+    }
+
+    if (!actions.childElementCount) {
+      const note = document.createElement('span');
+      note.className = 'muted admin-account-note';
+      note.textContent = isSelf
+        ? 'Eigenes Konto unter Buchen verwalten.'
+        : 'Dieses Admin-Konto verwaltet der Superadmin.';
+      actions.append(note);
     }
     item.append(identity, actions);
     userList.append(item);
@@ -1755,6 +1793,9 @@ async function createHouse() {
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
 bookingViewButton.addEventListener('click', () => setAppView('booking'));
 adminViewButton.addEventListener('click', () => setAppView('admin'));
+adminSectionButtons.forEach((button) => {
+  button.addEventListener('click', () => setAdminSection(button.dataset.adminTarget));
+});
 
 previousWeekButton.addEventListener('click', () => {
   selectBookingDate(addDaysString(calendarStartDate, -7));

@@ -210,99 +210,153 @@
           </ul>
         </div>
         <div id="adminBox" class="admin-box" hidden>
-          <h3 id="adminTitle">Admin</h3>
-          <div id="adminOverview" class="admin-overview"></div>
-          <div id="backupOperation" class="admin-operation">
+          <header class="admin-workspace-header">
             <div>
-              <strong>Daten sichern</strong>
-              <span>Eine vollst&auml;ndige SQLite-Sicherung herunterladen.</span>
+              <p id="adminRoleLabel" class="eyebrow">Haus-Admin</p>
+              <h2 id="adminTitle">Verwaltung</h2>
             </div>
-            <div class="inline-actions">
-              <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
-              <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+            <p id="adminScopeText" class="muted"></p>
+          </header>
+
+          <nav id="adminSectionNav" class="admin-section-nav" aria-label="Verwaltungsbereiche">
+            <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview">&Uuml;berblick</button>
+            <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse">Haus &amp; Ger&auml;te</button>
+            <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed">Dauertermine</button>
+            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Personen</button>
+            <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem">System</button>
+          </nav>
+
+          <section id="adminSectionOverview" class="admin-section" data-admin-section="overview">
+            <div class="admin-section-heading">
+              <h3>Aktueller Stand</h3>
+              <span>Kennzahlen des ausgew&auml;hlten Hauses</span>
             </div>
-          </div>
-          <div class="admin-operation">
-            <div>
-              <strong>E-Mail pr&uuml;fen</strong>
-              <span>Eine Testmail an deine hinterlegte Adresse senden.</span>
+            <div id="adminOverview" class="admin-overview"></div>
+          </section>
+
+          <section id="adminSectionHouse" class="admin-section" data-admin-section="house" hidden>
+            <div class="admin-section-heading">
+              <h3>Hauszugang</h3>
+              <span>Code f&uuml;r neue Registrierungen</span>
             </div>
-            <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
-          </div>
-          <form id="houseCodeForm" class="stack compact-form">
-            <label>
-              Hauscode
-              <input id="houseCodeInput" name="houseCode" required>
-            </label>
-            <button type="submit">Hauscode speichern</button>
-          </form>
-          <section id="superadminBox" class="superadmin-box" hidden>
-            <h3>Hausnummern</h3>
-            <p class="muted">Jede Hausnummer hat eigene Personen, Ger&auml;te und Buchungen.</p>
-            <form id="houseForm" class="stack compact-form">
-              <label>
-                Neue Hausnummer
-                <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
-              </label>
+            <form id="houseCodeForm" class="stack compact-form admin-narrow-form">
               <label>
                 Hauscode
-                <input id="newHouseCodeInput" name="code" minlength="4" maxlength="80" required>
+                <input id="houseCodeInput" name="houseCode" required>
               </label>
-              <button type="submit">Haus anlegen</button>
+              <button type="submit">Hauscode speichern</button>
             </form>
-            <div id="houseList" class="house-admin-list"></div>
+
+            <section id="superadminBox" class="superadmin-box" hidden>
+              <div class="admin-section-heading">
+                <h3>Hausnummern</h3>
+                <span>Getrennte Personen, Ger&auml;te und Buchungen</span>
+              </div>
+              <form id="houseForm" class="stack compact-form admin-inline-form">
+                <label>
+                  Neue Hausnummer
+                  <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
+                </label>
+                <label>
+                  Hauscode
+                  <input id="newHouseCodeInput" name="code" minlength="4" maxlength="80" required>
+                </label>
+                <button type="submit">Haus anlegen</button>
+              </form>
+              <div id="houseList" class="house-admin-list"></div>
+            </section>
+
+            <div class="admin-section-heading">
+              <h3>Ger&auml;te &amp; R&auml;ume</h3>
+              <span>Verf&uuml;gbare Ressourcen dieses Hauses</span>
+            </div>
+            <form id="resourceForm" class="stack compact-form admin-inline-form">
+              <label>
+                Name
+                <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
+              </label>
+              <label>
+                Bereich
+                <select id="resourceTypeInput" name="type" required>
+                  <option value="washer">Waschmaschine</option>
+                  <option value="drying_room">Trockenraum</option>
+                  <option value="tumbler">Tumbler</option>
+                </select>
+              </label>
+              <button type="submit">Hinzuf&uuml;gen</button>
+            </form>
+            <div id="resourceAdminList" class="resource-admin-list"></div>
           </section>
-          <h3>Ger&auml;te &amp; R&auml;ume</h3>
-          <form id="resourceForm" class="stack compact-form admin-inline-form">
-            <label>
-              Name
-              <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
-            </label>
-            <label>
-              Bereich
-              <select id="resourceTypeInput" name="type" required>
-                <option value="washer">Waschmaschine</option>
-                <option value="drying_room">Trockenraum</option>
-                <option value="tumbler">Tumbler</option>
-              </select>
-            </label>
-            <button type="submit">Hinzuf&uuml;gen</button>
-          </form>
-          <div id="resourceAdminList" class="resource-admin-list"></div>
-          <h3>Feste Buchungen</h3>
-          <form id="fixedBookingForm" class="stack compact-form">
-            <label>
-              Name / Hinweis
-              <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
-            </label>
-            <label>
-              Ger&auml;t
-              <select id="fixedBookingResource" name="resourceId" required></select>
-            </label>
-            <label>
-              Wochentag
-              <select id="fixedBookingWeekday" name="weekday" required>
-                <option value="1">Montag</option>
-                <option value="2">Dienstag</option>
-                <option value="3">Mittwoch</option>
-                <option value="4">Donnerstag</option>
-                <option value="5">Freitag</option>
-                <option value="6">Samstag</option>
-              </select>
-            </label>
-            <label>
-              Slot
-              <select id="fixedBookingSlot" name="slot" required></select>
-            </label>
-            <button type="submit">Fest speichern</button>
-          </form>
-          <div id="fixedBookingList" class="fixed-booking-list"></div>
-          <h3>Benutzer</h3>
-          <div id="userList" class="user-admin-list"></div>
-          <details class="audit-panel">
-            <summary>Letzte Admin-Aktionen</summary>
-            <div id="auditLog" class="audit-list"></div>
-          </details>
+
+          <section id="adminSectionFixed" class="admin-section" data-admin-section="fixed" hidden>
+            <div class="admin-section-heading">
+              <h3>Gesch&uuml;tzte Dauertermine</h3>
+              <span>Wiederkehrende Buchungen k&ouml;nnen nicht &uuml;berschrieben werden</span>
+            </div>
+            <form id="fixedBookingForm" class="stack compact-form admin-inline-form">
+              <label>
+                Name / Hinweis
+                <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
+              </label>
+              <label>
+                Ger&auml;t
+                <select id="fixedBookingResource" name="resourceId" required></select>
+              </label>
+              <label>
+                Wochentag
+                <select id="fixedBookingWeekday" name="weekday" required>
+                  <option value="1">Montag</option>
+                  <option value="2">Dienstag</option>
+                  <option value="3">Mittwoch</option>
+                  <option value="4">Donnerstag</option>
+                  <option value="5">Freitag</option>
+                  <option value="6">Samstag</option>
+                </select>
+              </label>
+              <label>
+                Slot
+                <select id="fixedBookingSlot" name="slot" required></select>
+              </label>
+              <button type="submit">Fest speichern</button>
+            </form>
+            <div id="fixedBookingList" class="fixed-booking-list"></div>
+          </section>
+
+          <section id="adminSectionPeople" class="admin-section" data-admin-section="people" hidden>
+            <div class="admin-section-heading">
+              <h3>Personen</h3>
+              <span id="adminPeopleScope">Konten des ausgew&auml;hlten Hauses</span>
+            </div>
+            <div id="userList" class="user-admin-list"></div>
+          </section>
+
+          <section id="adminSectionSystem" class="admin-section" data-admin-section="system" hidden>
+            <div class="admin-section-heading">
+              <h3>Systemstatus</h3>
+              <span>E-Mail, Sicherungen und Protokoll</span>
+            </div>
+            <div id="backupOperation" class="admin-operation">
+              <div>
+                <strong>Daten sichern</strong>
+                <span>Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
+              </div>
+              <div class="inline-actions">
+                <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
+                <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+              </div>
+            </div>
+            <div class="admin-operation">
+              <div>
+                <strong>E-Mail pr&uuml;fen</strong>
+                <span>Eine Testmail an deine hinterlegte Adresse senden.</span>
+              </div>
+              <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
+            </div>
+            <details class="audit-panel">
+              <summary>Letzte Admin-Aktionen</summary>
+              <div id="auditLog" class="audit-list"></div>
+            </details>
+          </section>
         </div>
       </aside>
     </main>
