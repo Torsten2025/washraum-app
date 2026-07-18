@@ -5039,32 +5039,38 @@ body.admin-view #statusText:not(:empty) {
 /* Der Bildkopf ist Orientierung, nicht die Hauptfunktion. */
 .intro-panel {
   align-self: start;
+  gap: 12px;
   grid-template-columns: minmax(0, 1fr) auto;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   min-height: 0;
-  padding: 18px 24px;
+  padding: 12px 18px;
 }
 
 .intro-panel h2 {
-  font-size: 30px;
-  margin-bottom: 8px;
+  font-size: 25px;
+  margin-bottom: 4px;
 }
 
 .intro-panel .intro-metrics {
-  margin-top: 10px;
-}
-
-.intro-panel .intro-metrics span {
-  font-size: 11px;
-  padding: 6px 8px;
+  display: none;
 }
 
 .intro-panel .intro-flow-strip {
   display: none;
 }
 
+.intro-panel p:last-child {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .intro-panel-actions {
   align-items: center;
+}
+
+.intro-panel-actions button {
+  min-height: 38px;
+  padding: 8px 12px;
 }
 
 /* Die Statuszeilen benoetigen in der finalen mobilen Kaskade feste Zellhoehen. */
@@ -5082,11 +5088,15 @@ body.admin-view #statusText:not(:empty) {
 
   .intro-panel {
     min-height: 0;
-    padding: 16px;
+    padding: 12px 14px;
   }
 
   .intro-panel h2 {
-    font-size: 27px;
+    font-size: 24px;
+  }
+
+  .intro-panel-actions {
+    justify-items: start;
   }
 
   .calendar-day.is-month-day {
