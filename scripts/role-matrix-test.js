@@ -314,13 +314,16 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ active: true })
     });
-    await expectStatus(houseAdmin, `/api/admin/users/${residentRegistration.body.user.id}/password`, 200, {
+    await expectStatus(houseAdmin, `/api/admin/users/${residentRegistration.body.user.id}/password`, 404, {
       method: 'PUT',
       body: JSON.stringify({ newPassword: 'Rollen-Bewohner20-Neu!' })
     });
+    await expectStatus(houseAdmin, `/api/admin/users/${residentRegistration.body.user.id}/password-reset`, 409, {
+      method: 'POST'
+    });
 
     const residentAfterReset = new ApiClient();
-    await login(residentAfterReset, 'Rollen Bewohner Haus 20', 'Rollen-Bewohner20-Neu!');
+    await login(residentAfterReset, 'Rollen Bewohner Haus 20', 'Rollen-Bewohner20!');
     const residentBooking = await expectStatus(residentAfterReset, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
@@ -335,13 +338,11 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ active: false })
     });
-    await expectStatus(houseAdmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/password`, 403, {
-      method: 'PUT',
-      body: JSON.stringify({ newPassword: 'Nicht-Erlaubt-2026!' })
+    await expectStatus(houseAdmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/password-reset`, 403, {
+      method: 'POST'
     });
-    await expectStatus(houseAdmin, `/api/admin/users/${houseAdminRegistration.body.user.id}/password`, 400, {
-      method: 'PUT',
-      body: JSON.stringify({ newPassword: 'Nicht-Erlaubt-Eigen!' })
+    await expectStatus(houseAdmin, `/api/admin/users/${houseAdminRegistration.body.user.id}/password-reset`, 400, {
+      method: 'POST'
     });
 
     await expectStatus(houseAdmin, '/api/admin/houses', 403);
@@ -383,12 +384,11 @@ async function run() {
     await expectStatus(residentAfterReset, '/api/calendar?from=' + futureMonday() + '&days=7', 200);
     await expectStatus(residentAfterReset, '/api/recommendation', 200);
 
-    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/password`, 200, {
-      method: 'PUT',
-      body: JSON.stringify({ newPassword: 'Rollen-Zweitadmin-Neu!' })
+    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/password-reset`, 409, {
+      method: 'POST'
     });
     const peerAdmin = new ApiClient();
-    await login(peerAdmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-Neu!');
+    await login(peerAdmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
 
     const globalAudit = await expectStatus(superadmin, '/api/admin/audit-log', 200);
     assert.ok(globalAudit.body.entries.some((entry) => entry.action === 'resource.create'));

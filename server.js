@@ -605,6 +605,10 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '32kb' }));
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use((req, res, next) => {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     return next();
@@ -1391,7 +1395,6 @@ function requireAuth(req, res, next) {
 }
 
 const authRateBuckets = new Map();
-const ipRateBuckets = new Map();
 const authRateWindowMs = 15 * 60 * 1000;
 const authRateMaxAttempts = 20;
 
@@ -1426,22 +1429,23 @@ function authRateLimit(req, res, next) {
 }
 
 function ipRateLimit({ windowMs, maxAttempts, message }) {
+  const buckets = new Map();
   return (req, res, next) => {
     const now = Date.now();
     const key = String(req.ip || req.socket.remoteAddress || 'unknown');
-    let bucket = ipRateBuckets.get(key);
+    let bucket = buckets.get(key);
     if (!bucket || bucket.resetAt <= now) {
       bucket = { attempts: 0, resetAt: now + windowMs };
     }
     bucket.attempts += 1;
-    ipRateBuckets.set(key, bucket);
+    buckets.set(key, bucket);
     if (bucket.attempts > maxAttempts) {
       res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
       return res.status(429).json({ error: message });
     }
-    if (ipRateBuckets.size > 1000) {
-      for (const [bucketKey, value] of ipRateBuckets) {
-        if (value.resetAt <= now) ipRateBuckets.delete(bucketKey);
+    if (buckets.size > 1000) {
+      for (const [bucketKey, value] of buckets) {
+        if (value.resetAt <= now) buckets.delete(bucketKey);
       }
     }
     next();
@@ -1457,6 +1461,11 @@ const recoveryRateLimit = ipRateLimit({
   windowMs: 60 * 60 * 1000,
   maxAttempts: 12,
   message: 'Zu viele Wiederherstellungsversuche. Bitte versuche es sp\u00e4ter erneut.'
+});
+const adminRecoveryRateLimit = ipRateLimit({
+  windowMs: 60 * 60 * 1000,
+  maxAttempts: 30,
+  message: 'Zu viele Admin-Wiederherstellungsversuche. Bitte versuche es spaeter erneut.'
 });
 
 function currentHouseId(req) {
@@ -1536,7 +1545,23 @@ function isValidUsername(value) {
 
 function isValidPassword(value) {
   const length = String(value || '').length;
-  return length >= 8 && length <= 128;
+  return length >= 12 && length <= 128;
+}
+
+function isValidPlainText(value, minLength = 2, maxLength = 80) {
+  const text = String(value || '').trim();
+  return text.length >= minLength
+    && text.length <= maxLength
+    && !/[\u0000-\u001f\u007f]/.test(text);
+}
+
+function regenerateSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
 }
 
 function destroyUserSessions(userId, exceptSessionId = '') {
@@ -1734,16 +1759,22 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
 }
 
 function extractEmailAddress(value) {
-  const match = String(value || '').match(/<([^>]+)>/);
-  return (match ? match[1] : value).trim();
+  const safeValue = sanitizeMailHeader(value);
+  const match = safeValue.match(/<([^>]+)>/);
+  return (match ? match[1] : safeValue).trim();
+}
+
+function sanitizeMailHeader(value) {
+  return String(value || '').replace(/[\r\n]+/g, ' ').trim();
 }
 
 function mailHeaders({ config, to, subject, text }) {
-  const from = config.from.includes('<') ? config.from : `WaschZeit <${config.from}>`;
+  const safeFrom = sanitizeMailHeader(config.from);
+  const from = safeFrom.includes('<') ? safeFrom : `WaschZeit <${safeFrom}>`;
   return [
     `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
+    `To: ${sanitizeMailHeader(to)}`,
+    `Subject: ${sanitizeMailHeader(subject)}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
     `Date: ${new Date().toUTCString()}`,
@@ -1900,8 +1931,16 @@ async function createVerifiedBackup() {
     .filter((name) => name.startsWith('washplan-') && name.endsWith('.sqlite'))
     .sort()
     .reverse();
-  for (const oldName of backups.slice(7)) {
-    fs.rmSync(path.join(directory, oldName), { force: true });
+  const retainedBackups = new Set(backups.slice(0, 3));
+  const retainedDays = new Set();
+  for (const backupName of backups) {
+    const day = backupName.slice('washplan-'.length, 'washplan-'.length + 10);
+    if (retainedDays.size >= 14 || retainedDays.has(day)) continue;
+    retainedDays.add(day);
+    retainedBackups.add(backupName);
+  }
+  for (const oldName of backups) {
+    if (!retainedBackups.has(oldName)) fs.rmSync(path.join(directory, oldName), { force: true });
   }
 
   let uploaded = false;
@@ -1966,7 +2005,7 @@ app.get(['/health', '/api/health'], (req, res) => {
   });
 });
 
-app.post('/api/login', authRateLimit, (req, res) => {
+app.post('/api/login', authRateLimit, async (req, res, next) => {
   const { username, password } = req.body || {};
   const loginName = normalizeEmail(username);
   const user = db.prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?')
@@ -1984,13 +2023,19 @@ app.post('/api/login', authRateLimit, (req, res) => {
       .run(bcrypt.hashSync(String(password || ''), 10), user.id);
   }
 
-  req.session.user = sessionUserFromRow(user);
-  req.session.activeHouseId = user.house_id;
-  clearAuthRateLimit(req);
-  res.json({ user: req.session.user });
+  try {
+    const sessionUser = sessionUserFromRow(user);
+    clearAuthRateLimit(req);
+    await regenerateSession(req);
+    req.session.user = sessionUser;
+    req.session.activeHouseId = user.house_id;
+    res.json({ user: req.session.user });
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res) => {
+app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res, next) => {
   const username = String(req.body?.username || '').trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
@@ -2009,20 +2054,21 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res)
     return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
   }
   if (!isValidPassword(password)) {
-    return res.status(400).json({ error: 'Das Passwort muss 8 bis 128 Zeichen haben.' });
+    return res.status(400).json({ error: 'Das Passwort muss 12 bis 128 Zeichen haben.' });
   }
   if (!house) {
     return res.status(403).json({ error: 'Hauscode ist nicht korrekt' });
   }
 
   try {
-    const emailVerified = emailStatus().configured ? 0 : 1;
+    const emailVerified = 0;
     const result = db.prepare(`
       INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases, email_verified)
       VALUES (?, ?, ?, 'user', ?, 1, ?, ?)
     `).run(username, email, bcrypt.hashSync(password, 10), house.id, notifyReleases, emailVerified);
 
     const createdUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+    await regenerateSession(req);
     req.session.user = sessionUserFromRow(createdUser, house);
     req.session.activeHouseId = house.id;
     clearAuthRateLimit(req);
@@ -2035,7 +2081,9 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res)
       verification,
       message: verification.sent
         ? 'Konto erstellt. Bitte best\u00e4tige jetzt deine E-Mail-Adresse.'
-        : 'Konto erstellt.'
+        : verification.configured
+          ? 'Konto erstellt. Die Best\u00e4tigungsmail konnte noch nicht gesendet werden.'
+          : 'Konto erstellt. E-Mail-Hinweise werden nach Einrichtung des Versands freigeschaltet.'
     });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -2104,7 +2152,7 @@ app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
   const token = String(req.body?.token || '');
   const newPassword = String(req.body?.newPassword || '');
   if (!isValidPassword(newPassword)) {
-    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+    return res.status(400).json({ error: 'Das neue Passwort muss 12 bis 128 Zeichen haben.' });
   }
   const record = db.prepare(`
     SELECT prt.id, prt.user_id
@@ -2203,7 +2251,7 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
   try {
     const previous = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(req.session.user.id);
     const emailChanged = normalizeEmail(previous?.email) !== email;
-    const emailVerified = emailChanged && emailStatus().configured ? 0 : previous?.email_verified ?? 1;
+    const emailVerified = emailChanged ? 0 : previous?.email_verified ?? 0;
     db.transaction(() => {
       db.prepare('UPDATE users SET email = ?, notify_releases = ?, email_verified = ? WHERE id = ?')
         .run(email, notifyReleases, emailVerified, req.session.user.id);
@@ -2238,7 +2286,9 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
     notificationPreferences: { resourceType, weekday, slot: preferredSlot },
     message: req.session.user.emailVerified
       ? 'Benachrichtigungen gespeichert.'
-      : 'Benachrichtigungen gespeichert. Bitte best\u00e4tige die neue E-Mail-Adresse.'
+      : emailStatus().configured
+        ? 'Benachrichtigungen gespeichert. Bitte best\u00e4tige die neue E-Mail-Adresse.'
+        : 'Benachrichtigungen gespeichert. E-Mail-Hinweise werden nach Einrichtung des Versands freigeschaltet.'
   });
 });
 
@@ -2251,7 +2301,7 @@ app.put('/api/me/password', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Das bisherige Passwort stimmt nicht.' });
   }
   if (!isValidPassword(newPassword)) {
-    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+    return res.status(400).json({ error: 'Das neue Passwort muss 12 bis 128 Zeichen haben.' });
   }
   if (verifyStoredPassword(newPassword, user.password_hash)) {
     return res.status(400).json({ error: 'Bitte verwende ein anderes neues Passwort.' });
@@ -2416,7 +2466,7 @@ app.get('/api/admin/resources', requireAdmin, (req, res) => {
 app.post('/api/admin/resources', requireAdmin, (req, res) => {
   const name = String(req.body?.name || '').trim();
   const type = String(req.body?.type || '');
-  if (name.length < 2 || name.length > 80 || !['washer', 'drying_room', 'tumbler'].includes(type)) {
+  if (!isValidPlainText(name, 2, 80) || !['washer', 'drying_room', 'tumbler'].includes(type)) {
     return res.status(400).json({ error: 'Bitte einen g\u00fcltigen Namen und Bereich w\u00e4hlen.' });
   }
   if (db.prepare('SELECT id FROM resources WHERE lower(name) = lower(?) AND house_id = ?').get(name, currentHouseId(req))) {
@@ -2436,7 +2486,7 @@ app.put('/api/admin/resources/:id', requireAdmin, (req, res) => {
   }
   const name = String(req.body?.name ?? resource.name).trim();
   const active = req.body?.active == null ? resource.active : req.body.active === true ? 1 : 0;
-  if (name.length < 2 || name.length > 80) {
+  if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Der Name muss 2 bis 80 Zeichen haben.' });
   }
   if (db.prepare('SELECT id FROM resources WHERE lower(name) = lower(?) AND house_id = ? AND id != ?')
@@ -2593,7 +2643,7 @@ function packageRequestError(status, message) {
   return error;
 }
 
-app.post('/api/booking-package', requireAuth, (req, res) => {
+app.post('/api/booking-package', requireAuth, (req, res, next) => {
   const rawItems = req.body?.items;
   const washerBookingId = Number(req.body?.washerBookingId || 0);
   const houseId = currentHouseId(req);
@@ -2799,7 +2849,7 @@ app.post('/api/booking-package', requireAuth, (req, res) => {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Ein Bestandteil des Waschpakets wurde inzwischen gebucht. Bitte versuche es erneut.' });
     }
-    throw error;
+    next(error);
   }
 });
 
@@ -3064,11 +3114,10 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   res.json({ ok: true, message: `${user.username} ist jetzt ${active ? 'aktiv' : 'deaktiviert'}.` });
 });
 
-app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateLimit, async (req, res, next) => {
   const userId = Number(req.params.id);
-  const newPassword = String(req.body?.newPassword || '');
   const user = db.prepare(`
-    SELECT id, username, role, is_superadmin FROM users
+    SELECT id, username, email, email_verified, role, is_superadmin FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
 
@@ -3082,17 +3131,20 @@ app.put('/api/admin/users/:id/password', requireAdmin, (req, res) => {
     return res.status(403).json({ error: 'Das Superadmin-Passwort kann hier nicht ge\u00e4ndert werden.' });
   }
   if (!isSuperadmin(req) && user.role === 'admin') {
-    return res.status(403).json({ error: 'Hausadmins k\u00f6nnen Passw\u00f6rter anderer Admins nicht zur\u00fccksetzen.' });
+    return res.status(403).json({ error: 'Hausadmins k\u00f6nnen keine Reset-Links f\u00fcr andere Admins senden.' });
   }
-  if (!isValidPassword(newPassword)) {
-    return res.status(400).json({ error: 'Das neue Passwort muss 8 bis 128 Zeichen haben.' });
+  try {
+    const sent = await sendPasswordReset(req, user);
+    if (!sent) {
+      return res.status(409).json({
+        error: 'F\u00fcr dieses Konto ist keine best\u00e4tigte E-Mail-Adresse oder kein E-Mail-Versand eingerichtet.'
+      });
+    }
+    writeAudit(req, 'user.password_reset_requested', 'user', user.id);
+    res.json({ ok: true, message: `Reset-Link wurde an die best\u00e4tigte Adresse von ${user.username} gesendet.` });
+  } catch (error) {
+    next(error);
   }
-
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .run(bcrypt.hashSync(newPassword, 10), user.id);
-  destroyUserSessions(user.id, user.id === req.session.user.id ? req.sessionID : '');
-  writeAudit(req, 'user.password_reset', 'user', user.id);
-  res.json({ ok: true, message: `Passwort f\u00fcr ${user.username} wurde neu gesetzt.` });
 });
 
 app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res) => {
@@ -3217,6 +3269,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     fixedBookings,
     recentReleases,
     email: emailStatus(),
+    externalBackupConfigured: Boolean(String(process.env.BACKUP_UPLOAD_URL || '').trim()),
     backup: (() => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
     })()
@@ -3280,11 +3333,11 @@ app.get('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
 app.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
   const name = String(req.body?.name || '').trim();
   const code = String(req.body?.code || '').trim();
-  if (name.length < 2 || name.length > 80) {
+  if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
   }
-  if (code.length < 4 || code.length > 80) {
-    return res.status(400).json({ error: 'Der Hauscode muss 4 bis 80 Zeichen haben.' });
+  if (!isValidPlainText(code, 12, 80)) {
+    return res.status(400).json({ error: 'Der Hauscode muss 12 bis 80 Zeichen haben und darf keine Steuerzeichen enthalten.' });
   }
   if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?)').get(name)) {
     return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });
@@ -3313,7 +3366,7 @@ app.put('/api/admin/houses/:id', requireAdmin, requireSuperadmin, (req, res) => 
   }
   const name = String(req.body?.name ?? house.name).trim();
   const active = req.body?.active == null ? house.active : req.body.active === true ? 1 : 0;
-  if (name.length < 2 || name.length > 80) {
+  if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
   }
   if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?) AND id != ?').get(name, house.id)) {
@@ -3360,7 +3413,7 @@ app.post('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
   if (!Number.isInteger(resourceId) || !Number.isInteger(weekday) || weekday < 1 || weekday > 6 || !slots.includes(slot)) {
     return res.status(400).json({ error: 'Ung\u00fcltige feste Buchung' });
   }
-  if (label.length < 2 || label.length > 80) {
+  if (!isValidPlainText(label, 2, 80)) {
     return res.status(400).json({ error: 'Bitte einen Namen oder Hinweis eintragen' });
   }
 
@@ -3443,8 +3496,8 @@ app.delete('/api/admin/fixed-bookings/:id', requireAdmin, (req, res) => {
 
 app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
   const houseCode = String(req.body?.houseCode || '').trim();
-  if (houseCode.length < 4 || houseCode.length > 80) {
-    return res.status(400).json({ error: 'Hauscode muss 4 bis 80 Zeichen haben' });
+  if (!isValidPlainText(houseCode, 12, 80)) {
+    return res.status(400).json({ error: 'Hauscode muss 12 bis 80 Zeichen haben und darf keine Steuerzeichen enthalten.' });
   }
 
   try {

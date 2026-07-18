@@ -261,6 +261,14 @@ async function verifySmtpDelivery() {
     const smtpAdminCookie = String(smtpAdminLogin.headers.get('set-cookie') || '').split(';')[0];
     assert.ok(smtpAdminCookie.includes('connect.sid='));
 
+    const adminResetRequest = await fetch(
+      `http://127.0.0.1:${appPort}/api/admin/users/${registrationBody.user.id}/password-reset`,
+      { method: 'POST', headers: { Cookie: smtpAdminCookie } }
+    );
+    assert.equal(adminResetRequest.status, 200);
+    assert.ok(messages[2].includes('Subject: WaschZeit:'));
+    assert.ok(messages[2].includes('/reset.html?token='));
+
     const resourcesResponse = await fetch(`http://127.0.0.1:${appPort}/api/resources`, {
       headers: { Cookie: smtpAdminCookie }
     });
@@ -286,11 +294,11 @@ async function verifySmtpDelivery() {
     assert.equal(releaseMailBody.releaseNoticeCreated, true);
     assert.equal(releaseMailBody.emailNotifications.configured, true);
     assert.equal(releaseMailBody.emailNotifications.sent, 1);
-    assert.equal(messages.length, 3);
-    assert.ok(messages[2].includes('To: smtp-person@example.com'));
-    assert.ok(messages[2].includes('Subject: WaschZeit: Termin'));
-    assert.ok(messages[2].includes(smtpWasher.name));
-    assert.ok(messages[2].includes('wieder frei'));
+    assert.equal(messages.length, 4);
+    assert.ok(messages[3].includes('To: smtp-person@example.com'));
+    assert.ok(messages[3].includes('Subject: WaschZeit: Termin'));
+    assert.ok(messages[3].includes(smtpWasher.name));
+    assert.ok(messages[3].includes('wieder frei'));
   } finally {
     if (smtpApp.exitCode === null) {
       smtpApp.kill();
@@ -891,7 +899,7 @@ async function run() {
 
     const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Maneggplatz 20', code: 'Testhaus 20' })
+      body: JSON.stringify({ name: 'Maneggplatz 20', code: 'Testhaus 20 Neu' })
     });
     await expectStatus(admin, '/api/me/active-house', 200, {
       method: 'PUT',
@@ -910,7 +918,7 @@ async function run() {
         username: 'Bewohner Haus 20',
         email: 'haus20@example.com',
         password: 'Bewohner-Haus20!',
-        houseCode: 'Testhaus 20',
+        houseCode: 'Testhaus 20 Neu',
         notifyReleases: true
       })
     });
@@ -1007,13 +1015,16 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ active: true })
     });
-    await expectStatus(admin, `/api/admin/users/${resident.id}/password`, 200, {
+    await expectStatus(admin, `/api/admin/users/${resident.id}/password`, 404, {
       method: 'PUT',
       body: JSON.stringify({ newPassword: 'Admin-Reset-2026!' })
     });
+    await expectStatus(admin, `/api/admin/users/${resident.id}/password-reset`, 409, {
+      method: 'POST'
+    });
     await expectStatus(new ApiClient(), '/api/login', 200, {
       method: 'POST',
-      body: JSON.stringify({ username: 'Bewohner Test', password: 'Admin-Reset-2026!' })
+      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-Neu-2026!' })
     });
 
     const backup = await expectStatus(admin, '/api/admin/backup', 200);
@@ -1075,6 +1086,8 @@ async function run() {
     assert.ok(!indexHtml.includes('calendarZoomOutButton'));
     assert.ok(indexHtml.includes('calendarDayDetails'));
     assert.ok(indexHtml.includes('calendarDayDetailsContent'));
+    assert.ok(indexHtml.includes('calendarDayDetailsBackdrop'));
+    assert.ok(indexHtml.includes('calendarDayDetailsActions'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));
     assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
@@ -1113,6 +1126,7 @@ async function run() {
     assert.ok(appScriptText.includes('scheduleCalendarPreview'));
     assert.ok(appScriptText.includes('openCalendarPreview'));
     assert.ok(appScriptText.includes('calendarPointerFocus'));
+    assert.ok(appScriptText.includes('calendarSheetDragStart'));
     assert.ok(appScriptText.includes('renderCalendarStatusRows'));
     assert.ok(appScriptText.includes('renderCalendarDayDetails'));
     assert.ok(appScriptText.includes('startCalendarWasherBooking'));
@@ -1120,6 +1134,8 @@ async function run() {
     assert.ok(appScriptText.includes('renderWasherStep'));
     assert.ok(appScriptText.includes('renderReviewStep'));
     assert.ok(appScriptText.includes('logoutInProgress'));
+    assert.ok(appScriptText.includes('Reset-Link senden'));
+    assert.ok(!appScriptText.includes('user-password-reset-form'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }

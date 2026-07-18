@@ -80,7 +80,7 @@ Im laufenden Zeitfenster meldet `Frueher frei`, dass ein Raum oder Geraet wieder
 
 ## Sicherung
 
-Render erstellt bei `AUTO_BACKUP=true` taeglich eine SQLite-Sicherung, prueft sie mit `integrity_check` und behaelt die letzten sieben Dateien unter `BACKUP_DIR`. Der Superadmin sieht den Status, kann ein geprueftes Backup ausloesen und eine Datei herunterladen.
+Render erstellt bei `AUTO_BACKUP=true` taeglich eine SQLite-Sicherung, prueft sie mit `integrity_check` und behaelt unter `BACKUP_DIR` die drei neuesten Dateien sowie je eine Tagessicherung fuer bis zu 14 Tage. Der Superadmin sieht den Status, kann ein geprueftes Backup ausloesen und eine Datei herunterladen. Der Verwaltungsueberblick warnt, solange keine externe Kopie konfiguriert ist.
 
 Fuer eine unabhaengige Kopie kann `BACKUP_UPLOAD_URL` gesetzt werden. Die App sendet das Backup per `PUT`; `{filename}` wird durch den Dateinamen ersetzt. `BACKUP_UPLOAD_TOKEN` wird optional als Bearer-Token mitgesendet. Eine Wiederherstellungsprobe sollte vor dem breiten Hausstart und danach regelmaessig organisatorisch durchgefuehrt werden.
 

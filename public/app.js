@@ -21,8 +21,10 @@ const monthWeekdays = document.querySelector('#monthWeekdays');
 const calendarDayDetails = document.querySelector('#calendarDayDetails');
 const calendarDayDetailsTitle = document.querySelector('#calendarDayDetailsTitle');
 const calendarDayDetailsContent = document.querySelector('#calendarDayDetailsContent');
+const calendarDayDetailsActions = document.querySelector('#calendarDayDetailsActions');
 const calendarDayDetailsClose = document.querySelector('#calendarDayDetailsClose');
-document.body.append(calendarDayDetails);
+const calendarDayDetailsBackdrop = document.querySelector('#calendarDayDetailsBackdrop');
+document.body.append(calendarDayDetailsBackdrop, calendarDayDetails);
 const previousWeekButton = document.querySelector('#previousWeekButton');
 const nextWeekButton = document.querySelector('#nextWeekButton');
 const todayButton = document.querySelector('#todayButton');
@@ -119,6 +121,7 @@ let calendarPreviewTimer = null;
 let calendarPreviewCloseTimer = null;
 let calendarPreviewSuppressFocus = false;
 let calendarPointerFocus = false;
+let calendarSheetDragStart = null;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let bookingFlowState = {
@@ -689,10 +692,15 @@ function checkIntroQuiz(event) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options
+    });
+  } catch {
+    throw new Error('Keine Verbindung zur App. Bitte pr\u00fcfe deine Internetverbindung und versuche es erneut.');
+  }
 
   if (response.status === 401) {
     window.location.href = '/login.html';
@@ -976,6 +984,7 @@ function openCalendarPreview(day, anchor, { pinned = false } = {}) {
   calendarDetailPinned = pinned;
   anchor.classList.add('is-previewed');
   anchor.setAttribute('aria-expanded', 'true');
+  calendarDayDetailsBackdrop.hidden = false;
   renderCalendarDayDetails();
 }
 
@@ -1003,7 +1012,11 @@ function closeCalendarPreview() {
   calendarDetailAnchor = null;
   calendarDetailPinned = false;
   calendarDayDetails.hidden = true;
+  calendarDayDetailsBackdrop.hidden = true;
   calendarDayDetailsContent.innerHTML = '';
+  calendarDayDetailsActions.innerHTML = '';
+  calendarDayDetailsActions.hidden = true;
+  calendarDayDetails.style.removeProperty('transform');
   calendarDayDetails.style.removeProperty('left');
   calendarDayDetails.style.removeProperty('top');
   calendarDayDetails.style.removeProperty('width');
@@ -1042,13 +1055,15 @@ function renderCalendarDayDetails() {
     `;
   }).join('');
   const openDayAction = !day.closed && day.date >= todayString()
-    ? `<div class="calendar-detail-actions"><button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button></div>`
+    ? `<button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button>`
     : '';
   calendarDayDetailsContent.innerHTML = day.closed
     ? '<p class="calendar-detail-empty">Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.</p>'
-    : `${slotsMarkup}${openDayAction}`;
+    : slotsMarkup;
+  calendarDayDetailsActions.innerHTML = openDayAction;
+  calendarDayDetailsActions.hidden = !openDayAction;
 
-  calendarDayDetailsContent.querySelectorAll('[data-calendar-book-washer]').forEach((button) => {
+  calendarDayDetails.querySelectorAll('[data-calendar-book-washer]').forEach((button) => {
     button.addEventListener('click', () => {
       const date = button.dataset.calendarDate;
       const slot = button.dataset.calendarSlot;
@@ -1057,14 +1072,14 @@ function renderCalendarDayDetails() {
       startCalendarWasherBooking(date, slot, resourceId);
     });
   });
-  calendarDayDetailsContent.querySelectorAll('[data-calendar-open-package]').forEach((button) => {
+  calendarDayDetails.querySelectorAll('[data-calendar-open-package]').forEach((button) => {
     button.addEventListener('click', () => {
       const date = button.dataset.calendarOpenPackage;
       closeCalendarPreview();
       openCalendarPackage(date);
     });
   });
-  calendarDayDetailsContent.querySelectorAll('[data-calendar-open-day]').forEach((button) => {
+  calendarDayDetails.querySelectorAll('[data-calendar-open-day]').forEach((button) => {
     button.addEventListener('click', () => {
       const date = button.dataset.calendarOpenDay;
       closeCalendarPreview();
@@ -2274,7 +2289,7 @@ async function loadAdmin() {
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
-    <div class="wide"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ''}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}</span></div>
+    <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
   `;
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
@@ -2370,26 +2385,16 @@ function renderAdminUsers(users) {
     }
 
     if (canManageAccount) {
-      const resetForm = document.createElement('form');
-      resetForm.className = 'user-password-reset';
-      const password = document.createElement('input');
-      password.type = 'password';
-      password.autocomplete = 'new-password';
-      password.minLength = 8;
-      password.maxLength = 128;
-      password.placeholder = 'Neues Passwort';
-      password.setAttribute('aria-label', `Neues Passwort f\u00fcr ${user.username}`);
-      password.required = true;
       const resetButton = document.createElement('button');
-      resetButton.type = 'submit';
+      resetButton.type = 'button';
       resetButton.className = 'secondary';
-      resetButton.textContent = 'Neu setzen';
-      resetForm.append(password, resetButton);
-      resetForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        resetUserPassword(user.id, password.value, resetForm);
-      });
-      actions.append(resetForm);
+      resetButton.textContent = 'Reset-Link senden';
+      resetButton.disabled = !user.email || !user.email_verified;
+      resetButton.title = resetButton.disabled
+        ? 'Daf\u00fcr braucht das Konto eine best\u00e4tigte E-Mail-Adresse.'
+        : `Passwort-Link an die best\u00e4tigte Adresse von ${user.username} senden`;
+      resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
+      actions.append(resetButton);
     }
 
     if (!actions.childElementCount) {
@@ -2544,7 +2549,7 @@ async function createResource() {
 function renderAuditLog(entries) {
   const actionLabels = {
     'user.status': 'Kontostatus ge\u00e4ndert',
-    'user.password_reset': 'Passwort neu gesetzt',
+    'user.password_reset_requested': 'Passwort-Link gesendet',
     'user.role': 'Rolle ge\u00e4ndert',
     'user.move': 'Konto verschoben',
     'house.create': 'Haus angelegt',
@@ -2591,16 +2596,15 @@ async function updateUserRole(userId, role) {
   }
 }
 
-async function resetUserPassword(userId, newPassword, form) {
+async function requestUserPasswordReset(userId, button) {
+  button.disabled = true;
   try {
-    const data = await api(`/api/admin/users/${userId}/password`, {
-      method: 'PUT',
-      body: JSON.stringify({ newPassword })
-    });
-    form.reset();
+    const data = await api(`/api/admin/users/${userId}/password-reset`, { method: 'POST' });
     showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -2717,6 +2721,29 @@ calendarDayDetailsClose.addEventListener('click', () => {
   closeCalendarPreview();
   calendarPreviewSuppressFocus = true;
   returnFocus?.focus({ preventScroll: true });
+});
+calendarDayDetailsBackdrop.addEventListener('click', closeCalendarPreview);
+calendarDayDetails.addEventListener('pointerdown', (event) => {
+  if (window.innerWidth > 760 || !event.target.closest('.calendar-day-details-head') || event.target.closest('button')) return;
+  calendarSheetDragStart = { pointerId: event.pointerId, y: event.clientY };
+  calendarDayDetails.setPointerCapture?.(event.pointerId);
+});
+calendarDayDetails.addEventListener('pointermove', (event) => {
+  if (!calendarSheetDragStart || event.pointerId !== calendarSheetDragStart.pointerId) return;
+  const distance = Math.max(0, event.clientY - calendarSheetDragStart.y);
+  calendarDayDetails.style.transform = `translateY(${Math.min(distance, 180)}px)`;
+});
+calendarDayDetails.addEventListener('pointerup', (event) => {
+  if (!calendarSheetDragStart || event.pointerId !== calendarSheetDragStart.pointerId) return;
+  const distance = Math.max(0, event.clientY - calendarSheetDragStart.y);
+  calendarSheetDragStart = null;
+  calendarDayDetails.releasePointerCapture?.(event.pointerId);
+  if (distance >= 80) closeCalendarPreview();
+  else calendarDayDetails.style.removeProperty('transform');
+});
+calendarDayDetails.addEventListener('pointercancel', () => {
+  calendarSheetDragStart = null;
+  calendarDayDetails.style.removeProperty('transform');
 });
 calendarDayDetails.addEventListener('pointerenter', () => {
   window.clearTimeout(calendarPreviewCloseTimer);

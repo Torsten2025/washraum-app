@@ -90,6 +90,7 @@
                   <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
                 </div>
                 <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
+                <div id="calendarDayDetailsBackdrop" class="calendar-day-details-backdrop" hidden></div>
                 <section id="calendarDayDetails" class="calendar-day-details" aria-labelledby="calendarDayDetailsTitle" aria-live="polite" hidden>
                   <div class="calendar-day-details-head">
                     <div>
@@ -99,6 +100,7 @@
                     <button id="calendarDayDetailsClose" class="calendar-detail-close" type="button" aria-label="Tages&uuml;bersicht schlie&szlig;en" title="Schlie&szlig;en">&times;</button>
                   </div>
                   <div id="calendarDayDetailsContent"></div>
+                  <div id="calendarDayDetailsActions" class="calendar-detail-actions" hidden></div>
                 </section>
               </div>
               <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
@@ -195,11 +197,11 @@
             </label>
             <label>
               Neues Passwort
-              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
             </label>
             <label>
               Neues Passwort wiederholen
-              <input id="newPasswordConfirmation" name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+              <input id="newPasswordConfirmation" name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
             </label>
             <button class="secondary" type="submit">Passwort &auml;ndern</button>
           </form>
@@ -296,7 +298,7 @@
                 </label>
                 <label>
                   Hauscode
-                  <input id="newHouseCodeInput" name="code" minlength="4" maxlength="80" required>
+                  <input id="newHouseCodeInput" name="code" minlength="12" maxlength="80" required>
                 </label>
                 <button type="submit">Haus anlegen</button>
               </form>

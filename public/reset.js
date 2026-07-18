@@ -15,15 +15,23 @@ resetForm.addEventListener('submit', async (event) => {
     resetMessage.textContent = 'Die Passw\u00f6rter stimmen nicht \u00fcberein.';
     return;
   }
-  const response = await fetch('/api/password-reset/confirm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, newPassword: password })
-  });
-  const data = await response.json().catch(() => ({}));
-  resetMessage.textContent = data.message || data.error || 'Passwort konnte nicht ge\u00e4ndert werden.';
-  if (response.ok) {
-    resetForm.reset();
-    setTimeout(() => { window.location.href = '/login.html'; }, 1200);
+  const submitButton = resetForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const response = await fetch('/api/password-reset/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: password })
+    });
+    const data = await response.json().catch(() => ({}));
+    resetMessage.textContent = data.message || data.error || 'Passwort konnte nicht ge\u00e4ndert werden.';
+    if (response.ok) {
+      resetForm.reset();
+      setTimeout(() => { window.location.href = '/login.html'; }, 1200);
+    }
+  } catch {
+    resetMessage.textContent = 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.';
+  } finally {
+    submitButton.disabled = false;
   }
 });

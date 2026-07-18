@@ -9,6 +9,29 @@ const recoveryMessage = document.querySelector('#recoveryMessage');
 const showRecovery = document.querySelector('#showRecovery');
 const cancelRecovery = document.querySelector('#cancelRecovery');
 
+async function submitJson(formElement, path, body, messageElement) {
+  const submitButton = formElement.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      messageElement.textContent = data.error || 'Die Anfrage konnte nicht abgeschlossen werden.';
+      return null;
+    }
+    return data;
+  } catch {
+    messageElement.textContent = 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.';
+    return null;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 function setMode(mode) {
   const isRegister = mode === 'register';
   const isRecovery = mode === 'recovery';
@@ -41,20 +64,11 @@ form.addEventListener('submit', async (event) => {
   message.textContent = '';
 
   const formData = new FormData(form);
-  const response = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: formData.get('username'),
-      password: formData.get('password')
-    })
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    message.textContent = data.error || 'Login fehlgeschlagen';
-    return;
-  }
+  const data = await submitJson(form, '/api/login', {
+    username: formData.get('username'),
+    password: formData.get('password')
+  }, message);
+  if (!data) return;
 
   window.location.href = '/index.html';
 });
@@ -64,23 +78,14 @@ registerForm.addEventListener('submit', async (event) => {
   registerMessage.textContent = '';
 
   const formData = new FormData(registerForm);
-  const response = await fetch('/api/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: formData.get('username'),
-      email: formData.get('email'),
-      password: formData.get('password'),
-      houseCode: formData.get('houseCode'),
-      notifyReleases: formData.get('notifyReleases') === 'on'
-    })
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    registerMessage.textContent = data.error || 'Registrierung fehlgeschlagen';
-    return;
-  }
+  const data = await submitJson(registerForm, '/api/register', {
+    username: formData.get('username'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    houseCode: formData.get('houseCode'),
+    notifyReleases: formData.get('notifyReleases') === 'on'
+  }, registerMessage);
+  if (!data) return;
 
   window.location.href = '/index.html?welcome=1';
 });
@@ -89,11 +94,10 @@ recoveryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   recoveryMessage.textContent = '';
   const formData = new FormData(recoveryForm);
-  const response = await fetch('/api/password-reset/request', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: formData.get('email') })
-  });
-  const data = await response.json().catch(() => ({}));
-  recoveryMessage.textContent = data.message || data.error || 'Anfrage konnte nicht gesendet werden.';
+  const data = await submitJson(recoveryForm, '/api/password-reset/request', {
+    email: formData.get('email')
+  }, recoveryMessage);
+  if (data) {
+    recoveryMessage.textContent = data.message || 'Die Anfrage wurde verarbeitet.';
+  }
 });

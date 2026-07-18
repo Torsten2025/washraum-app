@@ -52,6 +52,8 @@ Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die Ap
 
 Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten nur dem richtigen Haus beitreten. Haus-Admins und Superadmins koennen ihn in der Verwaltung aendern.
 
+Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
+
 ## Seite: Neues Passwort (`/reset.html`)
 
 | Bereich | Funktion | Zugang |
@@ -113,6 +115,8 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | Tagesdetails | Beim Ueberfahren, Tastaturfokus oder Antippen alle drei Slots mit freien, belegten und eigenen Geraeten anzeigen; fremde Namen bleiben verborgen |
 | Direkt aus dem Kalender buchen | Eine freie Waschmaschine in den Tagesdetails auswaehlen und Datum, Slot sowie Geraet direkt in das Waschpaket uebernehmen |
 | Vergroesserte Tagesvorschau | Nach kurzem Verweilen mit der Maus den einzelnen Kalendertag als lesbare, schwebende Detailkarte oeffnen; per Tastatur beim Fokus und mobil durch Antippen |
+| Mobile Tagesansicht | Auf Smartphones als grosses Bottom-Sheet oeffnen, den gewaehlten Tag markieren und die feste Buchungsaktion ohne Scrollen erreichbar halten |
+| Mobile Bedienung | Tagesansicht ueber Schliessen, Antippen ausserhalb oder Herunterwischen beenden; relevante Touchflaechen sind mindestens 44 Pixel hoch |
 | Klick in die Buchung | Einen buchbaren Kalendertag anklicken und direkt zur zugehoerigen Waschpaket-Oberflaeche wechseln |
 | Datumsnavigation | Je nach Ansicht zur vorherigen oder naechsten Woche beziehungsweise zum vorherigen oder naechsten Monat wechseln |
 | Ruhetage | Sonntage eindeutig als nicht buchbare Ruhetage anzeigen |
@@ -159,7 +163,7 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 
 ## Verwaltungsansicht
 
-Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. Die Navigation teilt alle Aufgaben in fuenf klar getrennte Arbeitsbereiche. Auf kleinen Bildschirmen kann die Leiste seitlich gescrollt werden.
+Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. Die Navigation teilt alle Aufgaben in fuenf klar getrennte Arbeitsbereiche. Auf kleinen Bildschirmen bricht die Navigation in gut erreichbare Zeilen um; Kontraste bleiben auch in der hellen Verwaltungsansicht lesbar.
 
 ### 1. Ueberblick
 
@@ -201,14 +205,14 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 | --- | :---: | :---: |
 | Konten des aktiven Hauses sehen | Ja | Ja |
 | Bewohner aktivieren oder deaktivieren | Ja | Ja |
-| Bewohnerpasswort neu setzen | Ja | Ja |
+| Reset-Link an bestaetigte Bewohner-E-Mail senden | Ja | Ja |
 | Anderen Haus-Admin verwalten | Nein | Ja |
 | Bewohner zu Haus-Admin machen oder zurueckstufen | Nein | Ja |
 | Konto in ein anderes Haus verschieben | Nein | Ja |
 | Superadmin-Konto veraendern oder verschieben | Nein | Nein |
 | Eigenes Passwort ohne bisheriges Passwort zuruecksetzen | Nein | Nein |
 
-Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
+Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
 ### 5. System
 
@@ -219,10 +223,14 @@ Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. N
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
 | SQLite-Backup herunterladen | Nein | Ja |
+| Warnung bei fehlender externer Backup-Kopie sehen | Ja | Ja |
+
+Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro Tag fuer bis zu 14 Tage. Liegt die externe Kopie auf demselben Render-Datentraeger nicht vor, zeigt der Ueberblick eine Warnung. Fuer einen Ausfall des Render-Datentraegers muss `BACKUP_UPLOAD_URL` auf einen unabhaengigen Speicher zeigen.
 
 ## E-Mail-Hinweise
 
 - Eine neue oder geaenderte E-Mail-Adresse muss bestaetigt werden.
+- Ohne Bestaetigung werden keine Freigabe-Hinweise und keine Passwort-Reset-Links versendet.
 - `Frueher frei` ist nur waehrend des aktuell gebuchten Slots moeglich.
 - `Absagen und informieren` ist nur vor Beginn des gebuchten Slots moeglich.
 - Nach Slotende wird keine Freigabemail mehr ausgeloest.
@@ -250,6 +258,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 
 - Registrierung, Hauscode, Anmeldung mit Benutzername oder E-Mail und Abmeldung.
 - E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
+- Admin-ausgeloester Passwort-Reset nur als Link an eine bestaetigte E-Mail; ein Admin kann kein fremdes Passwort festlegen.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
 - Waschmaschinen-, Trockenraum- und Tumblerregeln inklusive Parallelzugriff.
 - Bewohner-, Haus-Admin- und Superadminrechte sowie Fremdhaus-Isolation.
@@ -311,6 +320,16 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- Mobile Kalenderdetails als Bottom-Sheet mit fester Buchungsaktion, Hintergrundklick, Wischgeste, markiertem Tag und grossen Touchflaechen vervollstaendigt.
+- Wochenstatus auf schmalen Bildschirmen verdichtet und die Verwaltungsnavigation, Hausauswahl sowie Kennzahl-Kontraste fuer Mobilgeraete korrigiert.
+- Login, Registrierung und Passwort-Reset gegen Mehrfachklicks abgesichert und um verstaendliche Netzwerkfehlermeldungen ergaenzt.
+- IP-Limits fuer Registrierung, allgemeine Wiederherstellung und Admin-Reset getrennt, damit normale Registrierung keinen spaeteren Reset blockiert.
+- Unerwartete Serverfehler beim Erstellen eines Waschpakets werden kontrolliert an den zentralen Fehlerhandler weitergegeben.
+- Sitzungskennung nach erfolgreicher Anmeldung und Registrierung erneuert und API-Antworten gegen Browser-Zwischenspeicherung abgesichert.
+- Mindestlaenge neuer Passwoerter und neuer Hauscodes auf 12 Zeichen angehoben; Namen und E-Mail-Kopfzeilen werden gegen Steuerzeichen geprueft.
+- Direkte Admin-Passwortvergabe entfernt: Admins koennen nur noch einen zeitlich begrenzten Reset-Link an eine bestaetigte Adresse senden.
+- Neue oder geaenderte E-Mail-Adressen gelten auch ohne SMTP niemals automatisch als bestaetigt.
+- Lokale Backup-Aufbewahrung auf drei neueste sowie je eine Tagessicherung fuer 14 Tage umgestellt; die Verwaltung warnt sichtbar bei fehlender externer Kopie.
 - Abmeldung fehlertolerant gemacht: Das Sitzungs-Cookie wird auch dann entfernt, wenn der SQLite-Sitzungsspeicher kurzzeitig nicht geloescht werden kann.
 - SQLite wartet bei einer kurzen Datenbanksperre bis zu fuenf Sekunden, statt den Abmeldevorgang sofort mit einer Serverfehlermeldung abzubrechen.
 - Der Abmeldebutton zeigt den laufenden Vorgang an, verhindert Doppelklicks und meldet einen Fehler verstaendlich innerhalb der App.
