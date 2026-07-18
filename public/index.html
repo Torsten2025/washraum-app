@@ -27,9 +27,32 @@
         <span>Hausnummer</span>
         <select id="houseSelect" aria-label="Hausnummer wechseln"></select>
       </label>
-      <form id="logoutForm" class="logout-form" method="post" action="/logout">
-        <button id="logoutButton" class="ghost-button" type="submit">Abmelden</button>
-      </form>
+      <div class="topbar-utilities">
+        <button id="messageCenterButton" class="topbar-action" type="button" aria-controls="messageCenterOverlay" aria-expanded="false">
+          <span>Mitteilungen</span>
+          <span id="messageCountBadge" class="message-count" aria-label="Ungelesene Mitteilungen" hidden>0</span>
+        </button>
+        <div class="account-menu">
+          <button id="accountMenuButton" class="account-menu-button" type="button" aria-controls="accountMenuPanel" aria-expanded="false">
+            <span>
+              <strong id="accountMenuName">Konto</strong>
+              <small id="accountMenuRole">Bewohner</small>
+            </span>
+            <span class="account-menu-caret" aria-hidden="true">&#9662;</span>
+          </button>
+          <div id="accountMenuPanel" class="account-menu-panel" hidden>
+            <div class="account-menu-identity">
+              <strong id="accountPanelName">Konto</strong>
+              <span id="accountPanelMeta"></span>
+            </div>
+            <button id="openSettingsButton" class="account-menu-item" type="button">Einstellungen</button>
+            <button id="openKnowledgeButton" class="account-menu-item" type="button">Hilfe &amp; Einf&uuml;hrung</button>
+            <form id="logoutForm" class="logout-form" method="post" action="/logout">
+              <button id="logoutButton" class="account-menu-item account-menu-logout" type="submit">Abmelden</button>
+            </form>
+          </div>
+        </div>
+      </div>
     </header>
 
     <main class="layout">
@@ -64,6 +87,11 @@
             </div>
           </div>
           <div id="myBookings" class="booking-list"></div>
+        </section>
+
+        <section id="releaseSpotlight" class="release-spotlight" aria-live="polite" hidden>
+          <div id="releaseSpotlightContent"></div>
+          <button id="openMessageCenterButton" class="secondary" type="button">Alle Mitteilungen</button>
         </section>
 
         <section class="panel booking-panel">
@@ -138,61 +166,12 @@
       </div>
 
       <aside class="panel side-panel">
-        <h2>Meine Ansicht</h2>
+        <h2>Gut zu wissen</h2>
         <p id="statusText" class="notice muted" role="status" aria-live="polite"></p>
         <div class="side-block knowledge-card">
           <h3>Wissen kompakt</h3>
           <p>Das kurze Video f&uuml;hrt durch Aufbau, Buchung und Regeln.</p>
-          <button id="openKnowledgeButton" class="secondary" type="button">Video &ouml;ffnen</button>
-        </div>
-        <div class="side-block personal-settings-card">
-          <h3>Pers&ouml;nliche Einrichtung</h3>
-          <p id="settingsProgressText" class="muted">Status wird gepr&uuml;ft.</p>
-          <div id="settingsSummary" class="settings-summary" aria-live="polite"></div>
-          <button id="openSettingsButton" class="secondary" type="button">Einstellungen &ouml;ffnen</button>
-        </div>
-        <div class="side-block">
-          <h3>Letzte Hinweise</h3>
-          <div id="noticeJournal" class="notice-journal"></div>
-        </div>
-        <div class="side-block">
-          <h3>Zugang &amp; Sicherheit</h3>
-          <form id="passwordForm" class="stack compact-form">
-            <label>
-              Bisheriges Passwort
-              <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
-            </label>
-            <label>
-              Neues Passwort
-              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-            </label>
-            <label>
-              Neues Passwort wiederholen
-              <input id="newPasswordConfirmation" name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-            </label>
-            <button class="secondary" type="submit">Passwort &auml;ndern</button>
-          </form>
-        </div>
-        <div class="side-block">
-          <h3>Meine Daten</h3>
-          <p class="muted">Du kannst deine Kontodaten und Buchungen als JSON-Datei herunterladen.</p>
-          <a class="button-link secondary" href="/api/me/export" download>Daten exportieren</a>
-          <details class="delete-account-panel">
-            <summary>Konto l&ouml;schen</summary>
-            <form id="deleteAccountForm" class="stack compact-form">
-              <p class="muted">Dabei werden auch deine Buchungen gel&ouml;scht. Dieser Schritt kann nicht r&uuml;ckg&auml;ngig gemacht werden.</p>
-              <label>
-                Passwort zur Best&auml;tigung
-                <input id="deleteAccountPassword" type="password" autocomplete="current-password" required>
-              </label>
-              <button class="danger" type="submit">Konto endg&uuml;ltig l&ouml;schen</button>
-            </form>
-          </details>
-          <a class="text-link" href="/privacy.html">Datenschutzhinweise</a>
-        </div>
-        <div class="side-block">
-          <h3>Freigaben &amp; Absagen</h3>
-          <div id="releaseNotices" class="release-list"></div>
+          <button id="sidebarKnowledgeButton" class="secondary" type="button">Video &ouml;ffnen</button>
         </div>
         <div class="side-block rules-block">
           <h3>Regeln</h3>
@@ -239,6 +218,7 @@
               <span>Kennzahlen des ausgew&auml;hlten Hauses</span>
             </div>
             <div id="adminOverview" class="admin-overview"></div>
+            <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
           </section>
 
           <section id="adminSectionHouse" class="admin-section" data-admin-section="house" hidden>
@@ -380,6 +360,23 @@
                 <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
               </div>
             </div>
+            <div id="superadminTransferOperation" class="admin-operation" hidden>
+              <div>
+                <strong>Superadmin &uuml;bergeben</strong>
+                <span>Geplante Stellvertretung oder Nachfolge an ein aktives Haus-Admin-Konto &uuml;bergeben.</span>
+              </div>
+              <div class="inline-actions admin-transfer-actions">
+                <label>
+                  Neues Superadmin-Konto
+                  <select id="superadminTransferTarget"></select>
+                </label>
+                <label>
+                  Best&auml;tigung
+                  <input id="superadminTransferConfirm" autocomplete="off" placeholder="SUPERADMIN UEBERGEBEN">
+                </label>
+                <button id="superadminTransferButton" class="secondary danger" type="button">&Uuml;bergeben</button>
+              </div>
+            </div>
             <details class="admin-operation danger-zone">
               <summary>Buchungen zur&uuml;cksetzen</summary>
               <p class="muted">L&ouml;scht alle normalen Buchungen im aktuellen Haus. Dauertermine und Konten bleiben erhalten.</p>
@@ -414,33 +411,118 @@
       </section>
     </div>
 
+    <div id="messageCenterOverlay" class="message-center-overlay" hidden>
+      <section class="message-center-panel" role="dialog" aria-modal="true" aria-labelledby="messageCenterTitle">
+        <header class="message-center-head">
+          <div>
+            <p class="eyebrow">Alles an einem Ort</p>
+            <h2 id="messageCenterTitle">Mitteilungen</h2>
+            <p>Freie Termine und deine letzten Aktionen, nach Aktualit&auml;t sortiert.</p>
+          </div>
+          <button id="closeMessageCenterButton" class="icon-close" type="button" aria-label="Mitteilungen schliessen">x</button>
+        </header>
+        <div id="messageCenterList" class="message-center-list" aria-live="polite"></div>
+      </section>
+    </div>
+
     <div id="settingsOverlay" class="intro-overlay" hidden>
       <section class="intro-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button id="closeSettingsButton" class="icon-close" type="button" aria-label="Persoenliche Einstellungen schliessen">x</button>
         <div class="intro-copy">
-          <p id="settingsEyebrow" class="eyebrow">Pers&ouml;nliche Einrichtung</p>
-          <h2 id="settingsTitle">Einmal kurz einrichten.</h2>
-          <p id="settingsIntroText">Hier sammelst du alles, was nur dein Konto und dieses Ger&auml;t betrifft: E-Mail, App-Installation, Push und passende Hinweise.</p>
+          <p id="settingsEyebrow" class="eyebrow">Dein Konto</p>
+          <h2 id="settingsTitle">Einstellungen</h2>
+          <p id="settingsIntroText">Profil, Benachrichtigungen, App und Sicherheit sind hier geb&uuml;ndelt.</p>
         </div>
-        <form id="notificationForm" class="stack compact-form settings-form">
-          <section class="settings-step" aria-labelledby="settingsEmailTitle">
-            <div>
-              <span class="settings-step-number">1</span>
-              <h3 id="settingsEmailTitle">E-Mail sichern</h3>
-              <p class="muted">Pflicht f&uuml;r Passwort-Reset und wichtige Kontohinweise.</p>
-            </div>
-            <label>
-              E-Mail
-              <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
-            </label>
-            <div id="emailVerificationStatus" class="verification-status" role="status"></div>
-            <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
-          </section>
-          <section class="settings-step" aria-labelledby="settingsInstallTitle">
-            <div>
-              <span class="settings-step-number">2</span>
-              <h3 id="settingsInstallTitle">Als App nutzen</h3>
-              <p class="muted">Damit WaschZeit wie eine normale App auf dem Handy startet.</p>
+        <nav class="settings-tabs" role="tablist" aria-label="Einstellungsbereiche">
+          <button class="settings-tab active" role="tab" type="button" data-settings-target="profile" aria-controls="settingsPanelProfile" aria-selected="true">Profil</button>
+          <button class="settings-tab" role="tab" type="button" data-settings-target="notifications" aria-controls="settingsPanelNotifications" aria-selected="false">Benachrichtigungen</button>
+          <button class="settings-tab" role="tab" type="button" data-settings-target="device" aria-controls="settingsPanelDevice" aria-selected="false">App &amp; Ger&auml;t</button>
+          <button class="settings-tab" role="tab" type="button" data-settings-target="security" aria-controls="settingsPanelSecurity" aria-selected="false">Sicherheit &amp; Daten</button>
+        </nav>
+
+        <div class="settings-content">
+          <form id="notificationForm" class="compact-form settings-form">
+            <section id="settingsPanelProfile" class="settings-panel" role="tabpanel" data-settings-section="profile" aria-labelledby="settingsProfileTitle">
+              <div class="settings-section-head">
+                <h3 id="settingsProfileTitle">Profil</h3>
+                <p class="muted">Deine Kontodaten und der bevorzugte Weg zum Buchen.</p>
+              </div>
+              <div class="settings-field-grid">
+                <label>
+                  Benutzername
+                  <input id="settingsUsername" type="text" readonly>
+                </label>
+                <label>
+                  Rolle
+                  <input id="settingsRole" type="text" readonly>
+                </label>
+              </div>
+              <label>
+                E-Mail
+                <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+              </label>
+              <div id="emailVerificationStatus" class="verification-status" role="status"></div>
+              <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
+              <label>
+                Bevorzugter Buchungsweg
+                <select id="settingsBookingMode">
+                  <option value="time">Zeit zuerst</option>
+                  <option value="machine">Maschine zuerst</option>
+                </select>
+              </label>
+              <div class="settings-actions">
+                <button class="secondary" type="submit">Profil speichern</button>
+              </div>
+            </section>
+
+            <section id="settingsPanelNotifications" class="settings-panel" role="tabpanel" data-settings-section="notifications" aria-labelledby="settingsNoticeTitle" hidden>
+              <div class="settings-section-head">
+                <h3 id="settingsNoticeTitle">Benachrichtigungen</h3>
+                <p class="muted">Lege fest, welche wieder freien Termine f&uuml;r dich relevant sind.</p>
+              </div>
+              <label class="checkbox-label">
+                <input id="notifyReleases" name="notifyReleases" type="checkbox">
+                <span>Hinweise senden, wenn ein Termin wieder frei wird</span>
+              </label>
+              <div class="settings-field-grid">
+                <label>
+                  Bereich
+                  <select id="notificationResourceType" name="resourceType">
+                    <option value="all">Alle Bereiche</option>
+                    <option value="washer">Waschmaschinen</option>
+                    <option value="drying_room">Trockenr&auml;ume</option>
+                    <option value="tumbler">Tumbler</option>
+                  </select>
+                </label>
+                <label>
+                  Wochentag
+                  <select id="notificationWeekday" name="weekday">
+                    <option value="">Alle Tage</option>
+                    <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
+                    <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
+                  </select>
+                </label>
+                <label>
+                  Zeitfenster
+                  <select id="notificationSlot" name="slot">
+                    <option value="">Alle Zeitfenster</option>
+                    <option value="07:00-12:00">07:00-12:00</option>
+                    <option value="12:00-17:00">12:00-17:00</option>
+                    <option value="17:00-21:00">17:00-21:00</option>
+                  </select>
+                </label>
+              </div>
+              <p class="muted notification-note">Push und E-Mail verwenden dieselben Filter. Die Person, die selbst freigibt, erh&auml;lt keine eigene Freigabemeldung.</p>
+              <div class="settings-actions">
+                <button class="secondary" type="submit">Benachrichtigungen speichern</button>
+              </div>
+            </section>
+          </form>
+
+          <section id="settingsPanelDevice" class="settings-panel" role="tabpanel" data-settings-section="device" aria-labelledby="settingsDeviceTitle" hidden>
+            <div class="settings-section-head">
+              <h3 id="settingsDeviceTitle">App &amp; Ger&auml;t</h3>
+              <p class="muted">Installation und Push gelten jeweils f&uuml;r das gerade verwendete Ger&auml;t.</p>
             </div>
             <section class="install-card" aria-labelledby="installTitle">
               <div>
@@ -449,20 +531,9 @@
               </div>
               <button id="installAppButton" class="secondary" type="button">App installieren</button>
             </section>
-          </section>
-          <section class="settings-step" aria-labelledby="settingsNoticeTitle">
-            <div>
-              <span class="settings-step-number">3</span>
-              <h3 id="settingsNoticeTitle">Hinweise w&auml;hlen</h3>
-              <p class="muted">Push ist schnell, E-Mail bleibt als Fallback m&ouml;glich.</p>
-            </div>
-            <label class="checkbox-label">
-              <input id="notifyReleases" name="notifyReleases" type="checkbox">
-              <span>Hinweise senden, wenn ein Termin wieder frei wird</span>
-            </label>
             <section class="push-card" aria-labelledby="pushTitle">
               <div>
-                <h4 id="pushTitle">Push aufs Handy</h4>
+                <h4 id="pushTitle">Push auf diesem Ger&auml;t</h4>
                 <p id="pushStatusText" class="muted">Push-Status wird gepr&uuml;ft.</p>
               </div>
               <div class="inline-actions">
@@ -470,42 +541,55 @@
                 <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
               </div>
             </section>
-            <details class="notification-filters">
-              <summary>Nur passende Hinweise erhalten</summary>
-              <label>
-                Bereich
-                <select id="notificationResourceType" name="resourceType">
-                  <option value="all">Alle Bereiche</option>
-                  <option value="washer">Waschmaschinen</option>
-                  <option value="drying_room">Trockenr&auml;ume</option>
-                  <option value="tumbler">Tumbler</option>
-                </select>
-              </label>
-              <label>
-                Wochentag
-                <select id="notificationWeekday" name="weekday">
-                  <option value="">Alle Tage</option>
-                  <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
-                  <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
-                </select>
-              </label>
-              <label>
-                Zeitfenster
-                <select id="notificationSlot" name="slot">
-                  <option value="">Alle Zeitfenster</option>
-                  <option value="07:00-12:00">07:00-12:00</option>
-                  <option value="12:00-17:00">12:00-17:00</option>
-                  <option value="17:00-21:00">17:00-21:00</option>
-                </select>
-              </label>
-            </details>
-            <p class="muted notification-note">Im laufenden Slot meldet &bdquo;Freigeben&ldquo;, dass du fr&uuml;her fertig bist. Vor Slotbeginn kannst du mit &bdquo;Absagen &amp; informieren&ldquo; den ganzen Termin wieder anbieten.</p>
           </section>
-          <div class="settings-actions">
-            <button class="secondary" type="submit">Speichern</button>
-            <button id="settingsDoneButton" type="button">Fertig</button>
-          </div>
-        </form>
+
+          <section id="settingsPanelSecurity" class="settings-panel" role="tabpanel" data-settings-section="security" aria-labelledby="settingsSecurityTitle" hidden>
+            <div class="settings-section-head">
+              <h3 id="settingsSecurityTitle">Sicherheit &amp; Daten</h3>
+              <p class="muted">Passwort, Datenexport und Kontoverwaltung.</p>
+            </div>
+            <section class="settings-subsection">
+              <h4>Passwort &auml;ndern</h4>
+              <form id="passwordForm" class="stack compact-form">
+                <label>
+                  Bisheriges Passwort
+                  <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
+                </label>
+                <label>
+                  Neues Passwort
+                  <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+                </label>
+                <label>
+                  Neues Passwort wiederholen
+                  <input id="newPasswordConfirmation" name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+                </label>
+                <button class="secondary" type="submit">Passwort &auml;ndern</button>
+              </form>
+            </section>
+            <section class="settings-subsection">
+              <h4>Meine Daten</h4>
+              <p class="muted">Kontodaten und Buchungen als JSON-Datei herunterladen.</p>
+              <a class="button-link secondary" href="/api/me/export" download>Daten exportieren</a>
+              <a class="text-link" href="/privacy.html">Datenschutzhinweise</a>
+              <details class="delete-account-panel">
+                <summary>Konto l&ouml;schen</summary>
+                <form id="deleteAccountForm" class="stack compact-form">
+                  <p class="muted">Dabei werden auch deine Buchungen gel&ouml;scht. Dieser Schritt kann nicht r&uuml;ckg&auml;ngig gemacht werden.</p>
+                  <label>
+                    Passwort zur Best&auml;tigung
+                    <input id="deleteAccountPassword" type="password" autocomplete="current-password" required>
+                  </label>
+                  <button class="danger" type="submit">Konto endg&uuml;ltig l&ouml;schen</button>
+                </form>
+              </details>
+            </section>
+          </section>
+        </div>
+        <div class="settings-footer">
+          <div id="settingsSummary" class="settings-summary" aria-live="polite"></div>
+          <p id="settingsProgressText" class="muted">Status wird gepr&uuml;ft.</p>
+          <button id="settingsDoneButton" type="button">Fertig</button>
+        </div>
       </section>
     </div>
 
@@ -523,11 +607,11 @@
               <p class="eyebrow">Mit Sprecher und Untertiteln</p>
               <h3 id="recordedIntroTitle">Waschplan in etwa f&uuml;nfeinhalb Minuten</h3>
             </div>
-            <span id="recordedIntroDuration">ca. 05:30</span>
+            <span id="recordedIntroDuration">ca. 05:40</span>
           </div>
-          <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/waschplan-einfuehrung-poster.png?v=push-v2">
-            <source src="/assets/intro/waschplan-einfuehrung.mp4?v=push-v2" type="video/mp4">
-            <track kind="captions" srclang="de" label="Deutsch" src="/assets/intro/waschplan-einfuehrung-de.vtt?v=push-v2" default>
+          <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/waschplan-einfuehrung-poster.png?v=scenes-v1">
+            <source src="/assets/intro/waschplan-einfuehrung.mp4?v=scenes-v1" type="video/mp4">
+            <track kind="captions" srclang="de" label="Deutsch" src="/assets/intro/waschplan-einfuehrung-de.vtt?v=scenes-v1" default>
             Dein Browser kann das Video nicht abspielen. Nutze bitte den interaktiven Rundgang oder den Text zum Mitlesen.
           </video>
         </section>
@@ -567,7 +651,7 @@
               <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender Waschmaschinen, Trockenr&auml;ume und Tumbler mit drei Farbstreifen. Bleibst du kurz mit der Maus auf einem Tag, &ouml;ffnet sich dessen vergr&ouml;&szlig;erte Tagesansicht.</li>
               <li>Ber&uuml;hre oder &ouml;ffne einen Kalendertag, um alle Zeitfenster und Ger&auml;te zu sehen. Im Buchungsweg &bdquo;Zeit zuerst&ldquo; w&auml;hlst du danach eine Uhrzeit mit passender Verf&uuml;gbarkeit.</li>
               <li>Nach dem Zeitfenster folgen freie Waschmaschinen, passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Trocknung und Tumbler sind optional. Alternativ kannst du dauerhaft &bdquo;Maschine zuerst&ldquo; verwenden.</li>
-              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Beide Buchungswege f&uuml;hren zum gleichen Waschpaket, das gemeinsam gebucht und als Paket angezeigt wird.</li>
+              <li>Die Empfehlung verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Beide Buchungswege f&uuml;hren zum gleichen Waschpaket, das gemeinsam gebucht und als Paket angezeigt wird.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
               <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
               <li>Mindestens ein Tumbler bleibt frei. Der Tumbler geh&ouml;rt zum gleichen Zeitfenster wie die Waschmaschine und kann ausgelassen werden.</li>

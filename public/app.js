@@ -1,6 +1,20 @@
 const userLine = document.querySelector('#userLine');
 const logoutForm = document.querySelector('#logoutForm');
 const logoutButton = document.querySelector('#logoutButton');
+const accountMenuButton = document.querySelector('#accountMenuButton');
+const accountMenuName = document.querySelector('#accountMenuName');
+const accountMenuRole = document.querySelector('#accountMenuRole');
+const accountMenuPanel = document.querySelector('#accountMenuPanel');
+const accountPanelName = document.querySelector('#accountPanelName');
+const accountPanelMeta = document.querySelector('#accountPanelMeta');
+const messageCenterButton = document.querySelector('#messageCenterButton');
+const messageCountBadge = document.querySelector('#messageCountBadge');
+const messageCenterOverlay = document.querySelector('#messageCenterOverlay');
+const closeMessageCenterButton = document.querySelector('#closeMessageCenterButton');
+const messageCenterList = document.querySelector('#messageCenterList');
+const openMessageCenterButton = document.querySelector('#openMessageCenterButton');
+const releaseSpotlight = document.querySelector('#releaseSpotlight');
+const releaseSpotlightContent = document.querySelector('#releaseSpotlightContent');
 const brandHouseName = document.querySelector('#brandHouseName');
 const introHouseName = document.querySelector('#introHouseName');
 const houseSwitcher = document.querySelector('#houseSwitcher');
@@ -35,9 +49,14 @@ const schedule = document.querySelector('#schedule');
 const statusText = document.querySelector('#statusText');
 const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
+const adminRecoveryPanel = document.querySelector('#adminRecoveryPanel');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminPushTestButton = document.querySelector('#adminPushTestButton');
 const adminPushTarget = document.querySelector('#adminPushTarget');
+const superadminTransferOperation = document.querySelector('#superadminTransferOperation');
+const superadminTransferTarget = document.querySelector('#superadminTransferTarget');
+const superadminTransferConfirm = document.querySelector('#superadminTransferConfirm');
+const superadminTransferButton = document.querySelector('#superadminTransferButton');
 const adminAnalytics = document.querySelector('#adminAnalytics');
 const resetBookingsConfirm = document.querySelector('#resetBookingsConfirm');
 const resetBookingsButton = document.querySelector('#resetBookingsButton');
@@ -80,7 +99,13 @@ const settingsOverlay = document.querySelector('#settingsOverlay');
 const closeSettingsButton = document.querySelector('#closeSettingsButton');
 const settingsDoneButton = document.querySelector('#settingsDoneButton');
 const settingsEyebrow = document.querySelector('#settingsEyebrow');
+const settingsTitle = document.querySelector('#settingsTitle');
 const settingsIntroText = document.querySelector('#settingsIntroText');
+const settingsUsername = document.querySelector('#settingsUsername');
+const settingsRole = document.querySelector('#settingsRole');
+const settingsBookingMode = document.querySelector('#settingsBookingMode');
+const settingsTabButtons = [...document.querySelectorAll('.settings-tab')];
+const settingsPanels = [...document.querySelectorAll('[data-settings-section]')];
 const passwordForm = document.querySelector('#passwordForm');
 const currentPasswordInput = document.querySelector('#currentPassword');
 const newPasswordInput = document.querySelector('#newPassword');
@@ -95,8 +120,6 @@ const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
 const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
 const myBookings = document.querySelector('#myBookings');
-const releaseNotices = document.querySelector('#releaseNotices');
-const noticeJournal = document.querySelector('#noticeJournal');
 const releaseNoticeOverlay = document.querySelector('#releaseNoticeOverlay');
 const closeReleaseNoticeButton = document.querySelector('#closeReleaseNoticeButton');
 const dismissReleaseNoticeButton = document.querySelector('#dismissReleaseNoticeButton');
@@ -108,6 +131,7 @@ const bookReleaseNoticeButton = document.querySelector('#bookReleaseNoticeButton
 const filterButtons = [...document.querySelectorAll('.filter')];
 const openIntroButton = document.querySelector('#openIntroButton');
 const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
+const sidebarKnowledgeButton = document.querySelector('#sidebarKnowledgeButton');
 const introOverlay = document.querySelector('#introOverlay');
 const closeIntroButton = document.querySelector('#closeIntroButton');
 const introDoneButton = document.querySelector('#introDoneButton');
@@ -183,6 +207,8 @@ let introVideoSpeechRun = 0;
 let introVideoPreferredVoice = null;
 let introReturnFocus = null;
 let settingsReturnFocus = null;
+let messageCenterReturnFocus = null;
+let activeSettingsSection = 'profile';
 let activeAdminSection = 'overview';
 let logoutInProgress = false;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -197,6 +223,10 @@ const weekdayLabels = {
   6: 'Samstag'
 };
 
+function introSceneImage(filename) {
+  return `<img class="video-scene-image" src="/assets/intro/scenes/${filename}?v=scenes-v1" alt="">`;
+}
+
 const introVideoSteps = [
   {
     id: 'overview',
@@ -204,15 +234,7 @@ const introVideoSteps = [
     title: 'Willkommen bei WaschZeit',
     caption: 'Drei Farbstreifen zeigen die Verf\u00fcgbarkeit. Bleibe kurz auf einem Tag, um ihn vergr\u00f6\u00dfert zu sehen.',
     speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender. Drei beschriftete Farbstreifen zeigen dir Waschmaschinen, Trockenr\u00e4ume und Tumbler getrennt. Gr\u00fcn bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln. Wenn du mit der Maus kurz auf einem Tag bleibst, vergr\u00f6\u00dfert sich seine Tagesansicht und zeigt alle Zeitfenster und Ger\u00e4te. Mit der Tastatur erscheint sie beim Fokus, auf dem Smartphone durch Antippen.',
-    visual: `
-      <div class="scene-overview">
-        <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
-        <div class="scene-grid">
-          <div class="scene-panel"><small>Meine Buchung</small><strong>Di, 07:00</strong><span>Waschmaschine 2</span></div>
-          <div class="scene-panel scene-accent"><small>Pers\u00f6nliches Waschpaket</small><strong>Do, 12:00</strong><span>Gemeinsam buchen</span></div>
-          <div class="scene-panel"><small>Diese Woche</small><strong>5 Tage frei</strong><span>Kalender ansehen</span></div>
-        </div>
-      </div>`
+    visual: introSceneImage('app-overview.png')
   },
   {
     id: 'booking',
@@ -220,25 +242,15 @@ const introVideoSteps = [
     title: 'Zeit oder Maschine zuerst',
     caption: 'Du entscheidest, welcher Buchungsweg f\u00fcr dich schneller ist.',
     speech: 'F\u00fcr eine Buchung \u00f6ffnest du zuerst einen Tag im Kalender. Standardm\u00e4\u00dfig stehen danach die drei Zeitfenster im Mittelpunkt. Zu jeder Uhrzeit siehst du sofort, wie viele Waschmaschinen, Trockenr\u00e4ume und Tumbler zur Auswahl stehen. Nach der Zeit w\u00e4hlst du eine oder mehrere Waschmaschinen und erg\u00e4nzt bei Bedarf die Trocknung. Wenn dir eine bestimmte Maschine wichtiger ist, wechselst du zu Maschine zuerst. Die App merkt sich deine Auswahl f\u00fcr den n\u00e4chsten Besuch.',
-    visual: `
-      <div class="scene-booking">
-        <div class="scene-days"><span>Mo<br><b>15</b></span><span class="active">Di<br><b>16</b></span><span>Mi<br><b>17</b></span><span>Do<br><b>18</b></span></div>
-        <div class="scene-tabs"><span class="active">Zeit zuerst</span><span>Maschine zuerst</span></div>
-        <div class="scene-slot"><span><small>Zeitfenster</small><strong>12:00 - 17:00</strong></span><b>3 WM frei</b></div>
-      </div>`
+    visual: introSceneImage('booking-time-focused.png')
   },
   {
     id: 'suggestion',
     fallbackDurationMs: 31000,
-    title: 'Dein pers\u00f6nliches Waschpaket',
-    caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
-    speech: 'Das pers\u00f6nliche Waschpaket verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten. Der passende Tag und das passende Zeitfenster werden im Kalender markiert. Im Buchungsweg Zeit zuerst \u00f6ffnest du diesen Vorschlag und siehst danach die freien Waschmaschinen. Trockenraum und Tumbler kannst du Schritt f\u00fcr Schritt erg\u00e4nzen oder auslassen. Beim Trockenraum w\u00e4hlst du die erlaubte Nutzungsdauer. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt.',
-    visual: `
-      <div class="scene-suggestion">
-        <div class="scene-suggestion-head"><span><small>Pers\u00f6nliches Waschpaket</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
-        <div class="scene-slot scene-suggestion-slot"><span><small>Donnerstag, 16. Juli</small><strong>12:00 - 17:00</strong><em>Waschmaschine 2 + Trockenraum</em></span><b>Paket buchen</b></div>
-        <div class="scene-suggestion-steps"><span><b>1</b>Pr\u00fcfen</span><span><b>2</b>Zus\u00e4tze w\u00e4hlen</span><span><b>3</b>Gemeinsam buchen</span></div>
-      </div>`
+    title: 'Deine pers\u00f6nliche Empfehlung',
+    caption: 'Ein passender freier Termin f\u00fchrt dich direkt zur Waschmaschinenwahl.',
+    speech: 'Die pers\u00f6nliche Empfehlung verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten. Der passende Tag ist im Kalender mit Empfohlen und Buchen markiert. Ein Tipp darauf setzt das Zeitfenster und \u00f6ffnet direkt die freien Waschmaschinen. Trockenraum und Tumbler kannst du Schritt f\u00fcr Schritt erg\u00e4nzen oder auslassen. Beim Trockenraum w\u00e4hlst du die erlaubte Nutzungsdauer. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt.',
+    visual: introSceneImage('booking-washers-focused.png')
   },
   {
     id: 'washer',
@@ -246,12 +258,7 @@ const introVideoSteps = [
     title: 'Waschmaschine: ein Zeitfenster',
     caption: 'Mehrere Maschinen sind m\u00f6glich, aber nur gemeinsam im selben Zeitfenster.',
     speech: 'Bei den Waschmaschinen gilt: Du reservierst pro Waschtag nur ein Zeitfenster. Brauchst du mehrere Maschinen, buchst du sie im selben Zeitfenster. Einen weiteren zuk\u00fcnftigen Waschtag kannst du erst reservieren, wenn dein bereits gebuchter Waschtag erreicht ist. Die App pr\u00fcft das automatisch.',
-    visual: `
-      <div class="scene-washer">
-        <div class="scene-time"><small>Dein Waschtag</small><strong>12:00 - 17:00</strong></div>
-        <div class="scene-machines"><span class="booked">WM 1<br><b>Gebucht</b></span><span class="booked">WM 2<br><b>Gebucht</b></span><span>WM 3<br><b>Frei</b></span></div>
-        <div class="scene-rule">Ein Tag. Ein Zeitfenster. Mehrere Maschinen sind hier m\u00f6glich.</div>
-      </div>`
+    visual: introSceneImage('booking-washers.png')
   },
   {
     id: 'drying',
@@ -259,12 +266,7 @@ const introVideoSteps = [
     title: 'Trockenraum passend einplanen',
     caption: 'Die erlaubte Dauer richtet sich danach, wann dein Waschslot beginnt.',
     speech: 'Der Trockenraum wird passend zu deiner Waschmaschinen-Buchung reserviert. Wenn du morgens von sieben bis zw\u00f6lf w\u00e4schst, kannst du den Raum bis sp\u00e4testens einundzwanzig Uhr nutzen. Beim Slot von zw\u00f6lf bis siebzehn Uhr und beim Abend-Slot bis einundzwanzig Uhr endet die Nutzung sp\u00e4testens am folgenden Tag um zw\u00f6lf Uhr. Im Waschpaket kannst du bewusst eine k\u00fcrzere Dauer ausw\u00e4hlen. Wenn die W\u00e4sche trocken ist, gibst du den Raum am besten direkt frei.',
-    visual: `
-      <div class="scene-drying">
-        <div><span>Waschen 07:00</span><i></i><strong>bis 21:00</strong></div>
-        <div><span>Waschen 12:00</span><i></i><strong>bis Folgetag 12:00</strong></div>
-        <div><span>Waschen 17:00</span><i></i><strong>bis Folgetag 12:00</strong></div>
-      </div>`
+    visual: introSceneImage('booking-drying-focused.png')
   },
   {
     id: 'tumbler',
@@ -272,11 +274,7 @@ const introVideoSteps = [
     title: 'Tumbler mit Reserve',
     caption: 'Ein Tumbler bleibt frei. Der Tumbler geh\u00f6rt zum gleichen Slot wie die Waschmaschine.',
     speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Der Tumbler geh\u00f6rt zum gleichen Zeitfenster wie deine Waschmaschine. Wenn du keinen Tumbler brauchst, l\u00e4sst du ihn einfach weg. So bleibt f\u00fcr spontane F\u00e4lle immer eine kleine Reserve.',
-    visual: `
-      <div class="scene-tumbler">
-        <div class="scene-machines"><span class="booked">Tumbler 1<br><b>Gebucht</b></span><span>Tumbler 2<br><b>Bleibt frei</b></span></div>
-        <div class="scene-release"><span><small>Gleicher Waschslot</small><strong>Nur buchen, wenn du ihn brauchst</strong></span><b>Reserve</b></div>
-      </div>`
+    visual: introSceneImage('booking-tumbler-focused.png')
   },
   {
     id: 'push',
@@ -284,11 +282,7 @@ const introVideoSteps = [
     title: 'Freigeben, Push antippen, buchen',
     caption: 'Push nennt neutral die Person und \u00f6ffnet direkt den passenden Buchungsdialog.',
     speech: 'Wenn du w\u00e4hrend deines Slots fr\u00fcher fertig bist, w\u00e4hlst du Fr\u00fcher frei. Vor Beginn nutzt du Absagen und informieren. Das normale L\u00f6schen sendet keine Nachricht. Wer Push auf dem Handy aktiviert hat, bekommt eine neutrale Meldung mit dem Namen der Person. Die Nachricht geht nicht an die Person, die selbst freigibt. Tippst du auf die Push-Nachricht, \u00f6ffnet die App ein Detailfenster mit Person, Ger\u00e4t, Datum und Zeitfenster. Dort kannst du den Slot direkt buchen. Ist er inzwischen weg, zeigt die App das sauber an.',
-    visual: `
-      <div class="scene-push">
-        <div class="scene-phone"><small>Push</small><strong>Liliane hat WM 2 freigegeben</strong><span>Heute bis 17:00 wieder frei</span></div>
-        <div class="scene-dialog"><small>Detailfenster</small><strong>WM 2 - 12:00 bis 17:00</strong><span>Von Liliane freigegeben</span><b>Diesen Slot buchen</b></div>
-      </div>`
+    visual: introSceneImage('release-dialog.png')
   },
   {
     id: 'cleaning',
@@ -296,13 +290,7 @@ const introVideoSteps = [
     title: 'Sauber fertig werden',
     caption: 'Reinigen geh\u00f6rt zu jeder Nutzung, auch bei einem einzelnen Waschgang.',
     speech: 'Zum Schluss noch das, was den Alltag f\u00fcr alle angenehmer macht. Bitte reinige nach der Nutzung Trommel, Dichtungen und Filter. Wische die benutzten Fl\u00e4chen und den Boden, und h\u00e4nge den ausgesp\u00fclten Wischmopp zum Trocknen auf. Das gilt auch, wenn du nur einen einzelnen Waschgang machst. Die vollst\u00e4ndige \u00dcbersicht findest du jederzeit im Wissensbereich. Und damit bist du startklar.',
-    visual: `
-      <div class="scene-cleaning">
-        <span><b>1</b>Trommel und Dichtungen</span>
-        <span><b>2</b>Filter und Fl\u00e4chen</span>
-        <span><b>3</b>Boden und Wischmopp</span>
-        <strong>Danke, dass du den Waschraum sauber hinterl\u00e4sst.</strong>
-      </div>`
+    visual: introSceneImage('cleaning-tasks.png')
   }
 ];
 
@@ -457,23 +445,152 @@ function readNoticeJournal() {
 }
 
 function rememberNotice(message) {
-  if (!noticeJournal || !currentUser) return;
+  if (!currentUser) return;
   const notices = readNoticeJournal();
   notices.unshift({ message, createdAt: new Date().toISOString() });
   window.localStorage.setItem(noticeJournalKey(), JSON.stringify(notices.slice(0, 8)));
-  renderNoticeJournal();
+  renderMessageCenter();
 }
 
-function renderNoticeJournal() {
-  if (!noticeJournal) return;
-  const notices = readNoticeJournal();
-  if (!notices.length) {
-    noticeJournal.innerHTML = '<p class="muted">Noch keine Hinweise.</p>';
-    return;
+function messageReadKey() {
+  return currentUser ? `waschzeit-messages-read-${currentUser.id}` : 'waschzeit-messages-read';
+}
+
+function messageTimestamp(value) {
+  const timestamp = Date.parse(String(value || '').replace(' ', 'T'));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function messageCenterEntries() {
+  const releases = releaseNoticeItems.map((notice) => ({
+    type: 'release',
+    createdAt: notice.created_at,
+    notice
+  }));
+  const activity = readNoticeJournal().map((notice) => ({
+    type: 'activity',
+    createdAt: notice.createdAt,
+    message: notice.message
+  }));
+  return [...releases, ...activity]
+    .sort((left, right) => messageTimestamp(right.createdAt) - messageTimestamp(left.createdAt));
+}
+
+function lastMessageReadAt() {
+  try {
+    return messageTimestamp(window.localStorage.getItem(messageReadKey()));
+  } catch {
+    return 0;
   }
-  noticeJournal.innerHTML = notices.map((notice) => (
-    `<article><strong>${escapeHtml(new Date(notice.createdAt).toLocaleString('de-CH'))}</strong><span>${escapeHtml(notice.message)}</span></article>`
-  )).join('');
+}
+
+function updateMessageCount(entries = messageCenterEntries()) {
+  const readAt = lastMessageReadAt();
+  const unread = entries.filter((entry) => messageTimestamp(entry.createdAt) > readAt).length;
+  messageCountBadge.hidden = unread === 0;
+  messageCountBadge.textContent = unread > 9 ? '9+' : String(unread);
+  messageCenterButton.classList.toggle('has-unread', unread > 0);
+}
+
+function renderReleaseSpotlight() {
+  const notice = releaseNoticeItems.find((item) => item.bookable) || releaseNoticeItems[0];
+  releaseSpotlight.hidden = !notice;
+  releaseSpotlightContent.innerHTML = '';
+  if (!notice) return;
+
+  const copy = document.createElement('div');
+  const actor = notice.created_by_name ? ` von ${notice.created_by_name}` : '';
+  copy.innerHTML = `
+    <span class="suggestion-label">Neu frei</span>
+    <strong>${escapeHtml(notice.resource_name)} - ${escapeHtml(formatShortDate(notice.booking_date))}, ${escapeHtml(notice.slot)}</strong>
+    <small>Freigegeben${escapeHtml(actor)}</small>
+  `;
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'text-button';
+  action.textContent = notice.bookable ? 'Ansehen und buchen' : 'Ansehen';
+  action.addEventListener('click', () => openReleaseNotice(notice));
+  releaseSpotlightContent.append(copy, action);
+}
+
+function renderMessageCenter() {
+  const entries = messageCenterEntries();
+  messageCenterList.innerHTML = '';
+  if (!entries.length) {
+    messageCenterList.innerHTML = '<div class="message-center-empty"><strong>Alles ruhig.</strong><p>Neue Freigaben und deine letzten Aktionen erscheinen hier.</p></div>';
+  }
+
+  for (const entry of entries) {
+    const item = document.createElement('article');
+    item.className = `message-item is-${entry.type}`;
+    const createdAt = new Date(messageTimestamp(entry.createdAt));
+    if (entry.type === 'release') {
+      const notice = entry.notice;
+      const actor = notice.created_by_name || 'Jemand';
+      item.innerHTML = `
+        <div class="message-item-copy">
+          <span class="message-kind">Neu frei</span>
+          <strong>${escapeHtml(notice.resource_name)} ist wieder frei</strong>
+          <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - von ${escapeHtml(actor)}</p>
+          <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
+        </div>
+      `;
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'secondary';
+      action.textContent = notice.bookable ? 'Buchen' : 'Ansehen';
+      action.addEventListener('click', () => {
+        closeMessageCenter();
+        openReleaseNotice(notice);
+      });
+      item.append(action);
+    } else {
+      item.innerHTML = `
+        <div class="message-item-copy">
+          <span class="message-kind">Deine Aktivit&auml;t</span>
+          <strong>${escapeHtml(entry.message)}</strong>
+          <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
+        </div>
+      `;
+    }
+    messageCenterList.append(item);
+  }
+  updateMessageCount(entries);
+  renderReleaseSpotlight();
+}
+
+function openMessageCenter() {
+  closeAccountMenu();
+  messageCenterReturnFocus = document.activeElement;
+  messageCenterOverlay.hidden = false;
+  messageCenterButton.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('modal-open');
+  renderMessageCenter();
+  try {
+    window.localStorage.setItem(messageReadKey(), new Date().toISOString());
+  } catch {}
+  updateMessageCount();
+  closeMessageCenterButton.focus();
+}
+
+function closeMessageCenter() {
+  messageCenterOverlay.hidden = true;
+  messageCenterButton.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('modal-open');
+  if (messageCenterReturnFocus instanceof HTMLElement) {
+    messageCenterReturnFocus.focus();
+  }
+}
+
+function openAccountMenu() {
+  const open = accountMenuPanel.hidden;
+  accountMenuPanel.hidden = !open;
+  accountMenuButton.setAttribute('aria-expanded', String(open));
+}
+
+function closeAccountMenu() {
+  accountMenuPanel.hidden = true;
+  accountMenuButton.setAttribute('aria-expanded', 'false');
 }
 
 function showBookingFlowStatus(message, tone = 'error') {
@@ -558,12 +675,31 @@ function renderSettingsSummary() {
   )).join('');
 }
 
+function setSettingsSection(sectionName) {
+  if (!settingsPanels.some((panel) => panel.dataset.settingsSection === sectionName)) return;
+  activeSettingsSection = sectionName;
+  for (const button of settingsTabButtons) {
+    const active = button.dataset.settingsTarget === sectionName;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  }
+  for (const panel of settingsPanels) {
+    panel.hidden = panel.dataset.settingsSection !== sectionName;
+  }
+}
+
 function openSettings(firstRun = false) {
+  closeAccountMenu();
   settingsReturnFocus = document.activeElement;
-  settingsEyebrow.textContent = firstRun ? 'Erster Start' : 'Persoenliche Einrichtung';
+  settingsEyebrow.textContent = firstRun ? 'Erster Start' : 'Dein Konto';
+  settingsTitle.textContent = firstRun ? 'Einmal kurz einrichten.' : 'Einstellungen';
   settingsIntroText.textContent = firstRun
-    ? 'Richte kurz E-Mail, App und Hinweise ein. Danach verschwindet dieser Bereich in deinen persoenlichen Einstellungen.'
-    : 'Hier sammelst du alles, was nur dein Konto und dieses Geraet betrifft: E-Mail, App-Installation, Push und passende Hinweise.';
+    ? 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.'
+    : 'Profil, Benachrichtigungen, App und Sicherheit sind hier gebuendelt.';
+  settingsUsername.value = currentUser.username;
+  settingsRole.value = currentRoleLabel();
+  settingsBookingMode.value = bookingMode;
+  setSettingsSection(firstRun ? 'profile' : activeSettingsSection);
   settingsOverlay.hidden = false;
   document.body.classList.add('modal-open');
   renderSettingsSummary();
@@ -907,7 +1043,7 @@ async function init() {
   bookingMode = currentUser.bookingMode === 'machine' ? 'machine' : 'time';
   availableHouses = me.houses || [];
   renderHouseContext();
-  renderNoticeJournal();
+  renderMessageCenter();
   notificationEmail.value = currentUser.email || '';
   notifyReleasesInput.checked = currentUser.notifyReleases !== false;
   notificationResourceType.value = me.notificationPreferences?.resourceType || 'all';
@@ -1155,12 +1291,15 @@ async function disablePushNotifications() {
 }
 
 function renderHouseContext() {
-  const roleLabel = currentUser.isSuperadmin
-    ? 'Superadmin'
-    : currentUser.role === 'admin'
-      ? 'Haus-Admin'
-      : 'Bewohner';
-  userLine.textContent = `${currentUser.username} - ${roleLabel}`;
+  const roleLabel = currentRoleLabel();
+  userLine.textContent = roleLabel;
+  accountMenuName.textContent = currentUser.username;
+  accountMenuRole.textContent = roleLabel;
+  accountPanelName.textContent = currentUser.username;
+  accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}`;
+  settingsUsername.value = currentUser.username;
+  settingsRole.value = roleLabel;
+  settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
   brandHouseName.title = `Aktuelles Haus: ${currentUser.houseName}`;
   document.title = `WaschZeit | ${currentUser.houseName}`;
@@ -1174,6 +1313,21 @@ function renderHouseContext() {
     )).join('');
     houseSelect.value = String(currentUser.activeHouseId);
   }
+}
+
+function currentRoleLabel() {
+  return currentUser.isSuperadmin
+    ? 'Superadmin'
+    : currentUser.role === 'admin'
+      ? 'Haus-Admin'
+      : 'Bewohner';
+}
+
+async function refreshCurrentUser() {
+  const data = await api('/api/me');
+  currentUser = data.user;
+  availableHouses = data.houses || [];
+  renderHouseContext();
 }
 
 async function switchHouse(houseId) {
@@ -1219,7 +1373,7 @@ async function loadMyBookings() {
 async function loadReleaseNotices() {
   const data = await api('/api/release-notices');
   releaseNoticeItems = data.notices || [];
-  renderReleaseNotices(data.notices);
+  renderMessageCenter();
 }
 
 async function loadCalendar() {
@@ -1409,7 +1563,7 @@ function renderCalendarDayDetails() {
     const slotNote = slotDetail.past
       ? '<span class="calendar-slot-note is-muted">Vorbei</span>'
       : recommendedSlot === slotDetail.slot
-        ? '<span class="calendar-slot-note is-recommended">Pers\u00f6nlicher Vorschlag</span>'
+        ? '<span class="calendar-slot-note is-recommended">Empfohlen</span>'
         : hasOwnBooking
           ? '<span class="calendar-slot-note is-own">Deine Buchung</span>'
           : '';
@@ -1424,7 +1578,9 @@ function renderCalendarDayDetails() {
     `;
   }).join('');
   const openDayAction = !day.closed && day.date >= todayString()
-    ? `<button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button>`
+    ? recommendedSlot
+      ? `<button type="button" data-calendar-use-recommendation="${day.date}" data-calendar-slot="${recommendedSlot}">Empfohlenen Termin buchen</button>`
+      : `<button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button>`
     : '';
   calendarDayDetailsContent.innerHTML = day.closed
     ? '<p class="calendar-detail-empty">Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.</p>'
@@ -1453,6 +1609,14 @@ function renderCalendarDayDetails() {
       const date = button.dataset.calendarOpenDay;
       closeCalendarPreview();
       openCalendarPackage(date);
+    });
+  });
+  calendarDayDetails.querySelectorAll('[data-calendar-use-recommendation]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const date = button.dataset.calendarUseRecommendation;
+      const slot = button.dataset.calendarSlot;
+      closeCalendarPreview();
+      openRecommendedCalendarPackage(date, slot);
     });
   });
   positionCalendarDayDetails();
@@ -1511,8 +1675,11 @@ function renderCalendar() {
     button.setAttribute('aria-expanded', String(day.date === calendarDetailDate));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}, ${calendarResourceTypes.map(({ type, label }) => `${label}: ${calendarAvailabilityText(day, type)}`).join(', ')}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', pers\u00f6nlicher Vorschlag' : ''}`
+      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}, ${calendarResourceTypes.map(({ type, label }) => `${label}: ${calendarAvailabilityText(day, type)}`).join(', ')}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', empfohlener Termin; antippen, um ihn direkt zu buchen' : ''}`
     );
+    if (recommended) {
+      button.title = 'Empfohlenen Termin direkt buchen';
+    }
     const availabilityLabel = closed
       ? 'Ruhetag'
       : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Waschzeit' : 'Waschzeiten'} frei`;
@@ -1524,7 +1691,7 @@ function renderCalendar() {
       <strong>${dateLabel}</strong>
       <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
       <span class="calendar-status-list">${renderCalendarStatusRows(day)}</span>
-      ${recommended ? '<span class="calendar-recommended">Vorschlag</span>' : ''}
+      ${recommended ? '<span class="calendar-recommended" aria-hidden="true"><span>Empfohlen</span><b>Buchen</b></span>' : ''}
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
     button.addEventListener('pointerenter', (event) => {
@@ -1559,6 +1726,11 @@ function renderCalendar() {
       calendarPointerFocus = false;
       if (past || closed) {
         openCalendarPreview(day, button, { pinned: true });
+        return;
+      }
+      if (recommended) {
+        closeCalendarPreview();
+        await openRecommendedCalendarPackage(day.date, currentRecommendation.slot);
         return;
       }
       if (window.matchMedia('(hover: none)').matches && !calendarDetailPinned) {
@@ -1603,7 +1775,7 @@ function renderRecommendationLegacy() {
   bookingSuggestion.innerHTML = '';
   const recommendation = currentRecommendation;
   if (!recommendation) {
-    bookingSuggestion.innerHTML = '<p class="muted">Noch kein pers\u00f6nlicher Vorschlag verf\u00fcgbar.</p>';
+    bookingSuggestion.innerHTML = '<p class="muted">Noch keine pers\u00f6nliche Empfehlung verf\u00fcgbar.</p>';
     return;
   }
 
@@ -1611,7 +1783,7 @@ function renderRecommendationLegacy() {
   copy.className = 'suggestion-copy';
   const eyebrow = document.createElement('span');
   eyebrow.className = 'suggestion-label';
-  eyebrow.textContent = 'Pers\u00f6nlicher Vorschlag';
+  eyebrow.textContent = 'Pers\u00f6nliche Empfehlung';
   const title = document.createElement('h3');
   title.textContent = recommendation.title;
   const detail = document.createElement('p');
@@ -1806,7 +1978,7 @@ function syncBookingModeUi() {
     : 'Waschmaschine zuerst, Trocknung danach.';
 }
 
-async function setBookingMode(mode) {
+async function setBookingMode(mode, focusFlow = true) {
   if (!['time', 'machine'].includes(mode) || mode === bookingMode) return;
   for (const button of bookingModeButtons) button.disabled = true;
   try {
@@ -1818,13 +1990,14 @@ async function setBookingMode(mode) {
     currentUser.bookingMode = bookingMode;
     resetBookingFlowState(bookingDate.value);
     renderBookingFlow();
-    focusBookingFlowHeading();
+    if (focusFlow) focusBookingFlowHeading();
     showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {
     for (const button of bookingModeButtons) button.disabled = false;
     syncBookingModeUi();
+    settingsBookingMode.value = bookingMode;
   }
 }
 
@@ -1882,6 +2055,29 @@ async function openCalendarPackage(date) {
   await selectBookingDate(date);
   bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
   focusBookingFlowHeading();
+}
+
+async function openRecommendedCalendarPackage(date, slot) {
+  await selectBookingDate(date);
+  const existingWasher = (bookingFlowOptions?.existingWashers || [])
+    .find((washer) => washer.slot === slot);
+  if (!existingWasher) {
+    const slotOption = (bookingFlowOptions?.slots || []).find((item) => item.slot === slot);
+    if (!slotOption?.washers.length) {
+      const message = slotOption?.washerError
+        || 'Dieser empfohlene Termin ist inzwischen nicht mehr verf\u00fcgbar. Bitte w\u00e4hle einen anderen freien Termin.';
+      showStatus(message, 'error');
+      showBookingFlowStatus(message, 'error');
+      await loadCalendar();
+      return;
+    }
+    selectFlowTime(slot);
+  }
+  bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  focusBookingFlowHeading();
+  showStatus(existingWasher
+    ? `Dein Waschpaket f\u00fcr ${slot} ist ge\u00f6ffnet. Du kannst jetzt die Trocknung erg\u00e4nzen.`
+    : `Empfohlener Termin ${slot} ge\u00f6ffnet. W\u00e4hle jetzt deine Waschmaschine.`);
 }
 
 function resourceById(resourceId) {
@@ -2108,7 +2304,7 @@ function renderTimeStep() {
     button.innerHTML = `
       <span class="flow-time-main">
         <strong>${escapeHtml(slotOption.slot)}</strong>
-        ${recommended ? '<em>Vorschlag</em>' : ''}
+        ${recommended ? '<em>Empfohlen</em>' : ''}
       </span>
       <span class="flow-time-availability">
         <span><b>${slotOption.washers.length}</b> Waschmaschinen</span>
@@ -2166,7 +2362,7 @@ function renderWasherStep() {
     group.className = `flow-slot${currentRecommendation?.date === bookingFlowState.date && currentRecommendation?.slot === slotOption.slot ? ' is-recommended' : ''}`;
     const heading = document.createElement('div');
     heading.className = 'flow-slot-heading';
-    heading.innerHTML = `<strong>${escapeHtml(slotOption.slot)}</strong>${group.classList.contains('is-recommended') ? '<span>Vorschlag</span>' : ''}`;
+    heading.innerHTML = `<strong>${escapeHtml(slotOption.slot)}</strong>${group.classList.contains('is-recommended') ? '<span>Empfohlen</span>' : ''}`;
     const choices = document.createElement('div');
     choices.className = 'flow-choice-grid';
     for (const washer of slotOption.washers) {
@@ -2449,15 +2645,18 @@ function renderRecommendation() {
   const copy = document.createElement('div');
   copy.className = 'suggestion-copy';
   copy.innerHTML = `
-    <span class="suggestion-label">Pers\u00f6nlicher Vorschlag</span>
+    <span class="suggestion-label">Deine Empfehlung</span>
     <strong>${escapeHtml(formatShortDate(recommendation.date))} - ${escapeHtml(recommendation.slot)}</strong>
     <p>${escapeHtml(recommendation.reason)}</p>
   `;
   const choose = document.createElement('button');
   choose.type = 'button';
   choose.className = 'secondary';
-  choose.textContent = 'Termin ausw\u00e4hlen';
-  choose.addEventListener('click', () => selectBookingDate(recommendation.date));
+  choose.textContent = 'Empfohlenen Termin buchen';
+  choose.addEventListener('click', () => openRecommendedCalendarPackage(
+    recommendation.date,
+    recommendation.slot
+  ));
   bookingSuggestion.append(copy, choose);
 }
 
@@ -2606,31 +2805,6 @@ function renderMyBookings(items) {
     actions.append(deleteButton);
     item.append(actions);
     myBookings.append(item);
-  }
-}
-
-function renderReleaseNotices(items) {
-  releaseNotices.innerHTML = '';
-  if (!items.length) {
-    releaseNotices.innerHTML = '<p class="muted">Keine aktuellen Freigaben.</p>';
-    return;
-  }
-
-  for (const notice of items) {
-    const item = document.createElement('article');
-    item.className = 'release-item';
-    item.innerHTML = `
-      <strong>${escapeHtml(notice.resource_name)}</strong>
-      <span>${escapeHtml(notice.message)}</span>
-      <small>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)}${notice.created_by_name ? ` - von ${escapeHtml(notice.created_by_name)}` : ''}</small>
-    `;
-    const action = document.createElement('button');
-    action.type = 'button';
-    action.className = 'text-button';
-    action.textContent = notice.bookable ? 'Ansehen & buchen' : 'Ansehen';
-    action.addEventListener('click', () => openReleaseNotice(notice));
-    item.append(action);
-    releaseNotices.append(item);
   }
 }
 
@@ -2906,9 +3080,10 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData] = await Promise.all([
+  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
+    api('/api/admin/recovery-status'),
     api('/api/admin/settings'),
     api('/api/admin/fixed-bookings'),
     currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] }),
@@ -2947,6 +3122,7 @@ async function loadAdmin() {
     <div class="wide"><strong>Push</strong><span>${overviewData.push.label} - ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
     <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
   `;
+  renderAdminRecovery(recoveryData, usersData.users);
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
     ? 'Testmail an deine hinterlegte Adresse senden'
@@ -2990,6 +3166,84 @@ function renderAdminAnalytics(data) {
       <section><h4>Sperren</h4><ul>${blockedList}</ul></section>
     </div>
   `;
+}
+
+function renderAdminRecovery(data, users) {
+  const warnings = data.warnings || [];
+  const warningRows = warnings.length
+    ? warnings.map((warning) => (
+      `<li class="${warning.level === 'critical' ? 'is-critical' : 'is-warning'}">${escapeHtml(warning.message)}</li>`
+    )).join('')
+    : '<li class="is-ok">Notfallprozess ist sauber vorbereitet.</li>';
+  const superadminNames = (data.superadmins || [])
+    .map((user) => user.email ? `${user.username} (${user.email})` : user.username)
+    .join(', ') || 'keiner';
+
+  adminRecoveryPanel.innerHTML = `
+    <section class="admin-recovery-card">
+      <div>
+        <strong>Notfallzugang</strong>
+        <span>Damit die Verwaltung weiterl&auml;uft, falls das aktuelle Hauptkonto ausf&auml;llt.</span>
+      </div>
+      <dl>
+        <div><dt>Hausadmins</dt><dd>${Number(data.houseAdminCount || 0)}</dd></div>
+        <div><dt>Superadmins</dt><dd>${Number(data.superadminCount || 0)}</dd></div>
+        <div><dt>Seed-Admin</dt><dd>${escapeHtml(data.seedAdminName || 'admin')}</dd></div>
+        <div><dt>Render-Recovery</dt><dd>${data.seedPasswordResetEnabled ? 'Reset aktiv' : data.seedRecoveryConfigured ? 'vorbereitet' : 'fehlt'}</dd></div>
+      </dl>
+      <ul>${warningRows}</ul>
+      <p class="muted">Notfallregel: Render-Zugang nutzen, <code>SEED_ADMIN_PASSWORD</code> setzen und bei unbekanntem Passwort einmalig <code>SEED_ADMIN_FORCE_PASSWORD_RESET=true</code> aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.</p>
+      <p class="muted">Aktive Superadmins: ${escapeHtml(superadminNames)}</p>
+    </section>
+  `;
+
+  superadminTransferOperation.hidden = !currentUser.isSuperadmin;
+  if (!currentUser.isSuperadmin) return;
+
+  const candidates = users.filter((user) => (
+    user.active
+      && user.role === 'admin'
+      && !user.is_superadmin
+      && Number(user.id) !== Number(currentUser.id)
+  ));
+  superadminTransferTarget.innerHTML = '';
+  if (!candidates.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Kein aktiver Haus-Admin verfuegbar';
+    superadminTransferTarget.append(option);
+  }
+  for (const user of candidates) {
+    const option = document.createElement('option');
+    option.value = String(user.id);
+    option.textContent = user.email ? `${user.username} (${user.email})` : user.username;
+    superadminTransferTarget.append(option);
+  }
+  superadminTransferTarget.disabled = !candidates.length;
+  superadminTransferConfirm.disabled = !candidates.length;
+  superadminTransferButton.disabled = !candidates.length;
+}
+
+async function transferSuperadmin() {
+  if (!window.confirm('Superadmin-Verantwortung wirklich an dieses Konto uebergeben? Deine hausuebergreifenden Rechte enden danach.')) return;
+  superadminTransferButton.disabled = true;
+  try {
+    const data = await api('/api/admin/superadmin-transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        targetUserId: Number(superadminTransferTarget.value),
+        confirm: superadminTransferConfirm.value.trim()
+      })
+    });
+    superadminTransferConfirm.value = '';
+    showStatus(data.message);
+    await refreshCurrentUser();
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    superadminTransferButton.disabled = false;
+  }
 }
 
 async function sendAdminTestEmail() {
@@ -3317,7 +3571,9 @@ function renderAuditLog(entries) {
     'fixed_booking.delete': 'Feste Buchung entfernt',
     'bookings.reset': 'Buchungen zurueckgesetzt',
     'push.test': 'Push-Test gesendet',
-    'backup.download': 'Backup erstellt'
+    'superadmin.transfer': 'Superadmin uebergeben',
+    'backup.download': 'Backup heruntergeladen',
+    'backup.create': 'Backup erstellt'
   };
   auditLog.innerHTML = entries.length ? '' : '<p class="muted">Noch keine protokollierten Admin-Aktionen.</p>';
   for (const entry of entries) {
@@ -3622,9 +3878,20 @@ releaseNoticeOverlay.addEventListener('click', (event) => {
     closeReleaseNotice();
   }
 });
+messageCenterButton.addEventListener('click', openMessageCenter);
+openMessageCenterButton.addEventListener('click', openMessageCenter);
+closeMessageCenterButton.addEventListener('click', closeMessageCenter);
+messageCenterOverlay.addEventListener('click', (event) => {
+  if (event.target === messageCenterOverlay) closeMessageCenter();
+});
+accountMenuButton.addEventListener('click', openAccountMenu);
 openSettingsButton.addEventListener('click', () => openSettings(false));
 closeSettingsButton.addEventListener('click', closeSettings);
 settingsDoneButton.addEventListener('click', finishSettings);
+settingsTabButtons.forEach((button) => {
+  button.addEventListener('click', () => setSettingsSection(button.dataset.settingsTarget));
+});
+settingsBookingMode.addEventListener('change', () => setBookingMode(settingsBookingMode.value, false));
 settingsOverlay.addEventListener('click', (event) => {
   if (event.target === settingsOverlay) {
     closeSettings();
@@ -3646,6 +3913,7 @@ adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
 resetBookingsButton.addEventListener('click', resetAllBookings);
+superadminTransferButton.addEventListener('click', transferSuperadmin);
 
 passwordForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -3657,7 +3925,11 @@ deleteAccountForm.addEventListener('submit', async (event) => {
 });
 
 openIntroButton.addEventListener('click', openIntro);
-openKnowledgeButton.addEventListener('click', openIntro);
+openKnowledgeButton.addEventListener('click', () => {
+  closeAccountMenu();
+  openIntro();
+});
+sidebarKnowledgeButton.addEventListener('click', openIntro);
 closeIntroButton.addEventListener('click', closeIntro);
 introDoneButton.addEventListener('click', closeIntro);
 introVideoPlayButton.addEventListener('click', playIntroVideo);
@@ -3670,7 +3942,35 @@ introOverlay.addEventListener('click', (event) => {
     closeIntro();
   }
 });
+document.addEventListener('click', (event) => {
+  if (!accountMenuPanel.hidden && !event.target.closest('.account-menu')) {
+    closeAccountMenu();
+  }
+});
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !accountMenuPanel.hidden) {
+    closeAccountMenu();
+    accountMenuButton.focus();
+    return;
+  }
+  if (event.key === 'Escape' && !messageCenterOverlay.hidden) {
+    closeMessageCenter();
+    return;
+  }
+  if (event.key === 'Tab' && !messageCenterOverlay.hidden) {
+    const focusable = [...messageCenterOverlay.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.disabled && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
   if (event.key === 'Escape' && !releaseNoticeOverlay.hidden) {
     closeReleaseNotice();
     return;

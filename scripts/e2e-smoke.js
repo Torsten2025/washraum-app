@@ -81,9 +81,20 @@ async function run() {
     assert.equal(await page.locator('#settingsTitle').innerText(), 'Einmal kurz einrichten.');
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
+    await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     assert.ok(await page.locator('#notificationEmail').isVisible());
+    await page.click('[data-settings-target="notifications"]');
+    assert.ok(await page.locator('#notifyReleases').isVisible());
+    await page.click('[data-settings-target="device"]');
+    assert.ok(await page.locator('#installAppButton').isVisible());
+    await page.click('[data-settings-target="security"]');
+    assert.ok(await page.locator('#passwordForm').isVisible());
+    await page.click('#closeSettingsButton');
+    await page.click('#messageCenterButton');
+    await page.waitForSelector('#messageCenterOverlay:not([hidden])');
+    assert.ok(await page.locator('#messageCenterList').isVisible());
     console.log(JSON.stringify({ ok: true, browser: executablePath ? 'system' : 'playwright' }));
   } catch (error) {
     if (/Executable doesn't exist|browserType.launch/.test(error.message) && !required) {

@@ -283,7 +283,14 @@ function seedCurrentDefaults() {
 
   const seededAdminPassword = String(process.env.SEED_ADMIN_PASSWORD || '');
   if (seededAdminPassword) {
-    seedUser(process.env.SEED_ADMIN_NAME || 'admin', seededAdminPassword, 'admin', defaultHouse.id, true);
+    seedUser(
+      process.env.SEED_ADMIN_NAME || 'admin',
+      seededAdminPassword,
+      'admin',
+      defaultHouse.id,
+      true,
+      process.env.SEED_ADMIN_FORCE_PASSWORD_RESET === 'true'
+    );
   } else if (!isProduction) {
     seedUser('admin', 'admin123', 'admin', defaultHouse.id, true);
   }
@@ -511,7 +518,7 @@ function ensureColumn(table, column, definition) {
   }
 }
 
-function seedUser(username, password, role, houseId, isSuperadmin = false) {
+function seedUser(username, password, role, houseId, isSuperadmin = false, forcePasswordReset = false) {
   const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (!exists) {
     db.prepare('INSERT INTO users (username, password_hash, role, house_id, is_superadmin) VALUES (?, ?, ?, ?, ?)')
@@ -519,12 +526,18 @@ function seedUser(username, password, role, houseId, isSuperadmin = false) {
   } else if (isSuperadmin) {
     db.prepare(`
       UPDATE users
-      SET house_id = COALESCE(house_id, ?),
+      SET password_hash = CASE WHEN ? THEN ? ELSE password_hash END,
+          house_id = COALESCE(house_id, ?),
           role = 'admin',
           active = 1,
           is_superadmin = 1
       WHERE id = ?
-    `).run(houseId, exists.id);
+    `).run(
+      forcePasswordReset ? 1 : 0,
+      bcrypt.hashSync(password, 10),
+      houseId,
+      exists.id
+    );
   } else {
     db.prepare('UPDATE users SET house_id = COALESCE(house_id, ?) WHERE id = ?')
       .run(houseId, exists.id);
@@ -1409,7 +1422,7 @@ function bookingRecommendation(userId, houseId) {
     : today;
   return nextWasherRecommendation(userId, startDate, houseId) || {
     kind: 'info',
-    title: 'Im Moment kein freier Vorschlag',
+    title: 'Im Moment keine freie Empfehlung',
     reason: 'In den n\u00e4chsten drei Wochen ist kein regelkonformer Waschslot frei.'
   };
 }
@@ -1538,6 +1551,62 @@ function requireSuperadmin(req, res, next) {
     return res.status(403).json({ error: 'Nur f\u00fcr den Superadmin erlaubt' });
   }
   next();
+}
+
+function adminRecoveryStatus(houseId) {
+  const houseAdminCount = db.prepare(`
+    SELECT COUNT(*) AS count FROM users
+    WHERE house_id = ? AND role = 'admin' AND active = 1
+  `).get(houseId).count;
+  const activeSuperadmins = db.prepare(`
+    SELECT id, username, house_id
+    FROM users
+    WHERE role = 'admin' AND active = 1 AND is_superadmin = 1
+    ORDER BY username
+  `).all();
+  const seedAdminName = String(process.env.SEED_ADMIN_NAME || 'admin');
+  const seedRecoveryConfigured = Boolean(String(process.env.SEED_ADMIN_PASSWORD || '').trim());
+  const seedPasswordResetEnabled = process.env.SEED_ADMIN_FORCE_PASSWORD_RESET === 'true';
+  const warnings = [];
+
+  if (houseAdminCount < 2) {
+    warnings.push({
+      level: 'warning',
+      code: 'single_house_admin',
+      message: 'Nur ein aktives Admin-Konto in diesem Haus. Lege eine Stellvertretung fest.'
+    });
+  }
+  if (activeSuperadmins.length < 2) {
+    warnings.push({
+      level: 'warning',
+      code: 'single_superadmin',
+      message: 'Nur ein aktiver Superadmin. Fuer geplante Ausfaelle die Verantwortung rechtzeitig uebergeben.'
+    });
+  }
+  if (!seedRecoveryConfigured) {
+    warnings.push({
+      level: 'critical',
+      code: 'seed_recovery_missing',
+      message: 'SEED_ADMIN_PASSWORD ist nicht gesetzt. Der technische Notfallzugang ist nicht vorbereitet.'
+    });
+  }
+  if (seedPasswordResetEnabled) {
+    warnings.push({
+      level: 'critical',
+      code: 'seed_force_reset_enabled',
+      message: 'SEED_ADMIN_FORCE_PASSWORD_RESET ist aktiv. Nach dem Notfall sofort wieder entfernen.'
+    });
+  }
+
+  return {
+    houseAdminCount,
+    superadminCount: activeSuperadmins.length,
+    superadmins: activeSuperadmins,
+    seedAdminName,
+    seedRecoveryConfigured,
+    seedPasswordResetEnabled,
+    warnings
+  };
 }
 
 function isSunday(dateString) {
@@ -3004,7 +3073,7 @@ app.post('/api/booking-package', requireAuth, (req, res, next) => {
     const washDate = existingWasher?.booking_date || newWashers[0].date;
     const washSlot = existingWasher?.slot || newWashers[0].slot;
     if (isPastDate(washDate) || isPastSlot(washDate, washSlot)) {
-      throw packageRequestError(400, 'Der vorgeschlagene Waschslot ist bereits vorbei. Bitte lade einen neuen Vorschlag.');
+      throw packageRequestError(400, 'Der empfohlene Waschslot ist bereits vorbei. Bitte lade eine neue Empfehlung.');
     }
     if (isSunday(washDate)) {
       throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
@@ -3058,7 +3127,7 @@ app.post('/api/booking-package', requireAuth, (req, res, next) => {
         LIMIT 1
       `).get(item.resourceId, item.date, item.slot);
       if (occupied) {
-        throw packageRequestError(409, 'Ein Bestandteil des Waschpakets wurde inzwischen gebucht. Bitte lade einen neuen Vorschlag.');
+        throw packageRequestError(409, 'Ein Bestandteil des Waschpakets wurde inzwischen gebucht. Bitte lade eine neue Empfehlung.');
       }
     }
 
@@ -3648,6 +3717,61 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     backup: (() => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
     })()
+  });
+});
+
+app.get('/api/admin/recovery-status', requireAdmin, (req, res) => {
+  res.json(adminRecoveryStatus(currentHouseId(req)));
+});
+
+app.post('/api/admin/superadmin-transfer', requireAdmin, requireSuperadmin, (req, res) => {
+  const targetUserId = Number(req.body?.targetUserId);
+  const confirm = String(req.body?.confirm || '').trim();
+  if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+    return res.status(400).json({ error: 'Bitte ein gueltiges Zielkonto waehlen.' });
+  }
+  if (confirm !== 'SUPERADMIN UEBERGEBEN') {
+    return res.status(400).json({ error: 'Bitte SUPERADMIN UEBERGEBEN als Bestaetigung eingeben.' });
+  }
+  if (targetUserId === req.session.user.id) {
+    return res.status(400).json({ error: 'Du bist bereits Superadmin.' });
+  }
+
+  const target = db.prepare(`
+    SELECT id, username, role, active, house_id, is_superadmin
+    FROM users
+    WHERE id = ? AND house_id = ?
+  `).get(targetUserId, currentHouseId(req));
+  if (!target) {
+    return res.status(404).json({ error: 'Zielkonto im aktuellen Haus nicht gefunden.' });
+  }
+  if (!target.active || target.role !== 'admin') {
+    return res.status(409).json({ error: 'Die Uebergabe ist nur an ein aktives Haus-Admin-Konto moeglich.' });
+  }
+  if (target.is_superadmin) {
+    return res.status(400).json({ error: 'Dieses Konto ist bereits Superadmin.' });
+  }
+
+  const previousSuperadminId = req.session.user.id;
+  db.transaction(() => {
+    db.prepare('UPDATE users SET is_superadmin = 1, role = ?, active = 1 WHERE id = ?').run('admin', target.id);
+    db.prepare('UPDATE users SET is_superadmin = 0 WHERE id = ?').run(previousSuperadminId);
+  })();
+
+  writeAudit(req, 'superadmin.transfer', 'user', target.id, {
+    previousSuperadminId,
+    newSuperadmin: target.username
+  });
+  destroyUserSessions(target.id);
+  destroyUserSessions(previousSuperadminId, req.sessionID);
+
+  const ownUser = db.prepare('SELECT * FROM users WHERE id = ?').get(previousSuperadminId);
+  req.session.activeHouseId = ownUser.house_id;
+  req.session.user = sessionUserFromRow(ownUser);
+
+  res.json({
+    ok: true,
+    message: `${target.username} ist jetzt Superadmin. Alte Sitzungen wurden erneuert.`
   });
 });
 

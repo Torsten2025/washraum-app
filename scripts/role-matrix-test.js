@@ -74,7 +74,7 @@ async function verifyConfiguredSuperadminRecovery() {
   const initialPassword = 'Bestehender-Admin-2026!';
   const configuredPassword = 'Nicht-Ueberschreiben-2026!';
 
-  function start(password) {
+  function start(password, forcePasswordReset = false) {
     const child = spawn(process.execPath, ['server.js'], {
       cwd: path.resolve(__dirname, '..'),
       env: {
@@ -86,6 +86,7 @@ async function verifyConfiguredSuperadminRecovery() {
         HOUSE_CODE: 'Recoverycode 18',
         SEED_ADMIN_NAME: 'bestehender-admin',
         SEED_ADMIN_PASSWORD: password,
+        SEED_ADMIN_FORCE_PASSWORD_RESET: forcePasswordReset ? 'true' : 'false',
         SESSION_SECRET: 'rollen-recovery-session-secret-at-least-32-characters',
         AUTO_BACKUP: 'false'
       },
@@ -147,6 +148,17 @@ async function verifyConfiguredSuperadminRecovery() {
       body: JSON.stringify({ username: 'bestehender-admin', password: configuredPassword })
     });
     assert.equal(overwrittenPasswordLogin.status, 401);
+
+    await stop(child);
+    child = start(configuredPassword, true);
+    await waitUntilReady();
+
+    const forcedPasswordLogin = await fetch(`${recoveryUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'bestehender-admin', password: configuredPassword })
+    });
+    assert.equal(forcedPasswordLogin.status, 200);
   } finally {
     if (child) await stop(child);
     for (const suffix of ['', '-wal', '-shm']) {
@@ -379,6 +391,8 @@ async function run() {
       ['/api/admin/backup', 'GET'],
       ['/api/admin/email-test', 'POST'],
       ['/api/admin/push-test', 'POST'],
+      ['/api/admin/recovery-status', 'GET'],
+      ['/api/admin/superadmin-transfer', 'POST'],
       ['/api/admin/bookings', 'DELETE'],
       ['/api/admin/backup/run', 'POST']
     ];
@@ -399,6 +413,42 @@ async function run() {
     const backup = await expectStatus(superadmin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(backup.body.status.ok, true);
 
+    const recoveryStatus = await expectStatus(superadmin, '/api/admin/recovery-status', 200);
+    assert.equal(recoveryStatus.body.houseAdminCount, 2);
+    assert.equal(recoveryStatus.body.superadminCount, 1);
+    assert.equal(recoveryStatus.body.seedRecoveryConfigured, true);
+    await expectStatus(houseAdmin, '/api/admin/superadmin-transfer', 403, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetUserId: peerAdminRegistration.body.user.id,
+        confirm: 'SUPERADMIN UEBERGEBEN'
+      })
+    });
+    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetUserId: superLogin.body.user.id,
+        confirm: 'SUPERADMIN UEBERGEBEN'
+      })
+    });
+    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetUserId: peerAdminRegistration.body.user.id,
+        confirm: 'SUPERADMIN UEBERGEBEN'
+      })
+    });
+    const oldSuperSession = await expectStatus(superadmin, '/api/me', 200);
+    assert.equal(oldSuperSession.body.user.isSuperadmin, false);
+    assert.equal(oldSuperSession.body.user.activeHouseId, firstHouseId);
+    await expectStatus(superadmin, '/api/admin/houses', 403);
+    const stalePeerSession = await expectStatus(peerAdmin, '/api/me', 200);
+    assert.equal(stalePeerSession.body.user, null);
+    const newSuperadmin = new ApiClient();
+    const newSuperLogin = await login(newSuperadmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
+    assert.equal(newSuperLogin.body.user.isSuperadmin, true);
+    await expectStatus(newSuperadmin, '/api/admin/houses', 200);
+
     const residentLogout = await expectStatus(residentAfterReset, '/api/logout', 200, { method: 'POST' });
     assert.match(residentLogout.response.headers.get('set-cookie') || '', /connect\.sid=;/);
     const residentSession = await expectStatus(residentAfterReset, '/api/me', 200);
@@ -417,6 +467,7 @@ async function run() {
     });
     assert.equal(superLogout.response.headers.get('location'), '/login.html?loggedOut=1');
     assert.equal((await expectStatus(superadmin, '/api/me', 200)).body.user, null);
+    await expectStatus(newSuperadmin, '/api/logout', 200, { method: 'POST' });
 
     console.log(JSON.stringify({
       ok: true,
@@ -426,6 +477,7 @@ async function run() {
         houseAdminOwnHouse: true,
         houseAdminPeerAdminProtection: true,
         superadminGlobalActions: true,
+        superadminTransfer: true,
         configuredAdminRecovery: true,
         crossHouseIsolation: true,
         roleSpecificLogout: true

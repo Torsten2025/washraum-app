@@ -13,7 +13,7 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume werden serverseitig in Schweizer Zeit geprueft.
 - Geschuetzte, wiederkehrende Buchungen fuer von Admins betreute Personen.
 - Verifizierte, nach Bereich, Wochentag und Slot filterbare E-Mail-Hinweise bei frueher Freigabe oder Absage.
-- Neu vertontes 4:46-Minuten-Video mit Schweizer Stimme, synchronen Untertiteln, Lesetext und freundlichem Quiz.
+- Neu vertontes 5:40-Minuten-Video mit Schweizer Stimme, 28 passend zum Text wechselnden App- und Reinigungsbildern, synchronen Untertiteln, Lesetext und freundlichem Quiz.
 - Passwort-Wiederherstellung, Datenexport, Kontoloeschung und Admin-Auditprotokoll.
 - Taegliche, auf Integritaet gepruefte SQLite-Backups mit optionaler externer Kopie.
 
@@ -56,6 +56,7 @@ Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Adm
 Fuer eine neue Datenbank muessen in Render mindestens gesetzt sein:
 
 - `SEED_ADMIN_PASSWORD`: sicheres erstes Admin-Passwort
+- `SEED_ADMIN_FORCE_PASSWORD_RESET`: nur temporaer im Notfall auf `true` setzen, wenn das Seed-Superadmin-Passwort neu gesetzt werden muss
 - `SESSION_SECRET`: wird durch `render.yaml` erzeugt
 - `HOUSE_CODE`: optional; sonst wird ein zufaelliger Wert erzeugt
 - `HOUSE_NAME`: optionaler Name der ersten Hausnummer
@@ -90,13 +91,13 @@ Bewohner koennen ihre Kontodaten und Buchungen exportieren, Benachrichtigungen a
 
 ## Video neu erzeugen
 
-MP4, Poster und VTT-Untertitel entstehen aus derselben Kapiteldefinition:
+MP4, Poster und VTT-Untertitel entstehen aus derselben Szenendefinition. Jede kurze Sprecherpassage besitzt eine passende echte App-Aufnahme oder ein Reinigungsbild:
 
 ```bash
 python scripts/build-intro-video.py
 ```
 
-Dafuer werden lokal `edge-tts`, `imageio-ffmpeg`, `certifi` und `Pillow` benoetigt. Unter Windows verbindet der Generator den Windows-Vertrauensspeicher mit dem Python-Zertifikatsbund. Jedes Kapitel laeuft bis zum Ende der Sprachdatei und erhaelt danach eine kurze Pause.
+Dafuer werden lokal `edge-tts`, `imageio-ffmpeg`, `certifi` und `Pillow` benoetigt. Unter Windows verbindet der Generator den Windows-Vertrauensspeicher mit dem Python-Zertifikatsbund. Jede Szene laeuft bis zum Ende ihrer Sprachdatei und erhaelt danach eine kurze Pause.
 
 ## Einfuehrung im Haus
 

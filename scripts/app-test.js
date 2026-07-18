@@ -1181,13 +1181,21 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('push-v2'));
+    assert.ok(indexHtml.includes('scenes-v1'));
     assert.ok(indexHtml.includes('Kapitel 1 von 8'));
     assert.ok(indexHtml.includes('settingsOverlay'));
     assert.ok(indexHtml.includes('settingsSummary'));
-    assert.ok(indexHtml.includes('Pers&ouml;nliche Einrichtung'));
+    assert.ok(indexHtml.includes('accountMenuButton'));
+    assert.ok(indexHtml.includes('openSettingsButton'));
+    assert.ok(indexHtml.includes('data-settings-target="profile"'));
+    assert.ok(indexHtml.includes('data-settings-target="notifications"'));
+    assert.ok(indexHtml.includes('data-settings-target="device"'));
+    assert.ok(indexHtml.includes('data-settings-target="security"'));
+    assert.ok(indexHtml.includes('messageCenterButton'));
+    assert.ok(indexHtml.includes('messageCenterOverlay'));
+    assert.ok(indexHtml.includes('messageCenterList'));
     assert.ok(indexHtml.includes('etwa f&uuml;nfeinhalbmin&uuml;tige Video'));
-    assert.ok(indexHtml.includes('Absagen &amp; informieren'));
+    assert.ok(indexHtml.includes('Freie Termine und deine letzten Aktionen'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
@@ -1214,7 +1222,8 @@ async function run() {
     assert.ok(indexHtml.includes('data-admin-target="people"'));
     assert.ok(indexHtml.includes('data-admin-target="analytics"'));
     assert.ok(indexHtml.includes('data-admin-target="system"'));
-    assert.ok(indexHtml.includes('noticeJournal'));
+    assert.ok(!indexHtml.includes('id="noticeJournal"'));
+    assert.ok(!indexHtml.includes('id="releaseNotices"'));
     assert.ok(indexHtml.includes('resetBookingsButton'));
     assert.ok(indexHtml.includes('releaseNoticeOverlay'));
     assert.ok(indexHtml.includes('bookReleaseNoticeButton'));
@@ -1231,6 +1240,7 @@ async function run() {
     assert.ok(stylesText.includes('.calendar-status-list'));
     assert.ok(stylesText.includes('.calendar-day-details'));
     assert.ok(stylesText.includes('.calendar-day.is-previewed'));
+    assert.ok(stylesText.includes('.calendar-recommended b'));
     assert.ok(stylesText.includes('@keyframes calendar-preview-in'));
     assert.ok(stylesText.includes('.booking-workspace'));
     assert.ok(stylesText.includes('.booking-flow-steps'));
@@ -1246,6 +1256,7 @@ async function run() {
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
     assert.ok(stylesText.includes('.scene-push'));
+    assert.ok(stylesText.includes('.video-scene-image'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1264,6 +1275,9 @@ async function run() {
     assert.ok(appScriptText.includes('renderCalendarStatusRows'));
     assert.ok(appScriptText.includes('renderCalendarDayDetails'));
     assert.ok(appScriptText.includes('startCalendarWasherBooking'));
+    assert.ok(appScriptText.includes('openRecommendedCalendarPackage'));
+    assert.ok(appScriptText.includes('Empfohlenen Termin buchen'));
+    assert.ok(appScriptText.includes('<span>Empfohlen</span><b>Buchen</b>'));
     assert.ok(appScriptText.includes('/api/booking-options'));
     assert.ok(appScriptText.includes('renderWasherStep'));
     assert.ok(appScriptText.includes('renderTimeStep'));
@@ -1285,6 +1299,11 @@ async function run() {
     assert.ok(appScriptText.includes('bookActiveReleaseNotice'));
     assert.ok(appScriptText.includes('Freigeben, Push antippen, buchen'));
     assert.ok(appScriptText.includes('Push-Nachricht'));
+    assert.ok(appScriptText.includes("introSceneImage('booking-time-focused.png')"));
+    assert.ok(appScriptText.includes("introSceneImage('booking-drying-focused.png')"));
+    assert.ok(appScriptText.includes("introSceneImage('booking-tumbler-focused.png')"));
+    assert.ok(appScriptText.includes("introSceneImage('release-dialog.png')"));
+    assert.ok(appScriptText.includes("introSceneImage('cleaning-tasks.png')"));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
@@ -1295,13 +1314,29 @@ async function run() {
     assert.ok(captionText.startsWith('WEBVTT'));
     assert.ok(captionText.includes('Waschpaket buchen'));
     assert.ok(captionText.includes('drei beschriftete Farbstreifen'));
-    assert.ok(captionText.includes('Standardm\u00e4\u00dfig steht die Zeit im Mittelpunkt'));
+    assert.ok(captionText.includes('Standardm\u00e4ssig steht die Zeit im Mittelpunkt'));
     assert.ok(captionText.includes('Wenn dir eine bestimmte Maschine wichtiger ist'));
     assert.ok(captionText.includes('App merkt sich deine Auswahl im Benutzerkonto'));
     assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
     assert.ok(captionText.includes('Das normale Löschen entfernt nur deine Buchung'));
     assert.ok(captionText.includes('Liliane hat Waschmaschine zwei freigegeben'));
     assert.ok(captionText.includes('Tippst du auf die Push-Nachricht'));
+    assert.ok(captionText.includes('00:05:'));
+    for (const sceneAsset of [
+      'app-overview.png',
+      'booking-time-focused.png',
+      'booking-washers-focused.png',
+      'booking-drying-focused.png',
+      'booking-tumbler-focused.png',
+      'message-center.png',
+      'release-dialog.png',
+      'settings-notifications.png',
+      'cleaning-tasks.png'
+    ]) {
+      const sceneImage = await expectStatus(guest, `/assets/intro/scenes/${sceneAsset}`, 200);
+      assert.equal(sceneImage.response.headers.get('content-type'), 'image/png');
+      assert.ok(sceneImage.body.length > 10000);
+    }
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
     assert.ok(!privacyPage.body.toString().includes('/assets/gbmz-logo.svg'));

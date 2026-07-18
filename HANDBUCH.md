@@ -19,11 +19,11 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 
 1. Auf der Anmeldeseite `Neu hier` waehlen.
 2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Die E-Mail ist Pflicht, weil Passwort-Reset und wichtige Kontohinweise sonst nicht funktionieren. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
-3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
+3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Ein passender Termin ist mit `Empfohlen` und `Buchen` markiert; ein Tipp oeffnet direkt das vorgeschlagene Zeitfenster und die Waschmaschinenwahl.
 4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
-6. Beim ersten Start die `Persoenliche Einrichtung` durchgehen: E-Mail pruefen, App-Installation nutzen und bei Bedarf Push aufs Handy aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
-7. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
+6. Beim ersten Start die `Einstellungen` durchgehen: E-Mail pruefen und bei Bedarf unter `App & Geraet` die App installieren sowie Push aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
+7. Oben rechts das Kontomenue oeffnen und mit `Abmelden` die Sitzung sicher beenden.
 
 Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
 
@@ -38,6 +38,29 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
 
 Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die App sicher, dass dieses Konto aktiv ist und die Adminrolle besitzt. In einer aelteren Datenbank ohne Superadmin wird der erste vorhandene Admin einmalig zum Superadmin hochgestuft.
+
+### Notfallzugang und Verantwortungsuebergabe
+
+Der Superadmin kann sich nicht selbst loeschen. Er kann die Superadmin-Verantwortung unter `Verwalten` > `System` an ein anderes aktives Haus-Admin-Konto uebergeben. Die Uebergabe verlangt den Bestaetigungstext `SUPERADMIN UEBERGEBEN`, setzt die alte Superadmin-Sitzung auf das eigene Haus zurueck und beendet alte Sitzungen beider beteiligten Konten.
+
+Im Ueberblick zeigt die App den Notfallstatus:
+
+| Pruefung | Bedeutung |
+| --- | --- |
+| Hausadmins | Mindestens zwei aktive Admin-Konten pro Haus vermeiden Single-Person-Abhaengigkeit |
+| Superadmins | Mindestens ein aktiver Superadmin muss vorhanden sein; fuer geplante Ausfaelle rechtzeitig uebergeben |
+| Seed-Admin | Name des technischen Start-Admin-Kontos |
+| Render-Recovery | Zeigt, ob `SEED_ADMIN_PASSWORD` als technischer Notfallanker gesetzt ist |
+
+Organisatorischer Notfallprozess:
+
+1. Render-Zugang einer zweiten vertrauenswuerdigen Stelle bekannt machen oder versiegelt hinterlegen.
+2. In Render `SEED_ADMIN_PASSWORD` auf ein neues starkes Passwort setzen.
+3. Wenn niemand das bisherige Seed-Passwort kennt, nur fuer diesen Notfall zusaetzlich `SEED_ADMIN_FORCE_PASSWORD_RESET=true` setzen.
+4. Render-Service neu starten oder neu deployen.
+5. Mit `SEED_ADMIN_NAME` und dem neuen Seed-Passwort anmelden. Das Seed-Konto wird aktiv als Superadmin sichergestellt.
+6. Sofort danach `SEED_ADMIN_FORCE_PASSWORD_RESET` wieder entfernen und den Service erneut starten. `SEED_ADMIN_PASSWORD` kann als Notfallanker gesetzt bleiben.
+7. Nach der Anmeldung ein normales Admin- oder Superadmin-Nachfolgekonzept wiederherstellen und den Notfallzugriff dokumentieren.
 
 ## Seite: Anmeldung (`/login.html`)
 
@@ -81,11 +104,13 @@ Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrieru
 | Funktion | Bewohner | Haus-Admin | Superadmin |
 | --- | :---: | :---: | :---: |
 | Angemeldete Person, Rolle und Haus anzeigen | Ja | Ja | Ja |
+| Mitteilungszentrum mit Ungelesen-Anzeige oeffnen | Ja | Ja | Ja |
+| Kontomenue und persoenliche Einstellungen oeffnen | Ja | Ja | Ja |
 | Zwischen `Buchen` und `Verwalten` wechseln | Nein | Ja | Ja |
 | Aktives Haus wechseln | Nein | Nein | Ja |
 | Sicher abmelden | Ja | Ja | Ja |
 
-`Abmelden` steht als kontrastreicher, dunkelgruener Button oben rechts in der Kopfzeile. Er sendet ein eigenes Abmeldeformular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
+Das Kontomenue oben rechts zeigt Benutzername und Rolle. Es fuehrt zu `Einstellungen`, `Hilfe & Einfuehrung` und `Abmelden`. Die Abmeldung sendet ein eigenes Formular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
 
 Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht die vollstaendige Adresse des aktiven Hauses dauerhaft direkt unter der Wortmarke und wird beim Hauswechsel sofort aktualisiert. Auf oeffentlichen Seiten ohne bekannte Hauszuordnung erscheint stattdessen `Der Waschplan fuer dein Haus`.
 
@@ -104,7 +129,7 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | Funktion | Beschreibung |
 | --- | --- |
 | Kalender zuerst | Direkt nach den eigenen Buchungen freie Waschzeiten in der Wochen- oder Monatsansicht ueberblicken |
-| Persoenlicher Vorschlag | Passenden freien Waschslot im Kalender markieren und mit `Termin auswaehlen` oeffnen |
+| Empfohlener Termin | Passenden freien Waschslot mit `Empfohlen` und `Buchen` markieren und per Tipp direkt in der Waschmaschinenwahl oeffnen |
 | Buchungsweg waehlen | Zwischen `Zeit zuerst` und `Maschine zuerst` wechseln; die Auswahl wird im Benutzerkonto gespeichert und gilt auf allen Geraeten |
 | Zeit zuerst | Standardweg mit fuenf Schritten: Zeitfenster, Waschmaschine, Trockenraum, Tumbler und Pruefen |
 | Zeitfenster | Alle drei Slots zuerst gross anzeigen; pro Slot die aktuell waehlbaren Waschmaschinen, Trockenraeume und Tumbler zusammenfassen |
@@ -147,32 +172,29 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 - Beim Waschslot `17:00-21:00` darf ein Trockenraum bis hoechstens `12:00` am Folgetag verwendet werden.
 - Kuerzeres Trocknen und fruehes Freigeben verbessern die Verfuegbarkeit fuer alle.
 
-### Meine Ansicht
+### Mitteilungen und Einstellungen
 
 | Bereich | Funktion |
 | --- | --- |
-| Wissen kompakt | Einfuehrung erneut oeffnen |
-| Persoenliche Einrichtung | Kompakten Status fuer E-Mail, App-Installation und Push anzeigen |
-| Einstellungen oeffnen | Gefuehrten Dialog fuer E-Mail-Adresse, Freigabe-Hinweise, PWA-Installation, Push und Hinweisfilter oeffnen |
-| E-Mail-Bestaetigung | Im Einstellungsdialog Pflichtadresse und Bestaetigungsstatus anzeigen sowie Link erneut senden |
-| Als App installieren | Im Einstellungsdialog Installationsbutton oder iPhone-Hinweis fuer den Home-Bildschirm anzeigen |
-| Push aufs Handy | Im Einstellungsdialog Push-Hinweise auf dem aktuellen Geraet aktivieren oder deaktivieren |
-| Hinweisfilter | Im Einstellungsdialog Bereich, Wochentag und Zeitfenster eingrenzen |
-| Zugang und Sicherheit | Eigenes Passwort mit bisherigem Passwort aendern |
-| Meine Daten | Eigene Daten und Buchungen als JSON exportieren |
-| Konto loeschen | Eigenes Konto nach Passwortbestaetigung endgueltig entfernen |
-| Freigaben und Absagen | Noch relevante wieder freie Termine anzeigen |
-| Letzte Hinweise | Eigene lokale Aktionsbestaetigungen dieses Geraets anzeigen |
-| Regeln | Aktuelle Reservierungsregeln nachlesen |
-| Reinigung | Reinigungsaufgaben fuer Maschinen, Raeume und Boden nachlesen |
+| Mitteilungen | Wieder freie Termine und eigene lokale Aktionsbestaetigungen gemeinsam und chronologisch anzeigen |
+| Ungelesen-Anzeige | Neue Eintraege am Kopfzeilenbutton zaehlen und beim Oeffnen als gelesen markieren |
+| Neu frei | Den aktuellsten wieder freien Termin kompakt zwischen eigenen Buchungen und Kalender hervorheben |
+| Freien Termin buchen | Mitteilung mit Person, Geraet, Datum und Slot oeffnen und bei Verfuegbarkeit direkt buchen |
+| Kontomenue | Einstellungen, Hilfe und Abmeldung kompakt oben rechts anbieten |
+| Profil | Benutzername, Rolle, Pflicht-E-Mail, Bestaetigungsstatus und bevorzugten Buchungsweg anzeigen bzw. speichern |
+| Benachrichtigungen | Freigabe-Hinweise ein- oder ausschalten und nach Bereich, Wochentag und Zeitfenster filtern |
+| App und Geraet | PWA installieren und Push auf dem gerade verwendeten Geraet aktivieren oder deaktivieren |
+| Sicherheit und Daten | Passwort aendern, eigene Daten exportieren, Datenschutz oeffnen oder Konto loeschen |
+| Wissen kompakt | Einfuehrung ueber Kontomenue oder Seitenleiste erneut oeffnen |
+| Regeln und Reinigung | Aktuelle Reservierungs- und Reinigungsregeln in der Seitenleiste nachlesen |
 
 ### Einfuehrung und Quiz
 
 | Bereich | Funktion |
 | --- | --- |
-| Aufgezeichnetes Video | Rund fuenfminuetige Einfuehrung mit Sprecher abspielen |
+| Aufgezeichnetes Video | Rund fuenfeinhalbminuetige Einfuehrung mit Sprecher und 28 passend zum Text wechselnden App- und Reinigungsbildern abspielen |
 | Untertitel | Synchronisierte deutsche Untertitel anbieten |
-| Interaktive Einfuehrung | Aufbau, Waschpaket und Regeln kapitelweise zeigen und vorlesen |
+| Interaktive Einfuehrung | Aufbau, Waschpaket und Regeln kapitelweise mit denselben echten App-Ansichten zeigen und vorlesen |
 | Steuerung | Wiedergabe, Stummschaltung, vor und zurueck bedienen |
 | Quiz | Drei alltagsnahe Fragen mit freundlicher Rueckmeldung beantworten |
 
@@ -249,6 +271,8 @@ Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranki
 | Aktive Push-Geraete des Hauses sehen und Testpush senden | Ja | Ja |
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
 | Alle normalen Buchungen des aktiven Hauses mit Bestaetigungstext loeschen | Ja | Ja |
+| Notfallstatus fuer Admins, Superadmin und Seed-Recovery sehen | Ja | Ja |
+| Superadmin-Verantwortung an aktiven Haus-Admin uebergeben | Nein | Ja |
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
 | SQLite-Backup herunterladen | Nein | Ja |
@@ -359,6 +383,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 - Nur der Superadmin darf das aktive Haus wechseln und hausuebergreifende Aktionen ausfuehren.
 - Rollen- und Hausgrenzen muessen immer serverseitig durchgesetzt und im Rollentest abgedeckt werden.
 - `SEED_ADMIN_NAME` bezeichnet das bestehende oder neu anzulegende Superadmin-Konto. Ist `SEED_ADMIN_PASSWORD` gesetzt, wird dieses Konto beim Start als aktiver Superadmin sichergestellt, ohne ein bereits geaendertes Passwort zu ueberschreiben.
+- `SEED_ADMIN_FORCE_PASSWORD_RESET=true` darf nur temporaer im Notfall gesetzt werden. Dann wird das Passwort des Seed-Superadmins beim Start auf `SEED_ADMIN_PASSWORD` gesetzt. Danach muss der Schalter wieder entfernt werden.
 
 ### Deployment
 
@@ -366,8 +391,15 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ## Aenderungsprotokoll
 
+### 19. Juli 2026
+
+- Empfohlenen Kalendertermin eindeutig nutzbar gemacht: Die bisher passive Markierung `Vorschlag` zeigt nun `Empfohlen` und `Buchen`; Klick oder Tipp oeffnet direkt das empfohlene Zeitfenster in der Waschmaschinenwahl. Auch Tagesvorschau und Empfehlungsbereich verwenden die klare Aktion `Empfohlenen Termin buchen`.
+
 ### 18. Juli 2026
 
+- Einfuehrungsvideo visuell synchronisiert: 28 kurze Szenen zeigen jeweils die zum Sprechertext passende Kalender-, Buchungs-, Freigabe-, Einstellungs- oder Reinigungsansicht; auch der interaktive Rundgang verwendet nun echte App-Aufnahmen statt abstrahierter Platzhalter.
+- Bewohnernavigation aufgeraeumt: Kontomenue in der Kopfzeile, gemeinsames Mitteilungszentrum statt getrennter Freigabe- und Hinweislisten, kompakter `Neu frei`-Hinweis und vier Einstellungsbereiche fuer Profil, Benachrichtigungen, App/Geraet sowie Sicherheit/Daten.
+- Notfallprozess fuer Superadmin-Ausfall ergaenzt: sichtbarer Recovery-Status, Superadmin-Uebergabe an aktive Haus-Admins, Seed-Passwort-Reset nur mit temporaerem Break-Glass-Schalter und Rollentest-Abdeckung.
 - Admin-Auswertung fuer Nutzung nach Bereich, Slot, Ressource, Nutzer und gesperrte Ressourcen ergaenzt.
 - Push-Freigaben erweitert: Benachrichtigungen nennen die freigebende Person und oeffnen beim Antippen einen Buchungsdialog fuer den konkreten Slot.
 - Gesprochenes Einfuehrungsvideo, Poster, Untertitel, Lesetext und interaktiver Rundgang auf Push-Freigaben und direkte Slotbuchung nach Push aktualisiert.

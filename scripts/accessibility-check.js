@@ -38,6 +38,10 @@ assert.match(indexHtml, /id="installHelpText"/, 'Installationshilfe ohne Status-
 assert.match(indexHtml, /id="settingsOverlay"[\s\S]*aria-labelledby="settingsTitle"/, 'Persoenliche Einrichtung ohne Dialogtitel');
 assert.match(indexHtml, /id="settingsSummary"[^>]*aria-live="polite"/, 'Persoenliche Einrichtung ohne Status-Live-Region');
 assert.match(indexHtml, /id="openSettingsButton"/, 'Persoenliche Einstellungen sind nicht erreichbar');
+assert.match(indexHtml, /id="accountMenuButton"[^>]*aria-controls="accountMenuPanel"/, 'Kontomenue ohne kontrolliertes Ziel');
+assert.match(indexHtml, /id="messageCenterButton"[^>]*aria-controls="messageCenterOverlay"/, 'Mitteilungsbutton ohne kontrolliertes Ziel');
+assert.match(indexHtml, /id="messageCenterOverlay"[\s\S]*aria-labelledby="messageCenterTitle"/, 'Mitteilungszentrum ohne Dialogtitel');
+assert.match(indexHtml, /class="settings-tabs"[^>]*aria-label=/, 'Einstellungsreiter ohne Beschriftung');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');
