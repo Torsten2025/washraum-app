@@ -22,7 +22,7 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
 4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
-6. Unter `Benachrichtigungen` optional `Als App installieren` nutzen und danach Push aufs Handy aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
+6. Beim ersten Start die `Persoenliche Einrichtung` durchgehen: E-Mail pruefen, App-Installation nutzen und bei Bedarf Push aufs Handy aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
 7. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
 
 Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
@@ -152,11 +152,12 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Bereich | Funktion |
 | --- | --- |
 | Wissen kompakt | Einfuehrung erneut oeffnen |
-| Benachrichtigungen | E-Mail-Adresse und Freigabe-Hinweise verwalten |
-| E-Mail-Bestaetigung | Pflichtadresse und Bestaetigungsstatus anzeigen sowie Link erneut senden |
-| Als App installieren | Installationsbutton oder iPhone-Hinweis fuer den Home-Bildschirm anzeigen |
-| Push aufs Handy | Push-Hinweise auf dem aktuellen Geraet aktivieren oder deaktivieren |
-| Hinweisfilter | Bereich, Wochentag und Zeitfenster eingrenzen |
+| Persoenliche Einrichtung | Kompakten Status fuer E-Mail, App-Installation und Push anzeigen |
+| Einstellungen oeffnen | Gefuehrten Dialog fuer E-Mail-Adresse, Freigabe-Hinweise, PWA-Installation, Push und Hinweisfilter oeffnen |
+| E-Mail-Bestaetigung | Im Einstellungsdialog Pflichtadresse und Bestaetigungsstatus anzeigen sowie Link erneut senden |
+| Als App installieren | Im Einstellungsdialog Installationsbutton oder iPhone-Hinweis fuer den Home-Bildschirm anzeigen |
+| Push aufs Handy | Im Einstellungsdialog Push-Hinweise auf dem aktuellen Geraet aktivieren oder deaktivieren |
+| Hinweisfilter | Im Einstellungsdialog Bereich, Wochentag und Zeitfenster eingrenzen |
 | Zugang und Sicherheit | Eigenes Passwort mit bisherigem Passwort aendern |
 | Meine Daten | Eigene Daten und Buchungen als JSON exportieren |
 | Konto loeschen | Eigenes Konto nach Passwortbestaetigung endgueltig entfernen |
@@ -257,7 +258,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 ## Push-Hinweise und PWA
 
 - Die App besitzt ein Web-App-Manifest und einen Service Worker. Dadurch kann sie auf unterstuetzten Smartphones und Desktops als PWA installiert werden.
-- In der angemeldeten App zeigt `Als App installieren` entweder den direkten Browser-Installationsdialog oder den passenden iPhone-Hinweis.
+- Beim ersten Start und spaeter unter `Persoenliche Einrichtung` zeigt `Als App installieren` entweder den direkten Browser-Installationsdialog oder den passenden iPhone-Hinweis.
 - Push-Hinweise sind pro Browser/Geraet freiwillig. Bewohner muessen Push im Browser erlauben und koennen das Abo in der App wieder deaktivieren.
 - Push nutzt dieselben Filter wie E-Mail: Haus, Bereich, Wochentag, Zeitfenster und aktivierte Freigabe-Hinweise.
 - Freigaben und Absagen senden Push an passende aktive Abos im selben Haus, nicht an die Person, die den Termin freigegeben hat.
@@ -349,6 +350,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- Persoenliche Einrichtung als gefuehrten Dialog eingefuehrt: Nach Registrierung erscheinen E-Mail, PWA-Installation, Push und Hinweisfilter gebuendelt; die Seitenleiste zeigt nur noch eine kompakte Statuskarte.
 - Sichtbaren Installationsbereich `Als App installieren` ergaenzt, damit Bewohner die PWA nicht im Browsermenue suchen muessen; iPhone-Nutzer erhalten den Hinweis auf `Teilen` und `Zum Home-Bildschirm`.
 - E-Mail-Pflicht fuer Konten deutlicher gemacht: Registrierung und eigene Benachrichtigungen verlangen eine gueltige Adresse; bestehende Konten ohne E-Mail werden in App und Adminuebersicht sichtbar gewarnt.
 - PWA-Basis eingefuehrt: Manifest, App-Icon und Service Worker machen WaschZeit installierbar und stellen die App-Shell offline bereit.

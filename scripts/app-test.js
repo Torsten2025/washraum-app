@@ -1149,6 +1149,9 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
+    assert.ok(indexHtml.includes('settingsOverlay'));
+    assert.ok(indexHtml.includes('settingsSummary'));
+    assert.ok(indexHtml.includes('Pers&ouml;nliche Einrichtung'));
     assert.ok(indexHtml.includes('etwa f&uuml;nfmin&uuml;tige Video'));
     assert.ok(indexHtml.includes('Absagen &amp; informieren'));
     assert.ok(indexHtml.includes('Waschpaket'));
@@ -1197,6 +1200,8 @@ async function run() {
     assert.ok(stylesText.includes('.flow-option-time'));
     assert.ok(stylesText.includes('.booking-mode-switch'));
     assert.ok(stylesText.includes('.flow-time-choice'));
+    assert.ok(stylesText.includes('.settings-summary'));
+    assert.ok(stylesText.includes('.settings-step'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1227,6 +1232,8 @@ async function run() {
     assert.ok(appScriptText.includes('Reset-Link senden'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
+    assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
+    assert.ok(appScriptText.includes('renderSettingsSummary'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });

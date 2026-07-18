@@ -3141,6 +3141,80 @@ aside.panel > * {
   margin: 0;
 }
 
+.personal-settings-card {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-summary span {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  justify-content: space-between;
+  padding-top: 8px;
+}
+
+.settings-summary strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.settings-modal {
+  max-width: 760px;
+  width: min(100%, 760px);
+}
+
+.settings-form {
+  margin-top: 22px;
+}
+
+.settings-step {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.settings-step h3 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.settings-step p {
+  margin-bottom: 0;
+}
+
+.settings-step-number {
+  align-items: center;
+  background: var(--night);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  margin-bottom: 10px;
+  width: 28px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .install-card,
 .push-card {
   align-items: flex-start;

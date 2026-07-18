@@ -70,6 +70,14 @@ const disablePushButton = document.querySelector('#disablePushButton');
 const notificationResourceType = document.querySelector('#notificationResourceType');
 const notificationWeekday = document.querySelector('#notificationWeekday');
 const notificationSlot = document.querySelector('#notificationSlot');
+const openSettingsButton = document.querySelector('#openSettingsButton');
+const settingsSummary = document.querySelector('#settingsSummary');
+const settingsProgressText = document.querySelector('#settingsProgressText');
+const settingsOverlay = document.querySelector('#settingsOverlay');
+const closeSettingsButton = document.querySelector('#closeSettingsButton');
+const settingsDoneButton = document.querySelector('#settingsDoneButton');
+const settingsEyebrow = document.querySelector('#settingsEyebrow');
+const settingsIntroText = document.querySelector('#settingsIntroText');
 const passwordForm = document.querySelector('#passwordForm');
 const currentPasswordInput = document.querySelector('#currentPassword');
 const newPasswordInput = document.querySelector('#newPassword');
@@ -160,6 +168,7 @@ let introVideoSpeechPaused = false;
 let introVideoSpeechRun = 0;
 let introVideoPreferredVoice = null;
 let introReturnFocus = null;
+let settingsReturnFocus = null;
 let activeAdminSection = 'overview';
 let logoutInProgress = false;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -438,6 +447,80 @@ function closeIntro() {
   if (introReturnFocus instanceof HTMLElement) {
     introReturnFocus.focus();
   }
+}
+
+function settingsStorageKey() {
+  return currentUser ? `waschzeit-personal-setup-${currentUser.id}` : 'waschzeit-personal-setup';
+}
+
+function settingsCompleted() {
+  try {
+    return window.localStorage.getItem(settingsStorageKey()) === 'done';
+  } catch {
+    return false;
+  }
+}
+
+function markSettingsCompleted() {
+  try {
+    window.localStorage.setItem(settingsStorageKey(), 'done');
+  } catch {}
+}
+
+function pushIsActive() {
+  return pushStatusText.textContent.includes('auf diesem Geraet aktiv');
+}
+
+function renderSettingsSummary() {
+  if (!currentUser) return;
+  const emailReady = Boolean(currentUser.email && currentUser.emailVerified);
+  const installReady = appInstalled();
+  const pushReady = pushIsActive();
+  const completedCount = [emailReady, installReady, pushReady].filter(Boolean).length;
+  settingsProgressText.textContent = `${completedCount} von 3 Schritten erledigt.`;
+  const items = [
+    {
+      label: 'E-Mail',
+      value: !currentUser.email ? 'fehlt' : currentUser.emailVerified ? 'bestaetigt' : 'bestaetigen'
+    },
+    {
+      label: 'App',
+      value: installReady ? 'installiert' : 'optional'
+    },
+    {
+      label: 'Push',
+      value: pushReady ? 'aktiv' : 'nicht aktiv'
+    }
+  ];
+  settingsSummary.innerHTML = items.map((item) => (
+    `<span><strong>${escapeHtml(item.label)}</strong>${escapeHtml(item.value)}</span>`
+  )).join('');
+}
+
+function openSettings(firstRun = false) {
+  settingsReturnFocus = document.activeElement;
+  settingsEyebrow.textContent = firstRun ? 'Erster Start' : 'Persoenliche Einrichtung';
+  settingsIntroText.textContent = firstRun
+    ? 'Richte kurz E-Mail, App und Hinweise ein. Danach verschwindet dieser Bereich in deinen persoenlichen Einstellungen.'
+    : 'Hier sammelst du alles, was nur dein Konto und dieses Geraet betrifft: E-Mail, App-Installation, Push und passende Hinweise.';
+  settingsOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+  renderSettingsSummary();
+  closeSettingsButton.focus();
+}
+
+function closeSettings() {
+  settingsOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  if (settingsReturnFocus instanceof HTMLElement) {
+    settingsReturnFocus.focus();
+  }
+}
+
+function finishSettings() {
+  markSettingsCompleted();
+  closeSettings();
+  showStatus('Persoenliche Einrichtung gespeichert.');
 }
 
 function introVideoStepDuration(step) {
@@ -771,6 +854,7 @@ async function init() {
   renderEmailVerificationStatus();
   renderInstallStatus();
   await renderPushStatus();
+  renderSettingsSummary();
 
   const [resourceData, slotData] = await Promise.all([
     api('/api/resources'),
@@ -787,7 +871,7 @@ async function init() {
   await refreshAll();
   const pageUrl = new URL(window.location.href);
   if (pageUrl.searchParams.get('welcome') === '1') {
-    openIntro();
+    openSettings(!settingsCompleted());
     window.history.replaceState({}, '', '/index.html');
   }
 }
@@ -823,6 +907,7 @@ function renderEmailVerificationStatus() {
       : 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.';
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
+  renderSettingsSummary();
 }
 
 function appInstalled() {
@@ -838,6 +923,7 @@ function renderInstallStatus() {
   if (appInstalled()) {
     installHelpText.textContent = 'WaschZeit ist auf diesem Geraet bereits als App geoeffnet.';
     installAppButton.hidden = true;
+    renderSettingsSummary();
     return;
   }
   installAppButton.hidden = false;
@@ -845,16 +931,19 @@ function renderInstallStatus() {
     installHelpText.textContent = 'Du kannst WaschZeit direkt auf diesem Geraet installieren.';
     installAppButton.disabled = false;
     installAppButton.textContent = 'App installieren';
+    renderSettingsSummary();
     return;
   }
   if (isiOS()) {
     installHelpText.textContent = 'iPhone/iPad: Im Safari-Teilen-Menue "Zum Home-Bildschirm" waehlen.';
     installAppButton.disabled = true;
     installAppButton.textContent = 'Safari-Teilen-Menue nutzen';
+    renderSettingsSummary();
     return;
   }
   installHelpText.textContent = 'Wenn dein Browser die Installation anbietet, erscheint hier der Installationsbutton. Sonst Browser-Menue verwenden.';
   installAppButton.disabled = true;
+  renderSettingsSummary();
 }
 
 async function installApp() {
@@ -902,6 +991,7 @@ async function renderPushStatus() {
     pushStatusText.textContent = 'Dieses Geraet unterstuetzt Web-Push leider nicht.';
     enablePushButton.disabled = true;
     disablePushButton.hidden = true;
+    renderSettingsSummary();
     return;
   }
   try {
@@ -911,6 +1001,7 @@ async function renderPushStatus() {
       pushStatusText.textContent = 'Push ist auf dem Server noch nicht bereit.';
       enablePushButton.disabled = true;
       disablePushButton.hidden = true;
+      renderSettingsSummary();
       return;
     }
     const subscription = await currentPushSubscription();
@@ -920,12 +1011,14 @@ async function renderPushStatus() {
       enablePushButton.textContent = 'Push erneut verbinden';
       enablePushButton.disabled = false;
       disablePushButton.hidden = false;
+      renderSettingsSummary();
       return;
     }
     if (permission === 'denied') {
       pushStatusText.textContent = 'Push wurde im Browser blockiert. Bitte in den Website-Einstellungen erlauben.';
       enablePushButton.disabled = true;
       disablePushButton.hidden = true;
+      renderSettingsSummary();
       return;
     }
     pushStatusText.textContent = 'Push ist bereit, aber auf diesem Geraet noch nicht aktiviert.';
@@ -937,6 +1030,7 @@ async function renderPushStatus() {
     enablePushButton.disabled = true;
     disablePushButton.hidden = true;
   }
+  renderSettingsSummary();
 }
 
 async function enablePushNotifications() {
@@ -2567,6 +2661,7 @@ async function saveNotifications() {
     });
     currentUser = data.user;
     renderEmailVerificationStatus();
+    renderSettingsSummary();
     showStatus(data.message || 'Benachrichtigungen gespeichert.');
   } catch (error) {
     showStatus(error.message, 'error');
@@ -3298,6 +3393,14 @@ resendVerificationButton.addEventListener('click', resendEmailVerification);
 installAppButton.addEventListener('click', installApp);
 enablePushButton.addEventListener('click', enablePushNotifications);
 disablePushButton.addEventListener('click', disablePushNotifications);
+openSettingsButton.addEventListener('click', () => openSettings(false));
+closeSettingsButton.addEventListener('click', closeSettings);
+settingsDoneButton.addEventListener('click', finishSettings);
+settingsOverlay.addEventListener('click', (event) => {
+  if (event.target === settingsOverlay) {
+    closeSettings();
+  }
+});
 
 houseSelect.addEventListener('change', () => switchHouse(houseSelect.value));
 
@@ -3338,6 +3441,24 @@ introOverlay.addEventListener('click', (event) => {
   }
 });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !settingsOverlay.hidden) {
+    closeSettings();
+    return;
+  }
+  if (event.key === 'Tab' && !settingsOverlay.hidden) {
+    const focusable = [...settingsOverlay.querySelectorAll('button, summary, input, select, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.disabled && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
   if (event.key === 'Escape' && !introOverlay.hidden) {
     closeIntro();
     return;

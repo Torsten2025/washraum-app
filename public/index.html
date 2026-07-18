@@ -145,68 +145,11 @@
           <p>Das kurze Video f&uuml;hrt durch Aufbau, Buchung und Regeln.</p>
           <button id="openKnowledgeButton" class="secondary" type="button">Video &ouml;ffnen</button>
         </div>
-        <div class="side-block">
-          <h3>Benachrichtigungen</h3>
-          <form id="notificationForm" class="stack compact-form">
-            <label>
-              E-Mail
-              <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
-            </label>
-            <label class="checkbox-label">
-              <input id="notifyReleases" name="notifyReleases" type="checkbox">
-              <span>Mail senden, wenn ein Termin wieder frei wird</span>
-            </label>
-            <div id="emailVerificationStatus" class="verification-status" role="status"></div>
-            <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
-            <section class="install-card" aria-labelledby="installTitle">
-              <div>
-                <h4 id="installTitle">Als App installieren</h4>
-                <p id="installHelpText" class="muted">Installationsstatus wird gepr&uuml;ft.</p>
-              </div>
-              <button id="installAppButton" class="secondary" type="button">App installieren</button>
-            </section>
-            <section class="push-card" aria-labelledby="pushTitle">
-              <div>
-                <h4 id="pushTitle">Push aufs Handy</h4>
-                <p id="pushStatusText" class="muted">Push-Status wird gepr&uuml;ft.</p>
-              </div>
-              <div class="inline-actions">
-                <button id="enablePushButton" class="secondary" type="button">Push aktivieren</button>
-                <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
-              </div>
-            </section>
-            <details class="notification-filters">
-              <summary>Nur passende Hinweise erhalten</summary>
-              <label>
-                Bereich
-                <select id="notificationResourceType" name="resourceType">
-                  <option value="all">Alle Bereiche</option>
-                  <option value="washer">Waschmaschinen</option>
-                  <option value="drying_room">Trockenr&auml;ume</option>
-                  <option value="tumbler">Tumbler</option>
-                </select>
-              </label>
-              <label>
-                Wochentag
-                <select id="notificationWeekday" name="weekday">
-                  <option value="">Alle Tage</option>
-                  <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
-                  <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
-                </select>
-              </label>
-              <label>
-                Zeitfenster
-                <select id="notificationSlot" name="slot">
-                  <option value="">Alle Zeitfenster</option>
-                  <option value="07:00-12:00">07:00-12:00</option>
-                  <option value="12:00-17:00">12:00-17:00</option>
-                  <option value="17:00-21:00">17:00-21:00</option>
-                </select>
-              </label>
-            </details>
-            <p class="muted notification-note">E-Mail ist Pflicht, damit Passwort-Reset und wichtige Kontohinweise funktionieren. Im laufenden Slot meldet &bdquo;Freigeben&ldquo;, dass du fr&uuml;her fertig bist. Vor Slotbeginn kannst du mit &bdquo;Absagen &amp; informieren&ldquo; den ganzen Termin wieder anbieten.</p>
-            <button class="secondary" type="submit">Speichern</button>
-          </form>
+        <div class="side-block personal-settings-card">
+          <h3>Pers&ouml;nliche Einrichtung</h3>
+          <p id="settingsProgressText" class="muted">Status wird gepr&uuml;ft.</p>
+          <div id="settingsSummary" class="settings-summary" aria-live="polite"></div>
+          <button id="openSettingsButton" class="secondary" type="button">Einstellungen &ouml;ffnen</button>
         </div>
         <div class="side-block">
           <h3>Zugang &amp; Sicherheit</h3>
@@ -432,6 +375,101 @@
         </div>
       </aside>
     </main>
+
+    <div id="settingsOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <button id="closeSettingsButton" class="icon-close" type="button" aria-label="Persoenliche Einstellungen schliessen">x</button>
+        <div class="intro-copy">
+          <p id="settingsEyebrow" class="eyebrow">Pers&ouml;nliche Einrichtung</p>
+          <h2 id="settingsTitle">Einmal kurz einrichten.</h2>
+          <p id="settingsIntroText">Hier sammelst du alles, was nur dein Konto und dieses Ger&auml;t betrifft: E-Mail, App-Installation, Push und passende Hinweise.</p>
+        </div>
+        <form id="notificationForm" class="stack compact-form settings-form">
+          <section class="settings-step" aria-labelledby="settingsEmailTitle">
+            <div>
+              <span class="settings-step-number">1</span>
+              <h3 id="settingsEmailTitle">E-Mail sichern</h3>
+              <p class="muted">Pflicht f&uuml;r Passwort-Reset und wichtige Kontohinweise.</p>
+            </div>
+            <label>
+              E-Mail
+              <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+            </label>
+            <div id="emailVerificationStatus" class="verification-status" role="status"></div>
+            <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
+          </section>
+          <section class="settings-step" aria-labelledby="settingsInstallTitle">
+            <div>
+              <span class="settings-step-number">2</span>
+              <h3 id="settingsInstallTitle">Als App nutzen</h3>
+              <p class="muted">Damit WaschZeit wie eine normale App auf dem Handy startet.</p>
+            </div>
+            <section class="install-card" aria-labelledby="installTitle">
+              <div>
+                <h4 id="installTitle">Als App installieren</h4>
+                <p id="installHelpText" class="muted">Installationsstatus wird gepr&uuml;ft.</p>
+              </div>
+              <button id="installAppButton" class="secondary" type="button">App installieren</button>
+            </section>
+          </section>
+          <section class="settings-step" aria-labelledby="settingsNoticeTitle">
+            <div>
+              <span class="settings-step-number">3</span>
+              <h3 id="settingsNoticeTitle">Hinweise w&auml;hlen</h3>
+              <p class="muted">Push ist schnell, E-Mail bleibt als Fallback m&ouml;glich.</p>
+            </div>
+            <label class="checkbox-label">
+              <input id="notifyReleases" name="notifyReleases" type="checkbox">
+              <span>Hinweise senden, wenn ein Termin wieder frei wird</span>
+            </label>
+            <section class="push-card" aria-labelledby="pushTitle">
+              <div>
+                <h4 id="pushTitle">Push aufs Handy</h4>
+                <p id="pushStatusText" class="muted">Push-Status wird gepr&uuml;ft.</p>
+              </div>
+              <div class="inline-actions">
+                <button id="enablePushButton" class="secondary" type="button">Push aktivieren</button>
+                <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
+              </div>
+            </section>
+            <details class="notification-filters">
+              <summary>Nur passende Hinweise erhalten</summary>
+              <label>
+                Bereich
+                <select id="notificationResourceType" name="resourceType">
+                  <option value="all">Alle Bereiche</option>
+                  <option value="washer">Waschmaschinen</option>
+                  <option value="drying_room">Trockenr&auml;ume</option>
+                  <option value="tumbler">Tumbler</option>
+                </select>
+              </label>
+              <label>
+                Wochentag
+                <select id="notificationWeekday" name="weekday">
+                  <option value="">Alle Tage</option>
+                  <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
+                  <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
+                </select>
+              </label>
+              <label>
+                Zeitfenster
+                <select id="notificationSlot" name="slot">
+                  <option value="">Alle Zeitfenster</option>
+                  <option value="07:00-12:00">07:00-12:00</option>
+                  <option value="12:00-17:00">12:00-17:00</option>
+                  <option value="17:00-21:00">17:00-21:00</option>
+                </select>
+              </label>
+            </details>
+            <p class="muted notification-note">Im laufenden Slot meldet &bdquo;Freigeben&ldquo;, dass du fr&uuml;her fertig bist. Vor Slotbeginn kannst du mit &bdquo;Absagen &amp; informieren&ldquo; den ganzen Termin wieder anbieten.</p>
+          </section>
+          <div class="settings-actions">
+            <button class="secondary" type="submit">Speichern</button>
+            <button id="settingsDoneButton" type="button">Fertig</button>
+          </div>
+        </form>
+      </section>
+    </div>
 
     <div id="introOverlay" class="intro-overlay" hidden>
       <section class="intro-modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">

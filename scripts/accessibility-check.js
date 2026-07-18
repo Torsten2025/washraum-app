@@ -35,6 +35,9 @@ assert.match(indexHtml, /id="bookingFlowContent"[^>]*aria-live="polite"/, 'Buchu
 assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buchungsdatum ohne Beschriftung');
 assert.match(indexHtml, /id="installTitle"/, 'Installationshinweis fuer PWA fehlt');
 assert.match(indexHtml, /id="installHelpText"/, 'Installationshilfe ohne Status-Text');
+assert.match(indexHtml, /id="settingsOverlay"[\s\S]*aria-labelledby="settingsTitle"/, 'Persoenliche Einrichtung ohne Dialogtitel');
+assert.match(indexHtml, /id="settingsSummary"[^>]*aria-live="polite"/, 'Persoenliche Einrichtung ohne Status-Live-Region');
+assert.match(indexHtml, /id="openSettingsButton"/, 'Persoenliche Einstellungen sind nicht erreichbar');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');
