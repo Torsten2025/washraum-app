@@ -423,6 +423,18 @@ async function run() {
     const hydratedSession = await expectStatus(user, '/api/me', 200);
     assert.equal(hydratedSession.body.user.houseName, 'Maneggplatz 18');
     assert.ok(hydratedSession.body.user.activeHouseId);
+    assert.equal(hydratedSession.body.user.bookingMode, 'time');
+    const bookingMode = await expectStatus(user, '/api/me/booking-mode', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingMode: 'machine' })
+    });
+    assert.equal(bookingMode.body.user.bookingMode, 'machine');
+    await expectStatus(user, '/api/me/booking-mode', 400, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingMode: 'ungueltig' })
+    });
+    const persistedBookingMode = await expectStatus(user, '/api/me', 200);
+    assert.equal(persistedBookingMode.body.user.bookingMode, 'machine');
     const preferences = await expectStatus(user, '/api/me/notifications', 200, {
       method: 'PUT',
       body: JSON.stringify({
@@ -438,6 +450,7 @@ async function run() {
     assert.equal(preferencesMe.body.notificationPreferences.weekday, 2);
     const exportResult = await expectStatus(user, '/api/me/export', 200);
     assert.equal(exportResult.body.account.username, 'Bewohner Test');
+    assert.equal(exportResult.body.account.booking_mode, 'machine');
 
     const recoveryClient = new ApiClient();
     const recoveryRegistration = await expectStatus(recoveryClient, '/api/register', 201, {
@@ -544,6 +557,8 @@ async function run() {
     const guidedWasherSlot = guidedWashers.body.slots.find((item) => item.slot === guidedSlot);
     assert.ok(guidedWasherSlot);
     assert.equal(guidedWasherSlot.washers.length, 3);
+    assert.ok(guidedWasherSlot.dryingRoomCount >= 1);
+    assert.ok(guidedWasherSlot.tumblerCount >= 1);
     const guidedCompanions = await expectStatus(
       packageUser,
       `/api/booking-options?date=${guidedDate}&slot=${encodeURIComponent(guidedSlot)}`,
@@ -1091,6 +1106,8 @@ async function run() {
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));
     assert.ok(indexHtml.includes('bookingFlowNotice'));
+    assert.ok(indexHtml.includes('data-booking-mode="time"'));
+    assert.ok(indexHtml.includes('data-booking-mode="machine"'));
     assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
     assert.ok(indexHtml.indexOf('bookingFlowContent') < indexHtml.indexOf('schedule'));
     assert.ok(indexHtml.includes('adminSectionNav'));
@@ -1118,6 +1135,8 @@ async function run() {
     assert.ok(stylesText.includes('#statusText:not(:empty)'));
     assert.ok(stylesText.includes('.booking-flow-notice'));
     assert.ok(stylesText.includes('.flow-option-time'));
+    assert.ok(stylesText.includes('.booking-mode-switch'));
+    assert.ok(stylesText.includes('.flow-time-choice'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1138,6 +1157,8 @@ async function run() {
     assert.ok(appScriptText.includes('startCalendarWasherBooking'));
     assert.ok(appScriptText.includes('/api/booking-options'));
     assert.ok(appScriptText.includes('renderWasherStep'));
+    assert.ok(appScriptText.includes('renderTimeStep'));
+    assert.ok(appScriptText.includes('/api/me/booking-mode'));
     assert.ok(appScriptText.includes('renderReviewStep'));
     assert.ok(appScriptText.includes('showBookingFlowStatus'));
     assert.ok(appScriptText.includes('Anderen Trockenraum w\\u00e4hlen oder entfernen'));
@@ -1156,8 +1177,9 @@ async function run() {
     assert.ok(captionText.startsWith('WEBVTT'));
     assert.ok(captionText.includes('Waschpaket buchen'));
     assert.ok(captionText.includes('drei beschriftete Farbstreifen'));
-    assert.ok(captionText.includes('Bei einer freien Waschmaschine w\u00e4hlst du direkt Ausw\u00e4hlen'));
-    assert.ok(captionText.includes('Trockenraum und Tumbler bleiben bis dahin bewusst verborgen'));
+    assert.ok(captionText.includes('Standardm\u00e4\u00dfig steht die Zeit im Mittelpunkt'));
+    assert.ok(captionText.includes('Wenn dir eine bestimmte Maschine wichtiger ist'));
+    assert.ok(captionText.includes('App merkt sich deine Auswahl im Benutzerkonto'));
     assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));

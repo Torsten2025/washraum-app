@@ -30,11 +30,11 @@ CHAPTERS = [
         "speech": "Hallo und willkommen bei WaschZeit. Nach dem Einloggen landest du direkt in deiner Hausansicht. Oben stehen deine nächsten Buchungen. Direkt darunter zeigt der Kalender drei beschriftete Farbstreifen für Waschmaschinen, Trockenräume und Tumbler. Grün bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln. Wenn du mit der Maus kurz auf einem Tag bleibst, öffnet sich eine vergrößerte Tagesansicht mit allen Zeitfenstern und Geräten. Mit der Tastatur erscheint sie beim Fokus und auf dem Smartphone durch Antippen. Ein Klick auf einen buchbaren Tag führt direkt zum Waschpaket. Ein persönlicher Vorschlag ist im passenden Tag markiert.",
     },
     {
-        "title": "Waschmaschine zuerst",
+        "title": "Zeit oder Maschine zuerst",
         "kicker": "02  SCHLAU BUCHEN",
         "accent": "#EF6B4D",
-        "cards": [("1", "Tagesdetails öffnen"), ("2", "Freie Maschine auswählen"), ("3", "Waschpaket ergänzen")],
-        "speech": "In den Tagesdetails siehst du für jedes Zeitfenster, welche Geräte frei, belegt oder bereits von dir gebucht sind. Bei einer freien Waschmaschine wählst du direkt Auswählen. Datum, Zeitfenster und Maschine werden sofort in Schritt eins deines Waschpakets übernommen. Trockenraum und Tumbler bleiben bis dahin bewusst verborgen. Wenn du mehr brauchst, kannst du im selben Zeitfenster bis zu drei Maschinen wählen. Ist bereits eine eigene Waschmaschine gebucht, öffnet Waschpaket ergänzen direkt die passenden Trocknungsoptionen.",
+        "cards": [("ZEIT ZUERST", "Uhrzeit und Verfügbarkeit"), ("MASCHINE ZUERST", "Bewährte Alternative"), ("DEINE WAHL", "Wird im Konto gespeichert")],
+        "speech": "In den Tagesdetails siehst du für jedes Zeitfenster, welche Geräte frei, belegt oder bereits von dir gebucht sind. Standardmäßig steht die Zeit im Mittelpunkt. Du wählst zuerst zwischen sieben, zwölf und siebzehn Uhr und siehst dabei sofort, wie viele Waschmaschinen, Trockenräume und Tumbler zur Auswahl stehen. Danach wählst du eine oder mehrere Waschmaschinen und ergänzt bei Bedarf die Trocknung. Wenn dir eine bestimmte Maschine wichtiger ist, wechselst du zu Maschine zuerst. Beide Wege führen zum gleichen Waschpaket, und die App merkt sich deine Auswahl im Benutzerkonto.",
     },
     {
         "title": "Trocknung Schritt für Schritt",

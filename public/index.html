@@ -109,14 +109,13 @@
               <div class="booking-flow-head">
                 <span class="suggestion-label">Gef&uuml;hrt buchen</span>
                 <h3 id="bookingFlowTitle">Dein Waschpaket</h3>
-                <p>Waschmaschine zuerst, Trocknung danach.</p>
+                <p id="bookingFlowDescription">Zeitfenster zuerst, Ger&auml;te danach.</p>
               </div>
-              <ol id="bookingFlowSteps" class="booking-flow-steps" aria-label="Buchungsschritte">
-                <li class="active" data-flow-step="1"><span>1</span> Waschmaschine</li>
-                <li data-flow-step="2"><span>2</span> Trockenraum</li>
-                <li data-flow-step="3"><span>3</span> Tumbler</li>
-                <li data-flow-step="4"><span>4</span> Pr&uuml;fen</li>
-              </ol>
+              <div class="booking-mode-switch" role="group" aria-label="Buchungsweg">
+                <button class="active" type="button" data-booking-mode="time" aria-pressed="true">Zeit zuerst</button>
+                <button type="button" data-booking-mode="machine" aria-pressed="false">Maschine zuerst</button>
+              </div>
+              <ol id="bookingFlowSteps" class="booking-flow-steps" aria-label="Buchungsschritte"></ol>
               <p id="bookingFlowNotice" class="booking-flow-notice notice" role="status" aria-live="polite" tabindex="-1" hidden></p>
               <div id="bookingFlowContent" class="booking-flow-content" aria-live="polite"></div>
             </section>
@@ -440,7 +439,7 @@
               <div id="introVideoVisual" class="video-scene" aria-hidden="true"></div>
               <div class="video-narration">
                 <h3 id="introVideoTitle">Willkommen bei WaschZeit</h3>
-                <p id="introVideoCaption" aria-live="polite">Deine Termine und der Kalender kommen zuerst. Danach stellst du dein Waschpaket zusammen.</p>
+                <p id="introVideoCaption" aria-live="polite">Deine Termine und der Kalender kommen zuerst. Danach w&auml;hlst du Zeit oder Maschine als Startpunkt.</p>
               </div>
             </div>
             <div id="introVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einf&uuml;hrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="introVideoProgress"></span></div>
@@ -457,9 +456,9 @@
             <summary>Text zum Mitlesen</summary>
             <ol>
               <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender Waschmaschinen, Trockenr&auml;ume und Tumbler mit drei Farbstreifen. Bleibst du kurz mit der Maus auf einem Tag, &ouml;ffnet sich dessen vergr&ouml;&szlig;erte Tagesansicht.</li>
-              <li>Ber&uuml;hre oder &ouml;ffne einen Kalendertag, um alle Zeitfenster und Ger&auml;te zu sehen. Mit &bdquo;Ausw&auml;hlen&ldquo; &uuml;bernimmst du eine freie Waschmaschine direkt in dein Waschpaket.</li>
-              <li>Nach der Tageswahl siehst du zuerst nur freie Waschmaschinen. Danach folgen passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Beides ist optional. Zum Schluss pr&uuml;fst und buchst du das gesamte Paket.</li>
-              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Alle ausgew&auml;hlten Bestandteile werden gemeinsam gebucht und erscheinen als ein Paket. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
+              <li>Ber&uuml;hre oder &ouml;ffne einen Kalendertag, um alle Zeitfenster und Ger&auml;te zu sehen. Im Buchungsweg &bdquo;Zeit zuerst&ldquo; w&auml;hlst du danach eine Uhrzeit mit passender Verf&uuml;gbarkeit.</li>
+              <li>Nach dem Zeitfenster folgen freie Waschmaschinen, passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Trocknung und Tumbler sind optional. Alternativ kannst du dauerhaft &bdquo;Maschine zuerst&ldquo; verwenden.</li>
+              <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Beide Buchungswege f&uuml;hren zum gleichen Waschpaket, das gemeinsam gebucht und als Paket angezeigt wird.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
               <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
               <li>Mindestens ein Tumbler bleibt frei. W&auml;hrend eines laufenden Slots kannst du fr&uuml;her freigeben. Vor Beginn kannst du absagen und gezielt interessierte Personen per E-Mail informieren.</li>

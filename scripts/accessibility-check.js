@@ -26,6 +26,7 @@ assert.match(indexHtml, /id="calendarDayDetailsClose"[^>]*aria-label=/, 'Tagesde
 assert.match(indexHtml, /id="weekViewButton"[^>]*aria-pressed="true"/, 'Wochenansicht ohne Status');
 assert.match(indexHtml, /id="monthViewButton"[^>]*aria-pressed="false"/, 'Monatsansicht ohne Status');
 assert.match(indexHtml, /id="bookingFlowSteps"[^>]*aria-label="Buchungsschritte"/, 'Buchungsschritte ohne Beschriftung');
+assert.match(indexHtml, /class="booking-mode-switch"[^>]*role="group"[^>]*aria-label="Buchungsweg"/, 'Buchungsweg ohne Gruppenbeschriftung');
 assert.match(indexHtml, /id="bookingFlowContent"[^>]*aria-live="polite"/, 'Buchungsstatus ohne Live-Region');
 assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buchungsdatum ohne Beschriftung');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');

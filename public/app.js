@@ -13,7 +13,9 @@ const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const bookingFlow = document.querySelector('#bookingFlow');
 const bookingFlowContent = document.querySelector('#bookingFlowContent');
 const bookingFlowNotice = document.querySelector('#bookingFlowNotice');
-const bookingFlowSteps = [...document.querySelectorAll('[data-flow-step]')];
+const bookingFlowSteps = document.querySelector('#bookingFlowSteps');
+const bookingFlowDescription = document.querySelector('#bookingFlowDescription');
+const bookingModeButtons = [...document.querySelectorAll('[data-booking-mode]')];
 const weekCalendar = document.querySelector('#weekCalendar');
 const calendarRange = document.querySelector('#calendarRange');
 const weekViewButton = document.querySelector('#weekViewButton');
@@ -126,6 +128,7 @@ let calendarSheetDragStart = null;
 let statusTimer = null;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
+let bookingMode = 'time';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -183,14 +186,14 @@ const introVideoSteps = [
   {
     id: 'booking',
     fallbackDurationMs: 21000,
-    title: 'In drei Schritten buchen',
-    caption: 'In den Tagesdetails kannst du eine freie Waschmaschine direkt f\u00fcr dein Paket ausw\u00e4hlen.',
-    speech: 'F\u00fcr eine Buchung \u00f6ffnest du einen Tag im Kalender. Die Tagesdetails zeigen alle drei Zeitfenster sowie freie, belegte und eigene Ger\u00e4te. Bei einer freien Waschmaschine w\u00e4hlst du direkt Ausw\u00e4hlen. Datum, Zeitfenster und Maschine werden in dein Waschpaket \u00fcbernommen. Erst danach erscheinen passende Trockenr\u00e4ume und Tumbler. Beide sind optional. Zum Schluss pr\u00fcfst du alles und buchst das Paket mit einem Klick.',
+    title: 'Zeit oder Maschine zuerst',
+    caption: 'Du entscheidest, welcher Buchungsweg f\u00fcr dich schneller ist.',
+    speech: 'F\u00fcr eine Buchung \u00f6ffnest du zuerst einen Tag im Kalender. Standardm\u00e4\u00dfig stehen danach die drei Zeitfenster im Mittelpunkt. Zu jeder Uhrzeit siehst du sofort, wie viele Waschmaschinen, Trockenr\u00e4ume und Tumbler zur Auswahl stehen. Nach der Zeit w\u00e4hlst du eine oder mehrere Waschmaschinen und erg\u00e4nzt bei Bedarf die Trocknung. Wenn dir eine bestimmte Maschine wichtiger ist, wechselst du zu Maschine zuerst. Die App merkt sich deine Auswahl f\u00fcr den n\u00e4chsten Besuch.',
     visual: `
       <div class="scene-booking">
         <div class="scene-days"><span>Mo<br><b>15</b></span><span class="active">Di<br><b>16</b></span><span>Mi<br><b>17</b></span><span>Do<br><b>18</b></span></div>
-        <div class="scene-tabs"><span class="active">Waschmaschine</span><span>Trockenraum</span><span>Tumbler</span></div>
-        <div class="scene-slot"><span><small>Waschmaschine 2</small><strong>12:00 - 17:00</strong></span><b>Buchen</b></div>
+        <div class="scene-tabs"><span class="active">Zeit zuerst</span><span>Maschine zuerst</span></div>
+        <div class="scene-slot"><span><small>Zeitfenster</small><strong>12:00 - 17:00</strong></span><b>3 WM frei</b></div>
       </div>`
   },
   {
@@ -198,7 +201,7 @@ const introVideoSteps = [
     fallbackDurationMs: 31000,
     title: 'Dein pers\u00f6nliches Waschpaket',
     caption: 'Ein passender freier Termin l\u00e4sst sich direkt buchen oder vorher anpassen.',
-    speech: 'Das pers\u00f6nliche Waschpaket nimmt dir mehrere einzelne Buchungen ab. Die App verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten. Du stellst mit einer schnellen Auswahl ein, ob du eine, zwei oder drei Waschmaschinen brauchst. Trockenraum und Tumbler kannst du direkt ein- oder ausschalten. Beim Trockenraum w\u00e4hlst du kurz, Standard oder die maximal erlaubte Dauer. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt.',
+    speech: 'Das pers\u00f6nliche Waschpaket verbindet deinen bisherigen Waschrhythmus mit den freien Zeiten. Der passende Tag und das passende Zeitfenster werden im Kalender markiert. Im Buchungsweg Zeit zuerst \u00f6ffnest du diesen Vorschlag und siehst danach die freien Waschmaschinen. Trockenraum und Tumbler kannst du Schritt f\u00fcr Schritt erg\u00e4nzen oder auslassen. Beim Trockenraum w\u00e4hlst du die erlaubte Nutzungsdauer. Mit Waschpaket buchen werden alle ausgew\u00e4hlten Bestandteile gemeinsam reserviert und sp\u00e4ter als ein Paket angezeigt.',
     visual: `
       <div class="scene-suggestion">
         <div class="scene-suggestion-head"><span><small>Pers\u00f6nliches Waschpaket</small><strong>Passt wahrscheinlich gut</strong></span><b>Frei</b></div>
@@ -749,6 +752,7 @@ async function init() {
   }
 
   currentUser = me.user;
+  bookingMode = currentUser.bookingMode === 'machine' ? 'machine' : 'time';
   availableHouses = me.houses || [];
   renderHouseContext();
   notificationEmail.value = currentUser.email || '';
@@ -1436,6 +1440,54 @@ function renderRecommendationLegacy() {
   }
 }
 
+function bookingStageOrder() {
+  return bookingMode === 'time'
+    ? ['time', 'washer', 'drying', 'tumbler', 'review']
+    : ['washer', 'drying', 'tumbler', 'review'];
+}
+
+function bookingStep(stage) {
+  return bookingStageOrder().indexOf(stage) + 1;
+}
+
+function currentBookingStage() {
+  return bookingStageOrder()[bookingFlowState.step - 1] || bookingStageOrder()[0];
+}
+
+function syncBookingModeUi() {
+  for (const button of bookingModeButtons) {
+    const active = button.dataset.bookingMode === bookingMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  bookingFlowSteps.classList.toggle('is-time-first', bookingMode === 'time');
+  bookingFlowDescription.textContent = bookingMode === 'time'
+    ? 'Zeitfenster zuerst, Ger\u00e4te danach.'
+    : 'Waschmaschine zuerst, Trocknung danach.';
+}
+
+async function setBookingMode(mode) {
+  if (!['time', 'machine'].includes(mode) || mode === bookingMode) return;
+  for (const button of bookingModeButtons) button.disabled = true;
+  try {
+    const data = await api('/api/me/booking-mode', {
+      method: 'PUT',
+      body: JSON.stringify({ bookingMode: mode })
+    });
+    bookingMode = data.user.bookingMode;
+    currentUser.bookingMode = bookingMode;
+    resetBookingFlowState(bookingDate.value);
+    renderBookingFlow();
+    focusBookingFlowHeading();
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    for (const button of bookingModeButtons) button.disabled = false;
+    syncBookingModeUi();
+  }
+}
+
 function resetBookingFlowState(date = bookingDate.value) {
   clearBookingFlowStatus();
   bookingFlowState = {
@@ -1479,7 +1531,7 @@ async function startCalendarWasherBooking(date, slot, resourceId) {
   bookingFlowState.dryingOptionId = '';
   bookingFlowState.tumblerResourceId = null;
   bookingFlowState.companions = null;
-  bookingFlowState.step = 1;
+  bookingFlowState.step = bookingStep('washer');
   clearBookingFlowStatus();
   renderBookingFlow();
   bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1579,15 +1631,17 @@ async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
 
 async function openBookingFlowStep(step) {
   clearBookingFlowStatus();
-  if (step === 1) {
-    bookingFlowState.step = 1;
+  const targetStage = bookingStageOrder()[step - 1];
+  if (!targetStage) return;
+  if (targetStage === 'time' || targetStage === 'washer') {
+    bookingFlowState.step = step;
     renderBookingFlow();
     focusBookingFlowHeading();
     return;
   }
   if (!bookingFlowState.slot) return;
-  if (step >= 2 && !bookingFlowState.companions) {
-    bookingFlowState.step = 2;
+  if (!bookingFlowState.companions) {
+    bookingFlowState.step = bookingStep('drying');
     bookingFlowState.loading = true;
     renderBookingFlow();
     try {
@@ -1596,7 +1650,7 @@ async function openBookingFlowStep(step) {
       );
       bookingFlowState.companions = bookingFlowOptions.companions || { dryingRooms: [], tumblers: [] };
     } catch (error) {
-      bookingFlowState.step = 1;
+      bookingFlowState.step = bookingStep('washer');
       showStatus(error.message, 'error');
       showBookingFlowStatus(error.message, 'error');
     } finally {
@@ -1618,7 +1672,7 @@ function toggleFlowWasher(resourceId, slot) {
   bookingFlowState.washerIds = bookingFlowState.washerIds.includes(resourceId)
     ? bookingFlowState.washerIds.filter((id) => id !== resourceId)
     : [...bookingFlowState.washerIds, resourceId].slice(0, 3);
-  if (!bookingFlowState.washerIds.length) bookingFlowState.slot = '';
+  if (!bookingFlowState.washerIds.length && bookingMode === 'machine') bookingFlowState.slot = '';
   bookingFlowState.dryingResourceId = null;
   bookingFlowState.dryingOptionId = '';
   bookingFlowState.tumblerResourceId = null;
@@ -1629,25 +1683,105 @@ function toggleFlowWasher(resourceId, slot) {
   )?.focus({ preventScroll: true });
 }
 
-function renderFlowActions(backStep, nextStep, nextLabel) {
+function renderFlowActions(backStage, nextStage, nextLabel) {
   const actions = document.createElement('div');
   actions.className = 'booking-flow-actions';
-  if (backStep) {
+  if (backStage) {
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'secondary';
     back.textContent = 'Zur\u00fcck';
-    back.addEventListener('click', () => openBookingFlowStep(backStep));
+    back.addEventListener('click', () => openBookingFlowStep(bookingStep(backStage)));
     actions.append(back);
   }
-  if (nextStep) {
+  if (nextStage) {
     const next = document.createElement('button');
     next.type = 'button';
     next.textContent = nextLabel;
-    next.addEventListener('click', () => openBookingFlowStep(nextStep));
+    next.addEventListener('click', () => openBookingFlowStep(bookingStep(nextStage)));
     actions.append(next);
   }
   return actions;
+}
+
+function selectFlowTime(slot) {
+  const slotOption = (bookingFlowOptions?.slots || []).find((item) => item.slot === slot);
+  if (!slotOption?.washers.length) {
+    showBookingFlowStatus(slotOption?.washerError || 'In diesem Zeitfenster ist keine Waschmaschine frei.', 'error');
+    return;
+  }
+  clearBookingFlowStatus();
+  bookingFlowState.slot = slot;
+  bookingFlowState.washerIds = [];
+  bookingFlowState.dryingResourceId = null;
+  bookingFlowState.dryingOptionId = '';
+  bookingFlowState.tumblerResourceId = null;
+  bookingFlowState.companions = null;
+  bookingFlowState.step = bookingStep('washer');
+  renderBookingFlow();
+  focusBookingFlowHeading();
+}
+
+function renderTimeStep() {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-stage';
+  wrap.innerHTML = `
+    <div class="flow-stage-heading">
+      <span>Schritt ${bookingStep('time')}</span>
+      <h4>Zeitfenster w\u00e4hlen</h4>
+      <p>${escapeHtml(formatShortDate(bookingFlowState.date))}</p>
+    </div>
+  `;
+  const existingWashers = bookingFlowOptions?.existingWashers || [];
+  if (existingWashers.length) {
+    const existing = document.createElement('div');
+    existing.className = 'flow-existing-selection';
+    existing.innerHTML = `
+      <span>Bereits gebuchtes Zeitfenster</span>
+      <strong>${escapeHtml(existingWashers[0].slot)}</strong>
+      <small>${existingWashers.map((washer) => escapeHtml(washer.resourceName)).join(', ')}</small>
+    `;
+    wrap.append(existing, renderFlowActions(null, 'drying', 'Trocknung erg\u00e4nzen'));
+    return wrap;
+  }
+
+  const slotOptions = bookingFlowOptions?.slots || [];
+  if (bookingFlowOptions?.closed) {
+    const closed = document.createElement('p');
+    closed.className = 'flow-empty';
+    closed.textContent = 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.';
+    wrap.append(closed);
+    return wrap;
+  }
+
+  const choices = document.createElement('div');
+  choices.className = 'flow-time-list';
+  for (const slotOption of slotOptions) {
+    const available = slotOption.washers.length > 0;
+    const recommended = currentRecommendation?.date === bookingFlowState.date
+      && currentRecommendation?.slot === slotOption.slot;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `flow-time-choice${recommended ? ' is-recommended' : ''}`;
+    button.dataset.flowTime = slotOption.slot;
+    button.disabled = !available;
+    button.innerHTML = `
+      <span class="flow-time-main">
+        <strong>${escapeHtml(slotOption.slot)}</strong>
+        ${recommended ? '<em>Vorschlag</em>' : ''}
+      </span>
+      <span class="flow-time-availability">
+        <span><b>${slotOption.washers.length}</b> Waschmaschinen</span>
+        <span><b>${slotOption.dryingRoomCount || 0}</b> Trockenr\u00e4ume</span>
+        <span><b>${slotOption.tumblerCount || 0}</b> Tumbler zur Auswahl</span>
+      </span>
+      ${available ? '<span class="flow-time-action">Zeitfenster ausw\u00e4hlen</span>' : `<span class="flow-time-unavailable">${escapeHtml(slotOption.washerError || 'Nicht mehr buchbar')}</span>`}
+    `;
+    button.addEventListener('click', () => selectFlowTime(slotOption.slot));
+    choices.append(button);
+  }
+  wrap.append(choices);
+  return wrap;
 }
 
 function renderWasherStep() {
@@ -1655,9 +1789,9 @@ function renderWasherStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt 1</span>
+      <span>Schritt ${bookingStep('washer')}</span>
       <h4>Waschmaschine w\u00e4hlen</h4>
-      <p>${escapeHtml(formatShortDate(bookingFlowState.date))}</p>
+      <p>${escapeHtml(formatShortDate(bookingFlowState.date))}${bookingMode === 'time' && bookingFlowState.slot ? ` - ${escapeHtml(bookingFlowState.slot)}` : ''}</p>
     </div>
   `;
   const existingWashers = bookingFlowOptions?.existingWashers || [];
@@ -1669,11 +1803,13 @@ function renderWasherStep() {
       <strong>${existingWashers.map((washer) => escapeHtml(washer.resourceName)).join(', ')}</strong>
       <small>${escapeHtml(existingWashers[0].slot)}</small>
     `;
-    wrap.append(existing, renderFlowActions(0, 2, 'Trocknung erg\u00e4nzen'));
+    wrap.append(existing, renderFlowActions(null, 'drying', 'Trocknung erg\u00e4nzen'));
     return wrap;
   }
 
-  const availableSlots = (bookingFlowOptions?.slots || []).filter((item) => item.washers.length);
+  const availableSlots = (bookingFlowOptions?.slots || []).filter((item) => (
+    item.washers.length && (bookingMode === 'machine' || item.slot === bookingFlowState.slot)
+  ));
   if (!availableSlots.length) {
     const ruleMessage = (bookingFlowOptions?.slots || []).find((item) => item.washerError)?.washerError;
     const empty = document.createElement('p');
@@ -1715,7 +1851,9 @@ function renderWasherStep() {
     const selection = document.createElement('p');
     selection.className = 'flow-selection-note';
     selection.textContent = `${selectionCount} ${selectionCount === 1 ? 'Waschmaschine' : 'Waschmaschinen'} im Zeitfenster ${bookingFlowState.slot}`;
-    wrap.append(selection, renderFlowActions(0, 2, 'Weiter zum Trockenraum'));
+    wrap.append(selection, renderFlowActions(bookingMode === 'time' ? 'time' : null, 'drying', 'Weiter zum Trockenraum'));
+  } else if (bookingMode === 'time') {
+    wrap.append(renderFlowActions('time', null, ''));
   }
   return wrap;
 }
@@ -1725,7 +1863,7 @@ function renderDryingStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt 2</span>
+      <span>Schritt ${bookingStep('drying')}</span>
       <h4>Trockenraum erg\u00e4nzen</h4>
       <p>Optional und passend zu ${escapeHtml(bookingFlowState.slot)}</p>
     </div>
@@ -1817,7 +1955,7 @@ function renderDryingStep() {
     empty.textContent = 'F\u00fcr diesen Waschslot ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar.';
     wrap.append(empty);
   }
-  wrap.append(renderFlowActions(1, 3, 'Weiter zum Tumbler'));
+  wrap.append(renderFlowActions('washer', 'tumbler', 'Weiter zum Tumbler'));
   return wrap;
 }
 
@@ -1826,7 +1964,7 @@ function renderTumblerStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt 3</span>
+      <span>Schritt ${bookingStep('tumbler')}</span>
       <h4>Tumbler erg\u00e4nzen</h4>
       <p>Optional. Einer bleibt f\u00fcr das Haus frei.</p>
     </div>
@@ -1869,7 +2007,7 @@ function renderTumblerStep() {
     empty.textContent = 'Aktuell kann kein Tumbler angeboten werden, weil mindestens einer frei bleiben muss.';
     wrap.append(empty);
   }
-  wrap.append(renderFlowActions(2, 4, 'Paket pr\u00fcfen'));
+  wrap.append(renderFlowActions('drying', 'review', 'Paket pr\u00fcfen'));
   return wrap;
 }
 
@@ -1878,7 +2016,7 @@ function renderReviewStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt 4</span>
+      <span>Schritt ${bookingStep('review')}</span>
       <h4>Waschpaket pr\u00fcfen</h4>
       <p>Erst mit dem letzten Klick wird verbindlich gebucht.</p>
     </div>
@@ -1904,7 +2042,7 @@ function renderReviewStep() {
     summary.append(row);
   }
   wrap.append(summary);
-  const actions = renderFlowActions(3, 0, '');
+  const actions = renderFlowActions('tumbler', null, '');
   const confirm = document.createElement('button');
   confirm.type = 'button';
   confirm.textContent = existingWashers.length ? 'Erg\u00e4nzungen buchen' : 'Waschpaket buchen';
@@ -1928,12 +2066,24 @@ function renderReviewStep() {
 
 function renderBookingFlow() {
   bookingFlowContent.innerHTML = '';
-  for (const item of bookingFlowSteps) {
-    const step = Number(item.dataset.flowStep);
+  syncBookingModeUi();
+  bookingFlowSteps.innerHTML = '';
+  const labels = {
+    time: 'Zeit',
+    washer: 'Maschine',
+    drying: 'Trockenraum',
+    tumbler: 'Tumbler',
+    review: 'Pr\u00fcfen'
+  };
+  for (const [index, stage] of bookingStageOrder().entries()) {
+    const step = index + 1;
+    const item = document.createElement('li');
+    item.dataset.flowStep = String(step);
     item.classList.toggle('active', step === bookingFlowState.step);
     item.classList.toggle('complete', step < bookingFlowState.step);
+    item.innerHTML = `<span>${step}</span> ${labels[stage]}`;
     if (step === bookingFlowState.step) item.setAttribute('aria-current', 'step');
-    else item.removeAttribute('aria-current');
+    bookingFlowSteps.append(item);
   }
   if (bookingFlowState.loading) {
     bookingFlowContent.innerHTML = '<p class="flow-loading">Freie Optionen werden gepr\u00fcft...</p>';
@@ -1943,9 +2093,11 @@ function renderBookingFlow() {
     bookingFlowContent.innerHTML = '<p class="flow-empty">Die Buchungsoptionen konnten nicht geladen werden.</p>';
     return;
   }
-  if (bookingFlowState.step === 1) bookingFlowContent.append(renderWasherStep());
-  else if (bookingFlowState.step === 2) bookingFlowContent.append(renderDryingStep());
-  else if (bookingFlowState.step === 3) bookingFlowContent.append(renderTumblerStep());
+  const stage = currentBookingStage();
+  if (stage === 'time') bookingFlowContent.append(renderTimeStep());
+  else if (stage === 'washer') bookingFlowContent.append(renderWasherStep());
+  else if (stage === 'drying') bookingFlowContent.append(renderDryingStep());
+  else if (stage === 'tumbler') bookingFlowContent.append(renderTumblerStep());
   else bookingFlowContent.append(renderReviewStep());
 }
 
@@ -2756,6 +2908,10 @@ async function createHouse() {
     showStatus(error.message, 'error');
   }
 }
+
+bookingModeButtons.forEach((button) => {
+  button.addEventListener('click', () => setBookingMode(button.dataset.bookingMode));
+});
 
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
 weekViewButton.addEventListener('click', async () => {

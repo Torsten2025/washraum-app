@@ -133,6 +133,7 @@ function createCurrentTables() {
       active INTEGER NOT NULL DEFAULT 1,
       notify_releases INTEGER NOT NULL DEFAULT 1,
       email_verified INTEGER NOT NULL DEFAULT 1,
+      booking_mode TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine')),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT
     );
@@ -237,6 +238,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('users', 'booking_mode', "TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine'))");
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('resources', 'house_id', 'INTEGER');
@@ -1485,6 +1487,7 @@ function sessionUserFromRow(user, activeHouse = null) {
     email: user.email || '',
     notifyReleases: Boolean(user.notify_releases),
     emailVerified: Boolean(user.email_verified),
+    bookingMode: user.booking_mode === 'machine' ? 'machine' : 'time',
     houseId: user.house_id,
     activeHouseId: house?.id || user.house_id,
     houseName: house?.name || '',
@@ -2228,6 +2231,22 @@ app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
   res.json({ user: req.session.user, message: `Ansicht gewechselt zu ${house.name}.` });
 });
 
+app.put('/api/me/booking-mode', requireAuth, (req, res) => {
+  const bookingMode = String(req.body?.bookingMode || '');
+  if (!['time', 'machine'].includes(bookingMode)) {
+    return res.status(400).json({ error: 'Ung\u00fcltiger Buchungsweg.' });
+  }
+  db.prepare('UPDATE users SET booking_mode = ? WHERE id = ?')
+    .run(bookingMode, req.session.user.id);
+  req.session.user.bookingMode = bookingMode;
+  res.json({
+    user: req.session.user,
+    message: bookingMode === 'time'
+      ? 'Zeitfenster stehen beim Buchen jetzt an erster Stelle.'
+      : 'Waschmaschinen stehen beim Buchen jetzt an erster Stelle.'
+  });
+});
+
 app.put('/api/me/notifications', requireAuth, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
@@ -2315,7 +2334,7 @@ app.put('/api/me/password', requireAuth, (req, res) => {
 
 app.get('/api/me/export', requireAuth, (req, res) => {
   const user = db.prepare(`
-    SELECT id, username, email, role, active, notify_releases, email_verified, created_at
+    SELECT id, username, email, role, active, notify_releases, email_verified, booking_mode, created_at
     FROM users WHERE id = ?
   `).get(req.session.user.id);
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(req.session.user.houseId);
@@ -2397,16 +2416,23 @@ app.get('/api/booking-options', requireAuth, (req, res) => {
     ORDER BY b.slot, r.name
   `).all(req.session.user.id, houseId, date);
 
-  const slotOptions = slots.map((slot) => ({
-    slot,
-    washerError: isSunday(date) || isPastSlot(date, slot)
+  const slotOptions = slots.map((slot) => {
+    const unavailableByTime = isSunday(date) || isPastSlot(date, slot);
+    const washerError = unavailableByTime
       ? ''
-      : validateWasherBooking(req.session.user.id, date, slot, houseId),
-    washers: isSunday(date)
+      : validateWasherBooking(req.session.user.id, date, slot, houseId);
+    const washers = unavailableByTime
       ? []
       : findAvailableResources(req.session.user.id, 'washer', date, slot, houseId, 3)
-        .map((resource) => ({ resourceId: resource.id, resourceName: resource.name }))
-  }));
+        .map((resource) => ({ resourceId: resource.id, resourceName: resource.name }));
+    const dryingRoomCount = washers.length
+      ? availableDryingRoomsForWasher(req.session.user.id, date, slot, houseId).length
+      : 0;
+    const tumblerCount = washers.length
+      ? findAvailableResources(req.session.user.id, 'tumbler', date, slot, houseId, 2).length
+      : 0;
+    return { slot, washerError, washers, dryingRoomCount, tumblerCount };
+  });
 
   let companions = null;
   if (selectedSlot) {

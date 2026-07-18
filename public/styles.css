@@ -3738,6 +3738,27 @@ aside.panel > * {
   margin: 0;
 }
 
+.booking-mode-switch {
+  background: var(--bg-strong);
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+  padding: 4px;
+}
+
+.booking-mode-switch button {
+  background: transparent;
+  color: var(--muted);
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.booking-mode-switch button.active {
+  background: var(--night);
+  color: #fff;
+}
+
 .booking-flow-steps {
   display: grid;
   gap: 4px;
@@ -3745,6 +3766,10 @@ aside.panel > * {
   list-style: none;
   margin: 18px 0 22px;
   padding: 0;
+}
+
+.booking-flow-steps.is-time-first {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .booking-flow-steps li {
@@ -3828,6 +3853,91 @@ aside.panel > * {
 
 .flow-slot.is-recommended {
   border-top-color: var(--accent);
+}
+
+.flow-time-list {
+  display: grid;
+  gap: 9px;
+}
+
+.flow-time-choice {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--night);
+  display: grid;
+  gap: 10px;
+  min-height: 118px;
+  padding: 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.flow-time-choice:hover:not(:disabled),
+.flow-time-choice:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(0, 120, 90, 0.1);
+  transform: translateY(-1px);
+}
+
+.flow-time-choice.is-recommended {
+  border-left: 4px solid var(--accent);
+}
+
+.flow-time-choice:disabled {
+  background: rgba(19, 32, 28, 0.04);
+  color: var(--muted);
+  opacity: 0.72;
+}
+
+.flow-time-main {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.flow-time-main strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.flow-time-main em {
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.flow-time-availability {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.flow-time-availability > span {
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  display: grid;
+  font-size: 10px;
+  line-height: 1.3;
+  padding-left: 7px;
+}
+
+.flow-time-availability b {
+  color: var(--night);
+  font-size: 15px;
+}
+
+.flow-time-action,
+.flow-time-unavailable {
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.flow-time-unavailable {
+  color: var(--danger);
 }
 
 .flow-slot-heading {
@@ -4053,6 +4163,16 @@ aside.panel > * {
   .booking-flow-steps li span {
     height: 20px;
     width: 20px;
+  }
+
+  .flow-time-availability {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-time-availability > span {
+    align-items: baseline;
+    display: flex;
+    gap: 5px;
   }
 
   .flow-choice-grid {

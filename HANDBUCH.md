@@ -20,7 +20,7 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 1. Auf der Anmeldeseite `Neu hier` waehlen.
 2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
 3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
-4. Im gefuehrten Ablauf zuerst eine bis drei freie Waschmaschinen im gleichen Slot waehlen, danach Trockenraum und Tumbler bei Bedarf ergaenzen und das Paket pruefen.
+4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
 6. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
 
@@ -102,10 +102,14 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | --- | --- |
 | Kalender zuerst | Direkt nach den eigenen Buchungen freie Waschzeiten in der Wochen- oder Monatsansicht ueberblicken |
 | Persoenlicher Vorschlag | Passenden freien Waschslot im Kalender markieren und mit `Termin auswaehlen` oeffnen |
-| Schritt 1: Waschmaschine | Nur freie Waschmaschinen nach Zeitfenster anzeigen und eine bis drei Maschinen im gleichen Slot auswaehlen |
-| Schritt 2: Trockenraum | Erst nach der Waschmaschinenwahl passende freie Trockenraeume und die erlaubten Trocknungsdauern anzeigen |
-| Schritt 3: Tumbler | Danach regelkonform verfuegbare Tumbler anzeigen; mindestens ein Tumbler bleibt frei |
-| Schritt 4: Pruefen | Datum, Waschmaschinen, Trockenraum und Tumbler vor der gemeinsamen Buchung zusammenfassen |
+| Buchungsweg waehlen | Zwischen `Zeit zuerst` und `Maschine zuerst` wechseln; die Auswahl wird im Benutzerkonto gespeichert und gilt auf allen Geraeten |
+| Zeit zuerst | Standardweg mit fuenf Schritten: Zeitfenster, Waschmaschine, Trockenraum, Tumbler und Pruefen |
+| Zeitfenster | Alle drei Slots zuerst gross anzeigen; pro Slot die aktuell waehlbaren Waschmaschinen, Trockenraeume und Tumbler zusammenfassen |
+| Maschine zuerst | Bisherigen Vier-Schritt-Weg mit nach Zeitfenstern gruppierten Waschmaschinen beibehalten |
+| Waschmaschine | Nur freie Waschmaschinen anzeigen und eine bis drei Maschinen im gleichen Slot auswaehlen |
+| Trockenraum | Erst nach der Waschmaschinenwahl passende freie Trockenraeume und die erlaubten Trocknungsdauern anzeigen |
+| Tumbler | Danach regelkonform verfuegbare Tumbler anzeigen; mindestens ein Tumbler bleibt frei |
+| Pruefen | Datum, Waschmaschinen, Trockenraum und Tumbler vor der gemeinsamen Buchung zusammenfassen |
 | Paket ergaenzen | Eine bereits gebuchte eigene Waschmaschine erkennen und passende Trocknungsoptionen nachtraeglich ergaenzen |
 | Optionale Trocknung | Trockenraum und Tumbler koennen in ihren Schritten bewusst ausgelassen werden |
 | Fokussierte Trockenraumwahl | Nach der Auswahl nur den gewaehlten Trockenraum anzeigen; ueber `Anderen Trockenraum waehlen oder entfernen` kann die Auswahl wieder geoeffnet werden |
@@ -323,6 +327,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- Zwei gespeicherte Buchungswege eingefuehrt: `Zeit zuerst` als Standard mit eigenem Zeitfenster-Schritt und `Maschine zuerst` als weiterhin verfuegbare Alternative.
+- Zeitfenster zeigen vor der Geraetewahl die aktuellen Zahlen fuer Waschmaschinen, Trockenraeume und waehlbare Tumbler; beide Wege verwenden danach dasselbe regelkonforme Waschpaket.
 - Buchungsfehler aus der Seitenleiste an den aktiven Buchungsschritt geholt und fuer alle Ansichten als zeitlich begrenzten, gut sichtbaren Hinweis ergaenzt.
 - Trockenraumauswahl fokussiert: Nach einer Wahl werden andere Raeume ausgeblendet, bleiben aber ueber eine klare Aenderungsaktion erreichbar.
 - Nutzungszeit des Trockenraums visuell hervorgehoben, den dekorativen Bildkopf deutlich verkleinert und grosse Leerraeume zwischen Kalender, Buchung und Rueckmeldungen entfernt.
