@@ -3141,6 +3141,7 @@ aside.panel > * {
   margin: 0;
 }
 
+.install-card,
 .push-card {
   align-items: flex-start;
   background: #f7faf9;
@@ -3151,10 +3152,12 @@ aside.panel > * {
   padding: 14px;
 }
 
+.install-card h4,
 .push-card h4 {
   margin: 0 0 4px;
 }
 
+.install-card p,
 .push-card p {
   margin-bottom: 0;
 }

@@ -33,6 +33,8 @@ assert.match(indexHtml, /id="bookingFlowSteps"[^>]*aria-label="Buchungsschritte"
 assert.match(indexHtml, /class="booking-mode-switch"[^>]*role="group"[^>]*aria-label="Buchungsweg"/, 'Buchungsweg ohne Gruppenbeschriftung');
 assert.match(indexHtml, /id="bookingFlowContent"[^>]*aria-live="polite"/, 'Buchungsstatus ohne Live-Region');
 assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buchungsdatum ohne Beschriftung');
+assert.match(indexHtml, /id="installTitle"/, 'Installationshinweis fuer PWA fehlt');
+assert.match(indexHtml, /id="installHelpText"/, 'Installationshilfe ohne Status-Text');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');

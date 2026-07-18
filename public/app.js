@@ -62,6 +62,8 @@ const notificationEmail = document.querySelector('#notificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
 const emailVerificationStatus = document.querySelector('#emailVerificationStatus');
 const resendVerificationButton = document.querySelector('#resendVerificationButton');
+const installHelpText = document.querySelector('#installHelpText');
+const installAppButton = document.querySelector('#installAppButton');
 const pushStatusText = document.querySelector('#pushStatusText');
 const enablePushButton = document.querySelector('#enablePushButton');
 const disablePushButton = document.querySelector('#disablePushButton');
@@ -112,6 +114,7 @@ let resources = [];
 let bookings = [];
 let slots = [];
 let activeType = 'washer';
+let deferredInstallPrompt = null;
 let calendarView = (() => {
   try {
     return window.localStorage.getItem('waschzeit-calendar-view') === 'month' ? 'month' : 'week';
@@ -766,6 +769,7 @@ async function init() {
   notificationWeekday.value = String(me.notificationPreferences?.weekday || '');
   notificationSlot.value = me.notificationPreferences?.slot || '';
   renderEmailVerificationStatus();
+  renderInstallStatus();
   await renderPushStatus();
 
   const [resourceData, slotData] = await Promise.all([
@@ -819,6 +823,55 @@ function renderEmailVerificationStatus() {
       : 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.';
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
+}
+
+function appInstalled() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
+function isiOS() {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+}
+
+function renderInstallStatus() {
+  if (appInstalled()) {
+    installHelpText.textContent = 'WaschZeit ist auf diesem Geraet bereits als App geoeffnet.';
+    installAppButton.hidden = true;
+    return;
+  }
+  installAppButton.hidden = false;
+  if (deferredInstallPrompt) {
+    installHelpText.textContent = 'Du kannst WaschZeit direkt auf diesem Geraet installieren.';
+    installAppButton.disabled = false;
+    installAppButton.textContent = 'App installieren';
+    return;
+  }
+  if (isiOS()) {
+    installHelpText.textContent = 'iPhone/iPad: Im Safari-Teilen-Menue "Zum Home-Bildschirm" waehlen.';
+    installAppButton.disabled = true;
+    installAppButton.textContent = 'Safari-Teilen-Menue nutzen';
+    return;
+  }
+  installHelpText.textContent = 'Wenn dein Browser die Installation anbietet, erscheint hier der Installationsbutton. Sonst Browser-Menue verwenden.';
+  installAppButton.disabled = true;
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    renderInstallStatus();
+    return;
+  }
+  installAppButton.disabled = true;
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+  deferredInstallPrompt = null;
+  if (choice?.outcome === 'accepted') {
+    showStatus('WaschZeit wurde als App installiert.');
+  } else {
+    showStatus('Installation wurde nicht abgeschlossen.');
+  }
+  renderInstallStatus();
 }
 
 function pushSupported() {
@@ -3242,6 +3295,7 @@ filterButtons.forEach((button) => {
   });
 });
 resendVerificationButton.addEventListener('click', resendEmailVerification);
+installAppButton.addEventListener('click', installApp);
 enablePushButton.addEventListener('click', enablePushNotifications);
 disablePushButton.addEventListener('click', disablePushNotifications);
 
@@ -3308,6 +3362,18 @@ recordedIntroVideo.addEventListener('loadedmetadata', () => {
   const minutes = Math.floor(recordedIntroVideo.duration / 60);
   const seconds = Math.round(recordedIntroVideo.duration % 60);
   recordedIntroDuration.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+});
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  renderInstallStatus();
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  renderInstallStatus();
+  showStatus('WaschZeit wurde als App installiert.');
 });
 
 if (introVideoSpeechSupported) {
