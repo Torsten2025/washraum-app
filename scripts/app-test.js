@@ -1181,10 +1181,12 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
+    assert.ok(indexHtml.includes('push-v2'));
+    assert.ok(indexHtml.includes('Kapitel 1 von 8'));
     assert.ok(indexHtml.includes('settingsOverlay'));
     assert.ok(indexHtml.includes('settingsSummary'));
     assert.ok(indexHtml.includes('Pers&ouml;nliche Einrichtung'));
-    assert.ok(indexHtml.includes('etwa f&uuml;nfmin&uuml;tige Video'));
+    assert.ok(indexHtml.includes('etwa f&uuml;nfeinhalbmin&uuml;tige Video'));
     assert.ok(indexHtml.includes('Absagen &amp; informieren'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
@@ -1243,6 +1245,7 @@ async function run() {
     assert.ok(stylesText.includes('.analytics-grid'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
+    assert.ok(stylesText.includes('.scene-push'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1280,6 +1283,8 @@ async function run() {
     assert.ok(appScriptText.includes('openReleaseNoticeFromUrl'));
     assert.ok(appScriptText.includes('/api/release-notices/${noticeId}'));
     assert.ok(appScriptText.includes('bookActiveReleaseNotice'));
+    assert.ok(appScriptText.includes('Freigeben, Push antippen, buchen'));
+    assert.ok(appScriptText.includes('Push-Nachricht'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
@@ -1294,6 +1299,9 @@ async function run() {
     assert.ok(captionText.includes('Wenn dir eine bestimmte Maschine wichtiger ist'));
     assert.ok(captionText.includes('App merkt sich deine Auswahl im Benutzerkonto'));
     assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
+    assert.ok(captionText.includes('Das normale Löschen entfernt nur deine Buchung'));
+    assert.ok(captionText.includes('Liliane hat Waschmaschine zwei freigegeben'));
+    assert.ok(captionText.includes('Tippst du auf die Push-Nachricht'));
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
     assert.ok(!privacyPage.body.toString().includes('/assets/gbmz-logo.svg'));

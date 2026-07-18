@@ -3081,6 +3081,7 @@ aside.panel > * {
 .scene-suggestion,
 .scene-washer,
 .scene-tumbler,
+.scene-push,
 .scene-cleaning {
   align-content: center;
   display: grid;
@@ -3509,6 +3510,41 @@ aside.panel > * {
 
 .scene-release strong {
   font-size: 13px;
+}
+
+.scene-push {
+  grid-template-columns: 0.82fr 1.18fr;
+}
+
+.scene-phone,
+.scene-dialog {
+  background: #fff;
+  border: 1px solid rgba(19, 32, 28, 0.12);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.scene-phone {
+  align-self: center;
+  background: #10201b;
+  color: #fff;
+  min-height: 170px;
+}
+
+.scene-phone span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+
+.scene-dialog b {
+  background: var(--accent);
+  border-radius: 5px;
+  color: #fff;
+  font-size: 10px;
+  justify-self: start;
+  padding: 8px 9px;
 }
 
 .scene-cleaning {

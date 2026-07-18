@@ -370,6 +370,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 - Admin-Auswertung fuer Nutzung nach Bereich, Slot, Ressource, Nutzer und gesperrte Ressourcen ergaenzt.
 - Push-Freigaben erweitert: Benachrichtigungen nennen die freigebende Person und oeffnen beim Antippen einen Buchungsdialog fuer den konkreten Slot.
+- Gesprochenes Einfuehrungsvideo, Poster, Untertitel, Lesetext und interaktiver Rundgang auf Push-Freigaben und direkte Slotbuchung nach Push aktualisiert.
 - Betriebssperren fuer Geraete und Raeume mit Sperrgrund eingefuehrt; gesperrte Ressourcen sind fuer neue Buchungen nicht verfuegbar und werden im Audit festgehalten.
 - Abgesicherten Admin-Reset fuer normale Buchungen des aktiven Hauses ergaenzt; Dauertermine und Konten bleiben erhalten.
 - Lokales Hinweis-Journal unter `Meine Ansicht` ergaenzt, damit Bewohner die letzten eigenen Aktionsbestaetigungen wiederfinden.

@@ -58,15 +58,22 @@ CHAPTERS = [
         "speech": "Der Trockenraum gehört immer zu einer passenden Waschmaschinenbuchung. Wenn du von sieben bis zwölf Uhr wäschst, darfst du den Raum höchstens bis einundzwanzig Uhr nutzen. Beim Slot von zwölf bis siebzehn Uhr endet die maximale Nutzung am nächsten Tag um zwölf Uhr. Das gilt auch für den Abend-Slot von siebzehn bis einundzwanzig Uhr. Im Waschpaket wählst du bewusst eine kürzere oder die maximal mögliche Dauer. Kürzer ist oft besser: Wenn die Wäsche trocken ist, gib den Raum direkt frei. Über Nacht hilft es besonders, am nächsten Morgen vor sieben Uhr abzuhängen.",
     },
     {
-        "title": "Freigeben und gezielt informieren",
-        "kicker": "06  MITEINANDER",
+        "title": "Tumbler mit Reserve buchen",
+        "kicker": "06  TUMBLER",
         "accent": "#EF6B4D",
-        "cards": [("FRÜHER FREI", "Nur während deines Slots"), ("ABSAGEN", "Vor Beginn wieder anbieten"), ("E-MAIL", "Nur verifiziert und passend")],
-        "speech": "Mindestens ein Tumbler bleibt in jedem Slot frei. Deshalb kann eine zweite Buchung abgelehnt werden, obwohl noch ein Tumbler sichtbar ist. Wenn du während deines gebuchten Slots früher fertig bist, wählst du Früher frei. Vor Beginn kannst du mit Absagen und informieren einen nicht benötigten Termin wieder anbieten. Eine Mail geht nur an Personen im selben Haus, die ihre Adresse bestätigt und passende Hinweise aktiviert haben. In den Einstellungen kannst du die Hinweise auf einen Bereich, einen Wochentag oder ein Zeitfenster begrenzen. So werden Nachrichten nützlich und nicht lästig.",
+        "cards": [("EINER BLEIBT FREI", "Reserve fuer das Haus"), ("GLEICHER SLOT", "Passend zur Waschmaschine"), ("FAIR VERTEILT", "Nicht alles blockieren")],
+        "speech": "Bei den Tumblern gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine weitere Tumblerbuchung ablehnen, obwohl noch ein Gerät sichtbar ist. Der Tumbler gehört zum gleichen Zeitfenster wie deine Waschmaschine. Wenn du keinen Tumbler brauchst, lässt du ihn einfach weg. So bleibt für spontane Fälle im Haus immer eine kleine Reserve. Wenn ein Tumbler oder ein Raum gesperrt ist, zeigt die App das an und verhindert neue Buchungen auf dieser Ressource.",
+    },
+    {
+        "title": "Freigeben, Push antippen, buchen",
+        "kicker": "07  HINWEISE",
+        "accent": "#DCA33C",
+        "cards": [("FRÜHER FREI", "Im laufenden Slot"), ("ABSAGEN", "Vor Beginn informieren"), ("PUSH", "Antippen und buchen")],
+        "speech": "Wenn du während deines gebuchten Slots früher fertig bist, wählst du Früher frei. Vor Beginn nutzt du Absagen und informieren. Das normale Löschen entfernt nur deine Buchung und sendet keine Nachricht. Wer Push auf dem Handy aktiviert hat, bekommt eine neutrale Meldung, zum Beispiel: Liliane hat Waschmaschine zwei freigegeben. Die Nachricht geht nicht an die Person, die selbst freigibt. Tippst du auf die Push-Nachricht, öffnet WaschZeit direkt ein Detailfenster. Dort siehst du, wer freigegeben hat, welches Gerät, Datum und Slot betroffen sind, und ob du den Termin buchen willst. Ist der Slot inzwischen schon weg, zeigt die App das sauber an. E-Mail bleibt als Fallback möglich, wenn Adresse und Hinweise passen.",
     },
     {
         "title": "Sauber abschließen",
-        "kicker": "07  DANKE",
+        "kicker": "08  DANKE",
         "accent": "#2E6688",
         "cards": [("MASCHINEN", "Trommel, Dichtungen und Filter"), ("RÄUME", "Tische, Böden und Abflussbereich"), ("MOPP", "Spülen, auswringen, aufhängen")],
         "speech": "Zum Schluss gehört die Reinigung zu jeder Nutzung, auch zu einem einzelnen Waschgang zwischendurch. Bei der Waschmaschine werden Waschmittelschublade, Trommel, Gummidichtung, Filter und Gehäuse gereinigt. Beim Tumbler sind Trommel, alle vier Filter, der Abflussbereich unter den mittleren Filtern, die Türdichtung und das Gehäuse dran. Im Trockenraum reinigst du Tisch, beide Filter und den Boden. Auch Waschraum, Besen und Wischmopp werden sauber hinterlassen. Den Mopp gut ausspülen, auswringen und zum Trocknen aufhängen. Maßgebend bleibt der offizielle GBMZ-Aushang. Danach kannst du das kurze Quiz ausprobieren. Es ist freundlich gemeint und keine Zugangshürde.",
@@ -122,7 +129,7 @@ def build_slide(chapter, number, destination):
     draw.rectangle((0, 0, WIDTH, 96), fill="#10201B")
     draw.text((48, 31), "GBMZ", font=font(30, True), fill="#00CD83")
     draw.text((170, 38), "WASCHPLAN", font=font(18, True), fill="#FFFFFF")
-    draw.text((1030, 38), f"KAPITEL {number}/7", font=font(15, True), fill="#BBD0C8")
+    draw.text((1030, 38), f"KAPITEL {number}/{len(CHAPTERS)}", font=font(15, True), fill="#BBD0C8")
     draw.rectangle((0, 96, 16, HEIGHT), fill=chapter["accent"])
 
     draw.text((64, 140), chapter["kicker"], font=font(17, True), fill=chapter["accent"])

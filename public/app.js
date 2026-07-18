@@ -269,13 +269,25 @@ const introVideoSteps = [
   {
     id: 'tumbler',
     fallbackDurationMs: 26000,
-    title: 'Tumbler und fr\u00fche Freigabe',
-    caption: 'Ein Tumbler bleibt frei. Nicht mehr ben\u00f6tigte Termine gibst du f\u00fcr andere frei.',
-    speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Wenn du w\u00e4hrend deines Slots fr\u00fcher fertig bist, w\u00e4hlst du Fr\u00fcher frei. Vor Slotbeginn nutzt du Absagen und informieren. E-Mails gehen nur an Personen mit best\u00e4tigter Adresse und passend gew\u00e4hltem Interesse.',
+    title: 'Tumbler mit Reserve',
+    caption: 'Ein Tumbler bleibt frei. Der Tumbler geh\u00f6rt zum gleichen Slot wie die Waschmaschine.',
+    speech: 'F\u00fcr die Tumbler gilt: Am Ende eines Waschslots muss mindestens ein Tumbler frei bleiben. Deshalb kann die App eine Buchung ablehnen, obwohl noch ein Ger\u00e4t angezeigt wird. Der Tumbler geh\u00f6rt zum gleichen Zeitfenster wie deine Waschmaschine. Wenn du keinen Tumbler brauchst, l\u00e4sst du ihn einfach weg. So bleibt f\u00fcr spontane F\u00e4lle immer eine kleine Reserve.',
     visual: `
       <div class="scene-tumbler">
         <div class="scene-machines"><span class="booked">Tumbler 1<br><b>Gebucht</b></span><span>Tumbler 2<br><b>Bleibt frei</b></span></div>
-        <div class="scene-release"><span><small>Du bist fr\u00fcher fertig?</small><strong>Termin wieder freigeben</strong></span><b>Freigeben</b></div>
+        <div class="scene-release"><span><small>Gleicher Waschslot</small><strong>Nur buchen, wenn du ihn brauchst</strong></span><b>Reserve</b></div>
+      </div>`
+  },
+  {
+    id: 'push',
+    fallbackDurationMs: 34000,
+    title: 'Freigeben, Push antippen, buchen',
+    caption: 'Push nennt neutral die Person und \u00f6ffnet direkt den passenden Buchungsdialog.',
+    speech: 'Wenn du w\u00e4hrend deines Slots fr\u00fcher fertig bist, w\u00e4hlst du Fr\u00fcher frei. Vor Beginn nutzt du Absagen und informieren. Das normale L\u00f6schen sendet keine Nachricht. Wer Push auf dem Handy aktiviert hat, bekommt eine neutrale Meldung mit dem Namen der Person. Die Nachricht geht nicht an die Person, die selbst freigibt. Tippst du auf die Push-Nachricht, \u00f6ffnet die App ein Detailfenster mit Person, Ger\u00e4t, Datum und Zeitfenster. Dort kannst du den Slot direkt buchen. Ist er inzwischen weg, zeigt die App das sauber an.',
+    visual: `
+      <div class="scene-push">
+        <div class="scene-phone"><small>Push</small><strong>Liliane hat WM 2 freigegeben</strong><span>Heute bis 17:00 wieder frei</span></div>
+        <div class="scene-dialog"><small>Detailfenster</small><strong>WM 2 - 12:00 bis 17:00</strong><span>Von Liliane freigegeben</span><b>Diesen Slot buchen</b></div>
       </div>`
   },
   {
