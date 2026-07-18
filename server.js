@@ -844,12 +844,13 @@ function validateDryingRoomBooking(userId, date, slot, houseId) {
 function calendarDaySummary(userId, date, houseId) {
   const closed = isSunday(date);
   const activeResources = db.prepare(`
-    SELECT id, type
+    SELECT id, name, type
     FROM resources
     WHERE active = 1 AND house_id = ?
+    ORDER BY type, name
   `).all(houseId);
   const normalBookings = db.prepare(`
-    SELECT b.resource_id, b.slot, b.user_id, r.type AS resource_type
+    SELECT b.resource_id, b.slot, b.user_id, r.name AS resource_name, r.type AS resource_type
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     WHERE b.booking_date = ? AND r.house_id = ?
@@ -861,6 +862,7 @@ function calendarDaySummary(userId, date, houseId) {
   ]);
   const availability = {};
   const ownByType = { washer: 0, drying_room: 0, tumbler: 0 };
+  const slotDetails = [];
 
   for (const booking of normalBookings) {
     if (booking.user_id === userId) {
@@ -894,10 +896,48 @@ function calendarDaySummary(userId, date, houseId) {
     availability[type] = { free, total, freeSlots, totalSlots };
   }
 
+  for (const slot of slots) {
+    const past = isPastSlot(date, slot);
+    const types = {};
+
+    for (const type of ['washer', 'drying_room', 'tumbler']) {
+      const typeResources = activeResources.filter((resource) => resource.type === type);
+      const capacity = type === 'tumbler'
+        ? Math.max(0, typeResources.length - 1)
+        : typeResources.length;
+      const occupiedResources = typeResources.filter((resource) => occupied.has(`${resource.id}|${slot}`));
+      const occupiedCount = occupiedResources.length;
+      const bookable = closed || past ? 0 : Math.max(0, capacity - occupiedCount);
+      const ownResourceIds = new Set(normalBookings
+        .filter((booking) => booking.user_id === userId && booking.slot === slot)
+        .map((booking) => booking.resource_id));
+      const resourceStates = typeResources.map((resource) => {
+        const isOccupied = occupied.has(`${resource.id}|${slot}`);
+        let state = 'free';
+        if (ownResourceIds.has(resource.id)) state = 'own';
+        else if (isOccupied) state = 'booked';
+        else if (closed) state = 'closed';
+        else if (past) state = 'past';
+        else if (type === 'tumbler' && bookable === 0) state = 'reserve';
+        return { resourceId: resource.id, resourceName: resource.name, state };
+      });
+
+      types[type] = {
+        total: capacity,
+        free: bookable,
+        occupied: Math.min(capacity, occupiedCount),
+        resources: resourceStates
+      };
+    }
+
+    slotDetails.push({ slot, past, types });
+  }
+
   return {
     date,
     closed,
     availability,
+    slotDetails,
     ownBookings: Object.values(ownByType).reduce((sum, count) => sum + count, 0),
     ownByType
   };

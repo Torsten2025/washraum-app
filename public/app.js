@@ -18,6 +18,13 @@ const calendarRange = document.querySelector('#calendarRange');
 const weekViewButton = document.querySelector('#weekViewButton');
 const monthViewButton = document.querySelector('#monthViewButton');
 const monthWeekdays = document.querySelector('#monthWeekdays');
+const calendarZoomOutButton = document.querySelector('#calendarZoomOutButton');
+const calendarZoomResetButton = document.querySelector('#calendarZoomResetButton');
+const calendarZoomInButton = document.querySelector('#calendarZoomInButton');
+const calendarDayDetails = document.querySelector('#calendarDayDetails');
+const calendarDayDetailsTitle = document.querySelector('#calendarDayDetailsTitle');
+const calendarDayDetailsContent = document.querySelector('#calendarDayDetailsContent');
+const calendarDayDetailsClose = document.querySelector('#calendarDayDetailsClose');
 const previousWeekButton = document.querySelector('#previousWeekButton');
 const nextWeekButton = document.querySelector('#nextWeekButton');
 const todayButton = document.querySelector('#todayButton');
@@ -104,9 +111,18 @@ let calendarView = (() => {
     return 'week';
   }
 })();
+let calendarZoom = (() => {
+  try {
+    const stored = window.localStorage.getItem('waschzeit-calendar-zoom');
+    return ['compact', 'standard', 'large'].includes(stored) ? stored : 'standard';
+  } catch {
+    return 'standard';
+  }
+})();
 let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
+let calendarDetailDate = '';
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let bookingFlowState = {
@@ -151,8 +167,8 @@ const introVideoSteps = [
     id: 'overview',
     fallbackDurationMs: 18000,
     title: 'Willkommen bei WaschZeit',
-    caption: 'Deine Termine und der Kalender kommen zuerst. Danach stellst du dein Waschpaket zusammen.',
-    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender mit allen freien Waschtagen. Du kannst zwischen der kompakten Wochenansicht und dem Monats\u00fcberblick wechseln. Ein pers\u00f6nlicher Vorschlag ist im passenden Tag markiert.',
+    caption: 'Drei Farbstreifen zeigen die Verf\u00fcgbarkeit. Tagesdetails und Zoom helfen bei der Auswahl.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender. Drei beschriftete Farbstreifen zeigen dir Waschmaschinen, Trockenr\u00e4ume und Tumbler getrennt. Gr\u00fcn bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln und den Kalender vergr\u00f6\u00dfern oder verkleinern. Wenn du einen Tag ber\u00fchrst, anklickst oder mit der Tastatur ausw\u00e4hlst, erscheinen alle Details.',
     visual: `
       <div class="scene-overview">
         <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
@@ -167,8 +183,8 @@ const introVideoSteps = [
     id: 'booking',
     fallbackDurationMs: 21000,
     title: 'In drei Schritten buchen',
-    caption: 'Tag und Waschmaschine zuerst w\u00e4hlen. Trockenraum und Tumbler folgen danach.',
-    speech: 'F\u00fcr eine Buchung w\u00e4hlst du zuerst einen Tag im Kalender. Danach zeigt die App nur freie Waschmaschinen und Zeitfenster. Erst wenn du eine Waschmaschine ausgew\u00e4hlt hast, erscheinen passende Trockenr\u00e4ume und Tumbler. Beide sind optional. Zum Schluss pr\u00fcfst du das gesamte Waschpaket und buchst es mit einem Klick.',
+    caption: 'In den Tagesdetails kannst du eine freie Waschmaschine direkt f\u00fcr dein Paket ausw\u00e4hlen.',
+    speech: 'F\u00fcr eine Buchung \u00f6ffnest du einen Tag im Kalender. Die Tagesdetails zeigen alle drei Zeitfenster sowie freie, belegte und eigene Ger\u00e4te. Bei einer freien Waschmaschine w\u00e4hlst du direkt Ausw\u00e4hlen. Datum, Zeitfenster und Maschine werden in dein Waschpaket \u00fcbernommen. Erst danach erscheinen passende Trockenr\u00e4ume und Tumbler. Beide sind optional. Zum Schluss pr\u00fcfst du alles und buchst das Paket mit einem Klick.',
     visual: `
       <div class="scene-booking">
         <div class="scene-days"><span>Mo<br><b>15</b></span><span class="active">Di<br><b>16</b></span><span>Mi<br><b>17</b></span><span>Do<br><b>18</b></span></div>
@@ -847,12 +863,144 @@ async function loadRecommendation() {
   if (calendarDays.length) renderCalendar();
 }
 
-function availabilityForDay(day) {
-  return day.availability.washer || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
+const calendarResourceTypes = [
+  { type: 'washer', label: 'Waschmaschinen', shortLabel: 'WM' },
+  { type: 'drying_room', label: 'Trockenr\u00e4ume', shortLabel: 'TR' },
+  { type: 'tumbler', label: 'Tumbler', shortLabel: 'TU' }
+];
+
+function availabilityForDay(day, type = 'washer') {
+  return day.availability[type] || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
+}
+
+function calendarAvailabilityState(day, type) {
+  const availability = availabilityForDay(day, type);
+  if (day.closed || day.date < todayString() || availability.total === 0) return 'muted';
+  if (availability.free === 0) return 'full';
+  if (availability.free >= availability.total) return 'free';
+  return 'partial';
+}
+
+function calendarAvailabilityText(day, type) {
+  const availability = availabilityForDay(day, type);
+  if (day.closed) return 'Ruhetag';
+  if (day.date < todayString() || availability.total === 0) return 'nicht verf\u00fcgbar';
+  if (availability.free === 0) return 'vollst\u00e4ndig belegt';
+  if (availability.free >= availability.total) return 'frei';
+  return `${availability.free} von ${availability.total} frei`;
+}
+
+function renderCalendarStatusRows(day) {
+  return calendarResourceTypes.map(({ type, label, shortLabel }) => {
+    const availability = availabilityForDay(day, type);
+    const state = calendarAvailabilityState(day, type);
+    const text = calendarAvailabilityText(day, type);
+    const percent = availability.total ? Math.round((availability.free / availability.total) * 100) : 0;
+    return `
+      <span class="calendar-status is-${state}" aria-label="${escapeHtml(label)}: ${escapeHtml(text)}">
+        <span class="calendar-status-label"><span class="calendar-status-label-full">${escapeHtml(label)}</span><span class="calendar-status-label-short">${shortLabel}</span></span>
+        <span class="calendar-status-track" aria-hidden="true"><span style="width:${percent}%"></span></span>
+        <span class="calendar-status-value">${availability.free}/${availability.total}</span>
+      </span>
+    `;
+  }).join('');
+}
+
+function calendarResourceStateLabel(state) {
+  return {
+    free: 'frei',
+    booked: 'belegt',
+    own: 'deine Buchung',
+    reserve: 'bleibt frei',
+    closed: 'Ruhetag',
+    past: 'vorbei'
+  }[state] || state;
+}
+
+function calendarSlotTypeMarkup(day, slotDetail, typeMeta) {
+  const detail = slotDetail.types[typeMeta.type];
+  const canStartWasher = typeMeta.type === 'washer'
+    && !day.closed
+    && !slotDetail.past
+    && day.ownByType.washer === 0;
+  const resourcesMarkup = detail.resources.map((resource) => {
+    const stateLabel = calendarResourceStateLabel(resource.state);
+    if (canStartWasher && resource.state === 'free') {
+      return `<button class="calendar-resource is-free" type="button" data-calendar-book-washer="${resource.resourceId}" data-calendar-date="${day.date}" data-calendar-slot="${slotDetail.slot}"><span>${escapeHtml(resource.resourceName)}</span><strong>Ausw\u00e4hlen</strong></button>`;
+    }
+    return `<span class="calendar-resource is-${resource.state}"><span>${escapeHtml(resource.resourceName)}</span><strong>${escapeHtml(stateLabel)}</strong></span>`;
+  }).join('');
+  const capacityText = typeMeta.type === 'tumbler'
+    ? `${detail.free} weitere Buchung${detail.free === 1 ? '' : 'en'} m\u00f6glich, einer bleibt frei`
+    : `${detail.free} von ${detail.total} frei`;
+  return `
+    <div class="calendar-slot-type">
+      <div class="calendar-slot-type-head"><strong>${escapeHtml(typeMeta.label)}</strong><span>${escapeHtml(capacityText)}</span></div>
+      <div class="calendar-resource-list">${resourcesMarkup || '<span class="muted">Keine Ger\u00e4te eingerichtet</span>'}</div>
+    </div>
+  `;
+}
+
+function renderCalendarDayDetails() {
+  const day = calendarDays.find((item) => item.date === calendarDetailDate);
+  if (!day) {
+    calendarDayDetails.hidden = true;
+    calendarDayDetailsContent.innerHTML = '';
+    return;
+  }
+
+  calendarDayDetails.hidden = false;
+  calendarDayDetailsTitle.textContent = formatShortDate(day.date);
+  const recommendedSlot = currentRecommendation?.date === day.date ? currentRecommendation.slot : '';
+  const slotsMarkup = (day.slotDetails || []).map((slotDetail) => {
+    const hasOwnBooking = calendarResourceTypes.some(({ type }) => (
+      slotDetail.types[type]?.resources.some((resource) => resource.state === 'own')
+    ));
+    const slotNote = slotDetail.past
+      ? '<span class="calendar-slot-note is-muted">Vorbei</span>'
+      : recommendedSlot === slotDetail.slot
+        ? '<span class="calendar-slot-note is-recommended">Pers\u00f6nlicher Vorschlag</span>'
+        : hasOwnBooking
+          ? '<span class="calendar-slot-note is-own">Deine Buchung</span>'
+          : '';
+    const ownAction = hasOwnBooking && !slotDetail.past
+      ? `<button class="secondary calendar-open-package" type="button" data-calendar-open-package="${day.date}">Waschpaket erg\u00e4nzen</button>`
+      : '';
+    return `
+      <section class="calendar-slot-detail${slotDetail.past ? ' is-past' : ''}">
+        <div class="calendar-slot-detail-head"><h4>${escapeHtml(slotDetail.slot)}</h4>${slotNote}${ownAction}</div>
+        <div class="calendar-slot-types">${calendarResourceTypes.map((meta) => calendarSlotTypeMarkup(day, slotDetail, meta)).join('')}</div>
+      </section>
+    `;
+  }).join('');
+  calendarDayDetailsContent.innerHTML = day.closed
+    ? '<p class="calendar-detail-empty">Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.</p>'
+    : slotsMarkup;
+
+  calendarDayDetailsContent.querySelectorAll('[data-calendar-book-washer]').forEach((button) => {
+    button.addEventListener('click', () => startCalendarWasherBooking(
+      button.dataset.calendarDate,
+      button.dataset.calendarSlot,
+      Number(button.dataset.calendarBookWasher)
+    ));
+  });
+  calendarDayDetailsContent.querySelectorAll('[data-calendar-open-package]').forEach((button) => {
+    button.addEventListener('click', () => openCalendarPackage(button.dataset.calendarOpenPackage));
+  });
+}
+
+function applyCalendarZoom() {
+  const zoomLevels = ['compact', 'standard', 'large'];
+  weekCalendar.dataset.zoom = calendarZoom;
+  calendarZoomOutButton.disabled = calendarZoom === zoomLevels[0];
+  calendarZoomInButton.disabled = calendarZoom === zoomLevels[zoomLevels.length - 1];
+  calendarZoomResetButton.disabled = calendarZoom === 'standard';
+  calendarZoomResetButton.textContent = calendarZoom === 'compact' ? '85 %' : calendarZoom === 'large' ? '115 %' : '100 %';
 }
 
 function renderCalendar() {
   weekCalendar.innerHTML = '';
+  applyCalendarZoom();
   const monthView = calendarView === 'month';
   weekCalendar.classList.toggle('month-calendar', monthView);
   weekCalendar.setAttribute('aria-label', monthView ? 'Monatskalender' : 'Kalenderwoche');
@@ -897,11 +1045,11 @@ function renderCalendar() {
     button.classList.toggle('is-today', day.date === todayString());
     button.classList.toggle('has-own-booking', day.ownBookings > 0);
     button.classList.toggle('is-recommended', recommended);
-    button.disabled = past || closed;
+    button.setAttribute('aria-disabled', String(past || closed));
     button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', pers\u00f6nlicher Vorschlag' : ''}`
+      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}, ${calendarResourceTypes.map(({ type, label }) => `${label}: ${calendarAvailabilityText(day, type)}`).join(', ')}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', pers\u00f6nlicher Vorschlag' : ''}`
     );
     const availabilityLabel = closed
       ? 'Ruhetag'
@@ -913,12 +1061,26 @@ function renderCalendar() {
       <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
       <strong>${dateLabel}</strong>
       <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
+      <span class="calendar-status-list">${renderCalendarStatusRows(day)}</span>
       ${recommended ? '<span class="calendar-recommended">Vorschlag</span>' : ''}
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
-    button.addEventListener('click', () => selectBookingDate(day.date));
+    button.addEventListener('pointerenter', () => {
+      calendarDetailDate = day.date;
+      renderCalendarDayDetails();
+    });
+    button.addEventListener('focus', () => {
+      calendarDetailDate = day.date;
+      renderCalendarDayDetails();
+    });
+    button.addEventListener('click', async () => {
+      calendarDetailDate = day.date;
+      renderCalendarDayDetails();
+      if (!past && !closed) await selectBookingDate(day.date);
+    });
     weekCalendar.append(button);
   }
+  renderCalendarDayDetails();
 }
 
 function packageComponentDetail(component, recommendation, bookings = component.bookings || []) {
@@ -1143,6 +1305,47 @@ function persistCalendarView() {
   } catch {
     // Die Kalenderansicht funktioniert auch ohne lokalen Speicher.
   }
+}
+
+function setCalendarZoom(nextZoom) {
+  if (!['compact', 'standard', 'large'].includes(nextZoom)) return;
+  calendarZoom = nextZoom;
+  try {
+    window.localStorage.setItem('waschzeit-calendar-zoom', calendarZoom);
+  } catch {
+    // Die Kalendergroesse funktioniert auch ohne lokalen Speicher.
+  }
+  applyCalendarZoom();
+}
+
+async function startCalendarWasherBooking(date, slot, resourceId) {
+  await selectBookingDate(date);
+  const availableWasher = (bookingFlowOptions?.slots || [])
+    .find((item) => item.slot === slot)
+    ?.washers.find((washer) => washer.resourceId === resourceId);
+  if (!availableWasher) {
+    showStatus('Diese Waschmaschine ist gerade nicht mehr verf\u00fcgbar. Der Kalender wurde aktualisiert.', 'error');
+    await loadCalendar();
+    return;
+  }
+
+  bookingFlowState.slot = slot;
+  bookingFlowState.washerIds = [resourceId];
+  bookingFlowState.existingWasherId = null;
+  bookingFlowState.dryingResourceId = null;
+  bookingFlowState.dryingOptionId = '';
+  bookingFlowState.tumblerResourceId = null;
+  bookingFlowState.companions = null;
+  bookingFlowState.step = 1;
+  renderBookingFlow();
+  bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showStatus(`${availableWasher.resourceName} ist f\u00fcr ${slot} ausgew\u00e4hlt. Du kannst jetzt die Trocknung erg\u00e4nzen.`);
+}
+
+async function openCalendarPackage(date) {
+  await selectBookingDate(date);
+  bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  focusBookingFlowHeading();
 }
 
 function resourceById(resourceId) {
@@ -2407,6 +2610,18 @@ monthViewButton.addEventListener('click', async () => {
   } catch (error) {
     showStatus(error.message, 'error');
   }
+});
+calendarZoomOutButton.addEventListener('click', () => {
+  setCalendarZoom(calendarZoom === 'large' ? 'standard' : 'compact');
+});
+calendarZoomResetButton.addEventListener('click', () => setCalendarZoom('standard'));
+calendarZoomInButton.addEventListener('click', () => {
+  setCalendarZoom(calendarZoom === 'compact' ? 'standard' : 'large');
+});
+calendarDayDetailsClose.addEventListener('click', () => {
+  calendarDetailDate = '';
+  renderCalendarDayDetails();
+  weekCalendar.querySelector('.calendar-day.is-selected')?.focus({ preventScroll: true });
 });
 logoutForm.addEventListener('submit', async (event) => {
   event.preventDefault();

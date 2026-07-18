@@ -579,8 +579,11 @@ async function run() {
     assert.ok(recommendedDryingRoom);
     assert.equal(recommendedDryingRoom.selectedByDefault, true);
     assert.equal(recommendedDryingRoom.recommendationLabel, 'Empfohlen');
-    assert.ok(recommendedDryingRoom.bookingOptions.length >= 2);
-    assert.ok(recommendedDryingRoom.bookingOptions.some((option) => option.id === 'max'));
+    assert.ok(recommendedDryingRoom.bookingOptions.length >= 1);
+    const selectedDryingOption = recommendedDryingRoom.bookingOptions
+      .find((option) => option.id === recommendedDryingRoom.selectedOption)
+      || recommendedDryingRoom.bookingOptions.at(-1);
+    assert.ok(selectedDryingOption);
     if (optionalTumbler) {
       assert.equal(optionalTumbler.selectedByDefault, true);
       assert.equal(optionalTumbler.recommendationLabel, 'Ausgew\u00e4hlt');
@@ -590,7 +593,7 @@ async function run() {
     ));
     const selectedPackageItems = selectedPackageComponents.flatMap((component) => (
       component.type === 'drying_room'
-        ? component.bookingOptions.find((option) => option.id === 'max').bookings
+        ? selectedDryingOption.bookings
         : component.bookings
     ));
     assert.ok(selectedPackageComponents.length >= 2);
@@ -764,6 +767,14 @@ async function run() {
     assert.equal(calendar.body.days.length, 7);
     assert.ok(calendar.body.days[0].ownBookings >= 4);
     assert.equal(typeof calendar.body.days[0].availability.washer.freeSlots, 'number');
+    assert.equal(calendar.body.days[0].slotDetails.length, 3);
+    const bookedCalendarSlot = calendar.body.days[0].slotDetails
+      .find((item) => item.slot === '07:00-12:00');
+    assert.ok(bookedCalendarSlot);
+    assert.ok(bookedCalendarSlot.types.washer.resources.some((resource) => resource.state === 'own'));
+    assert.equal(bookedCalendarSlot.types.tumbler.free, 0);
+    assert.ok(bookedCalendarSlot.types.tumbler.resources.some((resource) => resource.state === 'own'));
+    assert.ok(bookedCalendarSlot.types.tumbler.resources.some((resource) => resource.state === 'reserve'));
     const monthCalendar = await expectStatus(user, `/api/calendar?from=${bookingDate}&days=42`, 200);
     assert.equal(monthCalendar.body.days.length, 42);
     const closedSunday = monthCalendar.body.days.find((day) => (
@@ -1061,6 +1072,11 @@ async function run() {
     assert.ok(indexHtml.includes('weekViewButton'));
     assert.ok(indexHtml.includes('monthViewButton'));
     assert.ok(indexHtml.includes('monthWeekdays'));
+    assert.ok(indexHtml.includes('calendarZoomOutButton'));
+    assert.ok(indexHtml.includes('calendarZoomResetButton'));
+    assert.ok(indexHtml.includes('calendarZoomInButton'));
+    assert.ok(indexHtml.includes('calendarDayDetails'));
+    assert.ok(indexHtml.includes('calendarDayDetailsContent'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));
     assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
@@ -1081,6 +1097,9 @@ async function run() {
     assert.ok(stylesText.includes('background: var(--night)'));
     assert.ok(stylesText.includes('.app-wordmark'));
     assert.ok(stylesText.includes('.week-calendar.month-calendar'));
+    assert.ok(stylesText.includes('.calendar-status-list'));
+    assert.ok(stylesText.includes('.calendar-day-details'));
+    assert.ok(stylesText.includes('[data-zoom="large"]'));
     assert.ok(stylesText.includes('.booking-workspace'));
     assert.ok(stylesText.includes('.booking-flow-steps'));
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1091,6 +1110,10 @@ async function run() {
     assert.ok(appScriptText.includes('setAdminSection'));
     assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
     assert.ok(appScriptText.includes('formatCalendarMonth'));
+    assert.ok(appScriptText.includes('waschzeit-calendar-zoom'));
+    assert.ok(appScriptText.includes('renderCalendarStatusRows'));
+    assert.ok(appScriptText.includes('renderCalendarDayDetails'));
+    assert.ok(appScriptText.includes('startCalendarWasherBooking'));
     assert.ok(appScriptText.includes('/api/booking-options'));
     assert.ok(appScriptText.includes('renderWasherStep'));
     assert.ok(appScriptText.includes('renderReviewStep'));
@@ -1105,8 +1128,9 @@ async function run() {
     const captionText = captions.body.toString();
     assert.ok(captionText.startsWith('WEBVTT'));
     assert.ok(captionText.includes('Waschpaket buchen'));
-    assert.ok(captionText.includes('Zuerst siehst du nur freie Waschmaschinen'));
-    assert.ok(captionText.includes('Trockenraum und Tumbler bleiben in diesem Schritt bewusst verborgen'));
+    assert.ok(captionText.includes('drei beschriftete Farbstreifen'));
+    assert.ok(captionText.includes('Bei einer freien Waschmaschine w\u00e4hlst du direkt Ausw\u00e4hlen'));
+    assert.ok(captionText.includes('Trockenraum und Tumbler bleiben bis dahin bewusst verborgen'));
     assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));

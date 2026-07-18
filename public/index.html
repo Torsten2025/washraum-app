@@ -74,9 +74,16 @@
           <div class="booking-workspace">
             <div class="booking-overview">
               <div class="calendar-shell">
-                <div class="calendar-view-switch" role="group" aria-label="Kalenderansicht">
-                  <button id="weekViewButton" class="active" type="button" aria-pressed="true">Woche</button>
-                  <button id="monthViewButton" type="button" aria-pressed="false">Monat</button>
+                <div class="calendar-display-controls">
+                  <div class="calendar-view-switch" role="group" aria-label="Kalenderansicht">
+                    <button id="weekViewButton" class="active" type="button" aria-pressed="true">Woche</button>
+                    <button id="monthViewButton" type="button" aria-pressed="false">Monat</button>
+                  </div>
+                  <div class="calendar-size-controls" role="group" aria-label="Kalendergr&ouml;&szlig;e">
+                    <button id="calendarZoomOutButton" type="button" aria-label="Kalender verkleinern" title="Kalender verkleinern">&minus;</button>
+                    <button id="calendarZoomResetButton" type="button" aria-label="Kalender auf Standardgr&ouml;&szlig;e setzen" title="Standardgr&ouml;&szlig;e">100&nbsp;%</button>
+                    <button id="calendarZoomInButton" type="button" aria-label="Kalender vergr&ouml;&szlig;ern" title="Kalender vergr&ouml;&szlig;ern">&plus;</button>
+                  </div>
                 </div>
                 <div class="calendar-toolbar">
                   <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
@@ -88,6 +95,16 @@
                   <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
                 </div>
                 <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
+                <section id="calendarDayDetails" class="calendar-day-details" aria-labelledby="calendarDayDetailsTitle" aria-live="polite" hidden>
+                  <div class="calendar-day-details-head">
+                    <div>
+                      <span class="suggestion-label">Tages&uuml;bersicht</span>
+                      <h3 id="calendarDayDetailsTitle">Tag ausw&auml;hlen</h3>
+                    </div>
+                    <button id="calendarDayDetailsClose" class="calendar-detail-close" type="button" aria-label="Tages&uuml;bersicht schlie&szlig;en" title="Schlie&szlig;en">&times;</button>
+                  </div>
+                  <div id="calendarDayDetailsContent"></div>
+                </section>
               </div>
               <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
             </div>
@@ -441,7 +458,8 @@
           <details class="video-transcript">
             <summary>Text zum Mitlesen</summary>
             <ol>
-              <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender freie Waschtage als Woche oder Monat. Ein pers&ouml;nlicher Vorschlag wird im passenden Tag markiert.</li>
+              <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender Waschmaschinen, Trockenr&auml;ume und Tumbler mit drei Farbstreifen. Du kannst zwischen Woche und Monat wechseln und die Kalendergr&ouml;&szlig;e anpassen.</li>
+              <li>Ber&uuml;hre oder &ouml;ffne einen Kalendertag, um alle Zeitfenster und Ger&auml;te zu sehen. Mit &bdquo;Ausw&auml;hlen&ldquo; &uuml;bernimmst du eine freie Waschmaschine direkt in dein Waschpaket.</li>
               <li>Nach der Tageswahl siehst du zuerst nur freie Waschmaschinen. Danach folgen passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Beides ist optional. Zum Schluss pr&uuml;fst und buchst du das gesamte Paket.</li>
               <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Alle ausgew&auml;hlten Bestandteile werden gemeinsam gebucht und erscheinen als ein Paket. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
