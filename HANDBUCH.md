@@ -108,6 +108,9 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | Schritt 4: Pruefen | Datum, Waschmaschinen, Trockenraum und Tumbler vor der gemeinsamen Buchung zusammenfassen |
 | Paket ergaenzen | Eine bereits gebuchte eigene Waschmaschine erkennen und passende Trocknungsoptionen nachtraeglich ergaenzen |
 | Optionale Trocknung | Trockenraum und Tumbler koennen in ihren Schritten bewusst ausgelassen werden |
+| Fokussierte Trockenraumwahl | Nach der Auswahl nur den gewaehlten Trockenraum anzeigen; ueber `Anderen Trockenraum waehlen oder entfernen` kann die Auswahl wieder geoeffnet werden |
+| Sichtbare Nutzungszeit | Die erlaubte Nutzungszeit direkt beim Trockenraum gross und kontrastreich anzeigen |
+| Buchungsfehler am Ort der Aktion | Fehler direkt im Waschpaket anzeigen und zusaetzlich kurz als gut sichtbaren Hinweis am oberen Bildschirmrand einblenden |
 | Wochenansicht | Sieben Tage mit freier Kapazitaet und eigenen Terminen kompakt anzeigen |
 | Monatsansicht | Einen vollstaendigen Monat im festen Sechs-Wochen-Raster ueberblicken und einen Tag direkt auswaehlen |
 | Ansicht merken | Zuletzt verwendete Wochen- oder Monatsansicht lokal im Browser speichern |
@@ -320,6 +323,9 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- Buchungsfehler aus der Seitenleiste an den aktiven Buchungsschritt geholt und fuer alle Ansichten als zeitlich begrenzten, gut sichtbaren Hinweis ergaenzt.
+- Trockenraumauswahl fokussiert: Nach einer Wahl werden andere Raeume ausgeblendet, bleiben aber ueber eine klare Aenderungsaktion erreichbar.
+- Nutzungszeit des Trockenraums visuell hervorgehoben, den dekorativen Bildkopf deutlich verkleinert und grosse Leerraeume zwischen Kalender, Buchung und Rueckmeldungen entfernt.
 - Mobile Kalenderdetails als Bottom-Sheet mit fester Buchungsaktion, Hintergrundklick, Wischgeste, markiertem Tag und grossen Touchflaechen vervollstaendigt.
 - Wochenstatus auf schmalen Bildschirmen verdichtet und die Verwaltungsnavigation, Hausauswahl sowie Kennzahl-Kontraste fuer Mobilgeraete korrigiert.
 - Login, Registrierung und Passwort-Reset gegen Mehrfachklicks abgesichert und um verstaendliche Netzwerkfehlermeldungen ergaenzt.

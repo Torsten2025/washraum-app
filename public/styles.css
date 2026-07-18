@@ -842,6 +842,7 @@ label {
 }
 
 .main-column {
+  align-content: start;
   display: grid;
   gap: 18px;
 }
@@ -4845,12 +4846,129 @@ button:hover:not(:disabled),
   }
 }
 
+/* Buchungsrueckmeldungen bleiben dort sichtbar, wo die Aktion stattfindet. */
+#statusText:not(:empty) {
+  box-shadow: 0 14px 36px rgba(16, 32, 27, 0.2);
+  margin: 0;
+  max-width: min(420px, calc(100vw - 32px));
+  position: fixed;
+  right: 24px;
+  top: 76px;
+  z-index: 150;
+}
+
+body.admin-view #statusText:not(:empty) {
+  display: block;
+}
+
+.booking-flow-notice {
+  border-left: 4px solid var(--accent);
+  margin: 0 0 14px;
+  min-height: 0;
+}
+
+.booking-flow-notice.error {
+  border-left-color: var(--danger);
+  box-shadow: 0 8px 22px rgba(160, 54, 44, 0.1);
+}
+
+.booking-flow-notice[hidden] {
+  display: none;
+}
+
+.flow-option .flow-option-kicker {
+  color: var(--accent-soft);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.flow-option .flow-option-time {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.flow-option.is-selected .flow-option-time {
+  color: #fff;
+  font-size: 15px;
+}
+
+.flow-duration {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  color: var(--accent-dark);
+  font-size: 12px;
+  padding: 12px;
+}
+
+.flow-duration select {
+  background: #fff;
+  border: 2px solid var(--accent-dark);
+  font-size: 16px;
+  font-weight: 850;
+  min-height: 50px;
+}
+
+.flow-change-room {
+  justify-self: start;
+  margin-top: -6px;
+}
+
+/* Der Bildkopf ist Orientierung, nicht die Hauptfunktion. */
+.intro-panel {
+  align-self: start;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 18px;
+  min-height: 0;
+  padding: 18px 24px;
+}
+
+.intro-panel h2 {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.intro-panel .intro-metrics {
+  margin-top: 10px;
+}
+
+.intro-panel .intro-metrics span {
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.intro-panel .intro-flow-strip {
+  display: none;
+}
+
+.intro-panel-actions {
+  align-items: center;
+}
+
 /* Die Statuszeilen benoetigen in der finalen mobilen Kaskade feste Zellhoehen. */
 .calendar-day.is-month-day {
   min-height: 132px;
 }
 
 @media (max-width: 760px) {
+  #statusText:not(:empty) {
+    left: 12px;
+    max-width: none;
+    right: 12px;
+    top: 70px;
+  }
+
+  .intro-panel {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .intro-panel h2 {
+    font-size: 27px;
+  }
+
   .calendar-day.is-month-day {
     min-height: 116px;
   }

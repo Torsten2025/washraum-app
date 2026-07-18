@@ -12,6 +12,7 @@ const bookingDate = document.querySelector('#bookingDate');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const bookingFlow = document.querySelector('#bookingFlow');
 const bookingFlowContent = document.querySelector('#bookingFlowContent');
+const bookingFlowNotice = document.querySelector('#bookingFlowNotice');
 const bookingFlowSteps = [...document.querySelectorAll('[data-flow-step]')];
 const weekCalendar = document.querySelector('#weekCalendar');
 const calendarRange = document.querySelector('#calendarRange');
@@ -122,6 +123,7 @@ let calendarPreviewCloseTimer = null;
 let calendarPreviewSuppressFocus = false;
 let calendarPointerFocus = false;
 let calendarSheetDragStart = null;
+let statusTimer = null;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let bookingFlowState = {
@@ -382,8 +384,31 @@ function isPastSlot(dateString, slot) {
 }
 
 function showStatus(message, tone = 'ok') {
+  window.clearTimeout(statusTimer);
   statusText.textContent = message;
   statusText.className = `notice ${tone}`;
+  if (message) {
+    statusTimer = window.setTimeout(() => {
+      statusText.textContent = '';
+      statusText.className = 'notice muted';
+    }, tone === 'error' ? 10000 : 7000);
+  }
+}
+
+function showBookingFlowStatus(message, tone = 'error') {
+  bookingFlowNotice.textContent = message;
+  bookingFlowNotice.className = `booking-flow-notice notice ${tone}`;
+  bookingFlowNotice.hidden = !message;
+  if (message) {
+    window.requestAnimationFrame(() => {
+      bookingFlowNotice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (tone === 'error') bookingFlowNotice.focus({ preventScroll: true });
+    });
+  }
+}
+
+function clearBookingFlowStatus() {
+  showBookingFlowStatus('', 'muted');
 }
 
 function openIntro() {
@@ -1412,6 +1437,7 @@ function renderRecommendationLegacy() {
 }
 
 function resetBookingFlowState(date = bookingDate.value) {
+  clearBookingFlowStatus();
   bookingFlowState = {
     date,
     step: 1,
@@ -1441,6 +1467,7 @@ async function startCalendarWasherBooking(date, slot, resourceId) {
     ?.washers.find((washer) => washer.resourceId === resourceId);
   if (!availableWasher) {
     showStatus('Diese Waschmaschine ist gerade nicht mehr verf\u00fcgbar. Der Kalender wurde aktualisiert.', 'error');
+    showBookingFlowStatus('Diese Waschmaschine ist gerade nicht mehr verf\u00fcgbar. Bitte w\u00e4hle eine andere freie Maschine.', 'error');
     await loadCalendar();
     return;
   }
@@ -1453,6 +1480,7 @@ async function startCalendarWasherBooking(date, slot, resourceId) {
   bookingFlowState.tumblerResourceId = null;
   bookingFlowState.companions = null;
   bookingFlowState.step = 1;
+  clearBookingFlowStatus();
   renderBookingFlow();
   bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
   showStatus(`${availableWasher.resourceName} ist f\u00fcr ${slot} ausgew\u00e4hlt. Du kannst jetzt die Trocknung erg\u00e4nzen.`);
@@ -1542,6 +1570,7 @@ async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
   } catch (error) {
     bookingFlowOptions = null;
     showStatus(error.message, 'error');
+    showBookingFlowStatus(error.message, 'error');
   } finally {
     bookingFlowState.loading = false;
     renderBookingFlow();
@@ -1549,6 +1578,7 @@ async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
 }
 
 async function openBookingFlowStep(step) {
+  clearBookingFlowStatus();
   if (step === 1) {
     bookingFlowState.step = 1;
     renderBookingFlow();
@@ -1568,6 +1598,7 @@ async function openBookingFlowStep(step) {
     } catch (error) {
       bookingFlowState.step = 1;
       showStatus(error.message, 'error');
+      showBookingFlowStatus(error.message, 'error');
     } finally {
       bookingFlowState.loading = false;
     }
@@ -1579,6 +1610,7 @@ async function openBookingFlowStep(step) {
 }
 
 function toggleFlowWasher(resourceId, slot) {
+  clearBookingFlowStatus();
   if (bookingFlowState.slot !== slot) {
     bookingFlowState.slot = slot;
     bookingFlowState.washerIds = [];
@@ -1700,29 +1732,42 @@ function renderDryingStep() {
   `;
   const choices = document.createElement('div');
   choices.className = 'flow-option-list';
-  const without = document.createElement('button');
-  without.type = 'button';
-  without.className = `flow-option${bookingFlowState.dryingResourceId === null ? ' is-selected' : ''}`;
-  without.dataset.flowDrying = 'none';
-  without.setAttribute('aria-pressed', String(bookingFlowState.dryingResourceId === null));
-  without.innerHTML = '<strong>Ohne Trockenraum</strong><span>Du kannst direkt mit dem Tumbler fortfahren.</span>';
-  without.addEventListener('click', () => {
-    bookingFlowState.dryingResourceId = null;
-    bookingFlowState.dryingOptionId = '';
-    renderBookingFlow();
-    bookingFlowContent.querySelector('[data-flow-drying="none"]')?.focus({ preventScroll: true });
-  });
-  choices.append(without);
+  const selectedRoom = selectedDryingRoom();
+  const visibleRooms = selectedRoom
+    ? [selectedRoom]
+    : bookingFlowState.companions?.dryingRooms || [];
 
-  for (const room of bookingFlowState.companions?.dryingRooms || []) {
+  if (!selectedRoom) {
+    const without = document.createElement('button');
+    without.type = 'button';
+    without.className = 'flow-option is-selected';
+    without.dataset.flowDrying = 'none';
+    without.setAttribute('aria-pressed', 'true');
+    without.innerHTML = '<strong>Ohne Trockenraum</strong><span>Du kannst direkt mit dem Tumbler fortfahren.</span>';
+    without.addEventListener('click', () => {
+      clearBookingFlowStatus();
+      bookingFlowState.dryingResourceId = null;
+      bookingFlowState.dryingOptionId = '';
+      renderBookingFlow();
+      bookingFlowContent.querySelector('[data-flow-drying="none"]')?.focus({ preventScroll: true });
+    });
+    choices.append(without);
+  }
+
+  for (const room of visibleRooms) {
     const selected = bookingFlowState.dryingResourceId === room.resourceId;
     const option = document.createElement('button');
     option.type = 'button';
     option.className = `flow-option${selected ? ' is-selected' : ''}`;
     option.dataset.flowDrying = String(room.resourceId);
     option.setAttribute('aria-pressed', String(selected));
-    option.innerHTML = `<strong>${escapeHtml(room.resourceName)}</strong><span>${room.bookingOptions.length} ${room.bookingOptions.length === 1 ? 'Dauer' : 'Dauern'} verf\u00fcgbar</span>`;
+    const currentDuration = room.bookingOptions.find((duration) => duration.id === bookingFlowState.dryingOptionId)
+      || room.bookingOptions[0];
+    option.innerHTML = selected
+      ? `<span class="flow-option-kicker">Ausgew\u00e4hlt</span><strong>${escapeHtml(room.resourceName)}</strong><span class="flow-option-time">${escapeHtml(currentDuration?.label || '')}</span>`
+      : `<strong>${escapeHtml(room.resourceName)}</strong><span class="flow-option-time">${escapeHtml(room.bookingOptions.map((duration) => duration.label).join(' \u00b7 '))}</span>`;
     option.addEventListener('click', () => {
+      clearBookingFlowStatus();
       bookingFlowState.dryingResourceId = room.resourceId;
       bookingFlowState.dryingOptionId = room.selectedOption || room.bookingOptions[0]?.id || '';
       renderBookingFlow();
@@ -1732,11 +1777,12 @@ function renderDryingStep() {
   }
   wrap.append(choices);
 
-  const room = selectedDryingRoom();
+  const room = selectedRoom;
   if (room) {
     const durationLabel = document.createElement('label');
     durationLabel.className = 'flow-duration';
-    durationLabel.textContent = 'Trocknungsdauer';
+    const durationTitle = document.createElement('span');
+    durationTitle.textContent = 'Nutzungszeit des Trockenraums';
     const durationSelect = document.createElement('select');
     durationSelect.setAttribute('aria-label', 'Trocknungsdauer w\u00e4hlen');
     for (const duration of room.bookingOptions) {
@@ -1748,9 +1794,23 @@ function renderDryingStep() {
     }
     durationSelect.addEventListener('change', () => {
       bookingFlowState.dryingOptionId = durationSelect.value;
+      clearBookingFlowStatus();
+      renderBookingFlow();
+      bookingFlowContent.querySelector('.flow-duration select')?.focus({ preventScroll: true });
     });
-    durationLabel.append(durationSelect);
-    wrap.append(durationLabel);
+    durationLabel.append(durationTitle, durationSelect);
+    const changeRoom = document.createElement('button');
+    changeRoom.type = 'button';
+    changeRoom.className = 'text-button flow-change-room';
+    changeRoom.textContent = 'Anderen Trockenraum w\u00e4hlen oder entfernen';
+    changeRoom.addEventListener('click', () => {
+      clearBookingFlowStatus();
+      bookingFlowState.dryingResourceId = null;
+      bookingFlowState.dryingOptionId = '';
+      renderBookingFlow();
+      bookingFlowContent.querySelector('[data-flow-drying="none"]')?.focus({ preventScroll: true });
+    });
+    wrap.append(durationLabel, changeRoom);
   } else if (!(bookingFlowState.companions?.dryingRooms || []).length) {
     const empty = document.createElement('p');
     empty.className = 'flow-empty compact';
@@ -1780,6 +1840,7 @@ function renderTumblerStep() {
   without.setAttribute('aria-pressed', String(bookingFlowState.tumblerResourceId === null));
   without.innerHTML = '<strong>Ohne Tumbler</strong><span>Nur Waschmaschine und gew\u00e4hlter Trockenraum.</span>';
   without.addEventListener('click', () => {
+    clearBookingFlowStatus();
     bookingFlowState.tumblerResourceId = null;
     renderBookingFlow();
     bookingFlowContent.querySelector('[data-flow-tumbler="none"]')?.focus({ preventScroll: true });
@@ -1794,6 +1855,7 @@ function renderTumblerStep() {
     option.setAttribute('aria-pressed', String(selected));
     option.innerHTML = `<strong>${escapeHtml(tumbler.resourceName)}</strong><span>Frei im Waschslot</span>`;
     option.addEventListener('click', () => {
+      clearBookingFlowStatus();
       bookingFlowState.tumblerResourceId = tumbler.resourceId;
       renderBookingFlow();
       bookingFlowContent.querySelector(`[data-flow-tumbler="${tumbler.resourceId}"]`)?.focus({ preventScroll: true });
@@ -2093,6 +2155,7 @@ async function createBooking(resourceId, slot, date = bookingDate.value, type = 
 }
 
 async function createBookingPackage(items, recommendation) {
+  clearBookingFlowStatus();
   try {
     const data = await api('/api/booking-package', {
       method: 'POST',
@@ -2112,6 +2175,7 @@ async function createBookingPackage(items, recommendation) {
   } catch (error) {
     showStatus(error.message, 'error');
     await loadBookingFlowOptions({ preserveSelection: true });
+    showBookingFlowStatus(error.message, 'error');
     return false;
   }
 }

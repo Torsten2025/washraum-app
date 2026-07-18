@@ -1090,6 +1090,7 @@ async function run() {
     assert.ok(indexHtml.includes('calendarDayDetailsActions'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));
+    assert.ok(indexHtml.includes('bookingFlowNotice'));
     assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
     assert.ok(indexHtml.indexOf('bookingFlowContent') < indexHtml.indexOf('schedule'));
     assert.ok(indexHtml.includes('adminSectionNav'));
@@ -1114,6 +1115,11 @@ async function run() {
     assert.ok(stylesText.includes('@keyframes calendar-preview-in'));
     assert.ok(stylesText.includes('.booking-workspace'));
     assert.ok(stylesText.includes('.booking-flow-steps'));
+    assert.ok(stylesText.includes('#statusText:not(:empty)'));
+    assert.ok(stylesText.includes('.booking-flow-notice'));
+    assert.ok(stylesText.includes('.flow-option-time'));
+    assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
+    assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
@@ -1133,6 +1139,9 @@ async function run() {
     assert.ok(appScriptText.includes('/api/booking-options'));
     assert.ok(appScriptText.includes('renderWasherStep'));
     assert.ok(appScriptText.includes('renderReviewStep'));
+    assert.ok(appScriptText.includes('showBookingFlowStatus'));
+    assert.ok(appScriptText.includes('Anderen Trockenraum w\\u00e4hlen oder entfernen'));
+    assert.ok(appScriptText.includes('visibleRooms = selectedRoom'));
     assert.ok(appScriptText.includes('logoutInProgress'));
     assert.ok(appScriptText.includes('Reset-Link senden'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
