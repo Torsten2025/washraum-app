@@ -584,20 +584,23 @@ async function run() {
     assert.ok(packageBooking.body.groupId);
     assert.ok(packageUserBookings.body.bookings.every((booking) => booking.group_id === packageBooking.body.groupId));
 
+    const bookedTumbler = packageBooking.body.created.find((item) => item.type === 'tumbler');
+    assert.ok(bookedTumbler);
+    await expectStatus(packageUser, `/api/bookings/${bookedTumbler.id}`, 200, { method: 'DELETE' });
     const packageSupplement = await expectStatus(packageUser, '/api/recommendation', 200);
-    if (packageSupplement.body.recommendation.kind === 'package') {
-      assert.ok(packageSupplement.body.recommendation.washerBookingId);
-      const supplementItems = packageSupplement.body.recommendation.components
-        .filter((component) => !component.required)
-        .flatMap((component) => component.bookings);
-      await expectStatus(packageUser, '/api/booking-package', 201, {
-        method: 'POST',
-        body: JSON.stringify({
-          washerBookingId: packageSupplement.body.recommendation.washerBookingId,
-          items: supplementItems
-        })
-      });
-    }
+    assert.equal(packageSupplement.body.recommendation.kind, 'package');
+    assert.ok(packageSupplement.body.recommendation.washerBookingId);
+    const supplementItems = packageSupplement.body.recommendation.components
+      .filter((component) => !component.required)
+      .flatMap((component) => component.bookings);
+    assert.ok(supplementItems.length > 0);
+    await expectStatus(packageUser, '/api/booking-package', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        washerBookingId: packageSupplement.body.recommendation.washerBookingId,
+        items: supplementItems
+      })
+    });
     await expectStatus(packageUser, `/api/booking-groups/${packageBooking.body.groupId}`, 200, { method: 'DELETE' });
     const deletedPackageBookings = await expectStatus(packageUser, '/api/my-bookings', 200);
     assert.equal(deletedPackageBookings.body.bookings.length, 0);
@@ -991,11 +994,22 @@ async function run() {
     });
     const formLogout = await expectStatus(formLogoutAdmin, '/logout', 303, {
       method: 'POST',
-      redirect: 'manual'
+      redirect: 'manual',
+      headers: {
+        Origin: baseUrl,
+        'Sec-Fetch-Site': 'same-origin'
+      }
     });
     assert.equal(formLogout.response.headers.get('location'), '/login.html?loggedOut=1');
+    assert.equal(formLogout.response.headers.get('cache-control'), 'no-store');
+    assert.match(formLogout.response.headers.get('set-cookie') || '', /connect\.sid=;/);
     const loggedOutSession = await expectStatus(formLogoutAdmin, '/api/me', 200);
     assert.equal(loggedOutSession.body.user, null);
+    const repeatedLogout = await expectStatus(formLogoutAdmin, '/logout', 303, {
+      method: 'POST',
+      redirect: 'manual'
+    });
+    assert.equal(repeatedLogout.response.headers.get('location'), '/login.html?loggedOut=1');
 
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
@@ -1027,6 +1041,7 @@ async function run() {
     assert.ok(appScriptText.includes('Anzahl Waschmaschinen waehlen'));
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
+    assert.ok(appScriptText.includes('logoutInProgress'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }

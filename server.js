@@ -35,6 +35,7 @@ fs.mkdirSync(dbDir, { recursive: true });
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 app.disable('x-powered-by');
 if (isProduction) {
@@ -1194,7 +1195,7 @@ function nextWasherRecommendation(userId, startDate, houseId) {
   candidates.sort((left, right) => left.score - right.score || left.date.localeCompare(right.date));
 
   for (const candidate of candidates) {
-    if (compactPackage && candidate.score > compactPackageScore + 4) {
+    if (compactPackage && candidate.score > compactPackageScore + 8) {
       break;
     }
     if (releaseWindowStatus(candidate.date, candidate.slot).reason !== 'not_started') {
@@ -2029,6 +2030,7 @@ app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
 
 function finishLogout(req, res, next, redirectToLogin = false) {
   const sendResponse = () => {
+    res.setHeader('Cache-Control', 'no-store');
     res.clearCookie('connect.sid', {
       httpOnly: true,
       sameSite: 'lax',
@@ -2045,7 +2047,10 @@ function finishLogout(req, res, next, redirectToLogin = false) {
     return sendResponse();
   }
   req.session.destroy((error) => {
-    if (error) return next(error);
+    if (error) {
+      // Das Cookie wird auch bei einem kurzzeitigen Store-Fehler entfernt.
+      console.error(`Sitzung konnte beim Abmelden nicht aus dem Speicher entfernt werden: ${error.message}`);
+    }
     return sendResponse();
   });
 }

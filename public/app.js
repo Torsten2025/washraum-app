@@ -1,4 +1,6 @@
 const userLine = document.querySelector('#userLine');
+const logoutForm = document.querySelector('#logoutForm');
+const logoutButton = document.querySelector('#logoutButton');
 const brandHouseName = document.querySelector('#brandHouseName');
 const introHouseName = document.querySelector('#introHouseName');
 const houseSwitcher = document.querySelector('#houseSwitcher');
@@ -104,6 +106,7 @@ let introVideoSpeechRun = 0;
 let introVideoPreferredVoice = null;
 let introReturnFocus = null;
 let activeAdminSection = 'overview';
+let logoutInProgress = false;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
@@ -1832,6 +1835,32 @@ async function createHouse() {
 }
 
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
+logoutForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (logoutInProgress) return;
+
+  logoutInProgress = true;
+  logoutButton.disabled = true;
+  logoutButton.textContent = 'Wird abgemeldet...';
+
+  try {
+    const response = await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Abmelden konnte nicht abgeschlossen werden.');
+    }
+    window.location.replace('/login.html?loggedOut=1');
+  } catch (error) {
+    logoutInProgress = false;
+    logoutButton.disabled = false;
+    logoutButton.textContent = 'Abmelden';
+    showStatus(`${error.message} Bitte versuche es noch einmal.`, 'error');
+  }
+});
 bookingViewButton.addEventListener('click', () => setAppView('booking'));
 adminViewButton.addEventListener('click', () => setAppView('admin'));
 adminSectionButtons.forEach((button) => {
