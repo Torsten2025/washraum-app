@@ -20,6 +20,9 @@ for (const page of pages) {
 const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 assert.match(indexHtml, /<track kind="captions"/, 'Video ohne Untertitelspur');
 assert.match(indexHtml, /aria-modal="true"/, 'Dialog ohne modalen Status');
+assert.match(indexHtml, /aria-label="Kalenderansicht"/, 'Kalenderansicht ohne Beschriftung');
+assert.match(indexHtml, /id="weekViewButton"[^>]*aria-pressed="true"/, 'Wochenansicht ohne Status');
+assert.match(indexHtml, /id="monthViewButton"[^>]*aria-pressed="false"/, 'Monatsansicht ohne Status');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');

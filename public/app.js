@@ -12,6 +12,9 @@ const bookingDate = document.querySelector('#bookingDate');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const weekCalendar = document.querySelector('#weekCalendar');
 const calendarRange = document.querySelector('#calendarRange');
+const weekViewButton = document.querySelector('#weekViewButton');
+const monthViewButton = document.querySelector('#monthViewButton');
+const monthWeekdays = document.querySelector('#monthWeekdays');
 const previousWeekButton = document.querySelector('#previousWeekButton');
 const nextWeekButton = document.querySelector('#nextWeekButton');
 const todayButton = document.querySelector('#todayButton');
@@ -91,6 +94,8 @@ let resources = [];
 let bookings = [];
 let slots = [];
 let activeType = 'washer';
+let calendarView = 'week';
+let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
 let currentRecommendation = null;
@@ -125,7 +130,7 @@ const introVideoSteps = [
     fallbackDurationMs: 18000,
     title: 'Willkommen bei WaschZeit',
     caption: 'Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.',
-    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter stellt dir die App ein passendes Waschpaket zusammen. Im Wochenkalender siehst du, an welchen Tagen noch etwas frei ist.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter stellt dir die App ein passendes Waschpaket zusammen. Im Kalender siehst du, an welchen Tagen noch etwas frei ist. Du kannst dabei zwischen der kompakten Wochenansicht und dem Monats\u00fcberblick wechseln.',
     visual: `
       <div class="scene-overview">
         <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
@@ -263,6 +268,27 @@ function startOfWeek(dateString) {
   return formatDateString(date);
 }
 
+function startOfMonth(dateString) {
+  return `${dateString.slice(0, 7)}-01`;
+}
+
+function addMonthsString(dateString, months) {
+  const date = new Date(`${startOfMonth(dateString)}T12:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return formatDateString(date);
+}
+
+function calendarPeriodStart(dateString = calendarAnchorDate) {
+  return calendarView === 'month'
+    ? startOfWeek(startOfMonth(dateString))
+    : startOfWeek(dateString);
+}
+
+function syncCalendarPeriod(dateString) {
+  calendarAnchorDate = dateString;
+  calendarStartDate = calendarPeriodStart(dateString);
+}
+
 function formatShortDate(dateString) {
   return new Intl.DateTimeFormat('de-CH', {
     weekday: 'short',
@@ -279,6 +305,14 @@ function formatCalendarRange(from, to) {
   const startLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(start);
   const endLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(end);
   return `${startLabel} - ${endLabel}`;
+}
+
+function formatCalendarMonth(dateString) {
+  return new Intl.DateTimeFormat('de-CH', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(new Date(`${startOfMonth(dateString)}T12:00:00Z`));
 }
 
 function typeLabel(type) {
@@ -640,7 +674,7 @@ async function api(path, options = {}) {
 
 async function init() {
   bookingDate.value = todayString();
-  calendarStartDate = startOfWeek(bookingDate.value);
+  syncCalendarPeriod(bookingDate.value);
   const me = await api('/api/me');
   if (!me || !me.user) {
     window.location.href = '/login.html';
@@ -777,7 +811,8 @@ async function loadReleaseNotices() {
 }
 
 async function loadCalendar() {
-  const data = await api(`/api/calendar?from=${encodeURIComponent(calendarStartDate)}&days=7`);
+  const days = calendarView === 'month' ? 42 : 7;
+  const data = await api(`/api/calendar?from=${encodeURIComponent(calendarStartDate)}&days=${days}`);
   calendarDays = data.days;
   renderCalendar();
 }
@@ -802,38 +837,66 @@ function availabilityForDay(day) {
 
 function renderCalendar() {
   weekCalendar.innerHTML = '';
+  const monthView = calendarView === 'month';
+  weekCalendar.classList.toggle('month-calendar', monthView);
+  weekCalendar.setAttribute('aria-label', monthView ? 'Monatskalender' : 'Kalenderwoche');
+  monthWeekdays.hidden = !monthView;
+  weekViewButton.classList.toggle('active', !monthView);
+  weekViewButton.setAttribute('aria-pressed', String(!monthView));
+  monthViewButton.classList.toggle('active', monthView);
+  monthViewButton.setAttribute('aria-pressed', String(monthView));
+
+  const previousLabel = monthView ? 'Vorheriger Monat' : 'Vorherige Woche';
+  const nextLabel = monthView ? 'Nächster Monat' : 'Nächste Woche';
+  previousWeekButton.setAttribute('aria-label', previousLabel);
+  previousWeekButton.title = previousLabel;
+  nextWeekButton.setAttribute('aria-label', nextLabel);
+  nextWeekButton.title = nextLabel;
+
   if (!calendarDays.length) {
     calendarRange.textContent = '';
     return;
   }
 
-  calendarRange.textContent = formatCalendarRange(
-    calendarDays[0].date,
-    calendarDays[calendarDays.length - 1].date
-  );
-  previousWeekButton.disabled = calendarStartDate <= startOfWeek(todayString());
+  calendarRange.textContent = monthView
+    ? formatCalendarMonth(calendarAnchorDate)
+    : formatCalendarRange(calendarDays[0].date, calendarDays[calendarDays.length - 1].date);
+  previousWeekButton.disabled = monthView
+    ? startOfMonth(calendarAnchorDate) <= startOfMonth(todayString())
+    : calendarStartDate <= startOfWeek(todayString());
 
   for (const day of calendarDays) {
     const availability = availabilityForDay(day);
+    const outsideMonth = monthView && day.date.slice(0, 7) !== calendarAnchorDate.slice(0, 7);
+    const closed = Boolean(day.closed);
+    const past = day.date < todayString();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'calendar-day';
+    button.classList.toggle('is-month-day', monthView);
+    button.classList.toggle('is-outside-month', outsideMonth);
+    button.classList.toggle('is-closed', closed);
     button.classList.toggle('is-selected', day.date === bookingDate.value);
     button.classList.toggle('is-today', day.date === todayString());
     button.classList.toggle('has-own-booking', day.ownBookings > 0);
-    button.disabled = day.date < todayString();
+    button.disabled = past || closed;
     button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${availability.freeSlots} freie Zeitfenster${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
+      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Zeitfenster`}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
     );
-    const availabilityLabel = activeType === 'all'
+    const availabilityLabel = closed
+      ? 'Ruhetag'
+      : activeType === 'all'
       ? `${availability.freeSlots} Optionen frei`
       : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Slot' : 'Slots'} frei`;
+    const dateLabel = monthView
+      ? new Intl.DateTimeFormat('de-CH', { day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))
+      : new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`));
     button.innerHTML = `
       <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
-      <strong>${new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</strong>
-      <span class="calendar-availability">${availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
+      <strong>${dateLabel}</strong>
+      <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
     button.addEventListener('click', () => selectBookingDate(day.date));
@@ -1051,9 +1114,10 @@ function setActiveType(type) {
 
 async function selectBookingDate(date, type = '') {
   bookingDate.value = date;
-  const selectedWeek = startOfWeek(date);
-  if (selectedWeek !== calendarStartDate) {
-    calendarStartDate = selectedWeek;
+  const selectedPeriod = calendarPeriodStart(date);
+  calendarAnchorDate = date;
+  if (selectedPeriod !== calendarStartDate) {
+    calendarStartDate = selectedPeriod;
     await Promise.all([loadBookings(), loadCalendar()]);
   } else {
     await loadBookings();
@@ -1214,7 +1278,7 @@ async function createBooking(resourceId, slot, date = bookingDate.value, type = 
       body: JSON.stringify({ resourceId, date, slot })
     });
     bookingDate.value = date;
-    calendarStartDate = startOfWeek(date);
+    syncCalendarPeriod(date);
     if (type) {
       activeType = type;
       filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === type));
@@ -1236,7 +1300,7 @@ async function createBookingPackage(items, recommendation) {
       })
     });
     bookingDate.value = recommendation.date;
-    calendarStartDate = startOfWeek(recommendation.date);
+    syncCalendarPeriod(recommendation.date);
     activeType = 'washer';
     filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === 'washer'));
     showStatus(data.message || 'Waschpaket gespeichert.');
@@ -1835,6 +1899,26 @@ async function createHouse() {
 }
 
 bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value));
+weekViewButton.addEventListener('click', async () => {
+  if (calendarView === 'week') return;
+  calendarView = 'week';
+  syncCalendarPeriod(bookingDate.value);
+  try {
+    await loadCalendar();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+});
+monthViewButton.addEventListener('click', async () => {
+  if (calendarView === 'month') return;
+  calendarView = 'month';
+  syncCalendarPeriod(bookingDate.value);
+  try {
+    await loadCalendar();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+});
 logoutForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (logoutInProgress) return;
@@ -1867,12 +1951,30 @@ adminSectionButtons.forEach((button) => {
   button.addEventListener('click', () => setAdminSection(button.dataset.adminTarget));
 });
 
-previousWeekButton.addEventListener('click', () => {
-  selectBookingDate(addDaysString(calendarStartDate, -7));
+previousWeekButton.addEventListener('click', async () => {
+  if (calendarView === 'month') {
+    syncCalendarPeriod(addMonthsString(calendarAnchorDate, -1));
+    try {
+      await loadCalendar();
+    } catch (error) {
+      showStatus(error.message, 'error');
+    }
+    return;
+  }
+  await selectBookingDate(addDaysString(calendarStartDate, -7));
 });
 
-nextWeekButton.addEventListener('click', () => {
-  selectBookingDate(addDaysString(calendarStartDate, 7));
+nextWeekButton.addEventListener('click', async () => {
+  if (calendarView === 'month') {
+    syncCalendarPeriod(addMonthsString(calendarAnchorDate, 1));
+    try {
+      await loadCalendar();
+    } catch (error) {
+      showStatus(error.message, 'error');
+    }
+    return;
+  }
+  await selectBookingDate(addDaysString(calendarStartDate, 7));
 });
 
 todayButton.addEventListener('click', () => {

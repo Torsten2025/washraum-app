@@ -1,6 +1,6 @@
 # WaschZeit-Handbuch
 
-Stand: 15. Juli 2026
+Stand: 18. Juli 2026
 
 Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der WaschZeit-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
 
@@ -103,8 +103,10 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | Schnellwahl Waschmaschinen | Gewuenschte Anzahl mit einem Auswahlfeld auf `1`, `2` oder `3` setzen; angeboten werden nur gleichzeitig freie Maschinen |
 | Trocknungsdauer | Kurz, Standard oder maximal erlaubte Dauer auswaehlen |
 | Trockenraum und Tumbler | Beide Optionen sind im vollstaendigen Vorschlag vorausgewaehlt und koennen mit je einem Klick entfernt werden |
-| Wochenkalender | Freie Kapazitaet und eigene Termine pro Tag anzeigen |
-| Datumsnavigation | Vorherige Woche, heute oder naechste Woche waehlen |
+| Wochenansicht | Sieben Tage mit freier Kapazitaet und eigenen Terminen kompakt anzeigen |
+| Monatsansicht | Einen vollstaendigen Monat im festen Sechs-Wochen-Raster ueberblicken und einen Tag direkt auswaehlen |
+| Datumsnavigation | Je nach Ansicht zur vorherigen oder naechsten Woche beziehungsweise zum vorherigen oder naechsten Monat wechseln |
+| Ruhetage | Sonntage eindeutig als nicht buchbare Ruhetage anzeigen |
 | Filter | Waschmaschinen, Trockenraeume, Tumbler oder alle Ressourcen anzeigen |
 | Einzelbuchung | Freie Ressource direkt in einem Slot buchen |
 | Belegte Termine | Name der buchenden Person oder geschuetzten Dauertermin anzeigen |
@@ -307,6 +309,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Wiederholte Abmeldung, Same-Origin-Pruefung, Cookie-Loeschung, Cache-Schutz und Weiterleitung werden automatisch getestet.
 - Test fuer `Waschpaket ergaenzen` datumsunabhaengig gemacht: Ein gebuchter Tumbler wird gezielt entfernt und ueber den Vorschlag erneut zum bestehenden Paket hinzugefuegt.
 - Suche fuer intelligente Waschpakete ueber Sonntage hinweg verbessert: Eine nahe Kombination mit Trockenraum wird nicht mehr vorschnell durch ein reines Tumbler-Paket ersetzt.
+- Buchungskalender um einen barrierefreien Umschalter fuer Wochen- und Monatsansicht erweitert; ein gewaehlter Tag oeffnet weiterhin direkt die zugehoerigen Slots.
+- Monatsansicht als stabiles 42-Tage-Raster umgesetzt und Sonntage im Kalender korrekt als nicht buchbare Ruhetage gekennzeichnet.
 
 ### 15. Juli 2026
 

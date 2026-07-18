@@ -842,6 +842,7 @@ function validateDryingRoomBooking(userId, date, slot, houseId) {
 }
 
 function calendarDaySummary(userId, date, houseId) {
+  const closed = isSunday(date);
   const activeResources = db.prepare(`
     SELECT id, type
     FROM resources
@@ -874,7 +875,7 @@ function calendarDaySummary(userId, date, houseId) {
     let freeSlots = 0;
     let totalSlots = 0;
 
-    for (const slot of slots) {
+    for (const slot of closed ? [] : slots) {
       if (isPastSlot(date, slot)) {
         continue;
       }
@@ -895,6 +896,7 @@ function calendarDaySummary(userId, date, houseId) {
 
   return {
     date,
+    closed,
     availability,
     ownBookings: Object.values(ownByType).reduce((sum, count) => sum + count, 0),
     ownByType
@@ -2219,7 +2221,7 @@ app.get('/api/calendar', requireAuth, (req, res) => {
   const from = String(req.query.from || todayStringLocal());
   const days = Number(req.query.days || 7);
   const houseId = currentHouseId(req);
-  if (!isDateString(from) || !Number.isInteger(days) || days < 1 || days > 14) {
+  if (!isDateString(from) || !Number.isInteger(days) || days < 1 || days > 42) {
     return res.status(400).json({ error: 'Ung\u00fcltiger Kalenderzeitraum' });
   }
 

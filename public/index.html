@@ -77,11 +77,18 @@
           </div>
           <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
           <div class="calendar-shell">
+            <div class="calendar-view-switch" role="group" aria-label="Kalenderansicht">
+              <button id="weekViewButton" class="active" type="button" aria-pressed="true">Woche</button>
+              <button id="monthViewButton" type="button" aria-pressed="false">Monat</button>
+            </div>
             <div class="calendar-toolbar">
               <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
               <strong id="calendarRange"></strong>
               <button id="todayButton" class="secondary calendar-today" type="button">Heute</button>
               <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="N&auml;chste Woche" title="N&auml;chste Woche">&rarr;</button>
+            </div>
+            <div id="monthWeekdays" class="month-weekdays" aria-hidden="true" hidden>
+              <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
             </div>
             <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
           </div>
@@ -416,7 +423,7 @@
           <details class="video-transcript">
             <summary>Text zum Mitlesen</summary>
             <ol>
-              <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Wochenkalender mit freien Tagen.</li>
+              <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Kalender. Du kannst freie Tage als Woche oder als ganzen Monat ansehen.</li>
               <li>Im Waschpaket w&auml;hlst du schnell eine bis drei freie Waschmaschinen, einen Trockenraum und bei Bedarf den Tumbler. Beim Trockenraum bestimmst du kurz, Standard oder die maximal erlaubte Dauer.</li>
               <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Alle ausgew&auml;hlten Bestandteile werden gemeinsam gebucht und erscheinen als ein Paket. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>

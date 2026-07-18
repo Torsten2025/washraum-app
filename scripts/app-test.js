@@ -735,6 +735,15 @@ async function run() {
     assert.equal(calendar.body.days.length, 7);
     assert.ok(calendar.body.days[0].ownBookings >= 4);
     assert.equal(typeof calendar.body.days[0].availability.washer.freeSlots, 'number');
+    const monthCalendar = await expectStatus(user, `/api/calendar?from=${bookingDate}&days=42`, 200);
+    assert.equal(monthCalendar.body.days.length, 42);
+    const closedSunday = monthCalendar.body.days.find((day) => (
+      new Date(`${day.date}T12:00:00Z`).getUTCDay() === 0
+    ));
+    assert.ok(closedSunday);
+    assert.equal(closedSunday.closed, true);
+    assert.ok(Object.values(closedSunday.availability).every((item) => item.freeSlots === 0));
+    await expectStatus(user, `/api/calendar?from=${bookingDate}&days=43`, 400);
     const recommendation = await expectStatus(user, '/api/recommendation', 200);
     assert.ok(recommendation.body.recommendation.title);
 
@@ -1020,6 +1029,9 @@ async function run() {
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
     assert.ok(indexHtml.includes('viewSwitcher'));
+    assert.ok(indexHtml.includes('weekViewButton'));
+    assert.ok(indexHtml.includes('monthViewButton'));
+    assert.ok(indexHtml.includes('monthWeekdays'));
     assert.ok(indexHtml.includes('adminSectionNav'));
     assert.ok(indexHtml.includes('data-admin-target="overview"'));
     assert.ok(indexHtml.includes('data-admin-target="house"'));
@@ -1035,12 +1047,15 @@ async function run() {
     assert.ok(stylesText.includes('.topbar .logout-form .ghost-button'));
     assert.ok(stylesText.includes('background: var(--night)'));
     assert.ok(stylesText.includes('.app-wordmark'));
+    assert.ok(stylesText.includes('.week-calendar.month-calendar'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
     assert.ok(appScriptText.includes('Anzahl Waschmaschinen waehlen'));
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
+    assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
+    assert.ok(appScriptText.includes('formatCalendarMonth'));
     assert.ok(appScriptText.includes('logoutInProgress'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {

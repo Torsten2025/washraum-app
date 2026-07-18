@@ -2162,6 +2162,32 @@ select:focus-visible {
   margin: 4px 0 16px;
 }
 
+.calendar-view-switch {
+  background: rgba(19, 32, 28, 0.08);
+  border: 1px solid rgba(19, 32, 28, 0.08);
+  border-radius: 7px;
+  display: inline-grid;
+  gap: 2px;
+  grid-auto-flow: column;
+  margin-bottom: 10px;
+  padding: 3px;
+}
+
+.calendar-view-switch button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  min-height: 34px;
+  min-width: 82px;
+  padding: 6px 14px;
+}
+
+.calendar-view-switch button.active {
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(16, 32, 27, 0.1);
+  color: var(--night);
+}
+
 .calendar-toolbar {
   align-items: center;
   display: grid;
@@ -2197,6 +2223,28 @@ select:focus-visible {
   overflow-x: auto;
   padding: 2px 1px 8px;
   scrollbar-width: thin;
+}
+
+.month-weekdays {
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 7px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 0 1px 5px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.month-weekdays[hidden] {
+  display: none;
+}
+
+.week-calendar.month-calendar {
+  gap: 7px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: visible;
 }
 
 .calendar-day {
@@ -2240,9 +2288,35 @@ select:focus-visible {
   width: 7px;
 }
 
+.calendar-day.is-month-day {
+  min-height: 94px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.calendar-day.is-month-day .calendar-weekday {
+  display: none;
+}
+
+.calendar-day.is-outside-month {
+  background: rgba(239, 245, 242, 0.58);
+  color: var(--muted);
+}
+
+.calendar-day.is-closed {
+  background:
+    repeating-linear-gradient(135deg, rgba(19, 32, 28, 0.035) 0 7px, transparent 7px 14px),
+    rgba(245, 248, 247, 0.86);
+  opacity: 0.68;
+}
+
 .calendar-day:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.calendar-day.is-closed:disabled {
+  opacity: 0.68;
 }
 
 .calendar-weekday {
@@ -3788,6 +3862,50 @@ button:hover:not(:disabled),
 
   .layout {
     padding: 14px;
+  }
+
+  .calendar-toolbar {
+    grid-template-columns: 36px minmax(0, 1fr) auto 36px;
+  }
+
+  .calendar-nav {
+    height: 36px;
+    width: 36px;
+  }
+
+  .calendar-today {
+    min-height: 36px;
+    padding-inline: 10px;
+  }
+
+  .month-weekdays,
+  .week-calendar.month-calendar {
+    gap: 3px;
+  }
+
+  .calendar-day.is-month-day {
+    gap: 2px;
+    min-height: 72px;
+    padding: 6px 4px;
+  }
+
+  .calendar-day.is-month-day strong {
+    font-size: 15px;
+  }
+
+  .calendar-day.is-month-day .calendar-availability {
+    font-size: 9px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .calendar-day.is-month-day .calendar-own {
+    border-radius: 50%;
+    font-size: 0;
+    height: 7px;
+    margin-top: auto;
+    padding: 0;
+    width: 7px;
   }
 
   .intro-panel {
