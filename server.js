@@ -168,6 +168,7 @@ function createCurrentTables() {
 
     CREATE TABLE IF NOT EXISTS release_notices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      resource_id INTEGER,
       resource_name TEXT NOT NULL,
       booking_date TEXT NOT NULL,
       slot TEXT NOT NULL,
@@ -176,6 +177,7 @@ function createCurrentTables() {
       house_id INTEGER,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE SET NULL,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
@@ -264,6 +266,7 @@ function seedCurrentDefaults() {
   ensureColumn('bookings', 'group_id', 'TEXT');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
+  ensureColumn('release_notices', 'resource_id', 'INTEGER');
   ensureColumn('push_subscriptions', 'user_agent', 'TEXT');
   ensureColumn('push_subscriptions', 'active', 'INTEGER NOT NULL DEFAULT 1');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
@@ -1701,6 +1704,15 @@ function subscriptionForRow(row) {
   };
 }
 
+function releaseNoticeUrl(booking) {
+  const params = new URLSearchParams();
+  if (booking.notice_id) {
+    params.set('notice', String(booking.notice_id));
+  }
+  params.set('date', booking.booking_date);
+  return `/index.html?${params.toString()}`;
+}
+
 async function notifyPushSubscribers(req, booking, message, title = `WaschZeit: ${booking.resource_name} frei`) {
   const status = applyPushConfig(req);
   if (!status.configured) {
@@ -1740,7 +1752,7 @@ async function notifyPushSubscribers(req, booking, message, title = `WaschZeit: 
   const payload = pushPayload({
     title,
     body: message,
-    url: `/index.html?date=${encodeURIComponent(booking.booking_date)}`
+    url: releaseNoticeUrl(booking)
   });
   const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
   for (const recipient of recipients) {
@@ -1886,7 +1898,7 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
     return { configured: true, sent: 0 };
   }
 
-  const appUrl = publicAppUrl(req);
+  const appUrl = `${publicAppUrl(req)}${releaseNoticeUrl(booking)}`;
   let sent = 0;
   for (let start = 0; start < recipients.length; start += 5) {
     const batch = recipients.slice(start, start + 5);
@@ -3185,29 +3197,36 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
       return res.status(409).json({ error: 'Das ganze Paket kann nur vor Beginn abgesagt werden. Laufende Bestandteile bitte einzeln fr\u00fcher freigeben.' });
     }
 
-    db.transaction(() => {
+    const actorName = req.session.user.username || 'Jemand';
+    const noticeRows = db.transaction(() => {
+      const createdNotices = [];
       db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
       const insertNotice = db.prepare(`
-        INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
-        VALUES (?, ?, ?, 'cancellation', ?, ?, ?)
+        INSERT INTO release_notices (resource_id, resource_name, booking_date, slot, kind, message, house_id, created_by)
+        VALUES (?, ?, ?, ?, 'cancellation', ?, ?, ?)
       `);
       for (const booking of groupedBookings) {
-        insertNotice.run(
+        const noticeMessage = `${actorName} hat ${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} abgesagt. Der Slot ist wieder buchbar.`;
+        const result = insertNotice.run(
+          booking.resource_id,
           booking.resource_name,
           booking.booking_date,
           booking.slot,
-          `${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} ist wieder buchbar.`,
+          noticeMessage,
           booking.house_id,
           req.session.user.id
         );
+        createdNotices.push({ booking, noticeId: result.lastInsertRowid });
       }
+      return createdNotices;
     })();
 
     const washer = groupedBookings.find((booking) => booking.resource_type === 'washer') || groupedBookings[0];
-    const message = `Ein Waschpaket am ${washer.booking_date} im Zeitfenster ${washer.slot} wurde abgesagt. Die enthaltenen Termine sind wieder buchbar.`;
+    const primaryNotice = noticeRows.find((row) => row.booking.resource_type === 'washer') || noticeRows[0];
+    const message = `${actorName} hat ein Waschpaket am ${washer.booking_date} im Zeitfenster ${washer.slot} abgesagt. Die enthaltenen Termine sind wieder buchbar.`;
     const { emailNotifications, pushNotifications } = await notifyReleaseChannels(
       req,
-      washer,
+      { ...washer, notice_id: primaryNotice?.noticeId },
       message,
       'WaschZeit: Waschpaket wieder frei'
     );
@@ -3267,15 +3286,16 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
     }
 
     db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
-    const message = `${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} wurde abgesagt und ist wieder buchbar.`;
-    db.prepare(`
-      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
-      VALUES (?, ?, ?, 'cancellation', ?, ?, ?)
-    `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
+    const actorName = req.session.user.username || 'Jemand';
+    const message = `${actorName} hat ${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} abgesagt. Der Slot ist wieder buchbar.`;
+    const noticeResult = db.prepare(`
+      INSERT INTO release_notices (resource_id, resource_name, booking_date, slot, kind, message, house_id, created_by)
+      VALUES (?, ?, ?, ?, 'cancellation', ?, ?, ?)
+    `).run(booking.resource_id, booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
     const { emailNotifications, pushNotifications } = await notifyReleaseChannels(
       req,
-      booking,
+      { ...booking, notice_id: noticeResult.lastInsertRowid },
       message,
       `Waschplan: Termin f\u00fcr ${booking.resource_name} wieder frei`
     );
@@ -3318,39 +3338,98 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       });
     }
 
+    const actorName = req.session.user.username || 'Jemand';
     const message = releaseWindow.hasStarted
-      ? `${booking.resource_name} ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
-      : `${booking.resource_name} ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
-    db.prepare(`
-      INSERT INTO release_notices (resource_name, booking_date, slot, kind, message, house_id, created_by)
-      VALUES (?, ?, ?, 'early_release', ?, ?, ?)
-    `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
+      ? `${actorName} hat ${booking.resource_name} freigegeben. Der Slot ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
+      : `${actorName} hat ${booking.resource_name} freigegeben. Der Slot ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
+    const noticeResult = db.prepare(`
+      INSERT INTO release_notices (resource_id, resource_name, booking_date, slot, kind, message, house_id, created_by)
+      VALUES (?, ?, ?, ?, 'early_release', ?, ?, ?)
+    `).run(booking.resource_id, booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
-    const { emailNotifications, pushNotifications } = await notifyReleaseChannels(req, booking, message);
+    const { emailNotifications, pushNotifications } = await notifyReleaseChannels(req, { ...booking, notice_id: noticeResult.lastInsertRowid }, message);
     res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications, pushNotifications });
   } catch (error) {
     next(error);
   }
 });
 
-app.get('/api/release-notices', requireAuth, (req, res) => {
-  const notices = db.prepare(`
-    SELECT rn.id, rn.resource_name, rn.booking_date, rn.slot, rn.kind, rn.message, rn.created_at,
-           u.username AS created_by_name
+function decorateReleaseNotice(notice) {
+  const windowStatus = releaseWindowStatus(notice.booking_date, notice.slot);
+  const current = notice.kind === 'cancellation'
+    ? ['not_started', 'eligible'].includes(windowStatus.reason)
+    : windowStatus.eligible;
+  const bookable = Boolean(
+    current
+    && notice.resource_id
+    && notice.resource_active === 1
+    && notice.is_booked === 0
+  );
+  return {
+    id: notice.id,
+    resource_id: notice.resource_id,
+    resource_name: notice.resource_name,
+    booking_date: notice.booking_date,
+    slot: notice.slot,
+    kind: notice.kind,
+    message: notice.message,
+    created_at: notice.created_at,
+    created_by_name: notice.created_by_name,
+    bookable,
+    expired: !current,
+    alreadyBooked: notice.is_booked === 1,
+    resourceActive: notice.resource_active === 1
+  };
+}
+
+function releaseNoticeSelect(whereSql) {
+  return `
+    SELECT rn.id,
+           COALESCE(rn.resource_id, r.id) AS resource_id,
+           rn.resource_name,
+           rn.booking_date,
+           rn.slot,
+           rn.kind,
+           rn.message,
+           rn.created_at,
+           u.username AS created_by_name,
+           r.active AS resource_active,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM bookings b
+             WHERE b.resource_id = COALESCE(rn.resource_id, r.id)
+               AND b.booking_date = rn.booking_date
+               AND b.slot = rn.slot
+           ) THEN 1 ELSE 0 END AS is_booked
     FROM release_notices rn
     LEFT JOIN users u ON u.id = rn.created_by
+    LEFT JOIN resources r ON r.id = rn.resource_id
+      OR (rn.resource_id IS NULL AND r.house_id = rn.house_id AND r.name = rn.resource_name)
+    ${whereSql}
+  `;
+}
+
+app.get('/api/release-notices', requireAuth, (req, res) => {
+  const notices = db.prepare(`${releaseNoticeSelect(`
     WHERE rn.house_id = ?
       AND rn.created_at >= datetime('now', '-7 days', 'localtime')
+  `)}
     ORDER BY rn.created_at DESC
     LIMIT 10
-  `).all(currentHouseId(req)).filter((notice) => {
-    const windowStatus = releaseWindowStatus(notice.booking_date, notice.slot);
-    return notice.kind === 'cancellation'
-      ? ['not_started', 'eligible'].includes(windowStatus.reason)
-      : windowStatus.eligible;
-  });
+  `).all(currentHouseId(req)).map(decorateReleaseNotice).filter((notice) => !notice.expired);
 
   res.json({ notices });
+});
+
+app.get('/api/release-notices/:id', requireAuth, (req, res) => {
+  const notice = db.prepare(releaseNoticeSelect(`
+    WHERE rn.id = ?
+      AND rn.house_id = ?
+      AND rn.created_at >= datetime('now', '-30 days', 'localtime')
+  `)).get(Number(req.params.id), currentHouseId(req));
+  if (!notice) {
+    return res.status(404).json({ error: 'Freigabe nicht gefunden.' });
+  }
+  res.json({ notice: decorateReleaseNotice(notice) });
 });
 
 app.get('/api/admin/users', requireAdmin, (req, res) => {

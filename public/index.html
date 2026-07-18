@@ -398,6 +398,22 @@
       </aside>
     </main>
 
+    <div id="releaseNoticeOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal release-notice-modal" role="dialog" aria-modal="true" aria-labelledby="releaseNoticeTitle">
+        <button id="closeReleaseNoticeButton" class="icon-close" type="button" aria-label="Freigabe schliessen">x</button>
+        <div class="intro-copy">
+          <p id="releaseNoticeEyebrow" class="eyebrow">Termin wieder frei</p>
+          <h2 id="releaseNoticeTitle">Moechtest du diesen Slot buchen?</h2>
+          <p id="releaseNoticeIntro">Hier siehst du, wer den Termin freigegeben hat und ob er noch buchbar ist.</p>
+        </div>
+        <div id="releaseNoticeDetail" class="release-notice-detail"></div>
+        <div class="settings-actions">
+          <button id="bookReleaseNoticeButton" class="secondary" type="button">Diesen Slot buchen</button>
+          <button id="dismissReleaseNoticeButton" type="button">Nicht jetzt</button>
+        </div>
+      </section>
+    </div>
+
     <div id="settingsOverlay" class="intro-overlay" hidden>
       <section class="intro-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button id="closeSettingsButton" class="icon-close" type="button" aria-label="Persoenliche Einstellungen schliessen">x</button>

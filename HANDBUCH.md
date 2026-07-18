@@ -277,6 +277,8 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 - Push-Hinweise sind pro Browser/Geraet freiwillig. Bewohner muessen Push im Browser erlauben und koennen das Abo in der App wieder deaktivieren.
 - Push nutzt dieselben Filter wie E-Mail: Haus, Bereich, Wochentag, Zeitfenster und aktivierte Freigabe-Hinweise.
 - Freigaben und Absagen senden Push an passende aktive Abos im selben Haus, nicht an die Person, die den Termin freigegeben hat.
+- Push-Texte nennen neutral, wer den Termin freigegeben oder abgesagt hat. Beim Antippen oeffnet die App einen Detaildialog mit Person, Ressource, Datum, Slot und Buchungsfrage.
+- Der Dialog bucht den Slot ueber die normale Buchungspruefung. Ist der Slot inzwischen vergeben, abgelaufen oder die Ressource gesperrt, wird das im Dialog angezeigt.
 - Der Server erzeugt VAPID-Schluessel automatisch und speichert sie in SQLite, falls keine `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` gesetzt sind. Fuer dauerhafte Produktionsschluessel koennen diese Werte in Render als Environment Variables hinterlegt werden.
 - Im Adminbereich zeigt der Ueberblick den Push-Status und die Anzahl aktiver Geraete. Unter `System` kann ein Testpush an alle aktiven Push-Geraete im Haus oder gezielt an eine Person mit aktivem Push-Geraet gesendet werden.
 - Auf iOS funktionieren PWA-Push-Hinweise nur, wenn die App zum Home-Bildschirm hinzugefuegt wurde und Benachrichtigungen erlaubt sind.
@@ -367,6 +369,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 ### 18. Juli 2026
 
 - Admin-Auswertung fuer Nutzung nach Bereich, Slot, Ressource, Nutzer und gesperrte Ressourcen ergaenzt.
+- Push-Freigaben erweitert: Benachrichtigungen nennen die freigebende Person und oeffnen beim Antippen einen Buchungsdialog fuer den konkreten Slot.
 - Betriebssperren fuer Geraete und Raeume mit Sperrgrund eingefuehrt; gesperrte Ressourcen sind fuer neue Buchungen nicht verfuegbar und werden im Audit festgehalten.
 - Abgesicherten Admin-Reset fuer normale Buchungen des aktiven Hauses ergaenzt; Dauertermine und Konten bleiben erhalten.
 - Lokales Hinweis-Journal unter `Meine Ansicht` ergaenzt, damit Bewohner die letzten eigenen Aktionsbestaetigungen wiederfinden.

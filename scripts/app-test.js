@@ -883,11 +883,23 @@ async function run() {
       { method: 'POST' }
     );
     assert.equal(cancellation.body.releaseNoticeCreated, true);
-    assert.ok(cancellation.body.message.includes('wurde abgesagt'));
+    assert.ok(cancellation.body.message.includes('abgesagt'));
+    assert.ok(cancellation.body.message.includes('Bewohner Test'));
     const cancellationNotices = await expectStatus(user, '/api/release-notices', 200);
-    assert.ok(cancellationNotices.body.notices.some((notice) => (
-      notice.resource_name === 'Tumbler 1' && notice.kind === 'cancellation'
-    )));
+    const cancellationNotice = cancellationNotices.body.notices.find((notice) => (
+      notice.resource_name === 'Tumbler 1'
+      && notice.kind === 'cancellation'
+      && notice.created_by_name === 'Bewohner Test'
+    ));
+    assert.ok(cancellationNotice);
+    assert.equal(cancellationNotice.created_by_name, 'Bewohner Test');
+    assert.equal(cancellationNotice.resource_id, tumblers[0].id);
+    assert.equal(cancellationNotice.bookable, true);
+    assert.equal(cancellationNotice.alreadyBooked, false);
+    const noticeDetail = await expectStatus(user, `/api/release-notices/${cancellationNotice.id}`, 200);
+    assert.equal(noticeDetail.body.notice.id, cancellationNotice.id);
+    assert.equal(noticeDetail.body.notice.created_by_name, 'Bewohner Test');
+    assert.equal(noticeDetail.body.notice.resource_id, tumblers[0].id);
 
     const nearTerm = currentSwissReleaseSlot();
     if (nearTerm) {
@@ -910,8 +922,12 @@ async function run() {
         { method: 'POST' }
       );
       assert.equal(timelyRelease.body.releaseNoticeCreated, true);
+      assert.ok(timelyRelease.body.message.includes('Bewohner Test'));
       const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
-      assert.ok(timelyNotices.body.notices.some((notice) => notice.resource_name === 'Tumbler 2'));
+      const timelyNotice = timelyNotices.body.notices.find((notice) => notice.resource_name === 'Tumbler 2');
+      assert.ok(timelyNotice);
+      assert.equal(timelyNotice.created_by_name, 'Bewohner Test');
+      assert.equal(timelyNotice.resource_id, tumblers[1].id);
     }
 
     await expectStatus(user, '/api/me/password', 200, {
@@ -1198,6 +1214,8 @@ async function run() {
     assert.ok(indexHtml.includes('data-admin-target="system"'));
     assert.ok(indexHtml.includes('noticeJournal'));
     assert.ok(indexHtml.includes('resetBookingsButton'));
+    assert.ok(indexHtml.includes('releaseNoticeOverlay'));
+    assert.ok(indexHtml.includes('bookReleaseNoticeButton'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('class="app-wordmark"'));
     assert.ok(indexHtml.includes('id="brandHouseName"'));
@@ -1223,6 +1241,8 @@ async function run() {
     assert.ok(stylesText.includes('.settings-step'));
     assert.ok(stylesText.includes('.notice-journal'));
     assert.ok(stylesText.includes('.analytics-grid'));
+    assert.ok(stylesText.includes('.release-notice-modal'));
+    assert.ok(stylesText.includes('.release-notice-facts'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1257,6 +1277,9 @@ async function run() {
     assert.ok(appScriptText.includes('renderSettingsSummary'));
     assert.ok(appScriptText.includes('/api/admin/analytics?days=30'));
     assert.ok(appScriptText.includes('resetAllBookings'));
+    assert.ok(appScriptText.includes('openReleaseNoticeFromUrl'));
+    assert.ok(appScriptText.includes('/api/release-notices/${noticeId}'));
+    assert.ok(appScriptText.includes('bookActiveReleaseNotice'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });

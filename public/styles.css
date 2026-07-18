@@ -1035,6 +1035,56 @@ aside.panel {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.release-item small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+}
+
+.release-notice-modal {
+  max-width: 620px;
+}
+
+.release-notice-detail {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.release-notice-detail p {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0;
+  padding: 14px;
+}
+
+.release-notice-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.release-notice-facts div {
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1fr);
+  padding: 10px 0;
+}
+
+.release-notice-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.release-notice-facts dd {
+  margin: 0;
+}
+
 .status-chip {
   align-self: start;
   background: var(--accent-soft);

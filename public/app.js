@@ -97,6 +97,14 @@ const userList = document.querySelector('#userList');
 const myBookings = document.querySelector('#myBookings');
 const releaseNotices = document.querySelector('#releaseNotices');
 const noticeJournal = document.querySelector('#noticeJournal');
+const releaseNoticeOverlay = document.querySelector('#releaseNoticeOverlay');
+const closeReleaseNoticeButton = document.querySelector('#closeReleaseNoticeButton');
+const dismissReleaseNoticeButton = document.querySelector('#dismissReleaseNoticeButton');
+const releaseNoticeEyebrow = document.querySelector('#releaseNoticeEyebrow');
+const releaseNoticeTitle = document.querySelector('#releaseNoticeTitle');
+const releaseNoticeIntro = document.querySelector('#releaseNoticeIntro');
+const releaseNoticeDetail = document.querySelector('#releaseNoticeDetail');
+const bookReleaseNoticeButton = document.querySelector('#bookReleaseNoticeButton');
 const filterButtons = [...document.querySelectorAll('.filter')];
 const openIntroButton = document.querySelector('#openIntroButton');
 const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
@@ -125,6 +133,8 @@ let availableHouses = [];
 let resources = [];
 let bookings = [];
 let slots = [];
+let releaseNoticeItems = [];
+let activeReleaseNotice = null;
 let activeType = 'washer';
 let deferredInstallPrompt = null;
 let calendarView = (() => {
@@ -910,6 +920,9 @@ async function init() {
 
   await refreshAll();
   const pageUrl = new URL(window.location.href);
+  if (pageUrl.searchParams.get('notice')) {
+    await openReleaseNoticeFromUrl(pageUrl);
+  }
   if (pageUrl.searchParams.get('welcome') === '1') {
     openSettings(!settingsCompleted());
     window.history.replaceState({}, '', '/index.html');
@@ -1193,6 +1206,7 @@ async function loadMyBookings() {
 
 async function loadReleaseNotices() {
   const data = await api('/api/release-notices');
+  releaseNoticeItems = data.notices || [];
   renderReleaseNotices(data.notices);
 }
 
@@ -2596,8 +2610,93 @@ function renderReleaseNotices(items) {
     item.innerHTML = `
       <strong>${escapeHtml(notice.resource_name)}</strong>
       <span>${escapeHtml(notice.message)}</span>
+      <small>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)}${notice.created_by_name ? ` - von ${escapeHtml(notice.created_by_name)}` : ''}</small>
     `;
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'text-button';
+    action.textContent = notice.bookable ? 'Ansehen & buchen' : 'Ansehen';
+    action.addEventListener('click', () => openReleaseNotice(notice));
+    item.append(action);
     releaseNotices.append(item);
+  }
+}
+
+function releaseNoticeStatusText(notice) {
+  if (notice.bookable) return 'Der Slot ist aktuell frei und kann gebucht werden.';
+  if (notice.alreadyBooked) return 'Dieser Slot wurde inzwischen gebucht.';
+  if (!notice.resourceActive) return 'Diese Ressource ist aktuell gesperrt.';
+  if (notice.expired) return 'Diese Freigabe ist nicht mehr aktuell.';
+  return 'Dieser Slot ist gerade nicht buchbar.';
+}
+
+function renderReleaseNoticeDetail(notice) {
+  const actor = notice.created_by_name || 'Jemand';
+  releaseNoticeEyebrow.textContent = notice.kind === 'cancellation' ? 'Absage' : 'Frueher frei';
+  releaseNoticeTitle.textContent = `${notice.resource_name} ist wieder frei`;
+  releaseNoticeIntro.textContent = `${actor} hat diesen Termin freigegeben. Bitte buche ihn nur, wenn du ihn wirklich nutzen moechtest.`;
+  releaseNoticeDetail.innerHTML = `
+    <dl class="release-notice-facts">
+      <div><dt>Freigegeben von</dt><dd>${escapeHtml(actor)}</dd></div>
+      <div><dt>Bereich</dt><dd>${escapeHtml(notice.resource_name)}</dd></div>
+      <div><dt>Datum</dt><dd>${escapeHtml(formatShortDate(notice.booking_date))}</dd></div>
+      <div><dt>Zeitfenster</dt><dd>${escapeHtml(notice.slot)}</dd></div>
+      <div><dt>Status</dt><dd>${escapeHtml(releaseNoticeStatusText(notice))}</dd></div>
+    </dl>
+    <p>${escapeHtml(notice.message)}</p>
+  `;
+  bookReleaseNoticeButton.disabled = !notice.bookable;
+  bookReleaseNoticeButton.textContent = notice.bookable ? 'Diesen Slot buchen' : 'Nicht mehr buchbar';
+}
+
+function openReleaseNotice(notice) {
+  activeReleaseNotice = notice;
+  renderReleaseNoticeDetail(notice);
+  releaseNoticeOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+  bookReleaseNoticeButton.focus();
+}
+
+function closeReleaseNotice() {
+  releaseNoticeOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  activeReleaseNotice = null;
+}
+
+async function openReleaseNoticeFromUrl(pageUrl) {
+  const noticeId = Number(pageUrl.searchParams.get('notice'));
+  if (!Number.isInteger(noticeId) || noticeId <= 0) return;
+  try {
+    const cached = releaseNoticeItems.find((notice) => Number(notice.id) === noticeId);
+    const notice = cached || (await api(`/api/release-notices/${noticeId}`)).notice;
+    await selectBookingDate(notice.booking_date);
+    openReleaseNotice(notice);
+    window.history.replaceState({}, '', `/index.html?date=${encodeURIComponent(notice.booking_date)}`);
+  } catch (error) {
+    showStatus(error.message, 'error');
+    window.history.replaceState({}, '', '/index.html');
+  }
+}
+
+async function bookActiveReleaseNotice() {
+  if (!activeReleaseNotice?.bookable) return;
+  bookReleaseNoticeButton.disabled = true;
+  const booked = await createBooking(
+    activeReleaseNotice.resource_id,
+    activeReleaseNotice.slot,
+    activeReleaseNotice.booking_date
+  );
+  if (booked) {
+    closeReleaseNotice();
+  } else {
+    const noticeId = activeReleaseNotice.id;
+    try {
+      const fresh = await api(`/api/release-notices/${noticeId}`);
+      activeReleaseNotice = fresh.notice;
+      renderReleaseNoticeDetail(activeReleaseNotice);
+    } catch {
+      bookReleaseNoticeButton.disabled = false;
+    }
   }
 }
 
@@ -2615,8 +2714,10 @@ async function createBooking(resourceId, slot, date = bookingDate.value, type = 
     }
     showStatus(data.message || 'Buchung gespeichert.');
     await refreshAll();
+    return true;
   } catch (error) {
     showStatus(error.message, 'error');
+    return false;
   }
 }
 
@@ -3501,6 +3602,14 @@ resendVerificationButton.addEventListener('click', resendEmailVerification);
 installAppButton.addEventListener('click', installApp);
 enablePushButton.addEventListener('click', enablePushNotifications);
 disablePushButton.addEventListener('click', disablePushNotifications);
+bookReleaseNoticeButton.addEventListener('click', bookActiveReleaseNotice);
+closeReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
+dismissReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
+releaseNoticeOverlay.addEventListener('click', (event) => {
+  if (event.target === releaseNoticeOverlay) {
+    closeReleaseNotice();
+  }
+});
 openSettingsButton.addEventListener('click', () => openSettings(false));
 closeSettingsButton.addEventListener('click', closeSettings);
 settingsDoneButton.addEventListener('click', finishSettings);
@@ -3550,6 +3659,24 @@ introOverlay.addEventListener('click', (event) => {
   }
 });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !releaseNoticeOverlay.hidden) {
+    closeReleaseNotice();
+    return;
+  }
+  if (event.key === 'Tab' && !releaseNoticeOverlay.hidden) {
+    const focusable = [...releaseNoticeOverlay.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.disabled && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
   if (event.key === 'Escape' && !settingsOverlay.hidden) {
     closeSettings();
     return;
