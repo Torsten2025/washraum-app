@@ -96,7 +96,7 @@ MP4, Poster und VTT-Untertitel entstehen aus derselben Kapiteldefinition:
 python scripts/build-intro-video.py
 ```
 
-Dafuer werden lokal `edge-tts`, `imageio-ffmpeg` und `Pillow` benoetigt. Der Generator laesst jedes Kapitel bis zum Ende der Sprachdatei laufen und fuegt danach eine kurze Pause ein.
+Dafuer werden lokal `edge-tts`, `imageio-ffmpeg`, `certifi` und `Pillow` benoetigt. Unter Windows verbindet der Generator den Windows-Vertrauensspeicher mit dem Python-Zertifikatsbund. Jedes Kapitel laeuft bis zum Ende der Sprachdatei und erhaelt danach eine kurze Pause.
 
 ## Einfuehrung im Haus
 

@@ -1019,6 +1019,60 @@ function dryingWindowOptions(resource, maxWindow) {
   });
 }
 
+function availableDryingRoomsForWasher(userId, washDate, washSlot, houseId) {
+  const allowedWindow = allowedDryingRoomSlots(washDate, washSlot);
+  const dryingRooms = db.prepare(`
+    SELECT id, name, type
+    FROM resources
+    WHERE active = 1 AND type = 'drying_room' AND house_id = ?
+    ORDER BY name
+  `).all(houseId);
+  const occupied = db.prepare(`
+    SELECT id
+    FROM bookings
+    WHERE resource_id = ? AND booking_date = ? AND slot = ?
+    LIMIT 1
+  `);
+  const ownDryingBooking = db.prepare(`
+    SELECT b.id
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'drying_room'
+      AND r.house_id = ?
+      AND b.booking_date = ?
+      AND b.slot = ?
+    LIMIT 1
+  `);
+
+  return dryingRooms.flatMap((resource) => {
+    const availableWindow = [];
+    for (const item of allowedWindow) {
+      const unavailable = isPastSlot(item.date, item.slot)
+        || isSunday(item.date)
+        || occupied.get(resource.id, item.date, item.slot)
+        || fixedBookingConflict(resource.id, item.date, item.slot, houseId)
+        || ownDryingBooking.get(userId, houseId, item.date, item.slot);
+      if (unavailable) {
+        break;
+      }
+      availableWindow.push(item);
+    }
+    if (!availableWindow.length) {
+      return [];
+    }
+    const bookingOptions = dryingWindowOptions(resource, availableWindow);
+    const preferredLength = Math.min(2, availableWindow.length);
+    return [{
+      resourceId: resource.id,
+      resourceName: resource.name,
+      bookingOptions,
+      selectedOption: bookingOptions.find((option) => option.bookings.length === preferredLength)?.id
+        || bookingOptions[0].id
+    }];
+  });
+}
+
 function packageComponent(type, resource, bookings, options = {}) {
   return {
     id: String(options.id || type),
@@ -1089,8 +1143,8 @@ function companionPackageRecommendation(userId, washerBooking, houseId) {
     resourceType: 'washer',
     title: 'Waschpaket erg\u00e4nzen',
     reason: hasDryingRoom
-      ? 'Die Waschmaschine ist bereits gebucht. Trockenraum und Tumbler sind passend vorausgew\u00e4hlt und lassen sich mit einem Klick anpassen.'
-      : 'Die Waschmaschine ist bereits gebucht. F\u00fcr diesen Zeitraum ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar; der Tumbler ist vorausgew\u00e4hlt.',
+      ? 'Die Waschmaschine ist bereits gebucht. Im gef\u00fchrten Ablauf kannst du passende Trocknungsoptionen erg\u00e4nzen.'
+      : 'Die Waschmaschine ist bereits gebucht. Der gef\u00fchrte Ablauf zeigt dir, welche Trocknungsoptionen noch verf\u00fcgbar sind.',
     actionLabel: 'Paket erg\u00e4nzen',
     components
   };
@@ -1164,10 +1218,10 @@ function washerPackageRecommendation(userId, washer, reason, houseId) {
     resourceType: 'washer',
     title: 'Dein Waschpaket',
     reason: hasDryingRoom && hasTumbler
-      ? `${reason} W\u00e4hle oben eine bis drei Waschmaschinen; Trockenraum und Tumbler sind bereits markiert.`
+      ? `${reason} W\u00e4hle den Termin und stelle danach Waschmaschinen, Trockenraum und Tumbler Schritt f\u00fcr Schritt zusammen.`
       : hasDryingRoom
-        ? `${reason} W\u00e4hle oben eine bis drei Waschmaschinen und den passenden Trockenraum.`
-        : `${reason} W\u00e4hle oben eine bis drei Waschmaschinen; der Tumbler ist als Trocknungsoption markiert.`,
+        ? `${reason} W\u00e4hle den Termin und erg\u00e4nze danach bei Bedarf einen Trockenraum.`
+        : `${reason} W\u00e4hle den Termin und entscheide danach, ob du einen Tumbler brauchst.`,
     actionLabel: 'Waschpaket buchen',
     components
   };
@@ -2230,6 +2284,66 @@ app.get('/api/calendar', requireAuth, (req, res) => {
     days: Array.from({ length: days }, (_, index) => (
       calendarDaySummary(req.session.user.id, addDays(from, index), houseId)
     ))
+  });
+});
+
+app.get('/api/booking-options', requireAuth, (req, res) => {
+  const date = String(req.query.date || '');
+  const selectedSlot = String(req.query.slot || '');
+  const houseId = currentHouseId(req);
+  if (!isDateString(date) || (selectedSlot && !slots.includes(selectedSlot))) {
+    return res.status(400).json({ error: 'Ung\u00fcltiger Buchungszeitraum' });
+  }
+
+  const existingWashers = db.prepare(`
+    SELECT b.id AS bookingId, b.group_id AS groupId, b.slot,
+           r.id AS resourceId, r.name AS resourceName
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE b.user_id = ?
+      AND r.type = 'washer'
+      AND r.house_id = ?
+      AND b.booking_date = ?
+    ORDER BY b.slot, r.name
+  `).all(req.session.user.id, houseId, date);
+
+  const slotOptions = slots.map((slot) => ({
+    slot,
+    washerError: isSunday(date) || isPastSlot(date, slot)
+      ? ''
+      : validateWasherBooking(req.session.user.id, date, slot, houseId),
+    washers: isSunday(date)
+      ? []
+      : findAvailableResources(req.session.user.id, 'washer', date, slot, houseId, 3)
+        .map((resource) => ({ resourceId: resource.id, resourceName: resource.name }))
+  }));
+
+  let companions = null;
+  if (selectedSlot) {
+    companions = {
+      dryingRooms: availableDryingRoomsForWasher(
+        req.session.user.id,
+        date,
+        selectedSlot,
+        houseId
+      ),
+      tumblers: findAvailableResources(
+        req.session.user.id,
+        'tumbler',
+        date,
+        selectedSlot,
+        houseId,
+        2
+      ).map((resource) => ({ resourceId: resource.id, resourceName: resource.name }))
+    };
+  }
+
+  res.json({
+    date,
+    closed: isSunday(date),
+    existingWashers,
+    slots: slotOptions,
+    companions
   });
 });
 

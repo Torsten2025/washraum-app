@@ -45,9 +45,10 @@
           <div class="intro-panel-actions">
             <button id="openIntroButton" type="button">Video ansehen</button>
             <div class="intro-flow-strip" aria-hidden="true">
-              <span><strong>1</strong> Datum</span>
-              <span><strong>2</strong> Bereich</span>
-              <span><strong>3</strong> Slot</span>
+              <span><strong>1</strong> &Uuml;berblick</span>
+              <span><strong>2</strong> Waschmaschine</span>
+              <span><strong>3</strong> Trocknen</span>
+              <span><strong>4</strong> Best&auml;tigen</span>
             </div>
           </div>
         </section>
@@ -66,39 +67,56 @@
           <div class="section-head">
             <div>
               <h2>Buchen</h2>
-              <p class="muted">Nutze das vorgeschlagene Waschpaket oder w&auml;hle einzelne Termine im Kalender.</p>
+              <p class="muted">Verschaffe dir zuerst einen &Uuml;berblick. Danach stellst du dein Waschpaket Schritt f&uuml;r Schritt zusammen.</p>
             </div>
-            <input id="bookingDate" type="date">
+            <input id="bookingDate" type="date" aria-label="Buchungsdatum">
           </div>
-          <div class="booking-rhythm" aria-hidden="true">
-            <span><strong>Waschen</strong> ein Zeitfenster pro Tag</span>
-            <span><strong>TR</strong> passend zum Waschslot</span>
-            <span><strong>Tumbler</strong> einer bleibt frei</span>
-          </div>
-          <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
-          <div class="calendar-shell">
-            <div class="calendar-view-switch" role="group" aria-label="Kalenderansicht">
-              <button id="weekViewButton" class="active" type="button" aria-pressed="true">Woche</button>
-              <button id="monthViewButton" type="button" aria-pressed="false">Monat</button>
+          <div class="booking-workspace">
+            <div class="booking-overview">
+              <div class="calendar-shell">
+                <div class="calendar-view-switch" role="group" aria-label="Kalenderansicht">
+                  <button id="weekViewButton" class="active" type="button" aria-pressed="true">Woche</button>
+                  <button id="monthViewButton" type="button" aria-pressed="false">Monat</button>
+                </div>
+                <div class="calendar-toolbar">
+                  <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
+                  <strong id="calendarRange"></strong>
+                  <button id="todayButton" class="secondary calendar-today" type="button">Heute</button>
+                  <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="N&auml;chste Woche" title="N&auml;chste Woche">&rarr;</button>
+                </div>
+                <div id="monthWeekdays" class="month-weekdays" aria-hidden="true" hidden>
+                  <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                </div>
+                <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
+              </div>
+              <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
             </div>
-            <div class="calendar-toolbar">
-              <button id="previousWeekButton" class="calendar-nav" type="button" aria-label="Vorherige Woche" title="Vorherige Woche">&larr;</button>
-              <strong id="calendarRange"></strong>
-              <button id="todayButton" class="secondary calendar-today" type="button">Heute</button>
-              <button id="nextWeekButton" class="calendar-nav" type="button" aria-label="N&auml;chste Woche" title="N&auml;chste Woche">&rarr;</button>
-            </div>
-            <div id="monthWeekdays" class="month-weekdays" aria-hidden="true" hidden>
-              <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-            </div>
-            <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche"></div>
+            <section id="bookingFlow" class="booking-flow" aria-labelledby="bookingFlowTitle">
+              <div class="booking-flow-head">
+                <span class="suggestion-label">Gef&uuml;hrt buchen</span>
+                <h3 id="bookingFlowTitle">Dein Waschpaket</h3>
+                <p>Waschmaschine zuerst, Trocknung danach.</p>
+              </div>
+              <ol id="bookingFlowSteps" class="booking-flow-steps" aria-label="Buchungsschritte">
+                <li class="active" data-flow-step="1"><span>1</span> Waschmaschine</li>
+                <li data-flow-step="2"><span>2</span> Trockenraum</li>
+                <li data-flow-step="3"><span>3</span> Tumbler</li>
+                <li data-flow-step="4"><span>4</span> Pr&uuml;fen</li>
+              </ol>
+              <div id="bookingFlowContent" class="booking-flow-content" aria-live="polite"></div>
+            </section>
           </div>
-          <div class="filters" role="group" aria-label="Ger&auml;tetyp">
-            <button class="filter active" data-type="washer" type="button">Waschmaschinen</button>
-            <button class="filter" data-type="drying_room" type="button">Trockenr&auml;ume</button>
-            <button class="filter" data-type="tumbler" type="button">Tumbler</button>
-            <button class="filter" data-type="all" type="button">Alle</button>
-          </div>
-          <div id="schedule" class="schedule"></div>
+          <details class="single-booking-details">
+            <summary>Einzelnes Ger&auml;t separat buchen</summary>
+            <p class="muted">F&uuml;r eine einzelne Nutzung kannst du weiterhin direkt ein Ger&auml;t ausw&auml;hlen.</p>
+            <div class="filters" role="group" aria-label="Ger&auml;tetyp">
+              <button class="filter active" data-type="washer" type="button">Waschmaschinen</button>
+              <button class="filter" data-type="drying_room" type="button">Trockenr&auml;ume</button>
+              <button class="filter" data-type="tumbler" type="button">Tumbler</button>
+              <button class="filter" data-type="all" type="button">Alle</button>
+            </div>
+            <div id="schedule" class="schedule"></div>
+          </details>
         </section>
       </div>
 
@@ -407,7 +425,7 @@
               <div id="introVideoVisual" class="video-scene" aria-hidden="true"></div>
               <div class="video-narration">
                 <h3 id="introVideoTitle">Willkommen bei WaschZeit</h3>
-                <p id="introVideoCaption" aria-live="polite">Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.</p>
+                <p id="introVideoCaption" aria-live="polite">Deine Termine und der Kalender kommen zuerst. Danach stellst du dein Waschpaket zusammen.</p>
               </div>
             </div>
             <div id="introVideoProgressTrack" class="video-progress" role="progressbar" aria-label="Fortschritt der Einf&uuml;hrung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="introVideoProgress"></span></div>
@@ -423,8 +441,8 @@
           <details class="video-transcript">
             <summary>Text zum Mitlesen</summary>
             <ol>
-              <li>Oben stehen deine n&auml;chsten Buchungen. Darunter findest du einen pers&ouml;nlichen Vorschlag und den Kalender. Du kannst freie Tage als Woche oder als ganzen Monat ansehen.</li>
-              <li>Im Waschpaket w&auml;hlst du schnell eine bis drei freie Waschmaschinen, einen Trockenraum und bei Bedarf den Tumbler. Beim Trockenraum bestimmst du kurz, Standard oder die maximal erlaubte Dauer.</li>
+              <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender freie Waschtage als Woche oder Monat. Ein pers&ouml;nlicher Vorschlag wird im passenden Tag markiert.</li>
+              <li>Nach der Tageswahl siehst du zuerst nur freie Waschmaschinen. Danach folgen passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Beides ist optional. Zum Schluss pr&uuml;fst und buchst du das gesamte Paket.</li>
               <li>Der Vorschlag verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Alle ausgew&auml;hlten Bestandteile werden gemeinsam gebucht und erscheinen als ein Paket. Einzelne Termine kannst du weiterhin direkt im Kalender w&auml;hlen.</li>
               <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
               <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>

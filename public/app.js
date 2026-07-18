@@ -10,6 +10,9 @@ const bookingViewButton = document.querySelector('#bookingViewButton');
 const adminViewButton = document.querySelector('#adminViewButton');
 const bookingDate = document.querySelector('#bookingDate');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
+const bookingFlow = document.querySelector('#bookingFlow');
+const bookingFlowContent = document.querySelector('#bookingFlowContent');
+const bookingFlowSteps = [...document.querySelectorAll('[data-flow-step]')];
 const weekCalendar = document.querySelector('#weekCalendar');
 const calendarRange = document.querySelector('#calendarRange');
 const weekViewButton = document.querySelector('#weekViewButton');
@@ -94,11 +97,30 @@ let resources = [];
 let bookings = [];
 let slots = [];
 let activeType = 'washer';
-let calendarView = 'week';
+let calendarView = (() => {
+  try {
+    return window.localStorage.getItem('waschzeit-calendar-view') === 'month' ? 'month' : 'week';
+  } catch {
+    return 'week';
+  }
+})();
 let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
 let currentRecommendation = null;
+let bookingFlowOptions = null;
+let bookingFlowState = {
+  date: '',
+  step: 1,
+  slot: '',
+  washerIds: [],
+  existingWasherId: null,
+  dryingResourceId: null,
+  dryingOptionId: '',
+  tumblerResourceId: null,
+  companions: null,
+  loading: false
+};
 let introVideoStepIndex = 0;
 let introVideoStepElapsedMs = 0;
 let introVideoTimer = null;
@@ -129,8 +151,8 @@ const introVideoSteps = [
     id: 'overview',
     fallbackDurationMs: 18000,
     title: 'Willkommen bei WaschZeit',
-    caption: 'Deine Termine, ein passendes Waschpaket und die freien Tage liegen direkt beieinander.',
-    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter stellt dir die App ein passendes Waschpaket zusammen. Im Kalender siehst du, an welchen Tagen noch etwas frei ist. Du kannst dabei zwischen der kompakten Wochenansicht und dem Monats\u00fcberblick wechseln.',
+    caption: 'Deine Termine und der Kalender kommen zuerst. Danach stellst du dein Waschpaket zusammen.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender mit allen freien Waschtagen. Du kannst zwischen der kompakten Wochenansicht und dem Monats\u00fcberblick wechseln. Ein pers\u00f6nlicher Vorschlag ist im passenden Tag markiert.',
     visual: `
       <div class="scene-overview">
         <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
@@ -145,8 +167,8 @@ const introVideoSteps = [
     id: 'booking',
     fallbackDurationMs: 21000,
     title: 'In drei Schritten buchen',
-    caption: 'Tag ausw\u00e4hlen, Bereich festlegen und im freien Zeitfenster auf Buchen klicken.',
-    speech: 'F\u00fcr eine Buchung gehst du so vor. W\u00e4hle im Kalender den gew\u00fcnschten Tag. Danach w\u00e4hlst du Waschmaschine, Trockenraum oder Tumbler. Freie Zeiten haben eine Schaltfl\u00e4che mit der Aufschrift Buchen. Ein Klick gen\u00fcgt. Danach erscheint der Termin unter Meine Buchungen.',
+    caption: 'Tag und Waschmaschine zuerst w\u00e4hlen. Trockenraum und Tumbler folgen danach.',
+    speech: 'F\u00fcr eine Buchung w\u00e4hlst du zuerst einen Tag im Kalender. Danach zeigt die App nur freie Waschmaschinen und Zeitfenster. Erst wenn du eine Waschmaschine ausgew\u00e4hlt hast, erscheinen passende Trockenr\u00e4ume und Tumbler. Beide sind optional. Zum Schluss pr\u00fcfst du das gesamte Waschpaket und buchst es mit einem Klick.',
     visual: `
       <div class="scene-booking">
         <div class="scene-days"><span>Mo<br><b>15</b></span><span class="active">Di<br><b>16</b></span><span>Mi<br><b>17</b></span><span>Do<br><b>18</b></span></div>
@@ -792,6 +814,7 @@ async function refreshAll() {
     loadCalendar(),
     loadRecommendation()
   ]);
+  await loadBookingFlowOptions();
 }
 
 async function loadBookings() {
@@ -821,18 +844,11 @@ async function loadRecommendation() {
   const data = await api('/api/recommendation');
   currentRecommendation = data.recommendation;
   renderRecommendation();
+  if (calendarDays.length) renderCalendar();
 }
 
 function availabilityForDay(day) {
-  if (activeType !== 'all') {
-    return day.availability[activeType] || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
-  }
-  return Object.values(day.availability).reduce((summary, item) => ({
-    free: summary.free + item.free,
-    total: summary.total + item.total,
-    freeSlots: summary.freeSlots + item.freeSlots,
-    totalSlots: summary.totalSlots + item.totalSlots
-  }), { free: 0, total: 0, freeSlots: 0, totalSlots: 0 });
+  return day.availability.washer || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
 }
 
 function renderCalendar() {
@@ -870,6 +886,7 @@ function renderCalendar() {
     const outsideMonth = monthView && day.date.slice(0, 7) !== calendarAnchorDate.slice(0, 7);
     const closed = Boolean(day.closed);
     const past = day.date < todayString();
+    const recommended = currentRecommendation?.date === day.date;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'calendar-day';
@@ -879,17 +896,16 @@ function renderCalendar() {
     button.classList.toggle('is-selected', day.date === bookingDate.value);
     button.classList.toggle('is-today', day.date === todayString());
     button.classList.toggle('has-own-booking', day.ownBookings > 0);
+    button.classList.toggle('is-recommended', recommended);
     button.disabled = past || closed;
     button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Zeitfenster`}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}`
+      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', pers\u00f6nlicher Vorschlag' : ''}`
     );
     const availabilityLabel = closed
       ? 'Ruhetag'
-      : activeType === 'all'
-      ? `${availability.freeSlots} Optionen frei`
-      : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Slot' : 'Slots'} frei`;
+      : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Waschzeit' : 'Waschzeiten'} frei`;
     const dateLabel = monthView
       ? new Intl.DateTimeFormat('de-CH', { day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))
       : new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`));
@@ -897,6 +913,7 @@ function renderCalendar() {
       <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
       <strong>${dateLabel}</strong>
       <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
+      ${recommended ? '<span class="calendar-recommended">Vorschlag</span>' : ''}
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
     button.addEventListener('click', () => selectBookingDate(day.date));
@@ -924,7 +941,7 @@ function packageComponentDetail(component, recommendation, bookings = component.
   return `${component.resourceName} - ab ${firstBooking.slot.split('-')[0]} bis ${endLabel}`;
 }
 
-function renderRecommendation() {
+function renderRecommendationLegacy() {
   bookingSuggestion.innerHTML = '';
   const recommendation = currentRecommendation;
   if (!recommendation) {
@@ -1105,15 +1122,481 @@ function renderRecommendation() {
   }
 }
 
+function resetBookingFlowState(date = bookingDate.value) {
+  bookingFlowState = {
+    date,
+    step: 1,
+    slot: '',
+    washerIds: [],
+    existingWasherId: null,
+    dryingResourceId: null,
+    dryingOptionId: '',
+    tumblerResourceId: null,
+    companions: null,
+    loading: false
+  };
+}
+
+function persistCalendarView() {
+  try {
+    window.localStorage.setItem('waschzeit-calendar-view', calendarView);
+  } catch {
+    // Die Kalenderansicht funktioniert auch ohne lokalen Speicher.
+  }
+}
+
+function resourceById(resourceId) {
+  return resources.find((resource) => resource.id === Number(resourceId));
+}
+
+function selectedDryingRoom() {
+  return bookingFlowState.companions?.dryingRooms?.find((room) => (
+    room.resourceId === bookingFlowState.dryingResourceId
+  )) || null;
+}
+
+function selectedDryingOption() {
+  const room = selectedDryingRoom();
+  return room?.bookingOptions?.find((option) => option.id === bookingFlowState.dryingOptionId)
+    || room?.bookingOptions?.[0]
+    || null;
+}
+
+function bookingFlowItems() {
+  const items = bookingFlowState.existingWasherId
+    ? []
+    : bookingFlowState.washerIds.map((resourceId) => ({
+      resourceId,
+      date: bookingFlowState.date,
+      slot: bookingFlowState.slot
+    }));
+  const dryingOption = selectedDryingOption();
+  if (dryingOption) items.push(...dryingOption.bookings);
+  if (bookingFlowState.tumblerResourceId) {
+    items.push({
+      resourceId: bookingFlowState.tumblerResourceId,
+      date: bookingFlowState.date,
+      slot: bookingFlowState.slot
+    });
+  }
+  return items;
+}
+
+function focusBookingFlowHeading() {
+  const heading = bookingFlowContent.querySelector('h4');
+  if (!heading) return;
+  heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+}
+
+async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
+  const date = bookingDate.value;
+  if (!preserveSelection || bookingFlowState.date !== date) {
+    resetBookingFlowState(date);
+  }
+  bookingFlowState.loading = true;
+  renderBookingFlow();
+  try {
+    const slotQuery = preserveSelection && bookingFlowState.slot
+      ? `&slot=${encodeURIComponent(bookingFlowState.slot)}`
+      : '';
+    bookingFlowOptions = await api(`/api/booking-options?date=${encodeURIComponent(date)}${slotQuery}`);
+    const existingWashers = bookingFlowOptions.existingWashers || [];
+    if (existingWashers.length) {
+      bookingFlowState.slot = existingWashers[0].slot;
+      bookingFlowState.existingWasherId = existingWashers[0].bookingId;
+      bookingFlowState.washerIds = [];
+    } else {
+      bookingFlowState.existingWasherId = null;
+      const availableIds = new Set(
+        (bookingFlowOptions.slots || [])
+          .find((item) => item.slot === bookingFlowState.slot)
+          ?.washers.map((washer) => washer.resourceId) || []
+      );
+      bookingFlowState.washerIds = bookingFlowState.washerIds.filter((id) => availableIds.has(id));
+      if (!bookingFlowState.washerIds.length && preserveSelection) {
+        bookingFlowState.slot = '';
+        bookingFlowState.step = 1;
+      }
+    }
+    bookingFlowState.companions = bookingFlowOptions.companions;
+  } catch (error) {
+    bookingFlowOptions = null;
+    showStatus(error.message, 'error');
+  } finally {
+    bookingFlowState.loading = false;
+    renderBookingFlow();
+  }
+}
+
+async function openBookingFlowStep(step) {
+  if (step === 1) {
+    bookingFlowState.step = 1;
+    renderBookingFlow();
+    focusBookingFlowHeading();
+    return;
+  }
+  if (!bookingFlowState.slot) return;
+  if (step >= 2 && !bookingFlowState.companions) {
+    bookingFlowState.step = 2;
+    bookingFlowState.loading = true;
+    renderBookingFlow();
+    try {
+      bookingFlowOptions = await api(
+        `/api/booking-options?date=${encodeURIComponent(bookingFlowState.date)}&slot=${encodeURIComponent(bookingFlowState.slot)}`
+      );
+      bookingFlowState.companions = bookingFlowOptions.companions || { dryingRooms: [], tumblers: [] };
+    } catch (error) {
+      bookingFlowState.step = 1;
+      showStatus(error.message, 'error');
+    } finally {
+      bookingFlowState.loading = false;
+    }
+  } else {
+    bookingFlowState.step = step;
+  }
+  renderBookingFlow();
+  focusBookingFlowHeading();
+}
+
+function toggleFlowWasher(resourceId, slot) {
+  if (bookingFlowState.slot !== slot) {
+    bookingFlowState.slot = slot;
+    bookingFlowState.washerIds = [];
+  }
+  bookingFlowState.washerIds = bookingFlowState.washerIds.includes(resourceId)
+    ? bookingFlowState.washerIds.filter((id) => id !== resourceId)
+    : [...bookingFlowState.washerIds, resourceId].slice(0, 3);
+  if (!bookingFlowState.washerIds.length) bookingFlowState.slot = '';
+  bookingFlowState.dryingResourceId = null;
+  bookingFlowState.dryingOptionId = '';
+  bookingFlowState.tumblerResourceId = null;
+  bookingFlowState.companions = null;
+  renderBookingFlow();
+  bookingFlowContent.querySelector(
+    `[data-flow-washer="${resourceId}"][data-flow-slot="${slot}"]`
+  )?.focus({ preventScroll: true });
+}
+
+function renderFlowActions(backStep, nextStep, nextLabel) {
+  const actions = document.createElement('div');
+  actions.className = 'booking-flow-actions';
+  if (backStep) {
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'secondary';
+    back.textContent = 'Zur\u00fcck';
+    back.addEventListener('click', () => openBookingFlowStep(backStep));
+    actions.append(back);
+  }
+  if (nextStep) {
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.textContent = nextLabel;
+    next.addEventListener('click', () => openBookingFlowStep(nextStep));
+    actions.append(next);
+  }
+  return actions;
+}
+
+function renderWasherStep() {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-stage';
+  wrap.innerHTML = `
+    <div class="flow-stage-heading">
+      <span>Schritt 1</span>
+      <h4>Waschmaschine w\u00e4hlen</h4>
+      <p>${escapeHtml(formatShortDate(bookingFlowState.date))}</p>
+    </div>
+  `;
+  const existingWashers = bookingFlowOptions?.existingWashers || [];
+  if (existingWashers.length) {
+    const existing = document.createElement('div');
+    existing.className = 'flow-existing-selection';
+    existing.innerHTML = `
+      <span>Bereits gebucht</span>
+      <strong>${existingWashers.map((washer) => escapeHtml(washer.resourceName)).join(', ')}</strong>
+      <small>${escapeHtml(existingWashers[0].slot)}</small>
+    `;
+    wrap.append(existing, renderFlowActions(0, 2, 'Trocknung erg\u00e4nzen'));
+    return wrap;
+  }
+
+  const availableSlots = (bookingFlowOptions?.slots || []).filter((item) => item.washers.length);
+  if (!availableSlots.length) {
+    const ruleMessage = (bookingFlowOptions?.slots || []).find((item) => item.washerError)?.washerError;
+    const empty = document.createElement('p');
+    empty.className = 'flow-empty';
+    empty.textContent = bookingFlowOptions?.closed
+      ? 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.'
+      : ruleMessage || 'An diesem Tag ist keine Waschmaschine mehr frei. W\u00e4hle einen anderen Tag im Kalender.';
+    wrap.append(empty);
+    return wrap;
+  }
+
+  for (const slotOption of availableSlots) {
+    const group = document.createElement('section');
+    group.className = `flow-slot${currentRecommendation?.date === bookingFlowState.date && currentRecommendation?.slot === slotOption.slot ? ' is-recommended' : ''}`;
+    const heading = document.createElement('div');
+    heading.className = 'flow-slot-heading';
+    heading.innerHTML = `<strong>${escapeHtml(slotOption.slot)}</strong>${group.classList.contains('is-recommended') ? '<span>Vorschlag</span>' : ''}`;
+    const choices = document.createElement('div');
+    choices.className = 'flow-choice-grid';
+    for (const washer of slotOption.washers) {
+      const selected = bookingFlowState.slot === slotOption.slot
+        && bookingFlowState.washerIds.includes(washer.resourceId);
+      const choice = document.createElement('button');
+      choice.type = 'button';
+      choice.className = `flow-choice${selected ? ' is-selected' : ''}`;
+      choice.dataset.flowWasher = String(washer.resourceId);
+      choice.dataset.flowSlot = slotOption.slot;
+      choice.setAttribute('aria-pressed', String(selected));
+      choice.innerHTML = `<strong>${escapeHtml(washer.resourceName)}</strong><span>${selected ? 'Ausgew\u00e4hlt' : 'Frei'}</span>`;
+      choice.addEventListener('click', () => toggleFlowWasher(washer.resourceId, slotOption.slot));
+      choices.append(choice);
+    }
+    group.append(heading, choices);
+    wrap.append(group);
+  }
+
+  const selectionCount = bookingFlowState.washerIds.length;
+  if (selectionCount) {
+    const selection = document.createElement('p');
+    selection.className = 'flow-selection-note';
+    selection.textContent = `${selectionCount} ${selectionCount === 1 ? 'Waschmaschine' : 'Waschmaschinen'} im Zeitfenster ${bookingFlowState.slot}`;
+    wrap.append(selection, renderFlowActions(0, 2, 'Weiter zum Trockenraum'));
+  }
+  return wrap;
+}
+
+function renderDryingStep() {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-stage';
+  wrap.innerHTML = `
+    <div class="flow-stage-heading">
+      <span>Schritt 2</span>
+      <h4>Trockenraum erg\u00e4nzen</h4>
+      <p>Optional und passend zu ${escapeHtml(bookingFlowState.slot)}</p>
+    </div>
+  `;
+  const choices = document.createElement('div');
+  choices.className = 'flow-option-list';
+  const without = document.createElement('button');
+  without.type = 'button';
+  without.className = `flow-option${bookingFlowState.dryingResourceId === null ? ' is-selected' : ''}`;
+  without.dataset.flowDrying = 'none';
+  without.setAttribute('aria-pressed', String(bookingFlowState.dryingResourceId === null));
+  without.innerHTML = '<strong>Ohne Trockenraum</strong><span>Du kannst direkt mit dem Tumbler fortfahren.</span>';
+  without.addEventListener('click', () => {
+    bookingFlowState.dryingResourceId = null;
+    bookingFlowState.dryingOptionId = '';
+    renderBookingFlow();
+    bookingFlowContent.querySelector('[data-flow-drying="none"]')?.focus({ preventScroll: true });
+  });
+  choices.append(without);
+
+  for (const room of bookingFlowState.companions?.dryingRooms || []) {
+    const selected = bookingFlowState.dryingResourceId === room.resourceId;
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = `flow-option${selected ? ' is-selected' : ''}`;
+    option.dataset.flowDrying = String(room.resourceId);
+    option.setAttribute('aria-pressed', String(selected));
+    option.innerHTML = `<strong>${escapeHtml(room.resourceName)}</strong><span>${room.bookingOptions.length} ${room.bookingOptions.length === 1 ? 'Dauer' : 'Dauern'} verf\u00fcgbar</span>`;
+    option.addEventListener('click', () => {
+      bookingFlowState.dryingResourceId = room.resourceId;
+      bookingFlowState.dryingOptionId = room.selectedOption || room.bookingOptions[0]?.id || '';
+      renderBookingFlow();
+      bookingFlowContent.querySelector(`[data-flow-drying="${room.resourceId}"]`)?.focus({ preventScroll: true });
+    });
+    choices.append(option);
+  }
+  wrap.append(choices);
+
+  const room = selectedDryingRoom();
+  if (room) {
+    const durationLabel = document.createElement('label');
+    durationLabel.className = 'flow-duration';
+    durationLabel.textContent = 'Trocknungsdauer';
+    const durationSelect = document.createElement('select');
+    durationSelect.setAttribute('aria-label', 'Trocknungsdauer w\u00e4hlen');
+    for (const duration of room.bookingOptions) {
+      const option = document.createElement('option');
+      option.value = duration.id;
+      option.textContent = duration.label;
+      option.selected = duration.id === bookingFlowState.dryingOptionId;
+      durationSelect.append(option);
+    }
+    durationSelect.addEventListener('change', () => {
+      bookingFlowState.dryingOptionId = durationSelect.value;
+    });
+    durationLabel.append(durationSelect);
+    wrap.append(durationLabel);
+  } else if (!(bookingFlowState.companions?.dryingRooms || []).length) {
+    const empty = document.createElement('p');
+    empty.className = 'flow-empty compact';
+    empty.textContent = 'F\u00fcr diesen Waschslot ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar.';
+    wrap.append(empty);
+  }
+  wrap.append(renderFlowActions(1, 3, 'Weiter zum Tumbler'));
+  return wrap;
+}
+
+function renderTumblerStep() {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-stage';
+  wrap.innerHTML = `
+    <div class="flow-stage-heading">
+      <span>Schritt 3</span>
+      <h4>Tumbler erg\u00e4nzen</h4>
+      <p>Optional. Einer bleibt f\u00fcr das Haus frei.</p>
+    </div>
+  `;
+  const choices = document.createElement('div');
+  choices.className = 'flow-option-list';
+  const without = document.createElement('button');
+  without.type = 'button';
+  without.className = `flow-option${bookingFlowState.tumblerResourceId === null ? ' is-selected' : ''}`;
+  without.dataset.flowTumbler = 'none';
+  without.setAttribute('aria-pressed', String(bookingFlowState.tumblerResourceId === null));
+  without.innerHTML = '<strong>Ohne Tumbler</strong><span>Nur Waschmaschine und gew\u00e4hlter Trockenraum.</span>';
+  without.addEventListener('click', () => {
+    bookingFlowState.tumblerResourceId = null;
+    renderBookingFlow();
+    bookingFlowContent.querySelector('[data-flow-tumbler="none"]')?.focus({ preventScroll: true });
+  });
+  choices.append(without);
+  for (const tumbler of bookingFlowState.companions?.tumblers || []) {
+    const selected = bookingFlowState.tumblerResourceId === tumbler.resourceId;
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = `flow-option${selected ? ' is-selected' : ''}`;
+    option.dataset.flowTumbler = String(tumbler.resourceId);
+    option.setAttribute('aria-pressed', String(selected));
+    option.innerHTML = `<strong>${escapeHtml(tumbler.resourceName)}</strong><span>Frei im Waschslot</span>`;
+    option.addEventListener('click', () => {
+      bookingFlowState.tumblerResourceId = tumbler.resourceId;
+      renderBookingFlow();
+      bookingFlowContent.querySelector(`[data-flow-tumbler="${tumbler.resourceId}"]`)?.focus({ preventScroll: true });
+    });
+    choices.append(option);
+  }
+  wrap.append(choices);
+  if (!(bookingFlowState.companions?.tumblers || []).length) {
+    const empty = document.createElement('p');
+    empty.className = 'flow-empty compact';
+    empty.textContent = 'Aktuell kann kein Tumbler angeboten werden, weil mindestens einer frei bleiben muss.';
+    wrap.append(empty);
+  }
+  wrap.append(renderFlowActions(2, 4, 'Paket pr\u00fcfen'));
+  return wrap;
+}
+
+function renderReviewStep() {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-stage';
+  wrap.innerHTML = `
+    <div class="flow-stage-heading">
+      <span>Schritt 4</span>
+      <h4>Waschpaket pr\u00fcfen</h4>
+      <p>Erst mit dem letzten Klick wird verbindlich gebucht.</p>
+    </div>
+  `;
+  const summary = document.createElement('div');
+  summary.className = 'flow-review';
+  const existingWashers = bookingFlowOptions?.existingWashers || [];
+  const washerNames = existingWashers.length
+    ? existingWashers.map((washer) => washer.resourceName)
+    : bookingFlowState.washerIds.map((id) => resourceById(id)?.name).filter(Boolean);
+  const room = selectedDryingRoom();
+  const dryingOption = selectedDryingOption();
+  const tumbler = resourceById(bookingFlowState.tumblerResourceId);
+  const rows = [
+    ['Termin', `${formatShortDate(bookingFlowState.date)} - ${bookingFlowState.slot}`],
+    ['Waschmaschine', `${washerNames.join(', ')}${existingWashers.length ? ' - bereits gebucht' : ''}`],
+    ['Trockenraum', room && dryingOption ? `${room.resourceName} - ${dryingOption.label}` : 'Ohne Trockenraum'],
+    ['Tumbler', tumbler?.name || 'Ohne Tumbler']
+  ];
+  for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
+    summary.append(row);
+  }
+  wrap.append(summary);
+  const actions = renderFlowActions(3, 0, '');
+  const confirm = document.createElement('button');
+  confirm.type = 'button';
+  confirm.textContent = existingWashers.length ? 'Erg\u00e4nzungen buchen' : 'Waschpaket buchen';
+  const items = bookingFlowItems();
+  confirm.disabled = Boolean(existingWashers.length && !items.length);
+  confirm.addEventListener('click', () => createBookingPackage(items, {
+    date: bookingFlowState.date,
+    slot: bookingFlowState.slot,
+    washerBookingId: bookingFlowState.existingWasherId
+  }));
+  actions.append(confirm);
+  wrap.append(actions);
+  if (confirm.disabled) {
+    const note = document.createElement('p');
+    note.className = 'flow-empty compact';
+    note.textContent = 'W\u00e4hle mindestens eine Erg\u00e4nzung oder gehe zur\u00fcck zu deinen Buchungen.';
+    wrap.append(note);
+  }
+  return wrap;
+}
+
+function renderBookingFlow() {
+  bookingFlowContent.innerHTML = '';
+  for (const item of bookingFlowSteps) {
+    const step = Number(item.dataset.flowStep);
+    item.classList.toggle('active', step === bookingFlowState.step);
+    item.classList.toggle('complete', step < bookingFlowState.step);
+    if (step === bookingFlowState.step) item.setAttribute('aria-current', 'step');
+    else item.removeAttribute('aria-current');
+  }
+  if (bookingFlowState.loading) {
+    bookingFlowContent.innerHTML = '<p class="flow-loading">Freie Optionen werden gepr\u00fcft...</p>';
+    return;
+  }
+  if (!bookingFlowOptions) {
+    bookingFlowContent.innerHTML = '<p class="flow-empty">Die Buchungsoptionen konnten nicht geladen werden.</p>';
+    return;
+  }
+  if (bookingFlowState.step === 1) bookingFlowContent.append(renderWasherStep());
+  else if (bookingFlowState.step === 2) bookingFlowContent.append(renderDryingStep());
+  else if (bookingFlowState.step === 3) bookingFlowContent.append(renderTumblerStep());
+  else bookingFlowContent.append(renderReviewStep());
+}
+
+function renderRecommendation() {
+  bookingSuggestion.innerHTML = '';
+  const recommendation = currentRecommendation;
+  bookingSuggestion.hidden = !recommendation?.date;
+  if (!recommendation?.date) return;
+  const copy = document.createElement('div');
+  copy.className = 'suggestion-copy';
+  copy.innerHTML = `
+    <span class="suggestion-label">Pers\u00f6nlicher Vorschlag</span>
+    <strong>${escapeHtml(formatShortDate(recommendation.date))} - ${escapeHtml(recommendation.slot)}</strong>
+    <p>${escapeHtml(recommendation.reason)}</p>
+  `;
+  const choose = document.createElement('button');
+  choose.type = 'button';
+  choose.className = 'secondary';
+  choose.textContent = 'Termin ausw\u00e4hlen';
+  choose.addEventListener('click', () => selectBookingDate(recommendation.date));
+  bookingSuggestion.append(copy, choose);
+}
+
 function setActiveType(type) {
   activeType = type;
   filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === type));
   renderSchedule();
-  renderCalendar();
 }
 
 async function selectBookingDate(date, type = '') {
   bookingDate.value = date;
+  resetBookingFlowState(date);
   const selectedPeriod = calendarPeriodStart(date);
   calendarAnchorDate = date;
   if (selectedPeriod !== calendarStartDate) {
@@ -1123,10 +1606,10 @@ async function selectBookingDate(date, type = '') {
     await loadBookings();
     renderCalendar();
   }
+  await loadBookingFlowOptions();
   if (type) {
     setActiveType(type);
   }
-  document.querySelector('.booking-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderSchedule() {
@@ -1303,10 +1786,14 @@ async function createBookingPackage(items, recommendation) {
     syncCalendarPeriod(recommendation.date);
     activeType = 'washer';
     filterButtons.forEach((button) => button.classList.toggle('active', button.dataset.type === 'washer'));
+    resetBookingFlowState(recommendation.date);
     showStatus(data.message || 'Waschpaket gespeichert.');
     await refreshAll();
+    return true;
   } catch (error) {
     showStatus(error.message, 'error');
+    await loadBookingFlowOptions({ preserveSelection: true });
+    return false;
   }
 }
 
@@ -1902,6 +2389,7 @@ bookingDate.addEventListener('change', () => selectBookingDate(bookingDate.value
 weekViewButton.addEventListener('click', async () => {
   if (calendarView === 'week') return;
   calendarView = 'week';
+  persistCalendarView();
   syncCalendarPeriod(bookingDate.value);
   try {
     await loadCalendar();
@@ -1912,6 +2400,7 @@ weekViewButton.addEventListener('click', async () => {
 monthViewButton.addEventListener('click', async () => {
   if (calendarView === 'month') return;
   calendarView = 'month';
+  persistCalendarView();
   syncCalendarPeriod(bookingDate.value);
   try {
     await loadCalendar();

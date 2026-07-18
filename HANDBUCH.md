@@ -19,12 +19,12 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 
 1. Auf der Anmeldeseite `Neu hier` waehlen.
 2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
-3. Nach der Anmeldung unter `Buchen` zuerst den persoenlichen Vorschlag oder `Waschpaket zusammenstellen` verwenden.
-4. Datum und Waschslot waehlen. Im Vorschlag mit einem Feld eine bis drei Waschmaschinen einstellen und Trockenraum sowie Tumbler direkt ein- oder ausschalten.
+3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
+4. Im gefuehrten Ablauf zuerst eine bis drei freie Waschmaschinen im gleichen Slot waehlen, danach Trockenraum und Tumbler bei Bedarf ergaenzen und das Paket pruefen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
 6. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
 
-Einzelne Maschinen oder Raeume koennen weiterhin direkt im Wochenkalender gebucht werden. Fuer einen vollstaendigen Waschtag ist das Waschpaket der schnellste Weg.
+Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
 
 ## Rollen
 
@@ -98,17 +98,20 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 
 | Funktion | Beschreibung |
 | --- | --- |
-| Persoenlicher Vorschlag | Noch nicht begonnenen freien Waschslot anhand bisheriger Nutzung und aktueller Verfuegbarkeit vorschlagen |
-| Waschpaket | Eine bis drei freie Waschmaschinen im gleichen Slot, einen Trockenraum und optional einen Tumbler gemeinsam reservieren |
-| Schnellwahl Waschmaschinen | Gewuenschte Anzahl mit einem Auswahlfeld auf `1`, `2` oder `3` setzen; angeboten werden nur gleichzeitig freie Maschinen |
-| Trocknungsdauer | Kurz, Standard oder maximal erlaubte Dauer auswaehlen |
-| Trockenraum und Tumbler | Beide Optionen sind im vollstaendigen Vorschlag vorausgewaehlt und koennen mit je einem Klick entfernt werden |
+| Kalender zuerst | Direkt nach den eigenen Buchungen freie Waschzeiten in der Wochen- oder Monatsansicht ueberblicken |
+| Persoenlicher Vorschlag | Passenden freien Waschslot im Kalender markieren und mit `Termin auswaehlen` oeffnen |
+| Schritt 1: Waschmaschine | Nur freie Waschmaschinen nach Zeitfenster anzeigen und eine bis drei Maschinen im gleichen Slot auswaehlen |
+| Schritt 2: Trockenraum | Erst nach der Waschmaschinenwahl passende freie Trockenraeume und die erlaubten Trocknungsdauern anzeigen |
+| Schritt 3: Tumbler | Danach regelkonform verfuegbare Tumbler anzeigen; mindestens ein Tumbler bleibt frei |
+| Schritt 4: Pruefen | Datum, Waschmaschinen, Trockenraum und Tumbler vor der gemeinsamen Buchung zusammenfassen |
+| Paket ergaenzen | Eine bereits gebuchte eigene Waschmaschine erkennen und passende Trocknungsoptionen nachtraeglich ergaenzen |
+| Optionale Trocknung | Trockenraum und Tumbler koennen in ihren Schritten bewusst ausgelassen werden |
 | Wochenansicht | Sieben Tage mit freier Kapazitaet und eigenen Terminen kompakt anzeigen |
 | Monatsansicht | Einen vollstaendigen Monat im festen Sechs-Wochen-Raster ueberblicken und einen Tag direkt auswaehlen |
+| Ansicht merken | Zuletzt verwendete Wochen- oder Monatsansicht lokal im Browser speichern |
 | Datumsnavigation | Je nach Ansicht zur vorherigen oder naechsten Woche beziehungsweise zum vorherigen oder naechsten Monat wechseln |
 | Ruhetage | Sonntage eindeutig als nicht buchbare Ruhetage anzeigen |
-| Filter | Waschmaschinen, Trockenraeume, Tumbler oder alle Ressourcen anzeigen |
-| Einzelbuchung | Freie Ressource direkt in einem Slot buchen |
+| Einzelbuchung | Nachgeordneten Bereich aufklappen und ein einzelnes Geraet weiterhin direkt buchen |
 | Belegte Termine | Name der buchenden Person oder geschuetzten Dauertermin anzeigen |
 | Admin-Korrektur | Haus-Admin und Superadmin koennen normale Buchungen im aktiven Haus loeschen |
 
@@ -311,6 +314,11 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Suche fuer intelligente Waschpakete ueber Sonntage hinweg verbessert: Eine nahe Kombination mit Trockenraum wird nicht mehr vorschnell durch ein reines Tumbler-Paket ersetzt.
 - Buchungskalender um einen barrierefreien Umschalter fuer Wochen- und Monatsansicht erweitert; ein gewaehlter Tag oeffnet weiterhin direkt die zugehoerigen Slots.
 - Monatsansicht als stabiles 42-Tage-Raster umgesetzt und Sonntage im Kalender korrekt als nicht buchbare Ruhetage gekennzeichnet.
+- Buchungsoberflaeche auf einen Kalender-zuerst-Ablauf umgestellt: Uebersicht vor persoenlichem Vorschlag und Detailauswahl.
+- Gefuehrten Vier-Schritt-Ablauf fuer Waschmaschine, Trockenraum, Tumbler und abschliessende Paketpruefung eingefuehrt.
+- Trocknungsoptionen werden erst nach einer freien oder bereits eigenen Waschmaschinen-Buchung geladen; Einzelbuchungen bleiben nachgeordnet erreichbar.
+- Zuletzt verwendete Wochen- oder Monatsansicht wird im Browser gespeichert.
+- Gesprochenes Einfuehrungsvideo, Poster und Untertitel auf den Kalender-zuerst-Ablauf und die vier Buchungsschritte aktualisiert.
 
 ### 15. Juli 2026
 

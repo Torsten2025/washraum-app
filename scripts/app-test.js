@@ -524,6 +524,28 @@ async function run() {
     });
     const packageRecommendation = await expectStatus(packageUser, '/api/recommendation', 200);
     assert.equal(packageRecommendation.body.recommendation.kind, 'package');
+    const guidedDate = packageRecommendation.body.recommendation.date;
+    const guidedSlot = packageRecommendation.body.recommendation.slot;
+    const guidedWashers = await expectStatus(
+      packageUser,
+      `/api/booking-options?date=${guidedDate}`,
+      200
+    );
+    assert.equal(guidedWashers.body.companions, null);
+    assert.equal(guidedWashers.body.slots.length, 3);
+    const guidedWasherSlot = guidedWashers.body.slots.find((item) => item.slot === guidedSlot);
+    assert.ok(guidedWasherSlot);
+    assert.equal(guidedWasherSlot.washers.length, 3);
+    const guidedCompanions = await expectStatus(
+      packageUser,
+      `/api/booking-options?date=${guidedDate}&slot=${encodeURIComponent(guidedSlot)}`,
+      200
+    );
+    assert.ok(guidedCompanions.body.companions.dryingRooms.length >= 1);
+    assert.ok(guidedCompanions.body.companions.dryingRooms[0].bookingOptions.length >= 1);
+    assert.ok(guidedCompanions.body.companions.tumblers.length >= 1);
+    await expectStatus(packageUser, '/api/booking-options?date=ungueltig', 400);
+    await expectStatus(packageUser, `/api/booking-options?date=${guidedDate}&slot=00:00-01:00`, 400);
     const washerPackageComponents = packageRecommendation.body.recommendation.components
       .filter((component) => component.type === 'washer');
     assert.equal(washerPackageComponents.length, 3);
@@ -583,6 +605,13 @@ async function run() {
     assert.equal(packageUserBookings.body.bookings.length, packageBooking.body.created.length);
     assert.ok(packageBooking.body.groupId);
     assert.ok(packageUserBookings.body.bookings.every((booking) => booking.group_id === packageBooking.body.groupId));
+    const guidedSupplement = await expectStatus(
+      packageUser,
+      `/api/booking-options?date=${guidedDate}`,
+      200
+    );
+    assert.equal(guidedSupplement.body.existingWashers.length, 3);
+    assert.equal(guidedSupplement.body.existingWashers[0].slot, guidedSlot);
 
     const bookedTumbler = packageBooking.body.created.find((item) => item.type === 'tumbler');
     assert.ok(bookedTumbler);
@@ -1032,6 +1061,10 @@ async function run() {
     assert.ok(indexHtml.includes('weekViewButton'));
     assert.ok(indexHtml.includes('monthViewButton'));
     assert.ok(indexHtml.includes('monthWeekdays'));
+    assert.ok(indexHtml.includes('bookingFlowContent'));
+    assert.ok(indexHtml.includes('bookingFlowSteps'));
+    assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
+    assert.ok(indexHtml.indexOf('bookingFlowContent') < indexHtml.indexOf('schedule'));
     assert.ok(indexHtml.includes('adminSectionNav'));
     assert.ok(indexHtml.includes('data-admin-target="overview"'));
     assert.ok(indexHtml.includes('data-admin-target="house"'));
@@ -1048,6 +1081,8 @@ async function run() {
     assert.ok(stylesText.includes('background: var(--night)'));
     assert.ok(stylesText.includes('.app-wordmark'));
     assert.ok(stylesText.includes('.week-calendar.month-calendar'));
+    assert.ok(stylesText.includes('.booking-workspace'));
+    assert.ok(stylesText.includes('.booking-flow-steps'));
     const appScript = await expectStatus(guest, '/app.js', 200);
     const appScriptText = appScript.body.toString();
     assert.ok(appScriptText.includes('/api/booking-package'));
@@ -1056,6 +1091,9 @@ async function run() {
     assert.ok(appScriptText.includes('setAdminSection'));
     assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
     assert.ok(appScriptText.includes('formatCalendarMonth'));
+    assert.ok(appScriptText.includes('/api/booking-options'));
+    assert.ok(appScriptText.includes('renderWasherStep'));
+    assert.ok(appScriptText.includes('renderReviewStep'));
     assert.ok(appScriptText.includes('logoutInProgress'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
@@ -1067,8 +1105,9 @@ async function run() {
     const captionText = captions.body.toString();
     assert.ok(captionText.startsWith('WEBVTT'));
     assert.ok(captionText.includes('Waschpaket buchen'));
-    assert.ok(captionText.includes('zwischen kurz'));
-    assert.ok(captionText.includes('Standard und der maximal'));
+    assert.ok(captionText.includes('Zuerst siehst du nur freie Waschmaschinen'));
+    assert.ok(captionText.includes('Trockenraum und Tumbler bleiben in diesem Schritt bewusst verborgen'));
+    assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
     assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
     assert.ok(!privacyPage.body.toString().includes('/assets/gbmz-logo.svg'));

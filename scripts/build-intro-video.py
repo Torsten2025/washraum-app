@@ -1,11 +1,15 @@
 import asyncio
+import importlib
 import math
+import os
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
 from pathlib import Path
 
+import certifi
 import edge_tts
 import imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
@@ -19,25 +23,25 @@ VOICE = "de-CH-LeniNeural"
 
 CHAPTERS = [
     {
-        "title": "So findest du dich zurecht",
+        "title": "Erst Überblick, dann buchen",
         "kicker": "01  START",
         "accent": "#00A873",
-        "cards": [("MEINE BUCHUNGEN", "Alles Kommende auf einen Blick"), ("WASCHPAKET", "Ein sinnvoller Vorschlag"), ("WOCHENPLAN", "Freie Tage und Zeitfenster")],
-        "speech": "Hallo und willkommen beim Waschplan. Nach dem Einloggen landest du direkt in deiner Hausansicht. Oben stehen deine nächsten Buchungen. Darunter schlägt dir die App ein passendes Waschpaket vor. Im Wochenplan erkennst du sofort, an welchen Tagen noch freie Zeiten vorhanden sind. Wähle einen Tag, und weiter unten erscheinen alle Geräte und Räume für diesen Tag. Feste Buchungen, zum Beispiel für eine ältere Bewohnerin, werden von den Admins verwaltet und können nicht überschrieben werden. Du musst dir diese Regeln nicht merken: Die App prüft sie bei jeder Buchung mit.",
+        "cards": [("MEINE BUCHUNGEN", "Alles Kommende auf einen Blick"), ("KALENDER", "Woche oder Monat wählen"), ("VORSCHLAG", "Passender Tag ist markiert")],
+        "speech": "Hallo und willkommen bei WaschZeit. Nach dem Einloggen landest du direkt in deiner Hausansicht. Oben stehen deine nächsten Buchungen. Direkt darunter zeigt der Kalender, an welchen Tagen noch Waschzeiten frei sind. Du kannst zwischen einer kompakten Woche und dem ganzen Monat wechseln. Die App merkt sich deine Ansicht. Ein persönlicher Vorschlag ist im passenden Kalendertag markiert. Feste Buchungen, zum Beispiel für eine ältere Bewohnerin, verwalten die Admins. Sie können nicht überschrieben werden. Die Buchungsregeln prüft die App automatisch.",
     },
     {
-        "title": "Ein Waschpaket statt vieler Klicks",
+        "title": "Waschmaschine zuerst",
         "kicker": "02  SCHLAU BUCHEN",
         "accent": "#EF6B4D",
-        "cards": [("1", "Waschmaschine ist dabei"), ("2", "Trocknungsdauer wählen"), ("3", "Tumbler bei Bedarf")],
-        "speech": "Der persönliche Vorschlag ist die schnellste Buchungsart. Er berücksichtigt freie Zeiten und, sobald es genügend frühere Buchungen gibt, auch deinen üblichen Waschrhythmus. Die Waschmaschine ist im Paket fest eingeplant. Für den Trockenraum kannst du zwischen kurz, Standard und der maximal erlaubten Dauer wählen. Angeboten wird nur eine Dauer, für die derselbe Raum wirklich frei ist. Einen Tumbler kannst du bei Bedarf ergänzen. Mit Waschpaket buchen werden alle ausgewählten Bestandteile gemeinsam gespeichert. Unter Meine Buchungen erscheinen sie danach als ein Paket und lassen sich auch gemeinsam wieder löschen. Der Vorschlag ist eine Abkürzung, keine Vorgabe.",
+        "cards": [("1", "Tag im Kalender wählen"), ("2", "Freien Waschslot wählen"), ("3", "Eine bis drei Maschinen")],
+        "speech": "Nach der Tageswahl beginnt die geführte Buchung mit der Waschmaschine. Zuerst siehst du nur freie Waschmaschinen und Zeitfenster. Trockenraum und Tumbler bleiben in diesem Schritt bewusst verborgen. Wähle eine Maschine oder, wenn du mehr brauchst, bis zu drei Maschinen im gleichen Zeitfenster. Der persönliche Vorschlag hebt einen passenden Slot hervor, entscheidet aber nicht für dich. Ist eine eigene Waschmaschine bereits gebucht, erkennt die App das und bietet dir direkt passende Ergänzungen an.",
     },
     {
-        "title": "Manuell buchen bleibt ganz einfach",
-        "kicker": "03  WOCHENPLAN",
+        "title": "Trocknung Schritt für Schritt",
+        "kicker": "03  WASCHPAKET",
         "accent": "#2E6688",
-        "cards": [("DI 14.07.", "Tag im Kalender wählen"), ("WASCHEN", "Bereich über die Reiter öffnen"), ("12:00-17:00", "Beim freien Gerät buchen")],
-        "speech": "Wenn du lieber selbst auswählst, gehst du in drei Schritten vor. Erstens: Wähle im Wochenkalender den gewünschten Tag. Zweitens: Öffne den Bereich Waschmaschinen, Trockenräume oder Tumbler. Drittens: Wähle beim freien Gerät im passenden Zeitfenster Buchen. Vergangene Zeiten sind grau und nicht mehr auswählbar. Dein Termin erscheint sofort oben bei deinen Buchungen. Dort kannst du ihn löschen, vor Beginn absagen und andere informieren oder während des laufenden Slots früher freigeben. Mit den Pfeilen wechselst du die Woche; Heute bringt dich jederzeit zurück zum aktuellen Tag.",
+        "cards": [("TROCKENRAUM", "Passend und optional"), ("DAUER", "Kurz bis maximal erlaubt"), ("TUMBLER", "Bei Bedarf ergänzen")],
+        "speech": "Erst nach der Waschmaschinenwahl zeigt die App passende Trockenräume. Du kannst den Trockenraum auslassen oder eine verfügbare Dauer wählen. Danach folgt der Tumbler. Auch er ist optional, und die App achtet darauf, dass mindestens ein Tumbler für das Haus frei bleibt. Im letzten Schritt siehst du Datum, Zeitfenster und alle gewählten Bestandteile. Erst mit Waschpaket buchen wird alles gemeinsam gespeichert. Unter Meine Buchungen erscheint es als Paket. Für eine einzelne Nutzung bleibt der nachgeordnete Bereich Einzelnes Gerät separat buchen erhalten.",
     },
     {
         "title": "Die Waschmaschinen fair nutzen",
@@ -68,6 +72,24 @@ CHAPTERS = [
         "speech": "Zum Schluss gehört die Reinigung zu jeder Nutzung, auch zu einem einzelnen Waschgang zwischendurch. Bei der Waschmaschine werden Waschmittelschublade, Trommel, Gummidichtung, Filter und Gehäuse gereinigt. Beim Tumbler sind Trommel, alle vier Filter, der Abflussbereich unter den mittleren Filtern, die Türdichtung und das Gehäuse dran. Im Trockenraum reinigst du Tisch, beide Filter und den Boden. Auch Waschraum, Besen und Wischmopp werden sauber hinterlassen. Den Mopp gut ausspülen, auswringen und zum Trocknen aufhängen. Maßgebend bleibt der offizielle GBMZ-Aushang. Danach kannst du das kurze Quiz ausprobieren. Es ist freundlich gemeint und keine Zugangshürde.",
     },
 ]
+
+
+def configure_ssl_trust():
+    if os.name != "nt":
+        return
+    certificates = [Path(certifi.where()).read_text(encoding="utf-8")]
+    seen = set()
+    for store in ("ROOT", "CA"):
+        for certificate, encoding, _trust in ssl.enum_certificates(store):
+            if encoding != "x509_asn" or certificate in seen:
+                continue
+            seen.add(certificate)
+            certificates.append(ssl.DER_cert_to_PEM_cert(certificate))
+    bundle = Path(tempfile.gettempdir()) / "waschzeit-windows-ca-bundle.pem"
+    bundle.write_text("\n".join(certificates), encoding="ascii")
+    os.environ["SSL_CERT_FILE"] = str(bundle)
+    communicate_module = importlib.import_module("edge_tts.communicate")
+    communicate_module._SSL_CTX = ssl.create_default_context(cafile=str(bundle))
 
 
 def font(size, bold=False):
@@ -215,4 +237,5 @@ async def main():
 
 
 if __name__ == "__main__":
+    configure_ssl_trust()
     asyncio.run(main())

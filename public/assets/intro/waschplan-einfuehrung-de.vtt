@@ -1,223 +1,205 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:02.147
-Hallo und willkommen beim Waschplan.
+00:00:00.000 --> 00:00:02.489
+Hallo und willkommen bei WaschZeit.
 
-00:00:02.147 --> 00:00:06.010
+00:00:02.489 --> 00:00:06.969
 Nach dem Einloggen landest du direkt in deiner Hausansicht.
 
-00:00:06.010 --> 00:00:08.157
+00:00:06.969 --> 00:00:09.459
 Oben stehen deine nächsten Buchungen.
 
-00:00:08.157 --> 00:00:12.021
-Darunter schlägt dir die App ein passendes Waschpaket vor.
+00:00:09.459 --> 00:00:15.432
+Direkt darunter zeigt der Kalender, an welchen Tagen noch Waschzeiten frei sind.
 
-00:00:12.021 --> 00:00:17.602
-Im Wochenplan erkennst du sofort, an welchen Tagen noch freie Zeiten vorhanden sind.
+00:00:15.432 --> 00:00:20.908
+Du kannst zwischen einer kompakten Woche und dem ganzen Monat wechseln.
 
-00:00:17.602 --> 00:00:20.607
-Wähle einen Tag, und weiter unten erscheinen
+00:00:20.908 --> 00:00:23.895
+Die App merkt sich deine Ansicht.
 
-00:00:20.607 --> 00:00:23.613
-alle Geräte und Räume für diesen Tag.
+00:00:23.895 --> 00:00:27.878
+Ein persönlicher Vorschlag ist im passenden Kalendertag markiert.
 
-00:00:23.613 --> 00:00:27.476
-Feste Buchungen, zum Beispiel für eine ältere Bewohnerin, werden
+00:00:27.878 --> 00:00:33.354
+Feste Buchungen, zum Beispiel für eine ältere Bewohnerin, verwalten die Admins.
 
-00:00:27.476 --> 00:00:31.340
-von den Admins verwaltet und können nicht überschrieben werden.
+00:00:33.354 --> 00:00:35.843
+Sie können nicht überschrieben werden.
 
-00:00:31.340 --> 00:00:34.775
-Du musst dir diese Regeln nicht merken: Die
+00:00:35.843 --> 00:00:38.830
+Die Buchungsregeln prüft die App automatisch.
 
-00:00:34.775 --> 00:00:37.780
-App prüft sie bei jeder Buchung mit.
+00:00:40.080 --> 00:00:44.523
+Nach der Tageswahl beginnt die geführte Buchung mit der Waschmaschine.
 
-00:00:39.030 --> 00:00:42.335
-Der persönliche Vorschlag ist die schnellste Buchungsart.
+00:00:44.523 --> 00:00:48.077
+Zuerst siehst du nur freie Waschmaschinen und Zeitfenster.
 
-00:00:42.335 --> 00:00:46.112
-Er berücksichtigt freie Zeiten und, sobald es genügend
+00:00:48.077 --> 00:00:52.076
+Trockenraum und Tumbler bleiben in diesem Schritt bewusst verborgen.
 
-00:00:46.112 --> 00:00:49.417
-frühere Buchungen gibt, auch deinen üblichen Waschrhythmus.
+00:00:52.076 --> 00:00:55.631
+Wähle eine Maschine oder, wenn du mehr brauchst,
 
-00:00:49.417 --> 00:00:52.722
-Die Waschmaschine ist im Paket fest eingeplant.
+00:00:55.631 --> 00:00:58.741
+bis zu drei Maschinen im gleichen Zeitfenster.
 
-00:00:52.722 --> 00:00:56.027
-Für den Trockenraum kannst du zwischen kurz,
+00:00:58.741 --> 00:01:04.517
+Der persönliche Vorschlag hebt einen passenden Slot hervor, entscheidet aber nicht für dich.
 
-00:00:56.027 --> 00:00:59.331
-Standard und der maximal erlaubten Dauer wählen.
+00:01:04.517 --> 00:01:08.516
+Ist eine eigene Waschmaschine bereits gebucht, erkennt die App
 
-00:00:59.331 --> 00:01:04.997
-Angeboten wird nur eine Dauer, für die derselbe Raum wirklich frei ist.
+00:01:08.516 --> 00:01:12.070
+das und bietet dir direkt passende Ergänzungen an.
 
-00:01:04.997 --> 00:01:08.302
-Einen Tumbler kannst du bei Bedarf ergänzen.
+00:01:13.320 --> 00:01:17.559
+Erst nach der Waschmaschinenwahl zeigt die App passende Trockenräume.
 
-00:01:08.302 --> 00:01:12.551
-Mit Waschpaket buchen werden alle ausgewählten Bestandteile gemeinsam gespeichert.
+00:01:17.559 --> 00:01:22.269
+Du kannst den Trockenraum auslassen oder eine verfügbare Dauer wählen.
 
-00:01:12.551 --> 00:01:16.328
-Unter Meine Buchungen erscheinen sie danach als ein
+00:01:22.269 --> 00:01:24.153
+Danach folgt der Tumbler.
 
-00:01:16.328 --> 00:01:20.105
-Paket und lassen sich auch gemeinsam wieder löschen.
+00:01:24.153 --> 00:01:28.392
+Auch er ist optional, und die App achtet darauf,
 
-00:01:20.105 --> 00:01:23.410
-Der Vorschlag ist eine Abkürzung, keine Vorgabe.
+00:01:28.392 --> 00:01:32.631
+dass mindestens ein Tumbler für das Haus frei bleibt.
 
-00:01:24.660 --> 00:01:29.749
-Wenn du lieber selbst auswählst, gehst du in drei Schritten vor.
+00:01:32.631 --> 00:01:37.812
+Im letzten Schritt siehst du Datum, Zeitfenster und alle gewählten Bestandteile.
 
-00:01:29.749 --> 00:01:32.987
-Erstens: Wähle im Wochenkalender den gewünschten Tag.
+00:01:37.812 --> 00:01:41.580
+Erst mit Waschpaket buchen wird alles gemeinsam gespeichert.
 
-00:01:32.987 --> 00:01:36.688
-Zweitens: Öffne den Bereich Waschmaschinen, Trockenräume oder Tumbler.
+00:01:41.580 --> 00:01:44.877
+Unter Meine Buchungen erscheint es als Paket.
 
-00:01:36.688 --> 00:01:40.852
-Drittens: Wähle beim freien Gerät im passenden Zeitfenster Buchen.
+00:01:44.877 --> 00:01:51.000
+Für eine einzelne Nutzung bleibt der nachgeordnete Bereich Einzelnes Gerät separat buchen erhalten.
 
-00:01:40.852 --> 00:01:44.553
-Vergangene Zeiten sind grau und nicht mehr auswählbar.
-
-00:01:44.553 --> 00:01:48.254
-Dein Termin erscheint sofort oben bei deinen Buchungen.
-
-00:01:48.254 --> 00:01:52.417
-Dort kannst du ihn löschen, vor Beginn absagen und
-
-00:01:52.417 --> 00:01:56.581
-andere informieren oder während des laufenden Slots früher freigeben.
-
-00:01:56.581 --> 00:02:00.282
-Mit den Pfeilen wechselst du die Woche; Heute
-
-00:02:00.282 --> 00:02:03.520
-bringt dich jederzeit zurück zum aktuellen Tag.
-
-00:02:04.770 --> 00:02:07.932
+00:01:52.250 --> 00:01:55.412
 Für die Waschmaschinen gilt eine einfache Grundregel:
 
-00:02:07.932 --> 00:02:11.094
+00:01:55.412 --> 00:01:58.574
 Pro Waschtag reservierst du nur ein Zeitfenster.
 
-00:02:11.094 --> 00:02:14.707
+00:01:58.574 --> 00:02:02.187
 Wenn du zwei oder drei Maschinen brauchst, darfst
 
-00:02:14.707 --> 00:02:18.321
+00:02:02.187 --> 00:02:05.801
 du sie innerhalb dieses einen Zeitfensters gemeinsam buchen.
 
-00:02:18.321 --> 00:02:22.386
+00:02:05.801 --> 00:02:09.866
 Ein zweiter Slot am selben Tag ist nicht erlaubt.
 
-00:02:22.386 --> 00:02:28.258
+00:02:09.866 --> 00:02:15.738
 Einen weiteren zukünftigen Waschtag kannst du frühestens an deinem bereits gebuchten Waschtag reservieren.
 
-00:02:28.258 --> 00:02:31.871
+00:02:15.738 --> 00:02:19.351
 So bleiben die Termine im Haus besser verteilt.
 
-00:02:31.871 --> 00:02:34.130
+00:02:19.351 --> 00:02:21.610
 Sonntags sind keine Buchungen möglich.
 
-00:02:34.130 --> 00:02:38.195
+00:02:21.610 --> 00:02:25.675
 Bei einem Konflikt erklärt die App in normaler Sprache,
 
-00:02:38.195 --> 00:02:42.260
+00:02:25.675 --> 00:02:29.740
 welche Regel greift und was du stattdessen tun kannst.
 
-00:02:43.510 --> 00:02:46.757
+00:02:30.990 --> 00:02:34.237
 Der Trockenraum gehört immer zu einer passenden Waschmaschinenbuchung.
 
-00:02:46.757 --> 00:02:50.411
+00:02:34.237 --> 00:02:37.891
 Wenn du von sieben bis zwölf Uhr wäschst, darfst
 
-00:02:50.411 --> 00:02:53.658
+00:02:37.891 --> 00:02:41.138
 du den Raum höchstens bis einundzwanzig Uhr nutzen.
 
-00:02:53.658 --> 00:02:57.312
+00:02:41.138 --> 00:02:44.792
 Beim Slot von zwölf bis siebzehn Uhr endet die
 
-00:02:57.312 --> 00:03:00.559
+00:02:44.792 --> 00:02:48.039
 maximale Nutzung am nächsten Tag um zwölf Uhr.
 
-00:03:00.559 --> 00:03:05.025
+00:02:48.039 --> 00:02:52.505
 Das gilt auch für den Abend-Slot von siebzehn bis einundzwanzig Uhr.
 
-00:03:05.025 --> 00:03:09.896
+00:02:52.505 --> 00:02:57.376
 Im Waschpaket wählst du bewusst eine kürzere oder die maximal mögliche Dauer.
 
-00:03:09.896 --> 00:03:12.737
+00:02:57.376 --> 00:03:00.217
 Kürzer ist oft besser: Wenn die Wäsche
 
-00:03:12.737 --> 00:03:15.579
+00:03:00.217 --> 00:03:03.059
 trocken ist, gib den Raum direkt frei.
 
-00:03:15.579 --> 00:03:20.450
+00:03:03.059 --> 00:03:07.930
 Über Nacht hilft es besonders, am nächsten Morgen vor sieben Uhr abzuhängen.
 
-00:03:21.700 --> 00:03:25.115
+00:03:09.180 --> 00:03:12.595
 Mindestens ein Tumbler bleibt in jedem Slot frei.
 
-00:03:25.115 --> 00:03:30.664
+00:03:12.595 --> 00:03:18.144
 Deshalb kann eine zweite Buchung abgelehnt werden, obwohl noch ein Tumbler sichtbar ist.
 
-00:03:30.664 --> 00:03:36.213
+00:03:18.144 --> 00:03:23.693
 Wenn du während deines gebuchten Slots früher fertig bist, wählst du Früher frei.
 
-00:03:36.213 --> 00:03:39.201
+00:03:23.693 --> 00:03:26.681
 Vor Beginn kannst du mit Absagen und
 
-00:03:39.201 --> 00:03:42.189
+00:03:26.681 --> 00:03:29.669
 informieren einen nicht benötigten Termin wieder anbieten.
 
-00:03:42.189 --> 00:03:46.031
+00:03:29.669 --> 00:03:33.511
 Eine Mail geht nur an Personen im selben Haus,
 
-00:03:46.031 --> 00:03:49.872
+00:03:33.511 --> 00:03:37.352
 die ihre Adresse bestätigt und passende Hinweise aktiviert haben.
 
-00:03:49.872 --> 00:03:53.287
+00:03:37.352 --> 00:03:40.767
 In den Einstellungen kannst du die Hinweise auf
 
-00:03:53.287 --> 00:03:56.702
+00:03:40.767 --> 00:03:44.182
 einen Bereich, einen Wochentag oder ein Zeitfenster begrenzen.
 
-00:03:56.702 --> 00:03:59.690
+00:03:44.182 --> 00:03:47.170
 So werden Nachrichten nützlich und nicht lästig.
 
-00:04:00.940 --> 00:04:04.347
+00:03:48.420 --> 00:03:51.827
 Zum Schluss gehört die Reinigung zu jeder
 
-00:04:04.347 --> 00:04:07.753
+00:03:51.827 --> 00:03:55.233
 Nutzung, auch zu einem einzelnen Waschgang zwischendurch.
 
-00:04:07.753 --> 00:04:13.107
+00:03:55.233 --> 00:04:00.587
 Bei der Waschmaschine werden Waschmittelschublade, Trommel, Gummidichtung, Filter und Gehäuse gereinigt.
 
-00:04:13.107 --> 00:04:17.973
+00:04:00.587 --> 00:04:05.453
 Beim Tumbler sind Trommel, alle vier Filter, der Abflussbereich unter
 
-00:04:17.973 --> 00:04:22.353
+00:04:05.453 --> 00:04:09.833
 den mittleren Filtern, die Türdichtung und das Gehäuse dran.
 
-00:04:22.353 --> 00:04:27.220
+00:04:09.833 --> 00:04:14.700
 Im Trockenraum reinigst du Tisch, beide Filter und den Boden.
 
-00:04:27.220 --> 00:04:31.113
+00:04:14.700 --> 00:04:18.593
 Auch Waschraum, Besen und Wischmopp werden sauber hinterlassen.
 
-00:04:31.113 --> 00:04:35.493
+00:04:18.593 --> 00:04:22.973
 Den Mopp gut ausspülen, auswringen und zum Trocknen aufhängen.
 
-00:04:35.493 --> 00:04:37.927
+00:04:22.973 --> 00:04:25.407
 Maßgebend bleibt der offizielle GBMZ-Aushang.
 
-00:04:37.927 --> 00:04:41.333
+00:04:25.407 --> 00:04:28.813
 Danach kannst du das kurze Quiz ausprobieren.
 
-00:04:41.333 --> 00:04:44.740
+00:04:28.813 --> 00:04:32.220
 Es ist freundlich gemeint und keine Zugangshürde.
