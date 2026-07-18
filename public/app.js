@@ -37,6 +37,7 @@ const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminPushTestButton = document.querySelector('#adminPushTestButton');
+const adminPushTarget = document.querySelector('#adminPushTarget');
 const adminTitle = document.querySelector('#adminTitle');
 const adminRoleLabel = document.querySelector('#adminRoleLabel');
 const adminScopeText = document.querySelector('#adminScopeText');
@@ -2604,14 +2605,15 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData] = await Promise.all([
+  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/settings'),
     api('/api/admin/fixed-bookings'),
     currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] }),
     api('/api/admin/resources'),
-    api('/api/admin/audit-log')
+    api('/api/admin/audit-log'),
+    api('/api/admin/push-devices')
   ]);
   adminBox.hidden = false;
   adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
@@ -2638,16 +2640,17 @@ async function loadAdmin() {
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
-    <div class="wide"><strong>Push</strong><span>${overviewData.push.label} · ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
+    <div class="wide"><strong>Push</strong><span>${overviewData.push.label} - ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
     <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
   `;
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
     ? 'Testmail an deine hinterlegte Adresse senden'
     : 'Zuerst SMTP in Render konfigurieren';
-  adminPushTestButton.disabled = !overviewData.push.configured;
+  renderAdminPushTargets(pushDevicesData);
+  adminPushTestButton.disabled = !overviewData.push.configured || !pushDevicesData.totalDevices;
   adminPushTestButton.title = overviewData.push.configured
-    ? 'Testpush an dein aktiviertes Geraet senden'
+    ? 'Testpush an die ausgewaehlten aktiven Geraete senden'
     : 'Push ist auf dem Server noch nicht bereit';
   renderAdminUsers(usersData.users);
   setAdminSection(activeAdminSection);
@@ -2664,12 +2667,33 @@ async function sendAdminTestEmail() {
 
 async function sendAdminTestPush() {
   try {
-    const data = await api('/api/admin/push-test', { method: 'POST' });
+    const data = await api('/api/admin/push-test', {
+      method: 'POST',
+      body: JSON.stringify({ userId: adminPushTarget.value || 'all' })
+    });
     showStatus(data.message);
     await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
   }
+}
+
+function renderAdminPushTargets(data) {
+  const users = data.users || [];
+  adminPushTarget.innerHTML = '';
+  const allOption = document.createElement('option');
+  allOption.value = 'all';
+  allOption.textContent = data.totalDevices
+    ? `Alle aktiven Geraete (${data.totalDevices})`
+    : 'Keine aktiven Push-Geraete';
+  adminPushTarget.append(allOption);
+  for (const user of users) {
+    const option = document.createElement('option');
+    option.value = String(user.id);
+    option.textContent = `${user.username} (${user.devices} ${Number(user.devices) === 1 ? 'Geraet' : 'Geraete'})`;
+    adminPushTarget.append(option);
+  }
+  adminPushTarget.disabled = !data.totalDevices;
 }
 
 async function runBackupNow() {

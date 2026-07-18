@@ -3572,14 +3572,34 @@ app.post('/api/admin/push-test', requireAdmin, async (req, res) => {
   if (!status.configured) {
     return res.status(409).json({ error: 'Push ist noch nicht bereit.' });
   }
+  const targetUserId = req.body?.userId === 'all' || req.body?.userId == null
+    ? null
+    : Number(req.body.userId);
+  if (targetUserId !== null && !Number.isInteger(targetUserId)) {
+    return res.status(400).json({ error: 'Ungueltiger Push-Empfaenger.' });
+  }
+  if (targetUserId !== null) {
+    const targetUser = db.prepare(`
+      SELECT id FROM users
+      WHERE id = ? AND house_id = ? AND active = 1
+    `).get(targetUserId, currentHouseId(req));
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Push-Empfaenger nicht gefunden.' });
+    }
+  }
+
   const subscriptions = db.prepare(`
-    SELECT id, endpoint, p256dh, auth
-    FROM push_subscriptions
-    WHERE user_id = ? AND active = 1
-    ORDER BY updated_at DESC
-  `).all(req.session.user.id);
+    SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.username
+    FROM push_subscriptions ps
+    JOIN users u ON u.id = ps.user_id
+    WHERE ps.house_id = ?
+      AND ps.active = 1
+      AND u.active = 1
+      AND (? IS NULL OR ps.user_id = ?)
+    ORDER BY u.username, ps.updated_at DESC
+  `).all(currentHouseId(req), targetUserId, targetUserId);
   if (!subscriptions.length) {
-    return res.status(409).json({ error: 'Auf diesem Admin-Konto ist noch kein Push-Geraet aktiviert.' });
+    return res.status(409).json({ error: 'Fuer diese Auswahl ist noch kein Push-Geraet aktiviert.' });
   }
 
   let sent = 0;
@@ -3587,7 +3607,7 @@ app.post('/api/admin/push-test', requireAdmin, async (req, res) => {
   const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
   const payload = pushPayload({
     title: 'WaschZeit: Push-Test',
-    body: 'Push-Benachrichtigungen funktionieren auf diesem Geraet.',
+    body: 'Push-Benachrichtigungen funktionieren fuer dieses Haus.',
     url: '/index.html',
     tag: 'waschzeit-test'
   });
@@ -3605,8 +3625,26 @@ app.post('/api/admin/push-test', requireAdmin, async (req, res) => {
     }
   }
 
-  writeAudit(req, 'push.test', 'push_subscription', '', { sent, failed });
-  res.json({ ok: true, message: `Push-Test gesendet: ${sent}. Fehler: ${failed}.`, sent, failed });
+  writeAudit(req, 'push.test', 'push_subscription', '', { sent, failed, targetUserId: targetUserId || 'all' });
+  const targetLabel = targetUserId
+    ? `an ${subscriptions[0]?.username || 'ausgewaehlte Person'}`
+    : 'an alle aktiven Push-Geraete im Haus';
+  res.json({ ok: true, message: `Push-Test ${targetLabel} gesendet: ${sent}. Fehler: ${failed}.`, sent, failed });
+});
+
+app.get('/api/admin/push-devices', requireAdmin, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.username, COUNT(ps.id) AS devices
+    FROM users u
+    JOIN push_subscriptions ps ON ps.user_id = u.id
+    WHERE u.house_id = ?
+      AND u.active = 1
+      AND ps.active = 1
+    GROUP BY u.id
+    ORDER BY u.username
+  `).all(currentHouseId(req));
+  const totalDevices = users.reduce((sum, user) => sum + Number(user.devices || 0), 0);
+  res.json({ users, totalDevices });
 });
 
 app.get('/api/admin/settings', requireAdmin, (req, res) => {

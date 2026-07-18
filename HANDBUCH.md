@@ -231,7 +231,7 @@ Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. N
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
 | Testmail an eigene hinterlegte Adresse senden | Ja | Ja |
-| Testpush an eigenes aktiviertes Geraet senden | Ja | Ja |
+| Aktive Push-Geraete des Hauses sehen und Testpush senden | Ja | Ja |
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
@@ -258,7 +258,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 - Push nutzt dieselben Filter wie E-Mail: Haus, Bereich, Wochentag, Zeitfenster und aktivierte Freigabe-Hinweise.
 - Freigaben und Absagen senden Push an passende aktive Abos im selben Haus, nicht an die Person, die den Termin freigegeben hat.
 - Der Server erzeugt VAPID-Schluessel automatisch und speichert sie in SQLite, falls keine `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` gesetzt sind. Fuer dauerhafte Produktionsschluessel koennen diese Werte in Render als Environment Variables hinterlegt werden.
-- Im Adminbereich zeigt der Ueberblick den Push-Status und die Anzahl aktiver Geraete. Unter `System` kann ein Testpush an das eigene aktivierte Geraet gesendet werden.
+- Im Adminbereich zeigt der Ueberblick den Push-Status und die Anzahl aktiver Geraete. Unter `System` kann ein Testpush an alle aktiven Push-Geraete im Haus oder gezielt an eine Person mit aktivem Push-Geraet gesendet werden.
 - Auf iOS funktionieren PWA-Push-Hinweise nur, wenn die App zum Home-Bildschirm hinzugefuegt wurde und Benachrichtigungen erlaubt sind.
 
 ## Reinigungsuebersicht
@@ -347,7 +347,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 - PWA-Basis eingefuehrt: Manifest, App-Icon und Service Worker machen WaschZeit installierbar und stellen die App-Shell offline bereit.
 - Web-Push fuer Freigaben und Absagen ergaenzt: Bewohner koennen Push pro Geraet aktivieren, deaktivieren und mit denselben Filtern wie E-Mail nutzen.
-- Adminbereich um Push-Status und Testpush an das eigene Geraet erweitert; VAPID-Schluessel werden automatisch in SQLite erzeugt oder optional aus Render-Umgebungsvariablen gelesen.
+- Adminbereich um Push-Status, Empfaengerauswahl und Testpush an aktive Geraete im Haus erweitert; VAPID-Schluessel werden automatisch in SQLite erzeugt oder optional aus Render-Umgebungsvariablen gelesen.
 - Datenschutz, Konfiguration und automatische Tests um Push-Abos, PWA-Dateien und neue Push-Routen erweitert.
 - Zwei gespeicherte Buchungswege eingefuehrt: `Zeit zuerst` als Standard mit eigenem Zeitfenster-Schritt und `Maschine zuerst` als weiterhin verfuegbare Alternative.
 - Zeitfenster zeigen vor der Geraetewahl die aktuellen Zahlen fuer Waschmaschinen, Trockenraeume und waehlbare Tumbler; beide Wege verwenden danach dasselbe regelkonforme Waschpaket.

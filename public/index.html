@@ -407,9 +407,15 @@
             <div class="admin-operation">
               <div>
                 <strong>Push pr&uuml;fen</strong>
-                <span>Eine Testbenachrichtigung an dein aktiviertes Ger&auml;t senden.</span>
+                <span>Eine Testbenachrichtigung an aktive Ger&auml;te im Haus senden.</span>
               </div>
-              <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
+              <div class="inline-actions admin-push-actions">
+                <label>
+                  Empfaenger
+                  <select id="adminPushTarget"></select>
+                </label>
+                <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
+              </div>
             </div>
             <details class="audit-panel">
               <summary>Letzte Admin-Aktionen</summary>

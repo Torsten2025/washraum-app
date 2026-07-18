@@ -473,6 +473,18 @@ async function run() {
     });
     const pushMeAfterDelete = await expectStatus(user, '/api/me', 200);
     assert.equal(pushMeAfterDelete.body.push.activeSubscriptions, 0);
+    await expectStatus(user, '/api/push/subscriptions', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: {
+          endpoint: `${pushEndpoint}-active`,
+          keys: {
+            p256dh: Buffer.from(crypto.randomBytes(65)).toString('base64url'),
+            auth: Buffer.from(crypto.randomBytes(16)).toString('base64url')
+          }
+        }
+      })
+    });
     const exportResult = await expectStatus(user, '/api/me/export', 200);
     assert.equal(exportResult.body.account.username, 'Bewohner Test');
     assert.equal(exportResult.body.account.booking_mode, 'machine');
@@ -914,7 +926,19 @@ async function run() {
     const adminUser = users.body.users.find((item) => item.username === 'admin');
     assert.ok(resident && adminUser);
     await expectStatus(admin, '/api/admin/email-test', 409, { method: 'POST' });
-    await expectStatus(admin, '/api/admin/push-test', 409, { method: 'POST' });
+    const pushDevices = await expectStatus(admin, '/api/admin/push-devices', 200);
+    assert.equal(pushDevices.body.totalDevices, 1);
+    assert.ok(pushDevices.body.users.some((item) => item.username === 'Bewohner Test' && item.devices === 1));
+    const residentPushTest = await expectStatus(admin, '/api/admin/push-test', 200, {
+      method: 'POST',
+      body: JSON.stringify({ userId: resident.id })
+    });
+    assert.equal(residentPushTest.body.sent, 0);
+    assert.equal(residentPushTest.body.failed, 1);
+    await expectStatus(admin, '/api/admin/push-test', 404, {
+      method: 'POST',
+      body: JSON.stringify({ userId: 999999 })
+    });
 
     const initialHouses = await expectStatus(admin, '/api/admin/houses', 200);
     assert.equal(initialHouses.body.houses.length, 1);

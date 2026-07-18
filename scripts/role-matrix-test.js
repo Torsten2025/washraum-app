@@ -373,6 +373,7 @@ async function run() {
       ['/api/admin/resources', 'GET'],
       ['/api/admin/fixed-bookings', 'GET'],
       ['/api/admin/audit-log', 'GET'],
+      ['/api/admin/push-devices', 'GET'],
       ['/api/admin/houses', 'GET'],
       ['/api/admin/backup', 'GET'],
       ['/api/admin/email-test', 'POST'],
