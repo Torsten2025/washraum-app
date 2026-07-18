@@ -3503,6 +3503,13 @@ app.post('/api/admin/backup/run', requireAdmin, requireSuperadmin, async (req, r
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const houseId = currentHouseId(req);
   const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1 AND house_id = ?').get(houseId).count;
+  const usersMissingEmail = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM users
+    WHERE active = 1
+      AND house_id = ?
+      AND (email IS NULL OR email = '')
+  `).get(houseId).count;
   const todayBookings = db.prepare(`
     SELECT COUNT(*) AS count
     FROM bookings b JOIN resources r ON r.id = b.resource_id
@@ -3522,6 +3529,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
 
   res.json({
     users,
+    usersMissingEmail,
     todayBookings,
     activeResources,
     fixedBookings,

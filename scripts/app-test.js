@@ -390,6 +390,14 @@ async function run() {
         houseCode: 'Testhaus 18'
       })
     });
+    await expectStatus(guest, '/api/register', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Ohne Mail',
+        password: 'Bewohner-2026!',
+        houseCode: 'Testhaus 18'
+      })
+    });
 
     const registration = await expectStatus(user, '/api/register', 201, {
       method: 'POST',
@@ -925,6 +933,8 @@ async function run() {
     const resident = users.body.users.find((item) => item.username === 'Bewohner Test');
     const adminUser = users.body.users.find((item) => item.username === 'admin');
     assert.ok(resident && adminUser);
+    const overview = await expectStatus(admin, '/api/admin/overview', 200);
+    assert.equal(typeof overview.body.usersMissingEmail, 'number');
     await expectStatus(admin, '/api/admin/email-test', 409, { method: 'POST' });
     const pushDevices = await expectStatus(admin, '/api/admin/push-devices', 200);
     assert.equal(pushDevices.body.totalDevices, 1);

@@ -18,7 +18,7 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 ## Schnellstart fuer Bewohner
 
 1. Auf der Anmeldeseite `Neu hier` waehlen.
-2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
+2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Die E-Mail ist Pflicht, weil Passwort-Reset und wichtige Kontohinweise sonst nicht funktionieren. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
 3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
 4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
@@ -45,7 +45,7 @@ Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die Ap
 | --- | --- | --- |
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Anmeldung mit Benutzername oder E-Mail und Passwort | Oeffentlich |
-| Neu hier | Konto mit Benutzername, E-Mail, Passwort und Hauscode erstellen | Oeffentlich |
+| Neu hier | Konto mit Benutzername, Pflicht-E-Mail, Passwort und Hauscode erstellen | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
 | Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link oder erfolgreiche Abmeldung anzeigen | Oeffentlich |
@@ -153,7 +153,7 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | --- | --- |
 | Wissen kompakt | Einfuehrung erneut oeffnen |
 | Benachrichtigungen | E-Mail-Adresse und Freigabe-Hinweise verwalten |
-| E-Mail-Bestaetigung | Bestaetigungsstatus anzeigen und Link erneut senden |
+| E-Mail-Bestaetigung | Pflichtadresse und Bestaetigungsstatus anzeigen sowie Link erneut senden |
 | Push aufs Handy | Push-Hinweise auf dem aktuellen Geraet aktivieren oder deaktivieren |
 | Hinweisfilter | Bereich, Wochentag und Zeitfenster eingrenzen |
 | Zugang und Sicherheit | Eigenes Passwort mit bisherigem Passwort aendern |
@@ -182,6 +182,7 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
 | Aktive Nutzer des ausgewaehlten Hauses | Ja | Ja |
+| Konten ohne E-Mail als Warnung anzeigen | Ja | Ja |
 | Heutige Buchungen | Ja | Ja |
 | Aktive Geraete und Raeume | Ja | Ja |
 | Anzahl Dauertermine und Freigaben | Ja | Ja |
@@ -243,6 +244,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 ## E-Mail-Hinweise
 
 - Eine neue oder geaenderte E-Mail-Adresse muss bestaetigt werden.
+- Eine E-Mail-Adresse ist fuer jedes Konto Pflicht, damit Passwort-Reset und wichtige Kontohinweise moeglich bleiben.
 - Ohne Bestaetigung werden keine Freigabe-Hinweise und keine Passwort-Reset-Links versendet.
 - `Frueher frei` ist nur waehrend des aktuell gebuchten Slots moeglich.
 - `Absagen und informieren` ist nur vor Beginn des gebuchten Slots moeglich.
@@ -345,6 +347,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- E-Mail-Pflicht fuer Konten deutlicher gemacht: Registrierung und eigene Benachrichtigungen verlangen eine gueltige Adresse; bestehende Konten ohne E-Mail werden in App und Adminuebersicht sichtbar gewarnt.
 - PWA-Basis eingefuehrt: Manifest, App-Icon und Service Worker machen WaschZeit installierbar und stellen die App-Shell offline bereit.
 - Web-Push fuer Freigaben und Absagen ergaenzt: Bewohner koennen Push pro Geraet aktivieren, deaktivieren und mit denselben Filtern wie E-Mail nutzen.
 - Adminbereich um Push-Status, Empfaengerauswahl und Testpush an aktive Geraete im Haus erweitert; VAPID-Schluessel werden automatisch in SQLite erzeugt oder optional aus Render-Umgebungsvariablen gelesen.

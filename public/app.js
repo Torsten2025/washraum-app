@@ -813,10 +813,10 @@ function setAdminSection(sectionName) {
 function renderEmailVerificationStatus() {
   const configuredAddress = Boolean(currentUser.email);
   emailVerificationStatus.textContent = !configuredAddress
-    ? 'Noch keine E-Mail-Adresse hinterlegt.'
+    ? 'E-Mail ist Pflicht: Bitte Adresse eintragen, sonst ist kein Passwort-Reset moeglich.'
     : currentUser.emailVerified
       ? 'E-Mail-Adresse best\u00e4tigt.'
-      : 'Bitte E-Mail-Adresse best\u00e4tigen. Bis dahin werden keine Hinweise gesendet.';
+      : 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.';
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
 }
@@ -2635,6 +2635,7 @@ async function loadAdmin() {
   renderAuditLog(auditData.entries);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
+    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>ohne E-Mail</span></div>
     <div><strong>${overviewData.todayBookings}</strong><span>Buchungen heute</span></div>
     <div><strong>${overviewData.activeResources}</strong><span>aktive Ressourcen</span></div>
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
@@ -2722,7 +2723,7 @@ function renderAdminUsers(users) {
     name.textContent = user.username;
     const meta = document.createElement('span');
     const roleName = user.is_superadmin ? 'Superadmin' : user.role === 'admin' ? 'Haus-Admin' : 'Bewohner';
-    meta.textContent = `${roleName} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ''}`;
+    meta.textContent = `${roleName} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -2779,7 +2780,7 @@ function renderAdminUsers(users) {
       resetButton.textContent = 'Reset-Link senden';
       resetButton.disabled = !user.email || !user.email_verified;
       resetButton.title = resetButton.disabled
-        ? 'Daf\u00fcr braucht das Konto eine best\u00e4tigte E-Mail-Adresse.'
+        ? 'Dafuer braucht das Konto eine bestaetigte E-Mail-Adresse.'
         : `Passwort-Link an die best\u00e4tigte Adresse von ${user.username} senden`;
       resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
       actions.append(resetButton);
