@@ -26,8 +26,8 @@ CHAPTERS = [
         "title": "Erst Überblick, dann buchen",
         "kicker": "01  START",
         "accent": "#00A873",
-        "cards": [("FARBSTREIFEN", "WM, TR und Tumbler getrennt"), ("KALENDER", "Woche, Monat und Zoom"), ("TAGESDETAILS", "Alle Slots direkt öffnen")],
-        "speech": "Hallo und willkommen bei WaschZeit. Nach dem Einloggen landest du direkt in deiner Hausansicht. Oben stehen deine nächsten Buchungen. Direkt darunter zeigt der Kalender drei beschriftete Farbstreifen für Waschmaschinen, Trockenräume und Tumbler. Grün bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln, den Kalender vergrößern oder verkleinern und einen Tag mit Maus, Tastatur oder Finger öffnen. Dann siehst du alle Zeitfenster und Geräte. Ein persönlicher Vorschlag ist im passenden Tag markiert. Feste Buchungen verwalten die Admins. Sie können nicht überschrieben werden.",
+        "cards": [("FARBSTREIFEN", "WM, TR und Tumbler getrennt"), ("KALENDER", "Woche oder Monat"), ("TAGESVORSCHAU", "Kurz verweilen und vergrößern")],
+        "speech": "Hallo und willkommen bei WaschZeit. Nach dem Einloggen landest du direkt in deiner Hausansicht. Oben stehen deine nächsten Buchungen. Direkt darunter zeigt der Kalender drei beschriftete Farbstreifen für Waschmaschinen, Trockenräume und Tumbler. Grün bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln. Wenn du mit der Maus kurz auf einem Tag bleibst, öffnet sich eine vergrößerte Tagesansicht mit allen Zeitfenstern und Geräten. Mit der Tastatur erscheint sie beim Fokus und auf dem Smartphone durch Antippen. Ein Klick auf einen buchbaren Tag führt direkt zum Waschpaket. Ein persönlicher Vorschlag ist im passenden Tag markiert.",
     },
     {
         "title": "Waschmaschine zuerst",

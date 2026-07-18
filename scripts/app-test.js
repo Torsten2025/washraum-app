@@ -1072,9 +1072,7 @@ async function run() {
     assert.ok(indexHtml.includes('weekViewButton'));
     assert.ok(indexHtml.includes('monthViewButton'));
     assert.ok(indexHtml.includes('monthWeekdays'));
-    assert.ok(indexHtml.includes('calendarZoomOutButton'));
-    assert.ok(indexHtml.includes('calendarZoomResetButton'));
-    assert.ok(indexHtml.includes('calendarZoomInButton'));
+    assert.ok(!indexHtml.includes('calendarZoomOutButton'));
     assert.ok(indexHtml.includes('calendarDayDetails'));
     assert.ok(indexHtml.includes('calendarDayDetailsContent'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
@@ -1099,7 +1097,8 @@ async function run() {
     assert.ok(stylesText.includes('.week-calendar.month-calendar'));
     assert.ok(stylesText.includes('.calendar-status-list'));
     assert.ok(stylesText.includes('.calendar-day-details'));
-    assert.ok(stylesText.includes('[data-zoom="large"]'));
+    assert.ok(stylesText.includes('.calendar-day.is-previewed'));
+    assert.ok(stylesText.includes('@keyframes calendar-preview-in'));
     assert.ok(stylesText.includes('.booking-workspace'));
     assert.ok(stylesText.includes('.booking-flow-steps'));
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1110,7 +1109,10 @@ async function run() {
     assert.ok(appScriptText.includes('setAdminSection'));
     assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
     assert.ok(appScriptText.includes('formatCalendarMonth'));
-    assert.ok(appScriptText.includes('waschzeit-calendar-zoom'));
+    assert.ok(!appScriptText.includes('waschzeit-calendar-zoom'));
+    assert.ok(appScriptText.includes('scheduleCalendarPreview'));
+    assert.ok(appScriptText.includes('openCalendarPreview'));
+    assert.ok(appScriptText.includes('calendarPointerFocus'));
     assert.ok(appScriptText.includes('renderCalendarStatusRows'));
     assert.ok(appScriptText.includes('renderCalendarDayDetails'));
     assert.ok(appScriptText.includes('startCalendarWasherBooking'));

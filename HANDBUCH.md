@@ -112,7 +112,8 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 | Drei Statusstreifen | Pro Kalendertag Waschmaschinen, Trockenraeume und Tumbler getrennt anzeigen: gruen frei, gelb teilweise belegt, rot vollstaendig belegt, grau vergangen oder Ruhetag |
 | Tagesdetails | Beim Ueberfahren, Tastaturfokus oder Antippen alle drei Slots mit freien, belegten und eigenen Geraeten anzeigen; fremde Namen bleiben verborgen |
 | Direkt aus dem Kalender buchen | Eine freie Waschmaschine in den Tagesdetails auswaehlen und Datum, Slot sowie Geraet direkt in das Waschpaket uebernehmen |
-| Kalendergroesse | Kalender auf 85, 100 oder 115 Prozent stellen; die Wahl wird lokal im Browser gespeichert |
+| Vergroesserte Tagesvorschau | Nach kurzem Verweilen mit der Maus den einzelnen Kalendertag als lesbare, schwebende Detailkarte oeffnen; per Tastatur beim Fokus und mobil durch Antippen |
+| Klick in die Buchung | Einen buchbaren Kalendertag anklicken und direkt zur zugehoerigen Waschpaket-Oberflaeche wechseln |
 | Datumsnavigation | Je nach Ansicht zur vorherigen oder naechsten Woche beziehungsweise zum vorherigen oder naechsten Monat wechseln |
 | Ruhetage | Sonntage eindeutig als nicht buchbare Ruhetage anzeigen |
 | Einzelbuchung | Nachgeordneten Bereich aufklappen und ein einzelnes Geraet weiterhin direkt buchen |
@@ -326,8 +327,9 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Kalender um drei beschriftete Verfuegbarkeitsstreifen fuer Waschmaschinen, Trockenraeume und Tumbler mit einheitlichem Farbcode erweitert.
 - Slotgenaue Tagesdetails fuer Maus, Tastatur und Touch ergaenzt; fremde Bewohnerdaten werden dabei nicht ausgegeben.
 - Direkte Waschmaschinenwahl aus der Tagesansicht mit erneuter serverseitiger Verfuegbarkeitspruefung umgesetzt.
-- Drei lokal gespeicherte Kalendergroessen fuer Wochen- und Monatsansicht ergaenzt.
-- Einfuehrung und automatisierte Tests an Kalenderfarben, Tagesdetails, Tumbler-Reserve, Zoom und Direktbuchung angepasst.
+- Die zunaechst umgesetzte globale Kalendergroesse nach Rueckmeldung entfernt und durch eine vergroesserte Vorschau des einzelnen Tages nach kurzem Verweilen ersetzt.
+- Klick auf einen buchbaren Kalendertag fuehrt direkt in die passende Waschpaket-Oberflaeche; Tastaturfokus und mobiles Antippen oeffnen dieselben Tagesdetails.
+- Einfuehrung und automatisierte Tests an Kalenderfarben, Tagesvorschau, Tumbler-Reserve und Direktbuchung angepasst.
 
 ### 15. Juli 2026
 

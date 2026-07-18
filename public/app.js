@@ -18,13 +18,11 @@ const calendarRange = document.querySelector('#calendarRange');
 const weekViewButton = document.querySelector('#weekViewButton');
 const monthViewButton = document.querySelector('#monthViewButton');
 const monthWeekdays = document.querySelector('#monthWeekdays');
-const calendarZoomOutButton = document.querySelector('#calendarZoomOutButton');
-const calendarZoomResetButton = document.querySelector('#calendarZoomResetButton');
-const calendarZoomInButton = document.querySelector('#calendarZoomInButton');
 const calendarDayDetails = document.querySelector('#calendarDayDetails');
 const calendarDayDetailsTitle = document.querySelector('#calendarDayDetailsTitle');
 const calendarDayDetailsContent = document.querySelector('#calendarDayDetailsContent');
 const calendarDayDetailsClose = document.querySelector('#calendarDayDetailsClose');
+document.body.append(calendarDayDetails);
 const previousWeekButton = document.querySelector('#previousWeekButton');
 const nextWeekButton = document.querySelector('#nextWeekButton');
 const todayButton = document.querySelector('#todayButton');
@@ -111,18 +109,16 @@ let calendarView = (() => {
     return 'week';
   }
 })();
-let calendarZoom = (() => {
-  try {
-    const stored = window.localStorage.getItem('waschzeit-calendar-zoom');
-    return ['compact', 'standard', 'large'].includes(stored) ? stored : 'standard';
-  } catch {
-    return 'standard';
-  }
-})();
 let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
 let calendarDetailDate = '';
+let calendarDetailAnchor = null;
+let calendarDetailPinned = false;
+let calendarPreviewTimer = null;
+let calendarPreviewCloseTimer = null;
+let calendarPreviewSuppressFocus = false;
+let calendarPointerFocus = false;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let bookingFlowState = {
@@ -167,8 +163,8 @@ const introVideoSteps = [
     id: 'overview',
     fallbackDurationMs: 18000,
     title: 'Willkommen bei WaschZeit',
-    caption: 'Drei Farbstreifen zeigen die Verf\u00fcgbarkeit. Tagesdetails und Zoom helfen bei der Auswahl.',
-    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender. Drei beschriftete Farbstreifen zeigen dir Waschmaschinen, Trockenr\u00e4ume und Tumbler getrennt. Gr\u00fcn bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln und den Kalender vergr\u00f6\u00dfern oder verkleinern. Wenn du einen Tag ber\u00fchrst, anklickst oder mit der Tastatur ausw\u00e4hlst, erscheinen alle Details.',
+    caption: 'Drei Farbstreifen zeigen die Verf\u00fcgbarkeit. Bleibe kurz auf einem Tag, um ihn vergr\u00f6\u00dfert zu sehen.',
+    speech: 'Hallo und willkommen. Ich zeige dir kurz, wie du hier einen Waschtermin buchst. Oben findest du deine n\u00e4chsten Buchungen. Direkt darunter siehst du den Kalender. Drei beschriftete Farbstreifen zeigen dir Waschmaschinen, Trockenr\u00e4ume und Tumbler getrennt. Gr\u00fcn bedeutet frei, Gelb teilweise belegt und Rot voll belegt. Du kannst zwischen Woche und Monat wechseln. Wenn du mit der Maus kurz auf einem Tag bleibst, vergr\u00f6\u00dfert sich seine Tagesansicht und zeigt alle Zeitfenster und Ger\u00e4te. Mit der Tastatur erscheint sie beim Fokus, auf dem Smartphone durch Antippen.',
     visual: `
       <div class="scene-overview">
         <div class="scene-bar"><span>Hallo, Anna</span><span>Meine Ansicht</span></div>
@@ -941,6 +937,78 @@ function calendarSlotTypeMarkup(day, slotDetail, typeMeta) {
   `;
 }
 
+function clearCalendarPreviewTimers() {
+  window.clearTimeout(calendarPreviewTimer);
+  window.clearTimeout(calendarPreviewCloseTimer);
+  calendarPreviewTimer = null;
+  calendarPreviewCloseTimer = null;
+}
+
+function positionCalendarDayDetails() {
+  if (calendarDayDetails.hidden || !calendarDetailAnchor || window.innerWidth <= 760) return;
+  const anchorRect = calendarDetailAnchor.getBoundingClientRect();
+  const margin = 12;
+  const width = Math.min(720, window.innerWidth - (margin * 2));
+  calendarDayDetails.style.width = `${width}px`;
+  const detailHeight = Math.min(calendarDayDetails.scrollHeight, window.innerHeight - (margin * 2));
+  const left = Math.max(margin, Math.min(
+    window.innerWidth - width - margin,
+    anchorRect.left + (anchorRect.width / 2) - (width / 2)
+  ));
+  const below = anchorRect.bottom + 10;
+  const preferredTop = below + detailHeight <= window.innerHeight - margin
+    ? below
+    : Math.max(margin, anchorRect.top - detailHeight - 10);
+  const top = Math.max(margin, Math.min(
+    window.innerHeight - detailHeight - margin,
+    preferredTop
+  ));
+  calendarDayDetails.style.left = `${left}px`;
+  calendarDayDetails.style.top = `${top}px`;
+}
+
+function openCalendarPreview(day, anchor, { pinned = false } = {}) {
+  clearCalendarPreviewTimers();
+  calendarDetailAnchor?.classList.remove('is-previewed');
+  calendarDetailAnchor?.setAttribute('aria-expanded', 'false');
+  calendarDetailDate = day.date;
+  calendarDetailAnchor = anchor;
+  calendarDetailPinned = pinned;
+  anchor.classList.add('is-previewed');
+  anchor.setAttribute('aria-expanded', 'true');
+  renderCalendarDayDetails();
+}
+
+function scheduleCalendarPreview(day, anchor) {
+  clearCalendarPreviewTimers();
+  calendarPreviewTimer = window.setTimeout(() => {
+    openCalendarPreview(day, anchor);
+  }, 550);
+}
+
+function scheduleCalendarPreviewClose() {
+  window.clearTimeout(calendarPreviewTimer);
+  if (calendarDetailPinned) return;
+  window.clearTimeout(calendarPreviewCloseTimer);
+  calendarPreviewCloseTimer = window.setTimeout(() => {
+    closeCalendarPreview();
+  }, 180);
+}
+
+function closeCalendarPreview() {
+  clearCalendarPreviewTimers();
+  calendarDetailAnchor?.classList.remove('is-previewed');
+  calendarDetailAnchor?.setAttribute('aria-expanded', 'false');
+  calendarDetailDate = '';
+  calendarDetailAnchor = null;
+  calendarDetailPinned = false;
+  calendarDayDetails.hidden = true;
+  calendarDayDetailsContent.innerHTML = '';
+  calendarDayDetails.style.removeProperty('left');
+  calendarDayDetails.style.removeProperty('top');
+  calendarDayDetails.style.removeProperty('width');
+}
+
 function renderCalendarDayDetails() {
   const day = calendarDays.find((item) => item.date === calendarDetailDate);
   if (!day) {
@@ -973,34 +1041,41 @@ function renderCalendarDayDetails() {
       </section>
     `;
   }).join('');
+  const openDayAction = !day.closed && day.date >= todayString()
+    ? `<div class="calendar-detail-actions"><button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button></div>`
+    : '';
   calendarDayDetailsContent.innerHTML = day.closed
     ? '<p class="calendar-detail-empty">Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.</p>'
-    : slotsMarkup;
+    : `${slotsMarkup}${openDayAction}`;
 
   calendarDayDetailsContent.querySelectorAll('[data-calendar-book-washer]').forEach((button) => {
-    button.addEventListener('click', () => startCalendarWasherBooking(
-      button.dataset.calendarDate,
-      button.dataset.calendarSlot,
-      Number(button.dataset.calendarBookWasher)
-    ));
+    button.addEventListener('click', () => {
+      const date = button.dataset.calendarDate;
+      const slot = button.dataset.calendarSlot;
+      const resourceId = Number(button.dataset.calendarBookWasher);
+      closeCalendarPreview();
+      startCalendarWasherBooking(date, slot, resourceId);
+    });
   });
   calendarDayDetailsContent.querySelectorAll('[data-calendar-open-package]').forEach((button) => {
-    button.addEventListener('click', () => openCalendarPackage(button.dataset.calendarOpenPackage));
+    button.addEventListener('click', () => {
+      const date = button.dataset.calendarOpenPackage;
+      closeCalendarPreview();
+      openCalendarPackage(date);
+    });
   });
-}
-
-function applyCalendarZoom() {
-  const zoomLevels = ['compact', 'standard', 'large'];
-  weekCalendar.dataset.zoom = calendarZoom;
-  calendarZoomOutButton.disabled = calendarZoom === zoomLevels[0];
-  calendarZoomInButton.disabled = calendarZoom === zoomLevels[zoomLevels.length - 1];
-  calendarZoomResetButton.disabled = calendarZoom === 'standard';
-  calendarZoomResetButton.textContent = calendarZoom === 'compact' ? '85 %' : calendarZoom === 'large' ? '115 %' : '100 %';
+  calendarDayDetailsContent.querySelectorAll('[data-calendar-open-day]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const date = button.dataset.calendarOpenDay;
+      closeCalendarPreview();
+      openCalendarPackage(date);
+    });
+  });
+  positionCalendarDayDetails();
 }
 
 function renderCalendar() {
   weekCalendar.innerHTML = '';
-  applyCalendarZoom();
   const monthView = calendarView === 'month';
   weekCalendar.classList.toggle('month-calendar', monthView);
   weekCalendar.setAttribute('aria-label', monthView ? 'Monatskalender' : 'Kalenderwoche');
@@ -1045,8 +1120,11 @@ function renderCalendar() {
     button.classList.toggle('is-today', day.date === todayString());
     button.classList.toggle('has-own-booking', day.ownBookings > 0);
     button.classList.toggle('is-recommended', recommended);
+    button.dataset.calendarDate = day.date;
     button.setAttribute('aria-disabled', String(past || closed));
     button.setAttribute('aria-pressed', String(day.date === bookingDate.value));
+    button.setAttribute('aria-controls', 'calendarDayDetails');
+    button.setAttribute('aria-expanded', String(day.date === calendarDetailDate));
     button.setAttribute(
       'aria-label',
       `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}, ${calendarResourceTypes.map(({ type, label }) => `${label}: ${calendarAvailabilityText(day, type)}`).join(', ')}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', pers\u00f6nlicher Vorschlag' : ''}`
@@ -1065,22 +1143,56 @@ function renderCalendar() {
       ${recommended ? '<span class="calendar-recommended">Vorschlag</span>' : ''}
       ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
     `;
-    button.addEventListener('pointerenter', () => {
-      calendarDetailDate = day.date;
-      renderCalendarDayDetails();
+    button.addEventListener('pointerenter', (event) => {
+      if (event.pointerType !== 'touch') scheduleCalendarPreview(day, button);
+    });
+    button.addEventListener('pointerdown', () => {
+      calendarPointerFocus = true;
+    });
+    button.addEventListener('pointercancel', () => {
+      calendarPointerFocus = false;
+    });
+    button.addEventListener('pointerup', () => {
+      window.setTimeout(() => {
+        calendarPointerFocus = false;
+      }, 0);
+    });
+    button.addEventListener('pointerleave', () => {
+      scheduleCalendarPreviewClose();
     });
     button.addEventListener('focus', () => {
-      calendarDetailDate = day.date;
-      renderCalendarDayDetails();
+      if (calendarPointerFocus) return;
+      if (calendarPreviewSuppressFocus) {
+        calendarPreviewSuppressFocus = false;
+        return;
+      }
+      openCalendarPreview(day, button);
+    });
+    button.addEventListener('blur', () => {
+      scheduleCalendarPreviewClose();
     });
     button.addEventListener('click', async () => {
-      calendarDetailDate = day.date;
-      renderCalendarDayDetails();
-      if (!past && !closed) await selectBookingDate(day.date);
+      calendarPointerFocus = false;
+      if (past || closed) {
+        openCalendarPreview(day, button, { pinned: true });
+        return;
+      }
+      if (window.matchMedia('(hover: none)').matches && !calendarDetailPinned) {
+        openCalendarPreview(day, button, { pinned: true });
+        return;
+      }
+      closeCalendarPreview();
+      await openCalendarPackage(day.date);
     });
     weekCalendar.append(button);
   }
-  renderCalendarDayDetails();
+  if (calendarDetailDate) {
+    calendarDetailAnchor = weekCalendar.querySelector(`[data-calendar-date="${calendarDetailDate}"]`);
+    if (calendarDetailAnchor) renderCalendarDayDetails();
+    else closeCalendarPreview();
+  } else {
+    calendarDayDetails.hidden = true;
+  }
 }
 
 function packageComponentDetail(component, recommendation, bookings = component.bookings || []) {
@@ -1305,17 +1417,6 @@ function persistCalendarView() {
   } catch {
     // Die Kalenderansicht funktioniert auch ohne lokalen Speicher.
   }
-}
-
-function setCalendarZoom(nextZoom) {
-  if (!['compact', 'standard', 'large'].includes(nextZoom)) return;
-  calendarZoom = nextZoom;
-  try {
-    window.localStorage.setItem('waschzeit-calendar-zoom', calendarZoom);
-  } catch {
-    // Die Kalendergroesse funktioniert auch ohne lokalen Speicher.
-  }
-  applyCalendarZoom();
 }
 
 async function startCalendarWasherBooking(date, slot, resourceId) {
@@ -2611,18 +2712,25 @@ monthViewButton.addEventListener('click', async () => {
     showStatus(error.message, 'error');
   }
 });
-calendarZoomOutButton.addEventListener('click', () => {
-  setCalendarZoom(calendarZoom === 'large' ? 'standard' : 'compact');
-});
-calendarZoomResetButton.addEventListener('click', () => setCalendarZoom('standard'));
-calendarZoomInButton.addEventListener('click', () => {
-  setCalendarZoom(calendarZoom === 'compact' ? 'standard' : 'large');
-});
 calendarDayDetailsClose.addEventListener('click', () => {
-  calendarDetailDate = '';
-  renderCalendarDayDetails();
-  weekCalendar.querySelector('.calendar-day.is-selected')?.focus({ preventScroll: true });
+  const returnFocus = calendarDetailAnchor;
+  closeCalendarPreview();
+  calendarPreviewSuppressFocus = true;
+  returnFocus?.focus({ preventScroll: true });
 });
+calendarDayDetails.addEventListener('pointerenter', () => {
+  window.clearTimeout(calendarPreviewCloseTimer);
+});
+calendarDayDetails.addEventListener('pointerleave', () => {
+  scheduleCalendarPreviewClose();
+});
+calendarDayDetails.addEventListener('focusin', () => {
+  window.clearTimeout(calendarPreviewCloseTimer);
+});
+calendarDayDetails.addEventListener('focusout', () => {
+  scheduleCalendarPreviewClose();
+});
+window.addEventListener('resize', positionCalendarDayDetails);
 logoutForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (logoutInProgress) return;
