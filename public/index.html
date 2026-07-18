@@ -152,6 +152,10 @@
           <button id="openSettingsButton" class="secondary" type="button">Einstellungen &ouml;ffnen</button>
         </div>
         <div class="side-block">
+          <h3>Letzte Hinweise</h3>
+          <div id="noticeJournal" class="notice-journal"></div>
+        </div>
+        <div class="side-block">
           <h3>Zugang &amp; Sicherheit</h3>
           <form id="passwordForm" class="stack compact-form">
             <label>
@@ -225,6 +229,7 @@
             <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse">Haus &amp; Ger&auml;te</button>
             <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed">Dauertermine</button>
             <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Personen</button>
+            <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics">Auswertung</button>
             <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem">System</button>
           </nav>
 
@@ -332,6 +337,14 @@
             <div id="userList" class="user-admin-list"></div>
           </section>
 
+          <section id="adminSectionAnalytics" class="admin-section" data-admin-section="analytics" hidden>
+            <div class="admin-section-heading">
+              <h3>Auswertung</h3>
+              <span>Nutzung, Engpaesse und gesperrte Ressourcen</span>
+            </div>
+            <div id="adminAnalytics" class="admin-analytics"></div>
+          </section>
+
           <section id="adminSectionSystem" class="admin-section" data-admin-section="system" hidden>
             <div class="admin-section-heading">
               <h3>Systemstatus</h3>
@@ -367,6 +380,15 @@
                 <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
               </div>
             </div>
+            <details class="admin-operation danger-zone">
+              <summary>Buchungen zur&uuml;cksetzen</summary>
+              <p class="muted">L&ouml;scht alle normalen Buchungen im aktuellen Haus. Dauertermine und Konten bleiben erhalten.</p>
+              <label>
+                Best&auml;tigung
+                <input id="resetBookingsConfirm" autocomplete="off" placeholder="ALLE BUCHUNGEN">
+              </label>
+              <button id="resetBookingsButton" class="secondary danger" type="button">Alle Buchungen l&ouml;schen</button>
+            </details>
             <details class="audit-panel">
               <summary>Letzte Admin-Aktionen</summary>
               <div id="auditLog" class="audit-list"></div>

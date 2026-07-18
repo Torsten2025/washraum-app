@@ -258,6 +258,9 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('resources', 'house_id', 'INTEGER');
+  ensureColumn('resources', 'blocked_reason', 'TEXT');
+  ensureColumn('resources', 'blocked_at', 'TEXT');
+  ensureColumn('resources', 'blocked_by', 'INTEGER');
   ensureColumn('bookings', 'group_id', 'TEXT');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
@@ -2712,8 +2715,11 @@ app.get('/api/resources', requireAuth, (req, res) => {
 
 app.get('/api/admin/resources', requireAdmin, (req, res) => {
   const resources = db.prepare(`
-    SELECT id, name, type, active
-    FROM resources WHERE house_id = ?
+    SELECT r.id, r.name, r.type, r.active, r.blocked_reason, r.blocked_at,
+           u.username AS blocked_by
+    FROM resources r
+    LEFT JOIN users u ON u.id = r.blocked_by
+    WHERE r.house_id = ?
     ORDER BY type, name
   `).all(currentHouseId(req));
   res.json({ resources });
@@ -2742,14 +2748,18 @@ app.put('/api/admin/resources/:id', requireAdmin, (req, res) => {
   }
   const name = String(req.body?.name ?? resource.name).trim();
   const active = req.body?.active == null ? resource.active : req.body.active === true ? 1 : 0;
+  const blockReason = String(req.body?.blockReason || '').trim();
   if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Der Name muss 2 bis 80 Zeichen haben.' });
+  }
+  if (!active && blockReason && !isValidPlainText(blockReason, 3, 180)) {
+    return res.status(400).json({ error: 'Der Sperrgrund muss 3 bis 180 Zeichen haben.' });
   }
   if (db.prepare('SELECT id FROM resources WHERE lower(name) = lower(?) AND house_id = ? AND id != ?')
     .get(name, currentHouseId(req), resource.id)) {
     return res.status(409).json({ error: 'Ein Ger\u00e4t mit diesem Namen ist bereits vorhanden.' });
   }
-  if (!active && resource.active) {
+  if (!active && resource.active && !blockReason) {
     const conflict = db.prepare(`
       SELECT 1 FROM bookings WHERE resource_id = ? AND booking_date >= ? LIMIT 1
     `).get(resource.id, todayStringLocal()) || db.prepare(`
@@ -2768,9 +2778,28 @@ app.put('/api/admin/resources/:id', requireAdmin, (req, res) => {
       }
     }
   }
-  db.prepare('UPDATE resources SET name = ?, active = ? WHERE id = ?').run(name, active, resource.id);
-  writeAudit(req, 'resource.update', 'resource', resource.id, { name, active: Boolean(active) });
-  res.json({ ok: true, message: `${name} wurde aktualisiert.` });
+  db.prepare(`
+    UPDATE resources
+    SET name = ?,
+        active = ?,
+        blocked_reason = ?,
+        blocked_at = ?,
+        blocked_by = ?
+    WHERE id = ?
+  `).run(
+    name,
+    active,
+    active ? null : (blockReason || resource.blocked_reason || 'Gesperrt'),
+    active ? null : (blockReason || !resource.blocked_at ? new Date().toISOString() : resource.blocked_at),
+    active ? null : req.session.user.id,
+    resource.id
+  );
+  writeAudit(req, active ? 'resource.unblock' : 'resource.block', 'resource', resource.id, {
+    name,
+    active: Boolean(active),
+    reason: active ? '' : (blockReason || resource.blocked_reason || 'Gesperrt')
+  });
+  res.json({ ok: true, message: active ? `${name} ist wieder verfuegbar.` : `${name} wurde gesperrt.` });
 });
 
 app.get('/api/my-bookings', requireAuth, (req, res) => {
@@ -3541,6 +3570,100 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
     })()
   });
+});
+
+app.get('/api/admin/analytics', requireAdmin, (req, res) => {
+  const houseId = currentHouseId(req);
+  const days = Math.min(180, Math.max(7, Number(req.query.days || 30)));
+  const since = addDays(todayStringLocal(), -days);
+  const until = addDays(todayStringLocal(), days);
+  const totals = db.prepare(`
+    SELECT r.type, COUNT(*) AS count
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE r.house_id = ?
+      AND b.booking_date BETWEEN ? AND ?
+    GROUP BY r.type
+  `).all(houseId, since, until);
+  const bySlot = db.prepare(`
+    SELECT b.slot, COUNT(*) AS count
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE r.house_id = ?
+      AND b.booking_date BETWEEN ? AND ?
+    GROUP BY b.slot
+    ORDER BY b.slot
+  `).all(houseId, since, until);
+  const byResource = db.prepare(`
+    SELECT r.name, r.type, COUNT(b.id) AS count
+    FROM resources r
+    LEFT JOIN bookings b ON b.resource_id = r.id
+      AND b.booking_date BETWEEN ? AND ?
+    WHERE r.house_id = ?
+    GROUP BY r.id
+    ORDER BY count DESC, r.name
+  `).all(since, until, houseId);
+  const byUser = db.prepare(`
+    SELECT u.username, COUNT(b.id) AS count
+    FROM users u
+    LEFT JOIN bookings b ON b.user_id = u.id
+      AND b.booking_date BETWEEN ? AND ?
+    WHERE u.house_id = ?
+      AND u.active = 1
+    GROUP BY u.id
+    ORDER BY count DESC, u.username
+    LIMIT 10
+  `).all(since, until, houseId);
+  const releases = db.prepare(`
+    SELECT kind, COUNT(*) AS count
+    FROM release_notices
+    WHERE house_id = ?
+      AND created_at >= datetime('now', ?)
+    GROUP BY kind
+  `).all(houseId, `-${days} days`);
+  const blockedResources = db.prepare(`
+    SELECT name, type, blocked_reason AS reason, blocked_at
+    FROM resources
+    WHERE house_id = ?
+      AND active = 0
+    ORDER BY name
+  `).all(houseId);
+
+  res.json({
+    days,
+    window: { since, until },
+    totals,
+    bySlot,
+    byResource,
+    byUser,
+    releases,
+    blockedResources
+  });
+});
+
+app.delete('/api/admin/bookings', requireAdmin, (req, res) => {
+  const confirmText = String(req.body?.confirm || '').trim();
+  if (confirmText !== 'ALLE BUCHUNGEN') {
+    return res.status(400).json({ error: 'Bitte zur Bestaetigung ALLE BUCHUNGEN eingeben.' });
+  }
+  const houseId = currentHouseId(req);
+  const count = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    WHERE r.house_id = ?
+  `).get(houseId).count;
+  db.prepare(`
+    DELETE FROM bookings
+    WHERE id IN (
+      SELECT b.id
+      FROM bookings b
+      JOIN resources r ON r.id = b.resource_id
+      WHERE r.house_id = ?
+    )
+  `).run(houseId);
+  writeAudit(req, 'bookings.reset', 'booking', '', { deleted: count });
+  res.json({ ok: true, deleted: count, message: `${count} Buchungen wurden geloescht. Dauertermine bleiben erhalten.` });
 });
 
 app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {

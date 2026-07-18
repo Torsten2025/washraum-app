@@ -38,6 +38,9 @@ const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminPushTestButton = document.querySelector('#adminPushTestButton');
 const adminPushTarget = document.querySelector('#adminPushTarget');
+const adminAnalytics = document.querySelector('#adminAnalytics');
+const resetBookingsConfirm = document.querySelector('#resetBookingsConfirm');
+const resetBookingsButton = document.querySelector('#resetBookingsButton');
 const adminTitle = document.querySelector('#adminTitle');
 const adminRoleLabel = document.querySelector('#adminRoleLabel');
 const adminScopeText = document.querySelector('#adminScopeText');
@@ -93,6 +96,7 @@ const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
 const myBookings = document.querySelector('#myBookings');
 const releaseNotices = document.querySelector('#releaseNotices');
+const noticeJournal = document.querySelector('#noticeJournal');
 const filterButtons = [...document.querySelectorAll('.filter')];
 const openIntroButton = document.querySelector('#openIntroButton');
 const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
@@ -407,12 +411,47 @@ function showStatus(message, tone = 'ok') {
   window.clearTimeout(statusTimer);
   statusText.textContent = message;
   statusText.className = `notice ${tone}`;
+  if (message && tone !== 'error') {
+    rememberNotice(message);
+  }
   if (message) {
     statusTimer = window.setTimeout(() => {
       statusText.textContent = '';
       statusText.className = 'notice muted';
     }, tone === 'error' ? 10000 : 7000);
   }
+}
+
+function noticeJournalKey() {
+  return currentUser ? `waschzeit-notices-${currentUser.id}` : 'waschzeit-notices';
+}
+
+function readNoticeJournal() {
+  try {
+    return JSON.parse(window.localStorage.getItem(noticeJournalKey()) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function rememberNotice(message) {
+  if (!noticeJournal || !currentUser) return;
+  const notices = readNoticeJournal();
+  notices.unshift({ message, createdAt: new Date().toISOString() });
+  window.localStorage.setItem(noticeJournalKey(), JSON.stringify(notices.slice(0, 8)));
+  renderNoticeJournal();
+}
+
+function renderNoticeJournal() {
+  if (!noticeJournal) return;
+  const notices = readNoticeJournal();
+  if (!notices.length) {
+    noticeJournal.innerHTML = '<p class="muted">Noch keine Hinweise.</p>';
+    return;
+  }
+  noticeJournal.innerHTML = notices.map((notice) => (
+    `<article><strong>${escapeHtml(new Date(notice.createdAt).toLocaleString('de-CH'))}</strong><span>${escapeHtml(notice.message)}</span></article>`
+  )).join('');
 }
 
 function showBookingFlowStatus(message, tone = 'error') {
@@ -846,6 +885,7 @@ async function init() {
   bookingMode = currentUser.bookingMode === 'machine' ? 'machine' : 'time';
   availableHouses = me.houses || [];
   renderHouseContext();
+  renderNoticeJournal();
   notificationEmail.value = currentUser.email || '';
   notifyReleasesInput.checked = currentUser.notifyReleases !== false;
   notificationResourceType.value = me.notificationPreferences?.resourceType || 'all';
@@ -2753,7 +2793,7 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData] = await Promise.all([
+  const [usersData, overviewData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/settings'),
@@ -2761,7 +2801,8 @@ async function loadAdmin() {
     currentUser.isSuperadmin ? api('/api/admin/houses') : Promise.resolve({ houses: [] }),
     api('/api/admin/resources'),
     api('/api/admin/audit-log'),
-    api('/api/admin/push-devices')
+    api('/api/admin/push-devices'),
+    api('/api/admin/analytics?days=30')
   ]);
   adminBox.hidden = false;
   adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
@@ -2780,6 +2821,7 @@ async function loadAdmin() {
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
   renderAdminResources(adminResources.resources);
+  renderAdminAnalytics(analyticsData);
   renderAuditLog(auditData.entries);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
@@ -2803,6 +2845,38 @@ async function loadAdmin() {
     : 'Push ist auf dem Server noch nicht bereit';
   renderAdminUsers(usersData.users);
   setAdminSection(activeAdminSection);
+}
+
+function renderAdminAnalytics(data) {
+  const totalBookings = data.totals.reduce((sum, item) => sum + Number(item.count || 0), 0);
+  const typeLabels = Object.fromEntries(data.totals.map((item) => [item.type, item.count]));
+  const busiestSlot = [...data.bySlot].sort((left, right) => Number(right.count) - Number(left.count))[0];
+  const blockedList = data.blockedResources.length
+    ? data.blockedResources.map((resource) => (
+      `<li><strong>${escapeHtml(resource.name)}</strong><span>${escapeHtml(resource.reason || 'Gesperrt')}</span></li>`
+    )).join('')
+    : '<li><span>Keine gesperrten Ressourcen.</span></li>';
+  const resourceRows = data.byResource.slice(0, 8).map((resource) => (
+    `<li><strong>${escapeHtml(resource.name)}</strong><span>${Number(resource.count)} Buchungen</span></li>`
+  )).join('');
+  const userRows = data.byUser.slice(0, 8).map((user) => (
+    `<li><strong>${escapeHtml(user.username)}</strong><span>${Number(user.count)} Buchungen</span></li>`
+  )).join('');
+  adminAnalytics.innerHTML = `
+    <div class="admin-overview">
+      <div><strong>${totalBookings}</strong><span>Buchungen im 60-Tage-Fenster</span></div>
+      <div><strong>${typeLabels.washer || 0}</strong><span>Waschmaschinen</span></div>
+      <div><strong>${typeLabels.drying_room || 0}</strong><span>Trockenraeume</span></div>
+      <div><strong>${typeLabels.tumbler || 0}</strong><span>Tumbler</span></div>
+      <div><strong>${busiestSlot?.slot || '-'}</strong><span>staerkster Slot</span></div>
+      <div class="${data.blockedResources.length ? 'is-warning' : ''}"><strong>${data.blockedResources.length}</strong><span>gesperrt</span></div>
+    </div>
+    <div class="analytics-grid">
+      <section><h4>Geraete</h4><ul>${resourceRows || '<li><span>Noch keine Buchungen.</span></li>'}</ul></section>
+      <section><h4>Nutzer</h4><ul>${userRows || '<li><span>Noch keine Buchungen.</span></li>'}</ul></section>
+      <section><h4>Sperren</h4><ul>${blockedList}</ul></section>
+    </div>
+  `;
 }
 
 async function sendAdminTestEmail() {
@@ -2855,6 +2929,28 @@ async function runBackupNow() {
     showStatus(error.message, 'error');
   } finally {
     runBackupButton.disabled = false;
+  }
+}
+
+async function resetAllBookings() {
+  if (resetBookingsConfirm.value.trim() !== 'ALLE BUCHUNGEN') {
+    showStatus('Bitte ALLE BUCHUNGEN als Bestaetigung eingeben.', 'error');
+    return;
+  }
+  if (!window.confirm('Alle normalen Buchungen dieses Hauses wirklich loeschen? Dauertermine bleiben erhalten.')) return;
+  resetBookingsButton.disabled = true;
+  try {
+    const data = await api('/api/admin/bookings', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: resetBookingsConfirm.value.trim() })
+    });
+    resetBookingsConfirm.value = '';
+    showStatus(data.message);
+    await Promise.all([loadAdmin(), refreshAll()]);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    resetBookingsButton.disabled = false;
   }
 }
 
@@ -3039,12 +3135,20 @@ function renderAdminResources(items) {
       updateResource(resource.id, { name: input.value });
     });
     const meta = document.createElement('span');
-    meta.textContent = `${typeLabel(resource.type)} - ${resource.active ? 'aktiv' : 'inaktiv'}`;
+    meta.textContent = `${typeLabel(resource.type)} - ${resource.active ? 'aktiv' : `gesperrt: ${resource.blocked_reason || 'ohne Grund'}`}`;
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = resource.active ? 'secondary danger' : 'secondary';
     toggle.textContent = resource.active ? 'Deaktivieren' : 'Aktivieren';
-    toggle.addEventListener('click', () => updateResource(resource.id, { active: !Boolean(resource.active) }));
+    toggle.addEventListener('click', () => {
+      if (resource.active) {
+        const reason = window.prompt('Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.');
+        if (!reason) return;
+        updateResource(resource.id, { active: false, blockReason: reason });
+        return;
+      }
+      updateResource(resource.id, { active: true });
+    });
     const copy = document.createElement('div');
     copy.append(form, meta);
     item.append(copy, toggle);
@@ -3094,8 +3198,12 @@ function renderAuditLog(entries) {
     'house.code': 'Hauscode ge\u00e4ndert',
     'resource.create': 'Ger\u00e4t angelegt',
     'resource.update': 'Ger\u00e4t aktualisiert',
+    'resource.block': 'Ressource gesperrt',
+    'resource.unblock': 'Ressource freigegeben',
     'fixed_booking.create': 'Feste Buchung angelegt',
     'fixed_booking.delete': 'Feste Buchung entfernt',
+    'bookings.reset': 'Buchungen zurueckgesetzt',
+    'push.test': 'Push-Test gesendet',
     'backup.download': 'Backup erstellt'
   };
   auditLog.innerHTML = entries.length ? '' : '<p class="muted">Noch keine protokollierten Admin-Aktionen.</p>';
@@ -3416,6 +3524,7 @@ resourceForm.addEventListener('submit', async (event) => {
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
+resetBookingsButton.addEventListener('click', resetAllBookings);
 
 passwordForm.addEventListener('submit', async (event) => {
   event.preventDefault();

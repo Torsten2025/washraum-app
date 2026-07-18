@@ -369,6 +369,7 @@ async function run() {
     const residentDeniedRoutes = [
       ['/api/admin/users', 'GET'],
       ['/api/admin/overview', 'GET'],
+      ['/api/admin/analytics', 'GET'],
       ['/api/admin/settings', 'GET'],
       ['/api/admin/resources', 'GET'],
       ['/api/admin/fixed-bookings', 'GET'],
@@ -378,6 +379,7 @@ async function run() {
       ['/api/admin/backup', 'GET'],
       ['/api/admin/email-test', 'POST'],
       ['/api/admin/push-test', 'POST'],
+      ['/api/admin/bookings', 'DELETE'],
       ['/api/admin/backup/run', 'POST']
     ];
     for (const [route, method] of residentDeniedRoutes) {

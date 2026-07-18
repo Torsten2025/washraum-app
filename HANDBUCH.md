@@ -162,6 +162,7 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Meine Daten | Eigene Daten und Buchungen als JSON exportieren |
 | Konto loeschen | Eigenes Konto nach Passwortbestaetigung endgueltig entfernen |
 | Freigaben und Absagen | Noch relevante wieder freie Termine anzeigen |
+| Letzte Hinweise | Eigene lokale Aktionsbestaetigungen dieses Geraets anzeigen |
 | Regeln | Aktuelle Reservierungsregeln nachlesen |
 | Reinigung | Reinigungsaufgaben fuer Maschinen, Raeume und Boden nachlesen |
 
@@ -197,11 +198,11 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 | Hauscode des aktiven Hauses aendern | Ja | Ja |
 | Geraet oder Raum anlegen | Ja | Ja |
 | Ressource umbenennen | Ja | Ja |
-| Ressource aktivieren oder deaktivieren | Ja | Ja |
+| Ressource mit Grund sperren oder wieder freigeben | Ja | Ja |
 | Neues Haus mit Standardressourcen anlegen | Nein | Ja |
 | Haus anzeigen, umbenennen, aktivieren oder deaktivieren | Nein | Ja |
 
-Ressourcen und Hauscodes sind immer auf das aktive Haus begrenzt. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
+Ressourcen und Hauscodes sind immer auf das aktive Haus begrenzt. Eine gesperrte Ressource ist fuer neue Buchungen nicht mehr verfuegbar und erscheint in der Admin-Auswertung mit Sperrgrund. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
 
 ### 3. Dauertermine
 
@@ -229,17 +230,31 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 
 Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
-### 5. System
+### 5. Auswertung
+
+| Funktion | Haus-Admin | Superadmin |
+| --- | :---: | :---: |
+| Buchungszahlen der letzten und naechsten 30 Tage sehen | Ja | Ja |
+| Nutzung nach Ressource, Bereich und Slot sehen | Ja | Ja |
+| Aktivste Nutzer des Hauses sehen | Ja | Ja |
+| Gesperrte Ressourcen mit Grund sehen | Ja | Ja |
+
+Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranking fuer den Aushang.
+
+### 6. System
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
 | Testmail an eigene hinterlegte Adresse senden | Ja | Ja |
 | Aktive Push-Geraete des Hauses sehen und Testpush senden | Ja | Ja |
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
+| Alle normalen Buchungen des aktiven Hauses mit Bestaetigungstext loeschen | Ja | Ja |
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
 | SQLite-Backup herunterladen | Nein | Ja |
 | Warnung bei fehlender externer Backup-Kopie sehen | Ja | Ja |
+
+Der Buchungsreset loescht keine Konten und keine Dauertermine. Er verlangt den Text `ALLE BUCHUNGEN` und wird im Admin-Audit protokolliert.
 
 Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro Tag fuer bis zu 14 Tage. Liegt die externe Kopie auf demselben Render-Datentraeger nicht vor, zeigt der Ueberblick eine Warnung. Fuer einen Ausfall des Render-Datentraegers muss `BACKUP_UPLOAD_URL` auf einen unabhaengigen Speicher zeigen.
 
@@ -304,6 +319,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
+| `npm run test:e2e` | Optionalen Browser-Smoke-Test fuer Registrierung und persoenliche Einrichtung ausfuehren, wenn Playwright verfuegbar ist |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
 | `npm run check` | Alle oben genannten Pruefungen nacheinander ausfuehren |
 
@@ -350,6 +366,11 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- Admin-Auswertung fuer Nutzung nach Bereich, Slot, Ressource, Nutzer und gesperrte Ressourcen ergaenzt.
+- Betriebssperren fuer Geraete und Raeume mit Sperrgrund eingefuehrt; gesperrte Ressourcen sind fuer neue Buchungen nicht verfuegbar und werden im Audit festgehalten.
+- Abgesicherten Admin-Reset fuer normale Buchungen des aktiven Hauses ergaenzt; Dauertermine und Konten bleiben erhalten.
+- Lokales Hinweis-Journal unter `Meine Ansicht` ergaenzt, damit Bewohner die letzten eigenen Aktionsbestaetigungen wiederfinden.
+- Optionalen Browser-E2E-Smoke-Test fuer Registrierung und persoenliche Einrichtung ergaenzt.
 - Persoenliche Einrichtung als gefuehrten Dialog eingefuehrt: Nach Registrierung erscheinen E-Mail, PWA-Installation, Push und Hinweisfilter gebuendelt; die Seitenleiste zeigt nur noch eine kompakte Statuskarte.
 - Sichtbaren Installationsbereich `Als App installieren` ergaenzt, damit Bewohner die PWA nicht im Browsermenue suchen muessen; iPhone-Nutzer erhalten den Hinweis auf `Teilen` und `Zum Home-Bildschirm`.
 - E-Mail-Pflicht fuer Konten deutlicher gemacht: Registrierung und eigene Benachrichtigungen verlangen eine gueltige Adresse; bestehende Konten ohne E-Mail werden in App und Adminuebersicht sichtbar gewarnt.

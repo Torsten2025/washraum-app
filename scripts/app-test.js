@@ -965,12 +965,16 @@ async function run() {
     });
     await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
       method: 'PUT',
-      body: JSON.stringify({ name: 'Trockenraum Reserve', active: false })
+      body: JSON.stringify({ name: 'Trockenraum Reserve', active: false, blockReason: 'Wartungstest' })
     });
     const adminResources = await expectStatus(admin, '/api/admin/resources', 200);
     assert.ok(adminResources.body.resources.some((resource) => (
-      resource.id === addedResource.body.id && resource.active === 0
+      resource.id === addedResource.body.id && resource.active === 0 && resource.blocked_reason === 'Wartungstest'
     )));
+    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ name: 'Trockenraum Reserve', active: true })
+    });
 
     const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
       method: 'POST',
@@ -1110,6 +1114,18 @@ async function run() {
     const audit = await expectStatus(admin, '/api/admin/audit-log', 200);
     assert.ok(audit.body.entries.some((entry) => entry.action === 'resource.create'));
     assert.ok(audit.body.entries.some((entry) => entry.action === 'user.move'));
+    const analytics = await expectStatus(admin, '/api/admin/analytics?days=30', 200);
+    assert.ok(Array.isArray(analytics.body.byResource));
+    assert.ok(Array.isArray(analytics.body.bySlot));
+    await expectStatus(admin, '/api/admin/bookings', 400, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'falsch' })
+    });
+    const resetBookings = await expectStatus(admin, '/api/admin/bookings', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'ALLE BUCHUNGEN' })
+    });
+    assert.ok(resetBookings.body.deleted >= 1);
 
     await expectStatus(admin, `/api/admin/houses/${secondHouse.body.house.id}`, 200, {
       method: 'PUT',
@@ -1178,7 +1194,10 @@ async function run() {
     assert.ok(indexHtml.includes('data-admin-target="house"'));
     assert.ok(indexHtml.includes('data-admin-target="fixed"'));
     assert.ok(indexHtml.includes('data-admin-target="people"'));
+    assert.ok(indexHtml.includes('data-admin-target="analytics"'));
     assert.ok(indexHtml.includes('data-admin-target="system"'));
+    assert.ok(indexHtml.includes('noticeJournal'));
+    assert.ok(indexHtml.includes('resetBookingsButton'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('class="app-wordmark"'));
     assert.ok(indexHtml.includes('id="brandHouseName"'));
@@ -1202,6 +1221,8 @@ async function run() {
     assert.ok(stylesText.includes('.flow-time-choice'));
     assert.ok(stylesText.includes('.settings-summary'));
     assert.ok(stylesText.includes('.settings-step'));
+    assert.ok(stylesText.includes('.notice-journal'));
+    assert.ok(stylesText.includes('.analytics-grid'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
     assert.match(stylesText, /\.intro-panel\s*\{\s*align-self:\s*start;/);
     const appScript = await expectStatus(guest, '/app.js', 200);
@@ -1234,6 +1255,8 @@ async function run() {
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
+    assert.ok(appScriptText.includes('/api/admin/analytics?days=30'));
+    assert.ok(appScriptText.includes('resetAllBookings'));
     const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
@@ -1275,6 +1298,8 @@ async function run() {
         multiHouseIsolation: true,
         superadmin: true,
         fixedBookings: true,
+        adminAnalytics: true,
+        bookingReset: true,
         accountManagement: true,
         backup: true,
         verifiedBackup: true,
