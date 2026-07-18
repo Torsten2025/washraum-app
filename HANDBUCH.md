@@ -22,7 +22,8 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Der persoenliche Vorschlag ist im passenden Tag markiert.
 4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
-6. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
+6. Unter `Benachrichtigungen` optional Push aufs Handy aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
+7. Oben rechts mit `Abmelden` die Sitzung sicher beenden.
 
 Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
 
@@ -49,6 +50,8 @@ Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die Ap
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
 | Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link oder erfolgreiche Abmeldung anzeigen | Oeffentlich |
 | Datenschutz | Zur Datenschutzerklaerung wechseln | Oeffentlich |
+
+Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
 Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten nur dem richtigen Haus beitreten. Haus-Admins und Superadmins koennen ihn in der Verwaltung aendern.
 
@@ -151,6 +154,7 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Wissen kompakt | Einfuehrung erneut oeffnen |
 | Benachrichtigungen | E-Mail-Adresse und Freigabe-Hinweise verwalten |
 | E-Mail-Bestaetigung | Bestaetigungsstatus anzeigen und Link erneut senden |
+| Push aufs Handy | Push-Hinweise auf dem aktuellen Geraet aktivieren oder deaktivieren |
 | Hinweisfilter | Bereich, Wochentag und Zeitfenster eingrenzen |
 | Zugang und Sicherheit | Eigenes Passwort mit bisherigem Passwort aendern |
 | Meine Daten | Eigene Daten und Buchungen als JSON exportieren |
@@ -227,6 +231,7 @@ Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. N
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
 | Testmail an eigene hinterlegte Adresse senden | Ja | Ja |
+| Testpush an eigenes aktiviertes Geraet senden | Ja | Ja |
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
@@ -245,6 +250,16 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 - Empfaenger muessen im selben Haus sein und passende Filter fuer Bereich, Wochentag und Slot aktiviert haben.
 - `Loeschen` entfernt eine Buchung ohne Rundmail.
 - Ohne eingerichteten SMTP-Zugang funktioniert die Buchungsapp weiter, versendet aber keine E-Mails.
+
+## Push-Hinweise und PWA
+
+- Die App besitzt ein Web-App-Manifest und einen Service Worker. Dadurch kann sie auf unterstuetzten Smartphones und Desktops als PWA installiert werden.
+- Push-Hinweise sind pro Browser/Geraet freiwillig. Bewohner muessen Push im Browser erlauben und koennen das Abo in der App wieder deaktivieren.
+- Push nutzt dieselben Filter wie E-Mail: Haus, Bereich, Wochentag, Zeitfenster und aktivierte Freigabe-Hinweise.
+- Freigaben und Absagen senden Push an passende aktive Abos im selben Haus, nicht an die Person, die den Termin freigegeben hat.
+- Der Server erzeugt VAPID-Schluessel automatisch und speichert sie in SQLite, falls keine `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` gesetzt sind. Fuer dauerhafte Produktionsschluessel koennen diese Werte in Render als Environment Variables hinterlegt werden.
+- Im Adminbereich zeigt der Ueberblick den Push-Status und die Anzahl aktiver Geraete. Unter `System` kann ein Testpush an das eigene aktivierte Geraet gesendet werden.
+- Auf iOS funktionieren PWA-Push-Hinweise nur, wenn die App zum Home-Bildschirm hinzugefuegt wurde und Benachrichtigungen erlaubt sind.
 
 ## Reinigungsuebersicht
 
@@ -272,6 +287,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - Bewohner-, Haus-Admin- und Superadminrechte sowie Fremdhaus-Isolation.
 - Schutz von Haus-Admins vor Eingriffen durch gleichrangige Haus-Admins.
 - Feste Buchungen, Benutzerverwaltung, Geraeteverwaltung, Audit und Backups.
+- PWA-Dateien, Push-Abo, Push-Test und Freigabe-Hinweise ueber Push.
 - Datenschutzexport, Kontoloeschung, Sicherheitsheader und Barrierefreiheit.
 - Mehrhaus-Jahressimulation mit 100 Personen in sechs Haeusern, 52 Wochen und 5.200 Waschpaketen.
 
@@ -297,6 +313,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `release-window.js` | Zeitfenster fuer Freigaben und Absagen |
 | `public/login.html`, `public/login.js` | Landingpage, Anmeldung und Registrierung |
 | `public/index.html`, `public/app.js` | Waschplan, Konto, Einfuehrung und Verwaltung |
+| `public/manifest.webmanifest`, `public/sw.js` | PWA-Installation, Offline-Shell und Push-Anzeige |
 | `public/styles.css` | Gemeinsames responsives Erscheinungsbild |
 | `scripts/` | Funktions-, Rollen-, Jahres- und Barrierefreiheitstests |
 | `render.yaml` | Produktionsdienst und persistenter Datentraeger auf Render |
@@ -328,6 +345,10 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 18. Juli 2026
 
+- PWA-Basis eingefuehrt: Manifest, App-Icon und Service Worker machen WaschZeit installierbar und stellen die App-Shell offline bereit.
+- Web-Push fuer Freigaben und Absagen ergaenzt: Bewohner koennen Push pro Geraet aktivieren, deaktivieren und mit denselben Filtern wie E-Mail nutzen.
+- Adminbereich um Push-Status und Testpush an das eigene Geraet erweitert; VAPID-Schluessel werden automatisch in SQLite erzeugt oder optional aus Render-Umgebungsvariablen gelesen.
+- Datenschutz, Konfiguration und automatische Tests um Push-Abos, PWA-Dateien und neue Push-Routen erweitert.
 - Zwei gespeicherte Buchungswege eingefuehrt: `Zeit zuerst` als Standard mit eigenem Zeitfenster-Schritt und `Maschine zuerst` als weiterhin verfuegbare Alternative.
 - Zeitfenster zeigen vor der Geraetewahl die aktuellen Zahlen fuer Waschmaschinen, Trockenraeume und waehlbare Tumbler; beide Wege verwenden danach dasselbe regelkonforme Waschpaket.
 - Buchungsfehler aus der Seitenleiste an den aktiven Buchungsschritt geholt und fuer alle Ansichten als zeitlich begrenzten, gut sichtbaren Hinweis ergaenzt.

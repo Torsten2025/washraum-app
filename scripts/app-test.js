@@ -448,6 +448,31 @@ async function run() {
     assert.equal(preferences.body.notificationPreferences.resourceType, 'drying_room');
     const preferencesMe = await expectStatus(user, '/api/me', 200);
     assert.equal(preferencesMe.body.notificationPreferences.weekday, 2);
+    assert.equal(preferencesMe.body.push.available, true);
+    const pushKey = await expectStatus(user, '/api/push/public-key', 200);
+    assert.equal(pushKey.body.configured, true);
+    assert.ok(pushKey.body.publicKey.length > 40);
+    const pushEndpoint = `https://push.example.test/${crypto.randomUUID()}`;
+    await expectStatus(user, '/api/push/subscriptions', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: {
+          endpoint: pushEndpoint,
+          keys: {
+            p256dh: Buffer.from(crypto.randomBytes(65)).toString('base64url'),
+            auth: Buffer.from(crypto.randomBytes(16)).toString('base64url')
+          }
+        }
+      })
+    });
+    const pushMe = await expectStatus(user, '/api/me', 200);
+    assert.equal(pushMe.body.push.activeSubscriptions, 1);
+    await expectStatus(user, '/api/push/subscriptions', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint: pushEndpoint })
+    });
+    const pushMeAfterDelete = await expectStatus(user, '/api/me', 200);
+    assert.equal(pushMeAfterDelete.body.push.activeSubscriptions, 0);
     const exportResult = await expectStatus(user, '/api/me/export', 200);
     assert.equal(exportResult.body.account.username, 'Bewohner Test');
     assert.equal(exportResult.body.account.booking_mode, 'machine');
@@ -889,6 +914,7 @@ async function run() {
     const adminUser = users.body.users.find((item) => item.username === 'admin');
     assert.ok(resident && adminUser);
     await expectStatus(admin, '/api/admin/email-test', 409, { method: 'POST' });
+    await expectStatus(admin, '/api/admin/push-test', 409, { method: 'POST' });
 
     const initialHouses = await expectStatus(admin, '/api/admin/houses', 200);
     assert.equal(initialHouses.body.houses.length, 1);

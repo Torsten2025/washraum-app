@@ -8,6 +8,7 @@ const express = require('express');
 const session = require('express-session');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
+const webPush = require('web-push');
 const { releaseWindowStatus } = require('./release-window');
 const {
   addDays,
@@ -200,6 +201,21 @@ function createCurrentTables() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS email_verification_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -245,9 +261,12 @@ function seedCurrentDefaults() {
   ensureColumn('bookings', 'group_id', 'TEXT');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
+  ensureColumn('push_subscriptions', 'user_agent', 'TEXT');
+  ensureColumn('push_subscriptions', 'active', 'INTEGER NOT NULL DEFAULT 1');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
   const initialHouseCode = getSetting('house_code').trim()
     || process.env.HOUSE_CODE
     || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
@@ -1604,6 +1623,140 @@ function emailStatus() {
   };
 }
 
+function configuredVapidKeys() {
+  const envPublicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim();
+  const envPrivateKey = String(process.env.VAPID_PRIVATE_KEY || '').trim();
+  if (envPublicKey && envPrivateKey) {
+    return { publicKey: envPublicKey, privateKey: envPrivateKey, source: 'env' };
+  }
+
+  let publicKey = getSetting('vapid_public_key');
+  let privateKey = getSetting('vapid_private_key');
+  if (!publicKey || !privateKey) {
+    const generated = webPush.generateVAPIDKeys();
+    publicKey = generated.publicKey;
+    privateKey = generated.privateKey;
+    setSetting('vapid_public_key', publicKey);
+    setSetting('vapid_private_key', privateKey);
+  }
+  return { publicKey, privateKey, source: 'database' };
+}
+
+function pushStatus() {
+  try {
+    const keys = configuredVapidKeys();
+    const activeSubscriptions = db.prepare('SELECT COUNT(*) AS count FROM push_subscriptions WHERE active = 1').get().count;
+    return {
+      configured: Boolean(keys.publicKey && keys.privateKey),
+      label: 'bereit',
+      publicKey: keys.publicKey,
+      keySource: keys.source,
+      activeSubscriptions
+    };
+  } catch (error) {
+    return {
+      configured: false,
+      label: `nicht bereit: ${error.message}`,
+      publicKey: '',
+      keySource: '',
+      activeSubscriptions: 0
+    };
+  }
+}
+
+function applyPushConfig(req) {
+  const status = pushStatus();
+  if (!status.configured) {
+    return status;
+  }
+  const subject = String(process.env.VAPID_SUBJECT || '').trim()
+    || `mailto:${extractEmailAddress(smtpConfig().from) || 'admin@example.invalid'}`
+    || publicAppUrl(req);
+  const keys = configuredVapidKeys();
+  webPush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
+  return status;
+}
+
+function pushPayload({ title, body, url = '/index.html', tag = 'waschzeit-freigabe' }) {
+  return JSON.stringify({
+    title,
+    body,
+    url,
+    tag,
+    icon: '/assets/app-icon.svg',
+    badge: '/assets/app-icon.svg'
+  });
+}
+
+function subscriptionForRow(row) {
+  return {
+    endpoint: row.endpoint,
+    keys: {
+      p256dh: row.p256dh,
+      auth: row.auth
+    }
+  };
+}
+
+async function notifyPushSubscribers(req, booking, message, title = `WaschZeit: ${booking.resource_name} frei`) {
+  const status = applyPushConfig(req);
+  if (!status.configured) {
+    return { configured: false, sent: 0, failed: 0 };
+  }
+
+  const recipients = db.prepare(`
+    SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+    FROM push_subscriptions ps
+    JOIN users u ON u.id = ps.user_id
+    LEFT JOIN notification_preferences np ON np.user_id = u.id
+    WHERE ps.active = 1
+      AND u.active = 1
+      AND u.house_id = ?
+      AND ps.house_id = ?
+      AND u.notify_releases = 1
+      AND u.id != ?
+      AND (np.resource_type IS NULL OR np.resource_type = 'all' OR np.resource_type = ?)
+      AND (np.weekday IS NULL OR np.weekday = ?)
+      AND (np.slot IS NULL OR np.slot = ?)
+    ORDER BY ps.updated_at DESC
+  `).all(
+    booking.house_id,
+    booking.house_id,
+    booking.user_id,
+    booking.resource_type || 'all',
+    weekdayForDate(booking.booking_date),
+    booking.slot
+  );
+
+  if (!recipients.length) {
+    return { configured: true, sent: 0, failed: 0 };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const payload = pushPayload({
+    title,
+    body: message,
+    url: `/index.html?date=${encodeURIComponent(booking.booking_date)}`
+  });
+  const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  for (const recipient of recipients) {
+    try {
+      await webPush.sendNotification(subscriptionForRow(recipient), payload);
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      if ([404, 410].includes(error.statusCode)) {
+        deactivate.run(recipient.id);
+      } else {
+        console.error(`Push-Hinweis fehlgeschlagen: ${error.message}`);
+      }
+    }
+  }
+
+  return { configured: true, sent, failed };
+}
+
 function smtpConfig() {
   const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
   return {
@@ -1759,6 +1912,14 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
   }
 
   return { configured: true, sent };
+}
+
+async function notifyReleaseChannels(req, booking, message, subject = `WaschZeit: ${booking.resource_name} frei`) {
+  const [emailNotifications, pushNotifications] = await Promise.all([
+    notifyReleaseSubscribers(req, booking, message, subject),
+    notifyPushSubscribers(req, booking, message, subject.replace(/^Waschplan:/, 'WaschZeit:'))
+  ]);
+  return { emailNotifications, pushNotifications };
 }
 
 function extractEmailAddress(value) {
@@ -2216,7 +2377,76 @@ app.get('/api/me', (req, res) => {
     SELECT resource_type AS resourceType, weekday, slot
     FROM notification_preferences WHERE user_id = ?
   `).get(req.session.user.id) || { resourceType: 'all', weekday: null, slot: null };
-  res.json({ user: req.session.user, houses, notificationPreferences: preferences });
+  const activePushSubscriptions = db.prepare(`
+    SELECT COUNT(*) AS count FROM push_subscriptions
+    WHERE user_id = ? AND active = 1
+  `).get(req.session.user.id).count;
+  res.json({
+    user: req.session.user,
+    houses,
+    notificationPreferences: preferences,
+    push: {
+      available: pushStatus().configured,
+      activeSubscriptions: activePushSubscriptions
+    }
+  });
+});
+
+app.get('/api/push/public-key', requireAuth, (req, res) => {
+  const status = pushStatus();
+  res.json({
+    configured: status.configured,
+    publicKey: status.publicKey,
+    activeSubscriptions: status.activeSubscriptions,
+    label: status.label
+  });
+});
+
+app.post('/api/push/subscriptions', requireAuth, (req, res) => {
+  const subscription = req.body?.subscription || req.body;
+  const endpoint = String(subscription?.endpoint || '').trim();
+  const p256dh = String(subscription?.keys?.p256dh || '').trim();
+  const auth = String(subscription?.keys?.auth || '').trim();
+  if (!endpoint || !p256dh || !auth) {
+    return res.status(400).json({ error: 'Push-Abo ist unvollstaendig.' });
+  }
+
+  db.prepare(`
+    INSERT INTO push_subscriptions (user_id, house_id, endpoint, p256dh, auth, user_agent, active, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      user_id = excluded.user_id,
+      house_id = excluded.house_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      user_agent = excluded.user_agent,
+      active = 1,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    req.session.user.id,
+    req.session.user.houseId,
+    endpoint,
+    p256dh,
+    auth,
+    String(req.get('user-agent') || '').slice(0, 300)
+  );
+  res.status(201).json({ ok: true, message: 'Push-Hinweise sind auf diesem Geraet aktiv.' });
+});
+
+app.delete('/api/push/subscriptions', requireAuth, (req, res) => {
+  const endpoint = String(req.body?.endpoint || '').trim();
+  if (endpoint) {
+    db.prepare(`
+      UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE endpoint = ? AND user_id = ?
+    `).run(endpoint, req.session.user.id);
+  } else {
+    db.prepare(`
+      UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ?
+    `).run(req.session.user.id);
+  }
+  res.json({ ok: true, message: 'Push-Hinweise wurden fuer dieses Konto deaktiviert.' });
 });
 
 app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
@@ -2946,7 +3176,7 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
 
     const washer = groupedBookings.find((booking) => booking.resource_type === 'washer') || groupedBookings[0];
     const message = `Ein Waschpaket am ${washer.booking_date} im Zeitfenster ${washer.slot} wurde abgesagt. Die enthaltenen Termine sind wieder buchbar.`;
-    const emailNotifications = await notifyReleaseSubscribers(
+    const { emailNotifications, pushNotifications } = await notifyReleaseChannels(
       req,
       washer,
       message,
@@ -2957,6 +3187,7 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
       deleted: groupedBookings.length,
       releaseNoticeCreated: true,
       emailNotifications,
+      pushNotifications,
       message
     });
   } catch (error) {
@@ -3013,13 +3244,13 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
       VALUES (?, ?, ?, 'cancellation', ?, ?, ?)
     `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
-    const emailNotifications = await notifyReleaseSubscribers(
+    const { emailNotifications, pushNotifications } = await notifyReleaseChannels(
       req,
       booking,
       message,
       `Waschplan: Termin f\u00fcr ${booking.resource_name} wieder frei`
     );
-    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications });
+    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications, pushNotifications });
   } catch (error) {
     next(error);
   }
@@ -3053,7 +3284,8 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
         ok: true,
         message,
         releaseNoticeCreated: false,
-        emailNotifications: { configured: emailStatus().configured, sent: 0, skipped: true }
+        emailNotifications: { configured: emailStatus().configured, sent: 0, skipped: true },
+        pushNotifications: { configured: pushStatus().configured, sent: 0, failed: 0, skipped: true }
       });
     }
 
@@ -3065,8 +3297,8 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       VALUES (?, ?, ?, 'early_release', ?, ?, ?)
     `).run(booking.resource_name, booking.booking_date, booking.slot, message, booking.house_id, req.session.user.id);
 
-    const emailNotifications = await notifyReleaseSubscribers(req, booking, message);
-    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications });
+    const { emailNotifications, pushNotifications } = await notifyReleaseChannels(req, booking, message);
+    res.json({ ok: true, message, releaseNoticeCreated: true, emailNotifications, pushNotifications });
   } catch (error) {
     next(error);
   }
@@ -3295,6 +3527,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     fixedBookings,
     recentReleases,
     email: emailStatus(),
+    push: pushStatus(),
     externalBackupConfigured: Boolean(String(process.env.BACKUP_UPLOAD_URL || '').trim()),
     backup: (() => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
@@ -3332,6 +3565,48 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/admin/push-test', requireAdmin, async (req, res) => {
+  const status = applyPushConfig(req);
+  if (!status.configured) {
+    return res.status(409).json({ error: 'Push ist noch nicht bereit.' });
+  }
+  const subscriptions = db.prepare(`
+    SELECT id, endpoint, p256dh, auth
+    FROM push_subscriptions
+    WHERE user_id = ? AND active = 1
+    ORDER BY updated_at DESC
+  `).all(req.session.user.id);
+  if (!subscriptions.length) {
+    return res.status(409).json({ error: 'Auf diesem Admin-Konto ist noch kein Push-Geraet aktiviert.' });
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  const payload = pushPayload({
+    title: 'WaschZeit: Push-Test',
+    body: 'Push-Benachrichtigungen funktionieren auf diesem Geraet.',
+    url: '/index.html',
+    tag: 'waschzeit-test'
+  });
+  for (const subscription of subscriptions) {
+    try {
+      await webPush.sendNotification(subscriptionForRow(subscription), payload);
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      if ([404, 410].includes(error.statusCode)) {
+        deactivate.run(subscription.id);
+      } else {
+        console.error(`Push-Test fehlgeschlagen: ${error.message}`);
+      }
+    }
+  }
+
+  writeAudit(req, 'push.test', 'push_subscription', '', { sent, failed });
+  res.json({ ok: true, message: `Push-Test gesendet: ${sent}. Fehler: ${failed}.`, sent, failed });
 });
 
 app.get('/api/admin/settings', requireAdmin, (req, res) => {

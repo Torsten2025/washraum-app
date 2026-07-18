@@ -10,6 +10,10 @@ for (const page of pages) {
   assert.match(html, /<html lang="de">/, `${page}: Seitensprache fehlt`);
   assert.match(html, /<main[\s>]/, `${page}: main-Region fehlt`);
   assert.match(html, /<h1[\s>]/, `${page}: Hauptueberschrift fehlt`);
+  if (['login.html', 'index.html', 'privacy.html'].includes(page)) {
+    assert.match(html, /rel="manifest"/, `${page}: PWA-Manifest fehlt`);
+    assert.match(html, /name="theme-color"/, `${page}: Theme-Farbe fehlt`);
+  }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length, `${page}: doppelte id gefunden`);
   for (const image of html.match(/<img\b[^>]*>/g) || []) {
@@ -32,5 +36,10 @@ assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buch
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');
+const manifest = JSON.parse(fs.readFileSync(path.join(publicDir, 'manifest.webmanifest'), 'utf8'));
+assert.equal(manifest.display, 'standalone', 'PWA-Manifest ist nicht installierbar');
+assert.ok(manifest.icons?.some((icon) => icon.src === '/assets/app-icon.svg'), 'PWA-App-Icon fehlt');
+const serviceWorker = fs.readFileSync(path.join(publicDir, 'sw.js'), 'utf8');
+assert.match(serviceWorker, /showNotification/, 'Service Worker zeigt keine Push-Benachrichtigung');
 
-console.log(JSON.stringify({ ok: true, pages, checks: ['structure', 'uniqueIds', 'imageAlternatives', 'captions', 'reducedMotion', 'keyboardFocus'] }));
+console.log(JSON.stringify({ ok: true, pages, checks: ['structure', 'uniqueIds', 'imageAlternatives', 'captions', 'reducedMotion', 'keyboardFocus', 'pwa'] }));

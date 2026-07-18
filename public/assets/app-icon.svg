@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="WaschZeit">
+  <rect width="512" height="512" rx="112" fill="#0d5f48"/>
+  <rect x="118" y="88" width="276" height="336" rx="42" fill="#f7faf8"/>
+  <rect x="148" y="122" width="216" height="58" rx="16" fill="#d8ebe5"/>
+  <circle cx="344" cy="151" r="14" fill="#0d5f48"/>
+  <circle cx="304" cy="151" r="14" fill="#0d5f48"/>
+  <circle cx="256" cy="294" r="92" fill="#0d5f48"/>
+  <path d="M189 290c30-35 66-37 108-11 24 15 44 15 61 3 2 65-44 106-102 106-55 0-98-39-100-92 10 8 21 9 33-6z" fill="#8fd0bc"/>
+  <circle cx="256" cy="294" r="64" fill="none" stroke="#f7faf8" stroke-width="18"/>
+  <text x="256" y="469" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#f7faf8">WZ</text>
+</svg>

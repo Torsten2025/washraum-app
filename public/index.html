@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0d5f48">
     <title>WaschZeit | Waschplan</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -155,6 +158,16 @@
             </label>
             <div id="emailVerificationStatus" class="verification-status" role="status"></div>
             <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
+            <section class="push-card" aria-labelledby="pushTitle">
+              <div>
+                <h4 id="pushTitle">Push aufs Handy</h4>
+                <p id="pushStatusText" class="muted">Push-Status wird gepr&uuml;ft.</p>
+              </div>
+              <div class="inline-actions">
+                <button id="enablePushButton" class="secondary" type="button">Push aktivieren</button>
+                <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
+              </div>
+            </section>
             <details class="notification-filters">
               <summary>Nur passende Hinweise erhalten</summary>
               <label>
@@ -390,6 +403,13 @@
                 <span>Eine Testmail an deine hinterlegte Adresse senden.</span>
               </div>
               <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
+            </div>
+            <div class="admin-operation">
+              <div>
+                <strong>Push pr&uuml;fen</strong>
+                <span>Eine Testbenachrichtigung an dein aktiviertes Ger&auml;t senden.</span>
+              </div>
+              <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
             </div>
             <details class="audit-panel">
               <summary>Letzte Admin-Aktionen</summary>

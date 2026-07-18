@@ -376,6 +376,7 @@ async function run() {
       ['/api/admin/houses', 'GET'],
       ['/api/admin/backup', 'GET'],
       ['/api/admin/email-test', 'POST'],
+      ['/api/admin/push-test', 'POST'],
       ['/api/admin/backup/run', 'POST']
     ];
     for (const [route, method] of residentDeniedRoutes) {

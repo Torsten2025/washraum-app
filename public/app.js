@@ -36,6 +36,7 @@ const statusText = document.querySelector('#statusText');
 const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
+const adminPushTestButton = document.querySelector('#adminPushTestButton');
 const adminTitle = document.querySelector('#adminTitle');
 const adminRoleLabel = document.querySelector('#adminRoleLabel');
 const adminScopeText = document.querySelector('#adminScopeText');
@@ -60,6 +61,9 @@ const notificationEmail = document.querySelector('#notificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
 const emailVerificationStatus = document.querySelector('#emailVerificationStatus');
 const resendVerificationButton = document.querySelector('#resendVerificationButton');
+const pushStatusText = document.querySelector('#pushStatusText');
+const enablePushButton = document.querySelector('#enablePushButton');
+const disablePushButton = document.querySelector('#disablePushButton');
 const notificationResourceType = document.querySelector('#notificationResourceType');
 const notificationWeekday = document.querySelector('#notificationWeekday');
 const notificationSlot = document.querySelector('#notificationSlot');
@@ -761,6 +765,7 @@ async function init() {
   notificationWeekday.value = String(me.notificationPreferences?.weekday || '');
   notificationSlot.value = me.notificationPreferences?.slot || '';
   renderEmailVerificationStatus();
+  await renderPushStatus();
 
   const [resourceData, slotData] = await Promise.all([
     api('/api/resources'),
@@ -813,6 +818,127 @@ function renderEmailVerificationStatus() {
       : 'Bitte E-Mail-Adresse best\u00e4tigen. Bis dahin werden keine Hinweise gesendet.';
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return null;
+  }
+  return navigator.serviceWorker.register('/sw.js');
+}
+
+async function currentPushSubscription() {
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+async function renderPushStatus() {
+  if (!pushSupported()) {
+    pushStatusText.textContent = 'Dieses Geraet unterstuetzt Web-Push leider nicht.';
+    enablePushButton.disabled = true;
+    disablePushButton.hidden = true;
+    return;
+  }
+  try {
+    await registerServiceWorker();
+    const pushConfig = await api('/api/push/public-key');
+    if (!pushConfig.configured) {
+      pushStatusText.textContent = 'Push ist auf dem Server noch nicht bereit.';
+      enablePushButton.disabled = true;
+      disablePushButton.hidden = true;
+      return;
+    }
+    const subscription = await currentPushSubscription();
+    const permission = Notification.permission;
+    if (subscription && permission === 'granted') {
+      pushStatusText.textContent = 'Push ist auf diesem Geraet aktiv.';
+      enablePushButton.textContent = 'Push erneut verbinden';
+      enablePushButton.disabled = false;
+      disablePushButton.hidden = false;
+      return;
+    }
+    if (permission === 'denied') {
+      pushStatusText.textContent = 'Push wurde im Browser blockiert. Bitte in den Website-Einstellungen erlauben.';
+      enablePushButton.disabled = true;
+      disablePushButton.hidden = true;
+      return;
+    }
+    pushStatusText.textContent = 'Push ist bereit, aber auf diesem Geraet noch nicht aktiviert.';
+    enablePushButton.textContent = 'Push aktivieren';
+    enablePushButton.disabled = false;
+    disablePushButton.hidden = true;
+  } catch (error) {
+    pushStatusText.textContent = error.message;
+    enablePushButton.disabled = true;
+    disablePushButton.hidden = true;
+  }
+}
+
+async function enablePushNotifications() {
+  if (!pushSupported()) {
+    showStatus('Dieses Geraet unterstuetzt Web-Push leider nicht.', 'error');
+    return;
+  }
+  enablePushButton.disabled = true;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      showStatus('Push wurde nicht erlaubt. Du kannst es spaeter in den Browser-Einstellungen aktivieren.', 'error');
+      await renderPushStatus();
+      return;
+    }
+    const registration = await registerServiceWorker();
+    const pushConfig = await api('/api/push/public-key');
+    if (!pushConfig.configured || !pushConfig.publicKey) {
+      throw new Error('Push ist auf dem Server noch nicht bereit.');
+    }
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(pushConfig.publicKey)
+      });
+    }
+    const data = await api('/api/push/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({ subscription })
+    });
+    showStatus(data.message || 'Push-Hinweise sind aktiv.');
+    await renderPushStatus();
+  } catch (error) {
+    showStatus(error.message, 'error');
+    await renderPushStatus();
+  } finally {
+    enablePushButton.disabled = false;
+  }
+}
+
+async function disablePushNotifications() {
+  try {
+    const subscription = await currentPushSubscription();
+    await api('/api/push/subscriptions', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint: subscription?.endpoint || '' })
+    });
+    if (subscription) {
+      await subscription.unsubscribe();
+    }
+    showStatus('Push-Hinweise wurden auf diesem Geraet deaktiviert.');
+    await renderPushStatus();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
 }
 
 function renderHouseContext() {
@@ -2348,16 +2474,29 @@ async function deleteBooking(id) {
 async function releaseBooking(id) {
   try {
     const data = await api(`/api/bookings/${id}/release`, { method: 'POST' });
-    const emailText = !data.releaseNoticeCreated
-      ? ''
-      : data.emailNotifications?.configured
-        ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
-        : ' E-Mail-Versand ist noch nicht konfiguriert.';
-    showStatus(`${data.message || 'Slot wurde freigegeben.'}${emailText}`);
+    showStatus(`${data.message || 'Slot wurde freigegeben.'}${notificationResultText(data)}`);
     await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
   }
+}
+
+function notificationResultText(data) {
+  if (!data.releaseNoticeCreated) {
+    return '';
+  }
+  const parts = [];
+  if (data.pushNotifications?.configured) {
+    parts.push(`Push: ${data.pushNotifications.sent}`);
+  } else {
+    parts.push('Push noch nicht aktiv');
+  }
+  if (data.emailNotifications?.configured) {
+    parts.push(`E-Mail: ${data.emailNotifications.sent}`);
+  } else {
+    parts.push('E-Mail-Versand noch nicht konfiguriert');
+  }
+  return parts.length ? ` ${parts.join(' · ')}.` : '';
 }
 
 async function saveNotifications() {
@@ -2406,10 +2545,7 @@ async function cancelBookingGroupAndNotify(groupId) {
   if (!window.confirm('Das ganze Waschpaket absagen und den Waschslot wieder anbieten?')) return;
   try {
     const data = await api(`/api/booking-groups/${encodeURIComponent(groupId)}/cancel-notify`, { method: 'POST' });
-    const emailText = data.emailNotifications?.configured
-      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
-      : ' E-Mail-Versand ist noch nicht konfiguriert.';
-    showStatus(`${data.message}${emailText}`);
+    showStatus(`${data.message}${notificationResultText(data)}`);
     await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
@@ -2424,10 +2560,7 @@ async function cancelBookingAndNotify(id) {
 
   try {
     const data = await api(`/api/bookings/${id}/cancel-notify`, { method: 'POST' });
-    const emailText = data.emailNotifications?.configured
-      ? ` E-Mail-Hinweise: ${data.emailNotifications.sent}.`
-      : ' E-Mail-Versand ist noch nicht konfiguriert.';
-    showStatus(`${data.message}${emailText}`);
+    showStatus(`${data.message}${notificationResultText(data)}`);
     await refreshAll();
   } catch (error) {
     showStatus(error.message, 'error');
@@ -2505,12 +2638,17 @@ async function loadAdmin() {
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
+    <div class="wide"><strong>Push</strong><span>${overviewData.push.label} · ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
     <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
   `;
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
     ? 'Testmail an deine hinterlegte Adresse senden'
     : 'Zuerst SMTP in Render konfigurieren';
+  adminPushTestButton.disabled = !overviewData.push.configured;
+  adminPushTestButton.title = overviewData.push.configured
+    ? 'Testpush an dein aktiviertes Geraet senden'
+    : 'Push ist auf dem Server noch nicht bereit';
   renderAdminUsers(usersData.users);
   setAdminSection(activeAdminSection);
 }
@@ -2519,6 +2657,16 @@ async function sendAdminTestEmail() {
   try {
     const data = await api('/api/admin/email-test', { method: 'POST' });
     showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function sendAdminTestPush() {
+  try {
+    const data = await api('/api/admin/push-test', { method: 'POST' });
+    showStatus(data.message);
+    await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
   }
@@ -3069,6 +3217,8 @@ filterButtons.forEach((button) => {
   });
 });
 resendVerificationButton.addEventListener('click', resendEmailVerification);
+enablePushButton.addEventListener('click', enablePushNotifications);
+disablePushButton.addEventListener('click', disablePushNotifications);
 
 houseSelect.addEventListener('change', () => switchHouse(houseSelect.value));
 
@@ -3082,6 +3232,7 @@ resourceForm.addEventListener('submit', async (event) => {
 });
 
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
+adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
 
 passwordForm.addEventListener('submit', async (event) => {

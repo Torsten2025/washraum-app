@@ -6,6 +6,10 @@ const showLogin = document.querySelector('#showLogin');
 const showRegister = document.querySelector('#showRegister');
 const recoveryForm = document.querySelector('#recoveryForm');
 const recoveryMessage = document.querySelector('#recoveryMessage');
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 const showRecovery = document.querySelector('#showRecovery');
 const cancelRecovery = document.querySelector('#cancelRecovery');
 

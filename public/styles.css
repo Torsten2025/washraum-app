@@ -3141,6 +3141,24 @@ aside.panel > * {
   margin: 0;
 }
 
+.push-card {
+  align-items: flex-start;
+  background: #f7faf9;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.push-card h4 {
+  margin: 0 0 4px;
+}
+
+.push-card p {
+  margin-bottom: 0;
+}
+
 .scene-days,
 .scene-tabs,
 .scene-machines {

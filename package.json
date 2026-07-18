@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node --check server.js && node --check swiss-time.js && node --check release-window.js && node --check public/app.js && node --check public/login.js && node --check public/reset.js && node --check scripts/app-test.js && node --check scripts/role-matrix-test.js && node --check scripts/year-simulation-test.js && node --check scripts/accessibility-check.js",
+    "verify": "node --check server.js && node --check swiss-time.js && node --check release-window.js && node --check public/app.js && node --check public/login.js && node --check public/reset.js && node --check public/sw.js && node --check scripts/app-test.js && node --check scripts/role-matrix-test.js && node --check scripts/year-simulation-test.js && node --check scripts/accessibility-check.js",
     "test": "node scripts/app-test.js",
     "test:roles": "node scripts/role-matrix-test.js",
     "test:year": "node scripts/year-simulation-test.js",
@@ -16,9 +16,10 @@
     "node": ">=20"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
     "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^11.10.0",
     "express": "^4.21.2",
-    "express-session": "^1.18.1"
+    "express-session": "^1.18.1",
+    "web-push": "^3.6.7"
   }
 }

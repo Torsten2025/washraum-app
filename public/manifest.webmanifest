@@ -1,0 +1,19 @@
+{
+  "name": "WaschZeit Maneggplatz",
+  "short_name": "WaschZeit",
+  "description": "Der Waschplan fuer dein Haus.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f6",
+  "theme_color": "#0d5f48",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
