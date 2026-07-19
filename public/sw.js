@@ -1,4 +1,4 @@
-const CACHE_NAME = 'waschzeit-pwa-v1';
+const CACHE_NAME = 'waschzeit-pwa-v2';
 const SHELL_ASSETS = [
   '/login.html',
   '/index.html',
@@ -14,7 +14,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -25,7 +24,15 @@ self.addEventListener('activate', (event) => {
         .filter((key) => key !== CACHE_NAME)
         .map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((clients) => Promise.all(clients.map((client) => client.postMessage({ type: 'SW_ACTIVATED' }))))
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {

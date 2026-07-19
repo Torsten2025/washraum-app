@@ -370,6 +370,11 @@ async function run() {
     await expectStatus(houseAdmin, '/api/admin/houses', 403);
     await expectStatus(houseAdmin, '/api/admin/backup', 403);
     await expectStatus(houseAdmin, '/api/admin/backup/run', 403, { method: 'POST' });
+    await expectStatus(houseAdmin, '/api/admin/maintenance', 403);
+    await expectStatus(houseAdmin, '/api/admin/maintenance', 403, {
+      method: 'PUT',
+      body: JSON.stringify({ active: true })
+    });
     await expectStatus(houseAdmin, '/api/me/active-house', 403, {
       method: 'PUT',
       body: JSON.stringify({ houseId: firstHouseId })
@@ -405,7 +410,9 @@ async function run() {
       ['/api/admin/recovery-status', 'GET'],
       ['/api/admin/superadmin-transfer', 'POST'],
       ['/api/admin/bookings', 'DELETE'],
-      ['/api/admin/backup/run', 'POST']
+      ['/api/admin/backup/run', 'POST'],
+      ['/api/admin/maintenance', 'GET'],
+      ['/api/admin/maintenance', 'PUT']
     ];
     for (const [route, method] of residentDeniedRoutes) {
       await expectStatus(residentAfterReset, route, 403, { method });
@@ -423,6 +430,25 @@ async function run() {
     assert.ok(globalAudit.body.entries.some((entry) => entry.action === 'resource.create'));
     const backup = await expectStatus(superadmin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(backup.body.status.ok, true);
+    const maintenanceStarted = await expectStatus(superadmin, '/api/admin/maintenance', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: true })
+    });
+    assert.equal(maintenanceStarted.body.maintenance.active, true);
+    await expectStatus(residentAfterReset, '/api/bookings', 503, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: secondWasher.id,
+        date: futureMonday(),
+        slot: '17:00-21:00'
+      })
+    });
+    const maintenanceFinished = await expectStatus(superadmin, '/api/admin/maintenance', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: false })
+    });
+    assert.equal(maintenanceFinished.body.maintenance.active, false);
+    assert.equal(maintenanceFinished.body.maintenance.lastCheck.bookingWrite, 'ok');
 
     const recoveryStatus = await expectStatus(superadmin, '/api/admin/recovery-status', 200);
     assert.equal(recoveryStatus.body.houseAdminCount, 2);

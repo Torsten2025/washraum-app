@@ -9,12 +9,59 @@ const deviceLoginForm = document.querySelector('#deviceLoginForm');
 const deviceLoginMessage = document.querySelector('#deviceLoginMessage');
 const recoveryForm = document.querySelector('#recoveryForm');
 const recoveryMessage = document.querySelector('#recoveryMessage');
+const appUpdateNotice = document.querySelector('#appUpdateNotice');
+const updateAppButton = document.querySelector('#updateAppButton');
+const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
+const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || '';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 const showRecovery = document.querySelector('#showRecovery');
 const cancelRecovery = document.querySelector('#cancelRecovery');
+
+async function checkAppStatus() {
+  try {
+    const response = await fetch('/api/version', { cache: 'no-store' });
+    if (!response.ok) return;
+    const status = await response.json();
+    appUpdateNotice.hidden = !status.release || status.release === loadedAppRelease;
+    loginMaintenanceNotice.hidden = !status.maintenance?.active;
+  } catch {
+    // Anmeldung bleibt auch bei einer kurzen Status-Unterbrechung nutzbar.
+  }
+}
+
+async function updateApp() {
+  updateAppButton.disabled = true;
+  updateAppButton.textContent = 'Aktualisiere...';
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      await registration?.update();
+      if (registration?.waiting) {
+        const changed = new Promise((resolve) => {
+          const timeout = window.setTimeout(resolve, 2000);
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.clearTimeout(timeout);
+            resolve();
+          }, { once: true });
+        });
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        await changed;
+      }
+    }
+  } finally {
+    window.location.reload();
+  }
+}
+
+updateAppButton.addEventListener('click', updateApp);
+window.setInterval(checkAppStatus, 2 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkAppStatus();
+});
+checkAppStatus();
 
 async function submitJson(formElement, path, body, messageElement) {
   const submitButton = formElement.querySelector('button[type="submit"]');

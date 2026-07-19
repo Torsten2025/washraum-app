@@ -4,10 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0d5f48">
+    <meta name="waschzeit-version" content="__WASCHZEIT_VERSION__">
+    <meta name="waschzeit-release" content="__WASCHZEIT_RELEASE__">
+    <meta name="waschzeit-released-at" content="__WASCHZEIT_RELEASED_AT__">
     <title>WaschZeit | Waschplan</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=__WASCHZEIT_RELEASE__">
   </head>
   <body>
     <header class="topbar">
@@ -54,6 +57,14 @@
         </div>
       </div>
     </header>
+
+    <section id="appUpdateNotice" class="app-update-notice" role="status" aria-live="polite" hidden>
+      <div>
+        <strong>Eine neue Version ist verf&uuml;gbar.</strong>
+        <span id="appUpdateText">Aktualisiere, sobald du deine aktuelle Buchung abgeschlossen hast.</span>
+      </div>
+      <button id="updateAppButton" type="button">Jetzt aktualisieren</button>
+    </section>
 
     <main class="layout">
       <div class="main-column">
@@ -323,6 +334,13 @@
                 <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
               </div>
             </div>
+            <div id="maintenanceOperation" class="admin-operation" hidden>
+              <div>
+                <strong>Wartungsmodus</strong>
+                <span id="maintenanceAdminStatus">Status wird gepr&uuml;ft.</span>
+              </div>
+              <button id="toggleMaintenanceButton" class="secondary" type="button">Wartung starten</button>
+            </div>
             <div id="superadminTransferOperation" class="admin-operation" hidden>
               <div>
                 <strong>Superadmin &uuml;bergeben</strong>
@@ -385,6 +403,21 @@
           <button id="closeMessageCenterButton" class="icon-close" type="button" aria-label="Mitteilungen schliessen">x</button>
         </header>
         <div id="messageCenterList" class="message-center-list" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <div id="maintenanceOverlay" class="intro-overlay maintenance-overlay" hidden>
+      <section class="intro-modal maintenance-modal" role="dialog" aria-modal="true" aria-labelledby="maintenanceTitle" aria-describedby="maintenanceText">
+        <div class="maintenance-mark" aria-hidden="true">W</div>
+        <div class="intro-copy">
+          <p class="eyebrow">Kurz nicht verf&uuml;gbar</p>
+          <h2 id="maintenanceTitle">Wartung l&auml;uft.</h2>
+          <p id="maintenanceText">WaschZeit wird gerade sicher aktualisiert. Deine bestehenden Buchungen bleiben erhalten.</p>
+        </div>
+        <div class="settings-actions">
+          <button id="checkMaintenanceButton" class="secondary" type="button">Erneut pr&uuml;fen</button>
+          <button id="openMaintenanceAdminButton" type="button" hidden>Zur Verwaltung</button>
+        </div>
       </section>
     </div>
 
@@ -522,6 +555,13 @@
                 <output id="devicePairingCode" class="pairing-code" hidden></output>
               </div>
               <button id="createDeviceCodeButton" class="secondary" type="button">Ger&auml;tecode erzeugen</button>
+            </section>
+            <section class="app-version-card" aria-labelledby="appVersionTitle">
+              <div>
+                <h4 id="appVersionTitle">Version</h4>
+                <p id="appVersionText" class="muted">Versionsstand wird gepr&uuml;ft.</p>
+              </div>
+              <button id="checkAppUpdateButton" class="text-button" type="button">Nach Update suchen</button>
             </section>
           </section>
 
@@ -755,6 +795,6 @@
       </section>
     </div>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=__WASCHZEIT_RELEASE__"></script>
   </body>
 </html>

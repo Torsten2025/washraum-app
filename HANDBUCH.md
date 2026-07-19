@@ -34,7 +34,7 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 | --- | --- | --- |
 | Bewohner | Gemeinsames Wohnungskonto und zugeordnetes Haus | Eigene Wohnungsbuchungen, Hinweise, Geraete und Kontodaten |
 | Haus-Admin | Eigenes Haus | Wohnungen und Einmalcodes, Wohnungskonten, Geraete, Dauertermine und Buchungen des Hauses |
-| Superadmin | Alle Haeuser | Alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege und Backups |
+| Superadmin | Alle Haeuser | Alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege, Backups und globaler Wartungsmodus |
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
 
@@ -185,7 +185,7 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Kontomenue | Einstellungen, Hilfe und Abmeldung kompakt oben rechts anbieten |
 | Profil | Benutzername, Wohnung, Rolle, bis zu zwei getrennt bestaetigte E-Mail-Adressen und bevorzugten Buchungsweg anzeigen bzw. speichern |
 | Benachrichtigungen | Freigabe-Hinweise ein- oder ausschalten und nach Bereich, Wochentag und Zeitfenster filtern |
-| App und Geraet | PWA installieren, Push verwalten und einen kurz gueltigen Code fuer ein weiteres Familiengeraet erzeugen |
+| App und Geraet | PWA installieren, Push verwalten, Versionsnummer und Stand sehen, nach Updates suchen und einen kurz gueltigen Code fuer ein weiteres Familiengeraet erzeugen |
 | Sicherheit und Daten | Passwort aendern, eigene Daten exportieren, Datenschutz oeffnen oder Konto loeschen |
 | Hilfe und Regeln | Einfuehrungsvideo, interaktiven Rundgang, Reservierungsregeln und Reinigung gebuendelt in den persoenlichen Einstellungen oeffnen |
 
@@ -280,11 +280,25 @@ Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranki
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
 | SQLite-Backup herunterladen | Nein | Ja |
+| Globalen Wartungsmodus mit automatischem Backup starten | Nein | Ja |
+| Wartung nach Datenbank- und Buchungspruefung beenden | Nein | Ja |
 | Warnung bei fehlender externer Backup-Kopie sehen | Ja | Ja |
 
 Der Buchungsreset loescht keine Konten und keine Dauertermine. Er verlangt den Text `ALLE BUCHUNGEN` und wird im Admin-Audit protokolliert.
 
 Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro Tag fuer bis zu 14 Tage. Liegt die externe Kopie auf demselben Render-Datentraeger nicht vor, zeigt der Ueberblick eine Warnung. Fuer einen Ausfall des Render-Datentraegers muss `BACKUP_UPLOAD_URL` auf einen unabhaengigen Speicher zeigen.
+
+### App-Updates und Wartung
+
+- Jede ausgelieferte Seite kennt ihre geladene Releasekennung. Die App fragt den aktuellen Serverstand beim Start, beim Zurueckkehren in die App und danach alle zwei Minuten ab.
+- HTML, JavaScript und CSS tragen dieselbe Releasekennung in ihren Asset-URLs. Dadurch kann kein neuer Seitenaufbau versehentlich mit einer alten zwischengespeicherten Programmlogik kombiniert werden.
+- Ist ein neuer Stand verfuegbar, erscheint der sichtbare Hinweis `Eine neue Version ist verfuegbar` mit `Jetzt aktualisieren`. Erst nach dieser Zustimmung aktiviert der Service Worker den neuen Stand und laedt die Seite neu.
+- Eine bereits begonnene Buchungsauswahl wird nie durch ein Update unterbrochen. Die Zustimmung wird vorgemerkt; das Neuladen erfolgt erst, wenn die Auswahl abgeschlossen oder verworfen wurde.
+- Unter `Einstellungen` > `App & Geraet` stehen Versionsnummer und Auslieferungsdatum. `Nach Update suchen` prueft den Stand sofort.
+- Fuer groessere Datenbank- oder Betriebsarbeiten startet ausschliesslich der Superadmin unter `Verwalten` > `System` den globalen Wartungsmodus. Vor der Sperre erstellt und prueft der Server automatisch ein SQLite-Backup.
+- Waehrend der Wartung bleiben Anmeldung, Abmeldung, Health- und Lesezugriffe erreichbar. Alle anderen schreibenden Anfragen werden serverseitig mit `503 MAINTENANCE_MODE` abgelehnt. Bewohner sehen einen ruhigen Wartungsdialog; bestehende Buchungen bleiben unveraendert.
+- Beim Beenden muessen SQLite-`quick_check` und eine sofort wieder entfernte Testbuchung erfolgreich sein. Bei einem Fehler bleibt die Wartung aktiv. Start, erfolgreicher Abschluss und Fehler werden im Admin-Audit festgehalten.
+- `/api/health` liefert Version, Releasekennung und Wartungsstatus. `/api/version` stellt denselben Release- und Wartungsstand fuer PWA und Browser bereit.
 
 ## E-Mail-Hinweise
 
@@ -338,6 +352,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - Schutz von Haus-Admins vor Eingriffen durch gleichrangige Haus-Admins.
 - Feste Buchungen, Benutzerverwaltung, Geraeteverwaltung, Audit und Backups.
 - PWA-Dateien, Push-Abo, Push-Test und Freigabe-Hinweise ueber Push.
+- Releaseerkennung, bestaetigtes PWA-Update, Wartungsrechte, Schreibsperre, automatisches Backup und Buchungs-Schreibtest.
 - Datenschutzexport, Kontoloeschung, Sicherheitsheader und Barrierefreiheit.
 - Mehrhaus-Jahressimulation mit 100 Personen in sechs Haeusern, 52 Wochen und 5.200 Waschpaketen.
 
@@ -400,6 +415,9 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Kontrollierte PWA-Updates eingefuehrt: sichtbarer Updatehinweis, Aktualisierung erst nach Zustimmung, Schutz laufender Buchungsauswahlen sowie Versionsnummer und Auslieferungsdatum unter `App & Geraet`.
+- Globalen Superadmin-Wartungsmodus ergaenzt: automatisches geprueftes Backup beim Start, serverseitige Schreibsperre, Bewohnerdialog und Freigabe erst nach SQLite- und Buchungs-Schreibtest.
+- Health-, Versions-, Rollen-, Funktions- und Barrierefreiheitstests um Releasekennung, Wartungsstatus und Service-Worker-Aktivierung erweitert.
 - Wohnungskonto-Prinzip eingefuehrt: pro Wohnung ein gemeinsames Konto, zufaellige einmalige Wohnungscodes, Adminstatus nur als aktiviert/nicht aktiviert und verpflichtende Zuordnungsabfrage fuer bestehende Bewohnerkonten.
 - Beim Anlegen weiterer Haeuser wird der interne eindeutige Hausschluessel automatisch erzeugt und nicht mehr als Bewohnercode dargestellt.
 - Kurzlebige Geraetecodes ergaenzt: Weitere Handys koennen zehn Minuten lang und genau einmal ohne Passwortweitergabe verbunden werden; versehentliche Doppelkonten lassen sich samt Buchungen und Push-Geraeten sicher zusammenfuehren.

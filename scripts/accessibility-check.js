@@ -35,6 +35,10 @@ assert.match(indexHtml, /id="bookingFlowContent"[^>]*aria-live="polite"/, 'Buchu
 assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buchungsdatum ohne Beschriftung');
 assert.match(indexHtml, /id="installTitle"/, 'Installationshinweis fuer PWA fehlt');
 assert.match(indexHtml, /id="installHelpText"/, 'Installationshilfe ohne Status-Text');
+assert.match(indexHtml, /id="appUpdateNotice"[^>]*role="status"[^>]*aria-live="polite"/, 'Updatehinweis ohne Live-Status');
+assert.match(indexHtml, /id="updateAppButton"/, 'Updatehinweis ohne Aktualisierungsaktion');
+assert.match(indexHtml, /id="appVersionText"/, 'Versionsstand unter App und Geraet fehlt');
+assert.match(indexHtml, /id="maintenanceOverlay"[\s\S]*aria-labelledby="maintenanceTitle"[\s\S]*aria-describedby="maintenanceText"/, 'Wartungsdialog ohne zugaengliche Beschreibung');
 assert.match(indexHtml, /id="settingsOverlay"[\s\S]*aria-labelledby="settingsTitle"/, 'Persoenliche Einrichtung ohne Dialogtitel');
 assert.match(indexHtml, /id="settingsSummary"[^>]*aria-live="polite"/, 'Persoenliche Einrichtung ohne Status-Live-Region');
 assert.match(indexHtml, /id="openSettingsButton"/, 'Persoenliche Einstellungen sind nicht erreichbar');
@@ -54,5 +58,6 @@ assert.equal(manifest.display, 'standalone', 'PWA-Manifest ist nicht installierb
 assert.ok(manifest.icons?.some((icon) => icon.src === '/assets/app-icon.svg'), 'PWA-App-Icon fehlt');
 const serviceWorker = fs.readFileSync(path.join(publicDir, 'sw.js'), 'utf8');
 assert.match(serviceWorker, /showNotification/, 'Service Worker zeigt keine Push-Benachrichtigung');
+assert.match(serviceWorker, /SKIP_WAITING/, 'Service Worker kann ein bestaetigtes Update nicht aktivieren');
 
 console.log(JSON.stringify({ ok: true, pages, checks: ['structure', 'uniqueIds', 'imageAlternatives', 'captions', 'reducedMotion', 'keyboardFocus', 'pwa'] }));

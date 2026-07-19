@@ -67,6 +67,9 @@ const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')]
 const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
 const runBackupButton = document.querySelector('#runBackupButton');
+const maintenanceOperation = document.querySelector('#maintenanceOperation');
+const maintenanceAdminStatus = document.querySelector('#maintenanceAdminStatus');
+const toggleMaintenanceButton = document.querySelector('#toggleMaintenanceButton');
 const apartmentForm = document.querySelector('#apartmentForm');
 const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
 const apartmentCodeResult = document.querySelector('#apartmentCodeResult');
@@ -80,6 +83,15 @@ const resourceNameInput = document.querySelector('#resourceNameInput');
 const resourceTypeInput = document.querySelector('#resourceTypeInput');
 const resourceAdminList = document.querySelector('#resourceAdminList');
 const auditLog = document.querySelector('#auditLog');
+const appUpdateNotice = document.querySelector('#appUpdateNotice');
+const appUpdateText = document.querySelector('#appUpdateText');
+const updateAppButton = document.querySelector('#updateAppButton');
+const appVersionText = document.querySelector('#appVersionText');
+const checkAppUpdateButton = document.querySelector('#checkAppUpdateButton');
+const maintenanceOverlay = document.querySelector('#maintenanceOverlay');
+const maintenanceText = document.querySelector('#maintenanceText');
+const checkMaintenanceButton = document.querySelector('#checkMaintenanceButton');
+const openMaintenanceAdminButton = document.querySelector('#openMaintenanceAdminButton');
 const notificationForm = document.querySelector('#notificationForm');
 const notificationEmail = document.querySelector('#notificationEmail');
 const secondaryNotificationEmail = document.querySelector('#secondaryNotificationEmail');
@@ -202,6 +214,12 @@ let statusTimer = null;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let bookingMode = 'time';
+let latestReleaseStatus = null;
+let updateReloadApproved = false;
+let appVersionPollTimer = null;
+const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]')?.content || 'unbekannt';
+const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
+const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1194,6 +1212,137 @@ function configureSessionTimeout(sessionConfig = {}) {
   scheduleSessionTimeout();
 }
 
+function formatReleaseDate(value) {
+  if (!value) return 'Datum unbekannt';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function bookingSelectionInProgress() {
+  return Boolean(
+    bookingFlowState.washerIds?.length
+    || bookingFlowState.dryingResourceId
+    || bookingFlowState.tumblerResourceId
+    || (bookingFlowState.slot && bookingFlowState.step > 1)
+  );
+}
+
+function syncModalStateAfterMaintenance() {
+  const anotherModalOpen = [
+    settingsOverlay,
+    introOverlay,
+    messageCenterOverlay,
+    releaseNoticeOverlay,
+    apartmentSetupOverlay,
+    sessionWarningOverlay
+  ].some((overlay) => overlay && !overlay.hidden);
+  document.body.classList.toggle('modal-open', anotherModalOpen);
+}
+
+function applyMaintenanceStatus(maintenance = {}) {
+  const active = Boolean(maintenance.active);
+  if (!active) {
+    maintenanceOverlay.hidden = true;
+    syncModalStateAfterMaintenance();
+    return;
+  }
+  maintenanceText.textContent = maintenance.message
+    || 'WaschZeit wird gerade sicher aktualisiert. Deine bestehenden Buchungen bleiben erhalten.';
+  if (currentUser?.role === 'admin') {
+    maintenanceOverlay.hidden = true;
+    syncModalStateAfterMaintenance();
+    return;
+  }
+  openMaintenanceAdminButton.hidden = true;
+  maintenanceOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+}
+
+function renderReleaseStatus(status = latestReleaseStatus) {
+  const version = status?.version || loadedAppVersion;
+  const releasedAt = status?.releasedAt || loadedAppReleasedAt;
+  appVersionText.textContent = `Version ${version} - Stand ${formatReleaseDate(releasedAt)}`;
+  const updateAvailable = Boolean(status?.release && status.release !== loadedAppRelease);
+  appUpdateNotice.hidden = !updateAvailable;
+  if (updateAvailable) {
+    appUpdateText.textContent = bookingSelectionInProgress()
+      ? 'Deine Auswahl bleibt offen. Nach Abschluss der Buchung wird aktualisiert.'
+      : `Version ${version} kann jetzt geladen werden.`;
+  }
+  applyMaintenanceStatus(status?.maintenance || {});
+}
+
+async function checkAppVersion({ manual = false } = {}) {
+  if (manual) checkAppUpdateButton.disabled = true;
+  try {
+    const response = await fetch('/api/version', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Versionsstatus konnte nicht geladen werden.');
+    latestReleaseStatus = await response.json();
+    renderReleaseStatus();
+    if (manual) {
+      showStatus(latestReleaseStatus.release === loadedAppRelease
+        ? 'Du verwendest bereits die aktuelle Version.'
+        : 'Eine neue Version ist bereit.');
+    }
+    return latestReleaseStatus;
+  } catch (error) {
+    if (manual) showStatus(error.message, 'error');
+    return null;
+  } finally {
+    if (manual) checkAppUpdateButton.disabled = false;
+  }
+}
+
+async function performAppUpdate() {
+  updateAppButton.disabled = true;
+  updateAppButton.textContent = 'Aktualisiere...';
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      await registration?.update();
+      if (registration?.waiting) {
+        const controllerChanged = new Promise((resolve) => {
+          const timeout = window.setTimeout(resolve, 2000);
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.clearTimeout(timeout);
+            resolve();
+          }, { once: true });
+        });
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        await controllerChanged;
+      }
+    }
+  } finally {
+    window.location.reload();
+  }
+}
+
+async function requestAppUpdate() {
+  if (bookingSelectionInProgress()) {
+    updateReloadApproved = true;
+    appUpdateText.textContent = 'Aktualisierung vorgemerkt. Sie startet automatisch, sobald deine Buchung abgeschlossen oder verworfen ist.';
+    showBookingFlowNotice('Die neue Version wird erst nach deiner aktuellen Auswahl geladen.', 'info');
+    bookingFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  await performAppUpdate();
+}
+
+function scheduleAppVersionChecks() {
+  window.clearInterval(appVersionPollTimer);
+  appVersionPollTimer = window.setInterval(() => checkAppVersion(), 2 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkAppVersion();
+  });
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'SW_ACTIVATED') checkAppVersion();
+    });
+  }
+}
+
 async function api(path, options = {}) {
   let response;
   try {
@@ -1209,6 +1358,9 @@ async function api(path, options = {}) {
   if (response.status === 401) {
     window.location.replace(sessionLoginUrl(data.code === 'SESSION_IDLE_TIMEOUT'));
     return null;
+  }
+  if (response.status === 503 && data.code === 'MAINTENANCE_MODE') {
+    applyMaintenanceStatus(data.maintenance || { active: true, message: data.error });
   }
   if (!response.ok) {
     throw new Error(data.error || 'Anfrage fehlgeschlagen');
@@ -1226,6 +1378,8 @@ async function init() {
   }
 
   currentUser = me.user;
+  await checkAppVersion();
+  scheduleAppVersionChecks();
   configureSessionTimeout(me.session);
   bookingMode = currentUser.bookingMode === 'machine' ? 'machine' : 'time';
   availableHouses = me.houses || [];
@@ -2214,6 +2368,10 @@ function resetBookingFlowState(date = bookingDate.value) {
     companions: null,
     loading: false
   };
+  if (updateReloadApproved) {
+    updateReloadApproved = false;
+    window.setTimeout(() => performAppUpdate(), 0);
+  }
 }
 
 function persistCalendarView() {
@@ -3399,6 +3557,7 @@ async function loadAdmin() {
     ? 'Haus\u00fcbergreifende Verwaltung. Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
     : 'Verwaltung der Wohnungskonten, Ger\u00e4te und Dauertermine dieses Hauses.';
   backupOperation.hidden = !currentUser.isSuperadmin;
+  maintenanceOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
   if (currentUser.isSuperadmin) {
     availableHouses = housesData.houses.filter((house) => house.active);
@@ -3411,6 +3570,7 @@ async function loadAdmin() {
   renderApartments(apartmentsData.apartments);
   renderAdminAnalytics(analyticsData);
   renderAuditLog(auditData.entries);
+  if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
     <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>ohne E-Mail</span></div>
@@ -3596,6 +3756,42 @@ async function runBackupNow() {
     showStatus(error.message, 'error');
   } finally {
     runBackupButton.disabled = false;
+  }
+}
+
+function renderAdminMaintenance(maintenance = {}) {
+  const active = Boolean(maintenance.active);
+  maintenanceAdminStatus.textContent = active
+    ? `Aktiv seit ${new Date(maintenance.startedAt).toLocaleString('de-CH')}. Schreibende Aktionen sind gesperrt.`
+    : maintenance.lastCheck?.ok
+      ? `Bereit. Letzte System- und Buchungspruefung: ${new Date(maintenance.lastCheck.checkedAt).toLocaleString('de-CH')}.`
+      : 'Bereit. Vor dem Start wird automatisch ein geprueftes Backup erstellt.';
+  toggleMaintenanceButton.dataset.active = String(active);
+  toggleMaintenanceButton.textContent = active ? 'Wartung beenden' : 'Wartung starten';
+  toggleMaintenanceButton.classList.toggle('danger', active);
+}
+
+async function toggleMaintenanceMode() {
+  const active = toggleMaintenanceButton.dataset.active === 'true';
+  const confirmation = active
+    ? 'Wartung jetzt beenden? Zuerst laufen Datenbank- und Buchungspruefung.'
+    : 'Wartung jetzt starten? Zuerst wird automatisch ein geprueftes Backup erstellt.';
+  if (!window.confirm(confirmation)) return;
+  toggleMaintenanceButton.disabled = true;
+  try {
+    const data = await api('/api/admin/maintenance', {
+      method: 'PUT',
+      body: JSON.stringify({ active: !active })
+    });
+    renderAdminMaintenance(data.maintenance);
+    if (latestReleaseStatus) latestReleaseStatus.maintenance = data.maintenance;
+    applyMaintenanceStatus(data.maintenance);
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    toggleMaintenanceButton.disabled = false;
   }
 }
 
@@ -3877,7 +4073,10 @@ function renderAuditLog(entries) {
     'push.test': 'Push-Test gesendet',
     'superadmin.transfer': 'Superadmin uebergeben',
     'backup.download': 'Backup heruntergeladen',
-    'backup.create': 'Backup erstellt'
+    'backup.create': 'Backup erstellt',
+    'maintenance.start': 'Wartungsmodus gestartet',
+    'maintenance.finish': 'Wartungsmodus beendet',
+    'maintenance.check_failed': 'Wartungspruefung fehlgeschlagen'
   };
   auditLog.innerHTML = entries.length ? '' : '<p class="muted">Noch keine protokollierten Admin-Aktionen.</p>';
   for (const entry of entries) {
@@ -4239,8 +4438,26 @@ resourceForm.addEventListener('submit', async (event) => {
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
+toggleMaintenanceButton.addEventListener('click', toggleMaintenanceMode);
 resetBookingsButton.addEventListener('click', resetAllBookings);
 superadminTransferButton.addEventListener('click', transferSuperadmin);
+updateAppButton.addEventListener('click', requestAppUpdate);
+checkAppUpdateButton.addEventListener('click', () => checkAppVersion({ manual: true }));
+checkMaintenanceButton.addEventListener('click', async () => {
+  checkMaintenanceButton.disabled = true;
+  const status = await checkAppVersion({ manual: true });
+  if (status && !status.maintenance?.active) {
+    maintenanceOverlay.hidden = true;
+    syncModalStateAfterMaintenance();
+    await refreshAll();
+  }
+  checkMaintenanceButton.disabled = false;
+});
+openMaintenanceAdminButton.addEventListener('click', () => {
+  maintenanceOverlay.hidden = true;
+  setAppView('admin');
+  setAdminSection('system');
+});
 
 passwordForm.addEventListener('submit', async (event) => {
   event.preventDefault();

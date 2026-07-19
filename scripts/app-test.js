@@ -374,8 +374,13 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
+    assert.equal(health.body.version, '0.2.0');
+    assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
+    const versionStatus = await expectStatus(guest, '/api/version', 200);
+    assert.equal(versionStatus.body.version, '0.2.0');
+    assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
       headers: { Origin: 'https://example.invalid' },
@@ -1232,6 +1237,22 @@ async function run() {
     assert.equal(backup.body.subarray(0, 15).toString(), 'SQLite format 3');
     const verifiedBackup = await expectStatus(admin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(verifiedBackup.body.status.ok, true);
+    const maintenanceStarted = await expectStatus(admin, '/api/admin/maintenance', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: true })
+    });
+    assert.equal(maintenanceStarted.body.maintenance.active, true);
+    await expectStatus(user, '/api/bookings', 503, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: washers[0].id, date: bookingDate, slot: '17:00-21:00' })
+    });
+    const maintenanceFinished = await expectStatus(admin, '/api/admin/maintenance', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: false })
+    });
+    assert.equal(maintenanceFinished.body.maintenance.active, false);
+    assert.equal(maintenanceFinished.body.maintenance.lastCheck.database, 'ok');
+    assert.equal(maintenanceFinished.body.maintenance.lastCheck.bookingWrite, 'ok');
     const audit = await expectStatus(admin, '/api/admin/audit-log', 200);
     assert.ok(audit.body.entries.some((entry) => entry.action === 'resource.create'));
     assert.ok(audit.body.entries.some((entry) => entry.action === 'user.move'));
@@ -1288,6 +1309,12 @@ async function run() {
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('scenes-v1'));
     assert.ok(indexHtml.includes('Kapitel 1 von 8'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.2.0"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.2.0'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.2.0'));
+    assert.ok(indexHtml.includes('id="appUpdateNotice"'));
+    assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
+    assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
     assert.ok(indexHtml.includes('settingsOverlay'));
     assert.ok(indexHtml.includes('settingsSummary'));
     assert.ok(indexHtml.includes('accountMenuButton'));

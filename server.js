@@ -9,6 +9,7 @@ const session = require('express-session');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const webPush = require('web-push');
+const packageInfo = require('./package.json');
 const { releaseWindowStatus } = require('./release-window');
 const {
   addDays,
@@ -22,6 +23,14 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
+const serverStartedAt = new Date().toISOString();
+const appVersion = String(packageInfo.version || '0.0.0');
+const appRelease = String(
+  process.env.RENDER_GIT_COMMIT
+  || process.env.APP_RELEASE
+  || `v${appVersion}`
+).trim();
+const appReleasedAt = String(process.env.APP_RELEASE_DATE || serverStartedAt).trim();
 const allowLegacyHouseRegistration = process.env.ALLOW_LEGACY_HOUSE_REGISTRATION === 'true';
 const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
 const renderDbPath = '/var/data/washraum.sqlite';
@@ -639,6 +648,39 @@ function setSetting(key, value) {
   `).run(key, String(value));
 }
 
+function maintenanceStatus() {
+  const fallback = {
+    active: false,
+    message: '',
+    startedAt: null,
+    startedBy: '',
+    backup: null,
+    lastCheck: null
+  };
+  try {
+    const stored = JSON.parse(getSetting('maintenance_status') || 'null');
+    return stored && typeof stored === 'object'
+      ? { ...fallback, ...stored, active: Boolean(stored.active) }
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function publicReleaseStatus() {
+  const maintenance = maintenanceStatus();
+  return {
+    version: appVersion,
+    release: appRelease,
+    releasedAt: appReleasedAt,
+    maintenance: {
+      active: maintenance.active,
+      message: maintenance.message,
+      startedAt: maintenance.startedAt
+    }
+  };
+}
+
 function isBcryptHash(hash) {
   return /^\$2[aby]\$\d{2}\$/.test(String(hash || ''));
 }
@@ -796,6 +838,28 @@ app.use((req, res, next) => {
     || db.prepare('SELECT id, name FROM houses WHERE id = ?').get(storedUser.house_id);
   req.session.activeHouseId = activeHouse?.id || storedUser.house_id;
   req.session.user = sessionUserFromRow(storedUser, activeHouse);
+  next();
+});
+
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    return next();
+  }
+  const allowedDuringMaintenance = new Set([
+    '/api/login',
+    '/api/logout',
+    '/logout',
+    '/api/session/keepalive',
+    '/api/admin/maintenance'
+  ]);
+  const maintenance = maintenanceStatus();
+  if (maintenance.active && !allowedDuringMaintenance.has(req.path)) {
+    return res.status(503).json({
+      code: 'MAINTENANCE_MODE',
+      error: maintenance.message || 'WaschZeit wird gerade gewartet. Bitte versuche es in wenigen Minuten erneut.',
+      maintenance: publicReleaseStatus().maintenance
+    });
+  }
   next();
 });
 
@@ -2392,6 +2456,43 @@ async function createVerifiedBackup() {
   return status;
 }
 
+function runMaintenanceSelfCheck() {
+  const quickCheck = db.pragma('quick_check', { simple: true });
+  if (String(quickCheck).toLowerCase() !== 'ok') {
+    throw new Error(`SQLite-Pruefung fehlgeschlagen: ${quickCheck}`);
+  }
+
+  const probeTarget = db.prepare(`
+    SELECT u.id AS user_id, r.id AS resource_id
+    FROM users u
+    JOIN resources r ON r.house_id = u.house_id
+    WHERE u.active = 1 AND r.active = 1
+    ORDER BY u.is_superadmin DESC, u.id, r.id
+    LIMIT 1
+  `).get();
+  if (!probeTarget) {
+    throw new Error('Buchungspruefung nicht moeglich: aktives Konto oder Geraet fehlt.');
+  }
+
+  db.transaction(() => {
+    const result = db.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot, group_id)
+      VALUES (?, ?, '9999-12-31', '__maintenance_probe__', ?)
+    `).run(probeTarget.user_id, probeTarget.resource_id, `maintenance-${crypto.randomUUID()}`);
+    const removed = db.prepare('DELETE FROM bookings WHERE id = ?').run(result.lastInsertRowid);
+    if (removed.changes !== 1) {
+      throw new Error('Temporäre Testbuchung konnte nicht sauber entfernt werden.');
+    }
+  })();
+
+  return {
+    ok: true,
+    database: 'ok',
+    bookingWrite: 'ok',
+    checkedAt: new Date().toISOString()
+  };
+}
+
 async function runScheduledBackup() {
   try {
     const status = await createVerifiedBackup();
@@ -2425,8 +2526,15 @@ app.get(['/health', '/api/health'], (req, res) => {
     ok: true,
     storage,
     adminReady,
-    revision: String(process.env.RENDER_GIT_COMMIT || '').trim() || null
+    revision: String(process.env.RENDER_GIT_COMMIT || '').trim() || null,
+    version: appVersion,
+    release: appRelease,
+    maintenanceMode: maintenanceStatus().active
   });
+});
+
+app.get('/api/version', (req, res) => {
+  res.json(publicReleaseStatus());
 });
 
 app.post('/api/login', authRateLimit, async (req, res, next) => {
@@ -4211,6 +4319,68 @@ app.post('/api/admin/backup/run', requireAdmin, requireSuperadmin, async (req, r
   }
 });
 
+app.get('/api/admin/maintenance', requireAdmin, requireSuperadmin, (req, res) => {
+  res.json({ maintenance: maintenanceStatus(), release: publicReleaseStatus() });
+});
+
+app.put('/api/admin/maintenance', requireAdmin, requireSuperadmin, async (req, res) => {
+  const active = req.body?.active === true;
+  const current = maintenanceStatus();
+
+  if (active) {
+    if (current.active) {
+      return res.json({ maintenance: current, message: 'Der Wartungsmodus ist bereits aktiv.' });
+    }
+    try {
+      const backup = await createVerifiedBackup();
+      const maintenance = {
+        active: true,
+        message: 'WaschZeit wird gerade gewartet. Bitte versuche es in wenigen Minuten erneut.',
+        startedAt: new Date().toISOString(),
+        startedBy: req.session.user.username,
+        backup,
+        lastCheck: current.lastCheck || null
+      };
+      setSetting('maintenance_status', JSON.stringify(maintenance));
+      writeAudit(req, 'maintenance.start', 'system', '', { backup: backup.filename });
+      return res.json({
+        maintenance,
+        message: 'Backup geprueft. Wartungsmodus ist jetzt aktiv.'
+      });
+    } catch (error) {
+      return res.status(500).json({ error: `Wartungsmodus nicht gestartet: ${error.message}` });
+    }
+  }
+
+  if (!current.active) {
+    return res.json({ maintenance: current, message: 'Der Wartungsmodus ist bereits beendet.' });
+  }
+
+  try {
+    const lastCheck = runMaintenanceSelfCheck();
+    const maintenance = {
+      ...current,
+      active: false,
+      message: '',
+      endedAt: new Date().toISOString(),
+      endedBy: req.session.user.username,
+      lastCheck
+    };
+    setSetting('maintenance_status', JSON.stringify(maintenance));
+    writeAudit(req, 'maintenance.finish', 'system', '', lastCheck);
+    return res.json({
+      maintenance,
+      message: 'System- und Buchungspruefung erfolgreich. WaschZeit ist wieder freigegeben.'
+    });
+  } catch (error) {
+    writeAudit(req, 'maintenance.check_failed', 'system', '', { error: error.message });
+    return res.status(500).json({
+      error: `Wartung bleibt aktiv: ${error.message}`,
+      maintenance: current
+    });
+  }
+});
+
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const houseId = currentHouseId(req);
   const users = db.prepare('SELECT COUNT(*) AS count FROM users WHERE active = 1 AND house_id = ?').get(houseId).count;
@@ -4247,6 +4417,7 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     recentReleases,
     email: emailStatus(),
     push: pushStatus(),
+    maintenance: maintenanceStatus(),
     externalBackupConfigured: Boolean(String(process.env.BACKUP_UPLOAD_URL || '').trim()),
     backup: (() => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
@@ -4720,6 +4891,27 @@ app.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
 
   res.json({ houseCode, message: 'Hauscode gespeichert.' });
 });
+
+function escapeHtmlAttribute(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function sendVersionedPage(res, filename) {
+  const template = fs.readFileSync(path.join(__dirname, 'public', filename), 'utf8');
+  const html = template
+    .replaceAll('__WASCHZEIT_VERSION__', escapeHtmlAttribute(appVersion))
+    .replaceAll('__WASCHZEIT_RELEASE__', escapeHtmlAttribute(appRelease))
+    .replaceAll('__WASCHZEIT_RELEASED_AT__', escapeHtmlAttribute(appReleasedAt));
+  res.setHeader('Cache-Control', 'no-cache');
+  res.type('html').send(html);
+}
+
+app.get('/index.html', (req, res) => sendVersionedPage(res, 'index.html'));
+app.get('/login.html', (req, res) => sendVersionedPage(res, 'login.html'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

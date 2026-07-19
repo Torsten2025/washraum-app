@@ -4,12 +4,22 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0d5f48">
+    <meta name="waschzeit-version" content="__WASCHZEIT_VERSION__">
+    <meta name="waschzeit-release" content="__WASCHZEIT_RELEASE__">
+    <meta name="waschzeit-released-at" content="__WASCHZEIT_RELEASED_AT__">
     <title>WaschZeit | Anmelden</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=__WASCHZEIT_RELEASE__">
   </head>
   <body class="login-page">
+    <section id="appUpdateNotice" class="app-update-notice" role="status" aria-live="polite" hidden>
+      <div>
+        <strong>Eine neue Version ist verf&uuml;gbar.</strong>
+        <span>Mit einem Klick l&auml;dst du den aktuellen Stand.</span>
+      </div>
+      <button id="updateAppButton" type="button">Jetzt aktualisieren</button>
+    </section>
     <main class="landing-shell">
       <section class="landing-hero" aria-labelledby="landingTitle">
         <div class="brand-lockup">
@@ -50,6 +60,10 @@
       </section>
 
       <section class="login-panel" aria-label="Anmeldung">
+        <div id="loginMaintenanceNotice" class="login-maintenance-notice" role="status" hidden>
+          <strong>Wartung l&auml;uft.</strong>
+          <span>Bestehende Buchungen bleiben erhalten. Die Anmeldung f&uuml;r die Verwaltung bleibt m&ouml;glich.</span>
+        </div>
         <p class="auth-panel-kicker">Anmelden und direkt zum Wochenplan</p>
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
@@ -118,6 +132,6 @@
       </section>
     </main>
     <footer class="legal-footer"><a href="/privacy.html">Datenschutz</a></footer>
-    <script src="/login.js"></script>
+    <script src="/login.js?v=__WASCHZEIT_RELEASE__"></script>
   </body>
 </html>
