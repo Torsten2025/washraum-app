@@ -1488,6 +1488,13 @@ async function run() {
     assert.ok(indexHtml.indexOf('weekCalendar') < indexHtml.indexOf('bookingFlowContent'));
     assert.ok(indexHtml.indexOf('bookingFlowContent') < indexHtml.indexOf('schedule'));
     assert.ok(indexHtml.includes('adminSectionNav'));
+    assert.ok(indexHtml.includes('adminTaskList'));
+    assert.ok(indexHtml.includes('adminResponsibilityList'));
+    assert.ok(indexHtml.includes('adminRoleSummary'));
+    assert.ok(indexHtml.includes('adminLogbookCount'));
+    assert.ok(indexHtml.includes('adminPeopleCount'));
+    assert.ok(indexHtml.includes('adminHouseCount'));
+    assert.ok(indexHtml.includes('adminSystemCount'));
     assert.ok(indexHtml.includes('data-admin-target="overview"'));
     assert.ok(indexHtml.includes('data-admin-target="house"'));
     assert.ok(indexHtml.includes('data-admin-target="fixed"'));
@@ -1530,6 +1537,10 @@ async function run() {
     assert.ok(stylesText.includes('.settings-step'));
     assert.ok(stylesText.includes('.notice-journal'));
     assert.ok(stylesText.includes('.analytics-grid'));
+    assert.ok(stylesText.includes('.admin-command-grid'));
+    assert.ok(stylesText.includes('.admin-task-item'));
+    assert.ok(stylesText.includes('.admin-responsibility-list'));
+    assert.ok(stylesText.includes('.admin-tab-count'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
     assert.ok(stylesText.includes('.session-warning-modal'));
@@ -1543,6 +1554,9 @@ async function run() {
     assert.ok(appScriptText.includes('Anzahl Waschmaschinen waehlen'));
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
+    assert.ok(appScriptText.includes('renderAdminWorkQueue'));
+    assert.ok(appScriptText.includes('Normale Waschzeiten werden von Bewohnern selbst gebucht'));
+    assert.ok(appScriptText.includes('Admin-Nachfolge absichern'));
     assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
     assert.ok(appScriptText.includes('formatCalendarMonth'));
     assert.ok(!appScriptText.includes('waschzeit-calendar-zoom'));

@@ -176,66 +176,58 @@
             <div>
               <p id="adminRoleLabel" class="eyebrow">Haus-Admin</p>
               <h2 id="adminTitle">Verwaltung</h2>
+              <p id="adminRoleSummary" class="admin-role-summary"></p>
             </div>
             <p id="adminScopeText" class="muted"></p>
           </header>
 
           <nav id="adminSectionNav" class="admin-section-nav" aria-label="Verwaltungsbereiche">
-            <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview">&Uuml;berblick</button>
-            <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse">Haus &amp; Ger&auml;te</button>
-            <button class="admin-section-tab" type="button" data-admin-target="logbook" aria-controls="adminSectionLogbook">Tagebuch</button>
-            <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed">Dauertermine</button>
-            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Wohnungskonten</button>
-            <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics">Auswertung</button>
-            <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem">System</button>
+            <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview"><span>Start</span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="logbook" aria-controls="adminSectionLogbook"><span>Tagebuch</span><span id="adminLogbookCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople"><span>Wohnungen</span><span id="adminPeopleCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse"><span>Ger&auml;te &amp; H&auml;user</span><span id="adminHouseCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed"><span>Dauertermine</span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics"><span>Auswertung</span></button>
+            <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem"><span>System</span><span id="adminSystemCount" class="admin-tab-count" hidden></span></button>
           </nav>
 
           <section id="adminSectionOverview" class="admin-section" data-admin-section="overview">
             <div class="admin-section-heading">
-              <h3>Aktueller Stand</h3>
-              <span>Kennzahlen des ausgew&auml;hlten Hauses</span>
+              <h3>Dein Arbeitsbereich</h3>
+              <span id="adminTaskSummary">Aufgaben werden gepr&uuml;ft</span>
+            </div>
+            <div class="admin-command-grid">
+              <section class="admin-task-panel" aria-labelledby="adminTaskTitle">
+                <div class="admin-panel-heading">
+                  <div>
+                    <p class="eyebrow">Nach Dringlichkeit</p>
+                    <h3 id="adminTaskTitle">Jetzt zu tun</h3>
+                  </div>
+                </div>
+                <div id="adminTaskList" class="admin-task-list" aria-live="polite"></div>
+              </section>
+              <section class="admin-responsibility-panel" aria-labelledby="adminResponsibilityTitle">
+                <div class="admin-panel-heading">
+                  <div>
+                    <p class="eyebrow">Deine Rolle</p>
+                    <h3 id="adminResponsibilityTitle">Verantwortung</h3>
+                  </div>
+                </div>
+                <p id="adminResponsibilityScope" class="muted"></p>
+                <ul id="adminResponsibilityList" class="admin-responsibility-list"></ul>
+              </section>
+            </div>
+            <div class="admin-section-heading admin-status-heading">
+              <h3>Betriebsstand</h3>
+              <span>Kompakte Kennzahlen des ausgew&auml;hlten Hauses</span>
             </div>
             <div id="adminOverview" class="admin-overview"></div>
-            <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
           </section>
 
           <section id="adminSectionHouse" class="admin-section" data-admin-section="house" hidden>
             <div class="admin-section-heading">
-              <h3>Wohnungen &amp; Codes</h3>
-              <span>Einmalige Aktivierungscodes sicher ausgeben</span>
-            </div>
-            <form id="apartmentForm" class="stack compact-form admin-narrow-form">
-              <label>
-                Wohnungsbezeichnung
-                <input id="apartmentLabelInput" name="label" placeholder="z.B. 2. OG links" maxlength="60" required>
-              </label>
-              <label>
-                Name am Klingelschild
-                <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
-              </label>
-              <button type="submit">Wohnungscode erzeugen</button>
-            </form>
-            <div id="apartmentCodeResult" class="verification-status" role="status" hidden></div>
-            <div id="apartmentList" class="user-admin-list"></div>
-
-            <section id="superadminBox" class="superadmin-box" hidden>
-              <div class="admin-section-heading">
-                <h3>Hausnummern</h3>
-                <span>Getrennte Wohnungskonten, Ger&auml;te und Buchungen</span>
-              </div>
-              <form id="houseForm" class="stack compact-form admin-inline-form">
-                <label>
-                  Neue Hausnummer
-                  <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
-                </label>
-                <button type="submit">Haus anlegen</button>
-              </form>
-              <div id="houseList" class="house-admin-list"></div>
-            </section>
-
-            <div class="admin-section-heading">
               <h3>Ger&auml;te &amp; R&auml;ume</h3>
-              <span>Verf&uuml;gbare Ressourcen dieses Hauses</span>
+              <span>Anlegen, umbenennen oder bei einer St&ouml;rung sperren</span>
             </div>
             <form id="resourceForm" class="stack compact-form admin-inline-form">
               <label>
@@ -253,6 +245,21 @@
               <button type="submit">Hinzuf&uuml;gen</button>
             </form>
             <div id="resourceAdminList" class="resource-admin-list"></div>
+
+            <section id="superadminBox" class="superadmin-box" hidden>
+              <div class="admin-section-heading">
+                <h3>H&auml;user</h3>
+                <span>Nur Superadmin: getrennte Standorte verwalten</span>
+              </div>
+              <form id="houseForm" class="stack compact-form admin-inline-form">
+                <label>
+                  Neue Hausnummer
+                  <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
+                </label>
+                <button type="submit">Haus anlegen</button>
+              </form>
+              <div id="houseList" class="house-admin-list"></div>
+            </section>
           </section>
 
           <section id="adminSectionLogbook" class="admin-section" data-admin-section="logbook" hidden>
@@ -317,7 +324,25 @@
 
           <section id="adminSectionPeople" class="admin-section" data-admin-section="people" hidden>
             <div class="admin-section-heading">
-              <h3>Wohnungskonten</h3>
+              <h3>Wohnungen &amp; Aktivierung</h3>
+              <span>Wohnungen vorbereiten und Einmalcodes sicher ausgeben</span>
+            </div>
+            <form id="apartmentForm" class="stack compact-form admin-narrow-form">
+              <label>
+                Wohnungsbezeichnung
+                <input id="apartmentLabelInput" name="label" placeholder="z.B. 2. OG links" maxlength="60" required>
+              </label>
+              <label>
+                Name am Klingelschild
+                <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
+              </label>
+              <button type="submit">Wohnungscode erzeugen</button>
+            </form>
+            <div id="apartmentCodeResult" class="verification-status" role="status" hidden></div>
+            <div id="apartmentList" class="user-admin-list"></div>
+
+            <div class="admin-section-heading admin-subsection-heading">
+              <h3>Konten verwalten</h3>
               <span id="adminPeopleScope">Aktive und noch nicht zugeordnete Konten</span>
             </div>
             <div id="userList" class="user-admin-list"></div>
@@ -336,6 +361,7 @@
               <h3>Systemstatus</h3>
               <span>E-Mail, Sicherungen und Protokoll</span>
             </div>
+            <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
             <div id="backupOperation" class="admin-operation">
               <div>
                 <strong>Daten sichern</strong>

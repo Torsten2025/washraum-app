@@ -5237,6 +5237,15 @@ button:hover:not(:disabled),
   margin: 0;
 }
 
+.admin-role-summary {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 9px 0 0;
+  max-width: 620px;
+}
+
 .admin-workspace-header > p {
   line-height: 1.5;
   margin: 0;
@@ -5254,9 +5263,13 @@ button:hover:not(:disabled),
 }
 
 .admin-section-nav button {
+  align-items: center;
   background: transparent;
   border: 0;
   color: #c8d7d1;
+  display: flex;
+  gap: 7px;
+  justify-content: center;
   min-height: 38px;
   min-width: 120px;
   padding: 7px 10px;
@@ -5265,6 +5278,26 @@ button:hover:not(:disabled),
 .admin-section-nav button.active {
   background: #fff;
   color: var(--night);
+}
+
+.admin-tab-count {
+  align-items: center;
+  background: var(--gold);
+  border-radius: 999px;
+  color: #111;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 18px;
+  padding: 0 5px;
+}
+
+.admin-section-nav button.active .admin-tab-count {
+  background: var(--night);
+  color: #fff;
 }
 
 .admin-section {
@@ -5295,6 +5328,159 @@ button:hover:not(:disabled),
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.admin-command-grid {
+  background: #f3f7f5;
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+  min-width: 0;
+}
+
+.admin-task-panel,
+.admin-responsibility-panel {
+  min-width: 0;
+  padding: 22px;
+}
+
+.admin-responsibility-panel {
+  background: #fff;
+  border-left: 1px solid var(--line);
+}
+
+.admin-panel-heading {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+
+.admin-panel-heading .eyebrow {
+  color: var(--accent-dark);
+  margin: 0 0 5px;
+}
+
+.admin-box .admin-panel-heading h3 {
+  border: 0;
+  font-size: 20px;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-task-list {
+  border-top: 1px solid var(--line);
+  display: grid;
+}
+
+.admin-task-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--text);
+  display: grid;
+  gap: 13px;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  min-height: 72px;
+  padding: 13px 2px;
+  text-align: left;
+  width: 100%;
+}
+
+.admin-task-item:hover:not(:disabled) {
+  background: #fff;
+  transform: none;
+}
+
+.admin-task-state {
+  background: var(--accent);
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+.admin-task-item.is-attention .admin-task-state {
+  background: #d69a20;
+}
+
+.admin-task-item.is-urgent .admin-task-state {
+  background: var(--danger);
+}
+
+.admin-task-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-task-copy strong {
+  font-size: 14px;
+}
+
+.admin-task-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-task-open {
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-task-empty {
+  display: grid;
+  gap: 5px;
+  padding: 22px 2px 6px;
+}
+
+.admin-task-empty strong {
+  font-size: 15px;
+}
+
+.admin-task-empty span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-responsibility-panel > .muted {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 13px;
+}
+
+.admin-responsibility-list {
+  border-top: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+}
+
+.admin-responsibility-list li {
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 0 10px 20px;
+  position: relative;
+}
+
+.admin-responsibility-list li::before {
+  background: var(--accent);
+  content: '';
+  height: 2px;
+  left: 0;
+  position: absolute;
+  top: 18px;
+  width: 10px;
+}
+
+.admin-status-heading,
+.admin-subsection-heading {
+  margin-top: 4px;
 }
 
 .admin-section .superadmin-box {
@@ -6298,6 +6484,28 @@ body:not(.admin-view) .side-panel {
 
   .admin-section-nav button {
     min-width: 0;
+  }
+
+  .admin-command-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-task-panel,
+  .admin-responsibility-panel {
+    padding: 18px;
+  }
+
+  .admin-responsibility-panel {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .admin-task-item {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .admin-task-open {
+    grid-column: 2;
   }
 
   .admin-section-heading {

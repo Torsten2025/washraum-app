@@ -211,7 +211,7 @@ Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere recht
 
 ## Verwaltungsansicht
 
-Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. Die Navigation teilt die Aufgaben in klar getrennte Arbeitsbereiche. Auf kleinen Bildschirmen bricht die Navigation in gut erreichbare Zeilen um; Kontraste bleiben auch in der hellen Verwaltungsansicht lesbar.
+Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag und ihrem Geltungsbereich. Der Startbereich ordnet konkrete Aufgaben nach Dringlichkeit, fuehrt mit `Oeffnen` direkt zum passenden Arbeitsbereich und zeigt getrennt davon die dauerhaften Verantwortungen der Rolle. Warnzaehler an `Tagebuch`, `Wohnungen`, `Geraete & Haeuser` und `System` machen offene Arbeit sichtbar. Haus-Admins sehen dabei nur Aufgaben, die sie selbst erledigen duerfen; technische Superadmin-Aufgaben werden ihnen nicht zugewiesen. Auf kleinen Bildschirmen wird die Aufgabenansicht einspaltig und die Navigation bricht in gut erreichbare Zeilen um.
 
 ### 1. Ueberblick
 
@@ -224,16 +224,16 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 | Anzahl Dauertermine und Freigaben | Ja | Ja |
 | Offene Tagebuchfaelle | Ja | Ja |
 | E-Mail- und Backupstatus | Ja | Ja |
+| Rollenbezogene Aufgaben nach Dringlichkeit | Ja | Ja |
+| Direkter Sprung von einer Aufgabe zum Arbeitsbereich | Ja | Ja |
+| Dauerhafte Verantwortungen der eigenen Rolle | Ja | Ja |
 
-### 2. Haus und Geraete
+Der Haus-Admin-Auftrag umfasst Wohnungsaktivierung, Kontobetreuung, Geraete und Raeume, den vollstaendigen Stoerungsablauf, begruendete Dauertermine sowie die Betriebskontrolle des eigenen Hauses. Normale Bewohnerbuchungen gehoeren ausdruecklich nicht zu seinen Aufgaben. Der Superadmin verantwortet zusaetzlich Haeuser, Rollen, Nachfolge, Backups, Wartung und den hausuebergreifenden Tagebuchblick; Alltagsaktionen gelten weiterhin fuer das oben ausgewaehlte Haus.
+
+### 2. Geraete und Haeuser
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
-| Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
-| Stabile Wohnungsbezeichnung und Klingelschildname getrennt festlegen | Ja | Ja |
-| Klingelschildname und E-Mail-Adressen eines Wohnungskontos aktualisieren | Ja | Ja |
-| Namenskorrektur eines Bewohners uebernehmen oder ablehnen | Ja | Ja |
-| Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
 | Geraet oder Raum anlegen | Ja | Ja |
 | Ressource umbenennen | Ja | Ja |
 | Ressource mit Grund sperren und automatisch im Tagebuch erfassen | Ja | Ja |
@@ -270,10 +270,15 @@ Der technische Ablauf ist verbindlich: `Meldung -> Sperre -> Reparatur -> Funkti
 
 Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauertermin wird abgelehnt, wenn bereits eine normale zukuenftige Buchung im gleichen wiederkehrenden Termin liegt.
 
-### 5. Wohnungskonten
+### 5. Wohnungen und Konten
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
+| Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
+| Stabile Wohnungsbezeichnung und Klingelschildname getrennt festlegen | Ja | Ja |
+| Klingelschildname und E-Mail-Adressen eines Wohnungskontos aktualisieren | Ja | Ja |
+| Namenskorrektur eines Bewohners uebernehmen oder ablehnen | Ja | Ja |
+| Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
 | Konten des aktiven Hauses sehen | Ja | Ja |
 | Bewohner aktivieren oder deaktivieren | Ja | Ja |
 | Reset-Link an bestaetigte Bewohner-E-Mail senden | Ja | Ja |
@@ -451,6 +456,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Adminbereich als rollenbezogene Arbeitsoberflaeche neu geordnet: priorisierte Aufgaben mit Direktsprung, sichtbare Verantwortungen fuer Haus-Admin und Superadmin, Warnzaehler an betroffenen Bereichen sowie klare Trennung von `Wohnungen` und `Geraete & Haeuser`. Technischer Notfallzugang steht nur noch im Bereich `System`, normale Bewohnerbuchungen werden im Haus-Admin-Auftrag ausdruecklich ausgeschlossen.
 - Admin-Testmail vom Benutzerkonto entkoppelt: `SMTP_TEST_TO` kann eine feste betriebliche Zieladresse vorgeben. Ohne diese Variable bleibt die eigene Admin-Adresse der Rueckfall, sodass Wohnungs-E-Mails weiterhin eindeutig genau einem Konto gehoeren.
 - Reproduzierbaren Gesamtaudit ergaenzt: eigener dynamischer Sicherheits- und Anmeldetest, schrittweiser Audit-Runner sowie vollstaendiger Pruefkatalog mit Soll-Ergebnissen und getrennt ausgewiesener Live-Abnahme. `npm run check` enthaelt den Sicherheitstest jetzt verbindlich.
 - Fehlerbehandlung fuer Eingaben geschaerft: JSON-Anfragen ueber 32 KB liefern kontrolliert `413`, fehlerhaftes JSON kontrolliert `400`, statt beide Faelle als internen Serverfehler zu melden.

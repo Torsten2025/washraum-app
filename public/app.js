@@ -71,7 +71,16 @@ const resetBookingsConfirm = document.querySelector('#resetBookingsConfirm');
 const resetBookingsButton = document.querySelector('#resetBookingsButton');
 const adminTitle = document.querySelector('#adminTitle');
 const adminRoleLabel = document.querySelector('#adminRoleLabel');
+const adminRoleSummary = document.querySelector('#adminRoleSummary');
 const adminScopeText = document.querySelector('#adminScopeText');
+const adminTaskSummary = document.querySelector('#adminTaskSummary');
+const adminTaskList = document.querySelector('#adminTaskList');
+const adminResponsibilityScope = document.querySelector('#adminResponsibilityScope');
+const adminResponsibilityList = document.querySelector('#adminResponsibilityList');
+const adminLogbookCount = document.querySelector('#adminLogbookCount');
+const adminPeopleCount = document.querySelector('#adminPeopleCount');
+const adminHouseCount = document.querySelector('#adminHouseCount');
+const adminSystemCount = document.querySelector('#adminSystemCount');
 const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')];
 const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
@@ -1556,6 +1565,146 @@ function setAdminSection(sectionName) {
   for (const section of adminSections) {
     section.hidden = section.dataset.adminSection !== sectionName;
   }
+}
+
+function setAdminTabCount(element, count) {
+  const safeCount = Math.max(0, Number(count || 0));
+  element.hidden = safeCount === 0;
+  element.textContent = safeCount > 99 ? '99+' : String(safeCount);
+}
+
+function renderAdminWorkQueue({ overview, recovery, apartments, resources: adminResourceItems, cases }) {
+  const openCases = cases.filter((item) => item.status !== 'closed');
+  const reportedCases = openCases.filter((item) => item.status === 'reported');
+  const blockedResources = adminResourceItems.filter((item) => !item.active);
+  const nameRequests = apartments.filter((item) => item.name_request_id);
+  const recoveryWarnings = recovery.warnings || [];
+  const tasks = [];
+
+  if (reportedCases.length) {
+    tasks.push({
+      level: 'urgent',
+      title: `${reportedCases.length} neue ${reportedCases.length === 1 ? 'St\u00f6rung' : 'St\u00f6rungen'} pr\u00fcfen`,
+      text: 'Meldung lesen, bei Bedarf sperren und den n\u00e4chsten Schritt dokumentieren.',
+      section: 'logbook'
+    });
+  } else if (openCases.length) {
+    tasks.push({
+      level: 'attention',
+      title: `${openCases.length} offene ${openCases.length === 1 ? 'Tagebuchaufgabe' : 'Tagebuchaufgaben'}`,
+      text: 'Reparatur, Funktionspr\u00fcfung oder Freigabe nachvollziehbar fortf\u00fchren.',
+      section: 'logbook'
+    });
+  }
+
+  if (nameRequests.length) {
+    tasks.push({
+      level: 'attention',
+      title: `${nameRequests.length} ${nameRequests.length === 1 ? 'Namenskorrektur' : 'Namenskorrekturen'} entscheiden`,
+      text: 'Klingelschild-Vorschlag pr\u00fcfen und anschliessend \u00fcbernehmen oder ablehnen.',
+      section: 'people'
+    });
+  }
+
+  if (overview.usersMissingEmail) {
+    tasks.push({
+      level: 'attention',
+      title: `${overview.usersMissingEmail} ${overview.usersMissingEmail === 1 ? 'Konto' : 'Konten'} ohne E-Mail`,
+      text: 'Adresse nachtragen, damit Passwort-Reset und wichtige Hinweise funktionieren.',
+      section: 'people'
+    });
+  }
+
+  if (blockedResources.length && !openCases.length) {
+    tasks.push({
+      level: 'attention',
+      title: `${blockedResources.length} gesperrte ${blockedResources.length === 1 ? 'Ressource' : 'Ressourcen'}`,
+      text: 'Sperren bleiben bis zur dokumentierten Funktionspr\u00fcfung und Freigabe bestehen.',
+      section: 'logbook'
+    });
+  }
+
+  if (currentUser.isSuperadmin && recoveryWarnings.length) {
+    tasks.push({
+      level: recoveryWarnings.some((item) => item.level === 'critical') ? 'urgent' : 'attention',
+      title: 'Admin-Nachfolge absichern',
+      text: recoveryWarnings[0].message,
+      section: 'system'
+    });
+  }
+
+  if (currentUser.isSuperadmin && !overview.externalBackupConfigured) {
+    tasks.push({
+      level: 'attention',
+      title: 'Externes Backup einrichten',
+      text: 'Die lokale Sicherung sch\u00fctzt nicht vor einem Ausfall des Render-Datentr\u00e4gers.',
+      section: 'system'
+    });
+  }
+
+  if (currentUser.isSuperadmin && !overview.email.configured) {
+    tasks.push({
+      level: 'attention',
+      title: 'E-Mail-Versand einrichten',
+      text: 'SMTP in Render vervollst\u00e4ndigen und danach eine Testmail senden.',
+      section: 'system'
+    });
+  }
+
+  adminTaskSummary.textContent = tasks.length
+    ? `${tasks.length} ${tasks.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen`
+    : 'Keine dringenden Aufgaben';
+  adminTaskList.innerHTML = tasks.length
+    ? tasks.slice(0, 6).map((task) => `
+      <button class="admin-task-item is-${task.level}" type="button" data-admin-jump="${task.section}">
+        <span class="admin-task-state" aria-hidden="true"></span>
+        <span class="admin-task-copy">
+          <strong>${escapeHtml(task.title)}</strong>
+          <span>${escapeHtml(task.text)}</span>
+        </span>
+        <span class="admin-task-open">\u00d6ffnen</span>
+      </button>
+    `).join('')
+    : `
+      <div class="admin-task-empty">
+        <strong>Alles im ruhigen Betrieb</strong>
+        <span>Keine neue St\u00f6rung, Kontowarnung oder Systemaufgabe wartet auf dich.</span>
+      </div>
+    `;
+
+  const responsibilities = currentUser.isSuperadmin
+    ? [
+        'Haus-Admins, Rollen und Nachfolge absichern',
+        'H\u00e4user und technische Ressourcen verwalten',
+        'Tagebuchf\u00e4lle haus\u00fcbergreifend kontrollieren',
+        'Backups, Wartung und Systembetrieb verantworten',
+        'Im gew\u00e4hlten Haus nur bei Bedarf eingreifen'
+      ]
+    : [
+        'Wohnungen aktivieren und Konten betreuen',
+        'Ger\u00e4te und R\u00e4ume anlegen oder sperren',
+        'St\u00f6rungen bis zur Freigabe dokumentieren',
+        'Begr\u00fcndete Dauertermine pflegen',
+        'Betrieb des eigenen Hauses im Blick behalten'
+      ];
+  adminResponsibilityScope.textContent = currentUser.isSuperadmin
+    ? 'Alle H\u00e4user. Alltagsaktionen gelten f\u00fcr das oben ausgew\u00e4hlte Haus.'
+    : 'Nur dieses Haus. Bewohner buchen ihre normalen Waschzeiten selbst.';
+  adminResponsibilityList.innerHTML = responsibilities
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join('');
+
+  setAdminTabCount(adminLogbookCount, openCases.length);
+  setAdminTabCount(adminPeopleCount, Number(overview.usersMissingEmail || 0) + nameRequests.length);
+  setAdminTabCount(adminHouseCount, blockedResources.length);
+  setAdminTabCount(
+    adminSystemCount,
+    currentUser.isSuperadmin
+      ? recoveryWarnings.length
+        + (!overview.externalBackupConfigured ? 1 : 0)
+        + (!overview.email.configured ? 1 : 0)
+      : 0
+  );
 }
 
 function renderEmailVerificationStatus() {
@@ -3764,9 +3913,12 @@ async function loadAdmin() {
   adminBox.hidden = false;
   adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
   adminRoleLabel.textContent = currentUser.isSuperadmin ? 'Superadmin' : 'Haus-Admin';
+  adminRoleSummary.textContent = currentUser.isSuperadmin
+    ? 'Du sicherst Rollen, H\u00e4user und den technischen Betrieb.'
+    : 'Du organisierst Wohnungen, Ger\u00e4te und St\u00f6rungsf\u00e4lle.';
   adminScopeText.textContent = currentUser.isSuperadmin
-    ? 'Haus\u00fcbergreifende Verwaltung. Das Tagebuch zeigt alle H\u00e4user; andere Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
-    : 'Verwaltung der Wohnungskonten, Ger\u00e4te und Dauertermine dieses Hauses.';
+    ? 'Das Tagebuch gilt haus\u00fcbergreifend. Alle anderen Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
+    : 'Dein Geltungsbereich ist dieses Haus. Normale Waschzeiten werden von Bewohnern selbst gebucht.';
   backupOperation.hidden = !currentUser.isSuperadmin;
   maintenanceOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
@@ -3796,6 +3948,13 @@ async function loadAdmin() {
     <div class="wide"><strong>Push</strong><span>${overviewData.push.label} - ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
     <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
   `;
+  renderAdminWorkQueue({
+    overview: overviewData,
+    recovery: recoveryData,
+    apartments: apartmentsData.apartments,
+    resources: adminResources.resources,
+    cases: maintenanceData.cases
+  });
   renderAdminRecovery(recoveryData, usersData.users);
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
@@ -4703,6 +4862,13 @@ bookingViewButton.addEventListener('click', () => setAppView('booking'));
 adminViewButton.addEventListener('click', () => setAppView('admin'));
 adminSectionButtons.forEach((button) => {
   button.addEventListener('click', () => setAdminSection(button.dataset.adminTarget));
+});
+adminTaskList.addEventListener('click', (event) => {
+  const target = event.target.closest('[data-admin-jump]');
+  if (!target) return;
+  setAdminSection(target.dataset.adminJump);
+  document.querySelector(`[data-admin-section="${target.dataset.adminJump}"]`)
+    ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 });
 
 previousWeekButton.addEventListener('click', async () => {
