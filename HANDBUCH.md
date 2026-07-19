@@ -71,14 +71,14 @@ Organisatorischer Notfallprozess:
 | Neu hier | Konto mit Benutzername, Pflicht-E-Mail, Passwort und Hauscode erstellen | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
-| Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link oder erfolgreiche Abmeldung anzeigen | Oeffentlich |
+| Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link sowie manuelle oder automatische Abmeldung anzeigen | Oeffentlich |
 | Datenschutz | Zur Datenschutzerklaerung wechseln | Oeffentlich |
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
 Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten nur dem richtigen Haus beitreten. Haus-Admins und Superadmins koennen ihn in der Verwaltung aendern.
 
-Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
+Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
 
 ## Seite: Neues Passwort (`/reset.html`)
 
@@ -110,7 +110,7 @@ Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrieru
 | Aktives Haus wechseln | Nein | Nein | Ja |
 | Sicher abmelden | Ja | Ja | Ja |
 
-Das Kontomenue oben rechts zeigt Benutzername und Rolle. Es fuehrt zu `Einstellungen`, `Hilfe & Einfuehrung` und `Abmelden`. Die Abmeldung sendet ein eigenes Formular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet.
+Das Kontomenue oben rechts zeigt Benutzername und Rolle. Es fuehrt zu `Einstellungen`, `Hilfe & Einfuehrung` und `Abmelden`. Die Abmeldung sendet ein eigenes Formular an den Server. Die Sitzung wird dort geloescht, das Cookie entfernt und anschliessend die Anmeldeseite mit einer Abmeldebestaetigung geoeffnet. Auch die automatische Inaktivitaetspruefung wird serverseitig durchgesetzt; ein blosses Offenlassen oder Wiederaufrufen eines alten Tabs verlaengert eine abgelaufene Sitzung nicht.
 
 Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht die vollstaendige Adresse des aktiven Hauses dauerhaft direkt unter der Wortmarke und wird beim Hauswechsel sofort aktualisiert. Auf oeffentlichen Seiten ohne bekannte Hauszuordnung erscheint stattdessen `Der Waschplan fuer dein Haus`.
 
@@ -185,8 +185,9 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Benachrichtigungen | Freigabe-Hinweise ein- oder ausschalten und nach Bereich, Wochentag und Zeitfenster filtern |
 | App und Geraet | PWA installieren und Push auf dem gerade verwendeten Geraet aktivieren oder deaktivieren |
 | Sicherheit und Daten | Passwort aendern, eigene Daten exportieren, Datenschutz oeffnen oder Konto loeschen |
-| Wissen kompakt | Einfuehrung ueber Kontomenue oder Seitenleiste erneut oeffnen |
-| Regeln und Reinigung | Aktuelle Reservierungs- und Reinigungsregeln in der Seitenleiste nachlesen |
+| Hilfe und Regeln | Einfuehrungsvideo, interaktiven Rundgang, Reservierungsregeln und Reinigung gebuendelt in den persoenlichen Einstellungen oeffnen |
+
+Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere rechte Block `Gut zu wissen` wurde entfernt; selten benoetigte Hilfe nimmt dadurch keinen dauerhaften Platz neben Kalender und Waschpaket mehr ein. Der Kontomenuepunkt `Hilfe & Einfuehrung` oeffnet direkt den Einstellungsreiter `Hilfe & Regeln`.
 
 ### Einfuehrung und Quiz
 
@@ -325,7 +326,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 
 ### Automatisch gepruefte Kernablaeufe
 
-- Registrierung, Hauscode, Anmeldung mit Benutzername oder E-Mail und Abmeldung.
+- Registrierung, Hauscode, Anmeldung mit Benutzername oder E-Mail, manuelle Abmeldung und automatische Abmeldung nach Inaktivitaet.
 - E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
 - Admin-ausgeloester Passwort-Reset nur als Link an eine bestaetigte E-Mail; ein Admin kann kein fremdes Passwort festlegen.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
@@ -384,6 +385,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 - Rollen- und Hausgrenzen muessen immer serverseitig durchgesetzt und im Rollentest abgedeckt werden.
 - `SEED_ADMIN_NAME` bezeichnet das bestehende oder neu anzulegende Superadmin-Konto. Ist `SEED_ADMIN_PASSWORD` gesetzt, wird dieses Konto beim Start als aktiver Superadmin sichergestellt, ohne ein bereits geaendertes Passwort zu ueberschreiben.
 - `SEED_ADMIN_FORCE_PASSWORD_RESET=true` darf nur temporaer im Notfall gesetzt werden. Dann wird das Passwort des Seed-Superadmins beim Start auf `SEED_ADMIN_PASSWORD` gesetzt. Danach muss der Schalter wieder entfernt werden.
+- `SESSION_IDLE_MINUTES` legt die Inaktivitaetsgrenze in Minuten fest. Standard und Render-Konfiguration sind 30 Minuten; Werte werden aus Sicherheitsgruenden auf 5 bis 480 Minuten begrenzt.
 
 ### Deployment
 
@@ -393,7 +395,9 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Automatische Sitzungsabmeldung eingefuehrt: Nach 30 Minuten ohne Aktivitaet wird das serverseitige Konto-Cookie geloescht; zwei Minuten vorher erscheint ein barrierefreier Countdown mit den klaren Aktionen `Angemeldet bleiben` und `Jetzt abmelden`. Ablauf, Keepalive, Cookie-Loeschung und Login-Rueckmeldung werden automatisch getestet.
 - Empfohlenen Kalendertermin eindeutig nutzbar gemacht: Die bisher passive Markierung `Vorschlag` zeigt nun `Empfohlen` und `Buchen`; Klick oder Tipp oeffnet direkt das empfohlene Zeitfenster in der Waschmaschinenwahl. Auch Tagesvorschau und Empfehlungsbereich verwenden die klare Aktion `Empfohlenen Termin buchen`.
+- Buchungsansicht verbreitert: Den dauerhaften Block `Gut zu wissen` entfernt und Einfuehrung, Hausregeln sowie Reinigung in einem neuen Einstellungsreiter `Hilfe & Regeln` gebuendelt.
 
 ### 18. Juli 2026
 

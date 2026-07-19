@@ -352,7 +352,8 @@ async function run() {
       HOUSE_CODE: 'Testhaus 18',
       SEED_ADMIN_NAME: 'admin',
       SEED_ADMIN_PASSWORD: 'Admin-Test-2026!',
-      SESSION_SECRET: 'integration-test-session-secret-at-least-32-characters'
+      SESSION_SECRET: 'integration-test-session-secret-at-least-32-characters',
+      SESSION_IDLE_MINUTES: '30'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -432,6 +433,33 @@ async function run() {
     assert.equal(hydratedSession.body.user.houseName, 'Maneggplatz 18');
     assert.ok(hydratedSession.body.user.activeHouseId);
     assert.equal(hydratedSession.body.user.bookingMode, 'time');
+    assert.equal(hydratedSession.body.session.idleTimeoutMs, 30 * 60 * 1000);
+    assert.equal(hydratedSession.body.session.warningMs, 2 * 60 * 1000);
+    assert.ok(hydratedSession.body.session.lastActivityAt);
+    const keepalive = await expectStatus(user, '/api/session/keepalive', 200, { method: 'POST' });
+    assert.equal(keepalive.body.session.idleTimeoutMs, 30 * 60 * 1000);
+
+    const idleClient = new ApiClient();
+    await expectStatus(idleClient, '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-2026!' })
+    });
+    const signedSessionValue = decodeURIComponent(idleClient.cookie.split('=', 2)[1] || '');
+    const idleSessionId = signedSessionValue.replace(/^s:/, '').split('.')[0];
+    assert.ok(idleSessionId, 'Sitzungskennung fuer Inaktivitaetstest fehlt.');
+    const idleSessionDatabase = new Database(databasePath);
+    const idleSession = idleSessionDatabase.prepare('SELECT sess FROM sessions WHERE sid = ?').get(idleSessionId);
+    assert.ok(idleSession, 'Zweite Sitzung wurde nicht gespeichert.');
+    const idleSessionData = JSON.parse(idleSession.sess);
+    idleSessionData.lastActivityAt = Date.now() - (31 * 60 * 1000);
+    idleSessionDatabase.prepare('UPDATE sessions SET sess = ? WHERE sid = ?')
+      .run(JSON.stringify(idleSessionData), idleSessionId);
+    idleSessionDatabase.close();
+    const expiredSession = await expectStatus(idleClient, '/api/me', 401);
+    assert.equal(expiredSession.body.code, 'SESSION_IDLE_TIMEOUT');
+    assert.match(expiredSession.response.headers.get('set-cookie') || '', /connect\.sid=;/);
+    const expiredGuest = await expectStatus(idleClient, '/api/me', 200);
+    assert.equal(expiredGuest.body.user, null);
     const bookingMode = await expectStatus(user, '/api/me/booking-mode', 200, {
       method: 'PUT',
       body: JSON.stringify({ bookingMode: 'machine' })
@@ -1190,7 +1218,12 @@ async function run() {
     assert.ok(indexHtml.includes('data-settings-target="profile"'));
     assert.ok(indexHtml.includes('data-settings-target="notifications"'));
     assert.ok(indexHtml.includes('data-settings-target="device"'));
+    assert.ok(indexHtml.includes('data-settings-target="help"'));
     assert.ok(indexHtml.includes('data-settings-target="security"'));
+    assert.ok(indexHtml.includes('id="settingsPanelHelp"'));
+    assert.ok(indexHtml.includes('id="openIntroButton"'));
+    assert.ok(!indexHtml.includes('id="sidebarKnowledgeButton"'));
+    assert.ok(!indexHtml.includes('<h2>Gut zu wissen</h2>'));
     assert.ok(indexHtml.includes('messageCenterButton'));
     assert.ok(indexHtml.includes('messageCenterOverlay'));
     assert.ok(indexHtml.includes('messageCenterList'));
@@ -1227,6 +1260,9 @@ async function run() {
     assert.ok(indexHtml.includes('resetBookingsButton'));
     assert.ok(indexHtml.includes('releaseNoticeOverlay'));
     assert.ok(indexHtml.includes('bookReleaseNoticeButton'));
+    assert.ok(indexHtml.includes('sessionWarningOverlay'));
+    assert.ok(indexHtml.includes('sessionStayButton'));
+    assert.ok(indexHtml.includes('sessionLogoutButton'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('class="app-wordmark"'));
     assert.ok(indexHtml.includes('id="brandHouseName"'));
@@ -1250,11 +1286,14 @@ async function run() {
     assert.ok(stylesText.includes('.booking-mode-switch'));
     assert.ok(stylesText.includes('.flow-time-choice'));
     assert.ok(stylesText.includes('.settings-summary'));
+    assert.ok(stylesText.includes('.settings-help-video'));
+    assert.ok(stylesText.includes('body:not(.admin-view) .side-panel'));
     assert.ok(stylesText.includes('.settings-step'));
     assert.ok(stylesText.includes('.notice-journal'));
     assert.ok(stylesText.includes('.analytics-grid'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
+    assert.ok(stylesText.includes('.session-warning-modal'));
     assert.ok(stylesText.includes('.scene-push'));
     assert.ok(stylesText.includes('.video-scene-image'));
     assert.match(stylesText, /\.main-column\s*\{\s*align-content:\s*start;/);
@@ -1287,11 +1326,16 @@ async function run() {
     assert.ok(appScriptText.includes('Anderen Trockenraum w\\u00e4hlen oder entfernen'));
     assert.ok(appScriptText.includes('visibleRooms = selectedRoom'));
     assert.ok(appScriptText.includes('logoutInProgress'));
+    assert.ok(appScriptText.includes('/api/session/keepalive'));
+    assert.ok(appScriptText.includes('configureSessionTimeout'));
+    assert.ok(appScriptText.includes('SESSION_IDLE_TIMEOUT'));
     assert.ok(appScriptText.includes('Reset-Link senden'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
+    assert.ok(appScriptText.includes("activeSettingsSection = 'help'"));
+    assert.ok(!appScriptText.includes('sidebarKnowledgeButton'));
     assert.ok(appScriptText.includes('/api/admin/analytics?days=30'));
     assert.ok(appScriptText.includes('resetAllBookings'));
     assert.ok(appScriptText.includes('openReleaseNoticeFromUrl'));
@@ -1353,6 +1397,7 @@ async function run() {
       checks: {
         authentication: true,
         adminLogout: true,
+        sessionTimeout: true,
         legacySessionHydration: true,
         passwordRecovery: true,
         emailPreferences: true,

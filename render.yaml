@@ -12,6 +12,8 @@ services:
         value: /var/data/washraum.sqlite
       - key: SESSION_SECRET
         generateValue: true
+      - key: SESSION_IDLE_MINUTES
+        value: 30
       - key: SEED_ADMIN_NAME
         value: admin
       - key: SEED_ADMIN_PASSWORD

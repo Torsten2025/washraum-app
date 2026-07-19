@@ -42,6 +42,10 @@ assert.match(indexHtml, /id="accountMenuButton"[^>]*aria-controls="accountMenuPa
 assert.match(indexHtml, /id="messageCenterButton"[^>]*aria-controls="messageCenterOverlay"/, 'Mitteilungsbutton ohne kontrolliertes Ziel');
 assert.match(indexHtml, /id="messageCenterOverlay"[\s\S]*aria-labelledby="messageCenterTitle"/, 'Mitteilungszentrum ohne Dialogtitel');
 assert.match(indexHtml, /class="settings-tabs"[^>]*aria-label=/, 'Einstellungsreiter ohne Beschriftung');
+assert.match(indexHtml, /data-settings-target="help"[^>]*aria-controls="settingsPanelHelp"/, 'Hilfe-Reiter ohne zugeordneten Inhalt');
+assert.match(indexHtml, /id="settingsPanelHelp"[^>]*role="tabpanel"[^>]*aria-labelledby="settingsHelpTitle"/, 'Hilfe-Inhalt ohne zugaenglichen Namen');
+assert.match(indexHtml, /id="sessionWarningOverlay"[\s\S]*role="dialog"[\s\S]*aria-labelledby="sessionWarningTitle"[\s\S]*aria-describedby="sessionWarningText"/, 'Sitzungswarnung ohne zugaengliche Dialogbeschreibung');
+assert.match(indexHtml, /id="sessionCountdown"[^>]*role="timer"[^>]*aria-live="polite"/, 'Sitzungswarnung ohne angesagten Countdown');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');

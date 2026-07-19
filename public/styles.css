@@ -1555,6 +1555,36 @@ aside.panel {
   width: min(100%, 940px);
 }
 
+.session-warning-modal {
+  max-width: 460px;
+  width: min(100%, 460px);
+}
+
+.session-warning-modal h2 {
+  font-size: clamp(28px, 5vw, 38px);
+  margin: 4px 0 10px;
+}
+
+.session-warning-modal > p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.session-countdown {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  color: var(--night) !important;
+  font-weight: 800;
+  margin: 20px 0;
+  padding: 13px 14px;
+}
+
+.session-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
 .icon-close {
   align-items: center;
   background: #fff;
@@ -5386,7 +5416,7 @@ button:hover:not(:disabled),
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-top: 24px;
 }
 
@@ -5455,6 +5485,59 @@ button:hover:not(:disabled),
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   padding: 0 0 18px;
+}
+
+.settings-help-video {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 18px;
+}
+
+.settings-help-video h4,
+.settings-help-video p {
+  margin-bottom: 0;
+}
+
+.settings-knowledge-details {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.settings-knowledge-details summary {
+  color: var(--text);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 850;
+  padding: 4px 0;
+}
+
+.settings-knowledge-content {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 14px 0 0;
+}
+
+.settings-knowledge-content p {
+  margin-bottom: 10px;
+}
+
+.settings-knowledge-content ul {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+body:not(.admin-view) .layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body:not(.admin-view) .side-panel {
+  display: none;
 }
 
 .settings-subsection {
@@ -5821,6 +5904,10 @@ button:hover:not(:disabled),
 }
 
 /* Buchungsrueckmeldungen bleiben dort sichtbar, wo die Aktion stattfindet. */
+#statusText:empty {
+  display: none;
+}
+
 #statusText:not(:empty) {
   box-shadow: 0 14px 36px rgba(16, 32, 27, 0.2);
   margin: 0;
@@ -5894,7 +5981,7 @@ body.admin-view #statusText:not(:empty) {
 .intro-panel {
   align-self: start;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   margin-bottom: 12px;
   min-height: 0;
   padding: 12px 18px;
@@ -5951,6 +6038,11 @@ body.admin-view #statusText:not(:empty) {
 
   .intro-panel-actions {
     justify-items: start;
+  }
+
+  .settings-help-video {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 
   .calendar-day.is-month-day {

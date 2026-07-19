@@ -104,6 +104,12 @@ const configuredSessionSecret = process.env.SESSION_SECRET || 'local-dev-session
 const sessionSecret = isProduction && configuredSessionSecret.length < 32
   ? crypto.randomBytes(48).toString('hex')
   : configuredSessionSecret;
+const configuredSessionIdleMinutes = Number.parseInt(process.env.SESSION_IDLE_MINUTES || '30', 10);
+const sessionIdleMinutes = Number.isFinite(configuredSessionIdleMinutes)
+  ? Math.min(480, Math.max(5, configuredSessionIdleMinutes))
+  : 30;
+const sessionIdleTimeoutMs = sessionIdleMinutes * 60 * 1000;
+const sessionWarningMs = Math.min(2 * 60 * 1000, Math.floor(sessionIdleTimeoutMs / 3));
 if (isProduction && configuredSessionSecret.length < 32) {
   console.warn('SESSION_SECRET ist zu kurz. Fuer diesen Start wurde ein sicheres, zufaelliges Geheimnis erzeugt.');
 }
@@ -678,6 +684,7 @@ app.use(session({
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
@@ -685,6 +692,49 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 8
   }
 }));
+
+function clearSessionCookie(res) {
+  res.clearCookie('connect.sid', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    path: '/'
+  });
+}
+
+app.use((req, res, next) => {
+  if (!req.session.user?.id) {
+    return next();
+  }
+
+  const now = Date.now();
+  const lastActivityAt = Number(req.session.lastActivityAt || 0);
+  if (lastActivityAt && now - lastActivityAt >= sessionIdleTimeoutMs) {
+    const isApiRequest = req.path.startsWith('/api/');
+    return req.session.destroy((error) => {
+      if (error) {
+        console.error(`Abgelaufene Sitzung konnte nicht aus dem Speicher entfernt werden: ${error.message}`);
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      clearSessionCookie(res);
+      if (isApiRequest) {
+        return res.status(401).json({
+          error: 'Deine Sitzung wurde wegen Inaktivit\u00e4t beendet.',
+          code: 'SESSION_IDLE_TIMEOUT'
+        });
+      }
+      if (req.path === '/' || req.path === '/index.html') {
+        return res.redirect(303, '/login.html?sessionExpired=1');
+      }
+      return next();
+    });
+  }
+
+  if (!lastActivityAt || req.path === '/' || req.path === '/index.html' || req.path.startsWith('/api/')) {
+    req.session.lastActivityAt = now;
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   if (!req.session.user?.id) {
@@ -2277,6 +2327,7 @@ app.post('/api/login', authRateLimit, async (req, res, next) => {
     await regenerateSession(req);
     req.session.user = sessionUser;
     req.session.activeHouseId = user.house_id;
+    req.session.lastActivityAt = Date.now();
     res.json({ user: req.session.user });
   } catch (error) {
     next(error);
@@ -2319,6 +2370,7 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res,
     await regenerateSession(req);
     req.session.user = sessionUserFromRow(createdUser, house);
     req.session.activeHouseId = house.id;
+    req.session.lastActivityAt = Date.now();
     clearAuthRateLimit(req);
     const verification = await sendEmailVerification(req, createdUser).catch((error) => {
       console.error(`Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`);
@@ -2423,12 +2475,7 @@ app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
 function finishLogout(req, res, next, redirectToLogin = false) {
   const sendResponse = () => {
     res.setHeader('Cache-Control', 'no-store');
-    res.clearCookie('connect.sid', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isProduction,
-      path: '/'
-    });
+    clearSessionCookie(res);
     if (redirectToLogin) {
       return res.redirect(303, '/login.html?loggedOut=1');
     }
@@ -2452,7 +2499,11 @@ app.post('/logout', (req, res, next) => finishLogout(req, res, next, true));
 
 app.get('/api/me', (req, res) => {
   if (!req.session.user) {
-    return res.json({ user: null, houses: [] });
+    return res.json({
+      user: null,
+      houses: [],
+      session: { idleTimeoutMs: sessionIdleTimeoutMs, warningMs: sessionWarningMs }
+    });
   }
   const houses = isSuperadmin(req)
     ? db.prepare('SELECT id, name, active FROM houses WHERE active = 1 ORDER BY name').all()
@@ -2472,6 +2523,23 @@ app.get('/api/me', (req, res) => {
     push: {
       available: pushStatus().configured,
       activeSubscriptions: activePushSubscriptions
+    },
+    session: {
+      idleTimeoutMs: sessionIdleTimeoutMs,
+      warningMs: sessionWarningMs,
+      lastActivityAt: req.session.lastActivityAt
+    }
+  });
+});
+
+app.post('/api/session/keepalive', requireAuth, (req, res) => {
+  req.session.lastActivityAt = Date.now();
+  res.json({
+    ok: true,
+    session: {
+      idleTimeoutMs: sessionIdleTimeoutMs,
+      warningMs: sessionWarningMs,
+      lastActivityAt: req.session.lastActivityAt
     }
   });
 });

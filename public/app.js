@@ -131,7 +131,6 @@ const bookReleaseNoticeButton = document.querySelector('#bookReleaseNoticeButton
 const filterButtons = [...document.querySelectorAll('.filter')];
 const openIntroButton = document.querySelector('#openIntroButton');
 const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
-const sidebarKnowledgeButton = document.querySelector('#sidebarKnowledgeButton');
 const introOverlay = document.querySelector('#introOverlay');
 const closeIntroButton = document.querySelector('#closeIntroButton');
 const introDoneButton = document.querySelector('#introDoneButton');
@@ -151,6 +150,10 @@ const introQuizForm = document.querySelector('#introQuizForm');
 const introQuizResult = document.querySelector('#introQuizResult');
 const recordedIntroVideo = document.querySelector('#recordedIntroVideo');
 const recordedIntroDuration = document.querySelector('#recordedIntroDuration');
+const sessionWarningOverlay = document.querySelector('#sessionWarningOverlay');
+const sessionCountdown = document.querySelector('#sessionCountdown');
+const sessionStayButton = document.querySelector('#sessionStayButton');
+const sessionLogoutButton = document.querySelector('#sessionLogoutButton');
 
 let currentUser = null;
 let availableHouses = [];
@@ -211,6 +214,19 @@ let messageCenterReturnFocus = null;
 let activeSettingsSection = 'profile';
 let activeAdminSection = 'overview';
 let logoutInProgress = false;
+let sessionIdleTimeoutMs = 0;
+let sessionWarningMs = 0;
+let sessionLastActivityAt = 0;
+let sessionLastKeepaliveAt = 0;
+let sessionWarningTimer = null;
+let sessionExpiryTimer = null;
+let sessionCountdownTimer = null;
+let sessionKeepalivePromise = null;
+let sessionActivityListenersReady = false;
+let sessionActivityThrottleAt = 0;
+let sessionEnding = false;
+let sessionReturnFocus = null;
+const sessionKeepaliveIntervalMs = 30 * 1000;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
@@ -621,7 +637,7 @@ function closeIntro() {
   stopIntroVideo();
   recordedIntroVideo.pause();
   introOverlay.hidden = true;
-  document.body.classList.remove('modal-open');
+  if (settingsOverlay.hidden) document.body.classList.remove('modal-open');
   if (introReturnFocus instanceof HTMLElement) {
     introReturnFocus.focus();
   }
@@ -695,7 +711,7 @@ function openSettings(firstRun = false) {
   settingsTitle.textContent = firstRun ? 'Einmal kurz einrichten.' : 'Einstellungen';
   settingsIntroText.textContent = firstRun
     ? 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.'
-    : 'Profil, Benachrichtigungen, App und Sicherheit sind hier gebuendelt.';
+    : 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.';
   settingsUsername.value = currentUser.username;
   settingsRole.value = currentRoleLabel();
   settingsBookingMode.value = bookingMode;
@@ -1007,6 +1023,157 @@ function checkIntroQuiz(event) {
   introQuizResult.textContent = `${correct} von ${questions.length} Antworten passen schon. Die orange markierten Fragen kannst du oben noch einmal nachlesen. Du kannst die App nat\u00fcrlich trotzdem nutzen.`;
 }
 
+function sessionLoginUrl(expired = false) {
+  return expired ? '/login.html?sessionExpired=1' : '/login.html';
+}
+
+function clearSessionTimers() {
+  window.clearTimeout(sessionWarningTimer);
+  window.clearTimeout(sessionExpiryTimer);
+  window.clearInterval(sessionCountdownTimer);
+  sessionWarningTimer = null;
+  sessionExpiryTimer = null;
+  sessionCountdownTimer = null;
+}
+
+function hideSessionWarning(restoreFocus = false) {
+  sessionWarningOverlay.hidden = true;
+  window.clearInterval(sessionCountdownTimer);
+  sessionCountdownTimer = null;
+  if (restoreFocus && sessionReturnFocus instanceof HTMLElement) {
+    sessionReturnFocus.focus();
+  }
+  sessionReturnFocus = null;
+}
+
+function sessionRemainingMs() {
+  return Math.max(0, sessionIdleTimeoutMs - (Date.now() - sessionLastActivityAt));
+}
+
+function updateSessionCountdown() {
+  const remainingSeconds = Math.max(0, Math.ceil(sessionRemainingMs() / 1000));
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = String(remainingSeconds % 60).padStart(2, '0');
+  sessionCountdown.textContent = `Abmeldung in ${minutes}:${seconds} Minuten`;
+}
+
+async function endInactiveSession() {
+  if (sessionEnding) return;
+  sessionEnding = true;
+  clearSessionTimers();
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+  } catch {}
+  window.location.replace(sessionLoginUrl(true));
+}
+
+function showSessionWarning() {
+  if (sessionEnding || !currentUser || !sessionWarningOverlay.hidden) return;
+  sessionReturnFocus = document.activeElement;
+  sessionWarningOverlay.hidden = false;
+  updateSessionCountdown();
+  sessionCountdownTimer = window.setInterval(updateSessionCountdown, 1000);
+  sessionStayButton.focus();
+}
+
+function scheduleSessionTimeout() {
+  clearSessionTimers();
+  if (!currentUser || !sessionIdleTimeoutMs || sessionEnding) return;
+  const remainingMs = sessionRemainingMs();
+  if (remainingMs <= 0) {
+    endInactiveSession();
+    return;
+  }
+  sessionWarningTimer = window.setTimeout(showSessionWarning, Math.max(0, remainingMs - sessionWarningMs));
+  sessionExpiryTimer = window.setTimeout(endInactiveSession, remainingMs);
+}
+
+async function keepSessionAlive(force = false) {
+  if (!currentUser || sessionEnding) return false;
+  if (sessionKeepalivePromise) {
+    return force ? sessionKeepalivePromise : false;
+  }
+  const now = Date.now();
+  if (!force && now - sessionLastKeepaliveAt < sessionKeepaliveIntervalMs) return false;
+  sessionKeepalivePromise = (async () => {
+    try {
+      const response = await fetch('/api/session/keepalive', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        window.location.replace(sessionLoginUrl(data.code === 'SESSION_IDLE_TIMEOUT'));
+        return false;
+      }
+      if (!response.ok) return false;
+      sessionLastKeepaliveAt = Date.now();
+      sessionLastActivityAt = sessionLastKeepaliveAt;
+      scheduleSessionTimeout();
+      return true;
+    } catch {
+      // Eine kurze Verbindungsunterbrechung beendet die lokale Sitzung nicht vorzeitig.
+      return false;
+    }
+  })();
+  try {
+    return await sessionKeepalivePromise;
+  } finally {
+    sessionKeepalivePromise = null;
+  }
+}
+
+function recordSessionActivity(event) {
+  if (!event.isTrusted) return;
+  if (!currentUser || sessionEnding || !sessionWarningOverlay.hidden) return;
+  const now = Date.now();
+  if (now - sessionActivityThrottleAt < 1000) return;
+  sessionActivityThrottleAt = now;
+  sessionLastActivityAt = now;
+  scheduleSessionTimeout();
+  keepSessionAlive();
+}
+
+function checkSessionDeadline() {
+  if (!currentUser || sessionEnding) return;
+  const remainingMs = sessionRemainingMs();
+  if (remainingMs <= 0) {
+    endInactiveSession();
+    return;
+  }
+  if (!sessionWarningOverlay.hidden) {
+    updateSessionCountdown();
+    window.clearTimeout(sessionExpiryTimer);
+    sessionExpiryTimer = window.setTimeout(endInactiveSession, remainingMs);
+    return;
+  }
+  scheduleSessionTimeout();
+}
+
+function configureSessionTimeout(sessionConfig = {}) {
+  sessionIdleTimeoutMs = Number(sessionConfig.idleTimeoutMs || 0);
+  sessionWarningMs = Number(sessionConfig.warningMs || 0);
+  sessionLastActivityAt = Number(sessionConfig.lastActivityAt || Date.now());
+  sessionLastKeepaliveAt = sessionLastActivityAt;
+  if (!sessionActivityListenersReady) {
+    sessionActivityListenersReady = true;
+    document.addEventListener('pointerdown', recordSessionActivity, { passive: true });
+    document.addEventListener('keydown', recordSessionActivity);
+    document.addEventListener('touchstart', recordSessionActivity, { passive: true });
+    document.addEventListener('scroll', recordSessionActivity, { passive: true, capture: true });
+    window.addEventListener('focus', checkSessionDeadline);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkSessionDeadline();
+    });
+  }
+  scheduleSessionTimeout();
+}
+
 async function api(path, options = {}) {
   let response;
   try {
@@ -1018,12 +1185,11 @@ async function api(path, options = {}) {
     throw new Error('Keine Verbindung zur App. Bitte pr\u00fcfe deine Internetverbindung und versuche es erneut.');
   }
 
+  const data = await response.json().catch(() => ({}));
   if (response.status === 401) {
-    window.location.href = '/login.html';
+    window.location.replace(sessionLoginUrl(data.code === 'SESSION_IDLE_TIMEOUT'));
     return null;
   }
-
-  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data.error || 'Anfrage fehlgeschlagen');
   }
@@ -1040,6 +1206,7 @@ async function init() {
   }
 
   currentUser = me.user;
+  configureSessionTimeout(me.session);
   bookingMode = currentUser.bookingMode === 'machine' ? 'machine' : 'time';
   availableHouses = me.houses || [];
   renderHouseContext();
@@ -3776,6 +3943,31 @@ calendarDayDetails.addEventListener('focusout', () => {
   scheduleCalendarPreviewClose();
 });
 window.addEventListener('resize', positionCalendarDayDetails);
+sessionStayButton.addEventListener('click', async () => {
+  sessionStayButton.disabled = true;
+  sessionStayButton.textContent = 'Sitzung wird verl\u00e4ngert...';
+  const keptAlive = await keepSessionAlive(true);
+  sessionStayButton.disabled = false;
+  sessionStayButton.textContent = 'Angemeldet bleiben';
+  if (keptAlive) {
+    hideSessionWarning(true);
+  } else {
+    sessionCountdown.textContent = 'Verbindung fehlgeschlagen. Bitte versuche es noch einmal.';
+  }
+});
+sessionLogoutButton.addEventListener('click', async () => {
+  sessionEnding = true;
+  clearSessionTimers();
+  sessionLogoutButton.disabled = true;
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    });
+  } catch {}
+  window.location.replace('/login.html?loggedOut=1');
+});
 logoutForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (logoutInProgress) return;
@@ -3927,9 +4119,9 @@ deleteAccountForm.addEventListener('submit', async (event) => {
 openIntroButton.addEventListener('click', openIntro);
 openKnowledgeButton.addEventListener('click', () => {
   closeAccountMenu();
-  openIntro();
+  activeSettingsSection = 'help';
+  openSettings(false);
 });
-sidebarKnowledgeButton.addEventListener('click', openIntro);
 closeIntroButton.addEventListener('click', closeIntro);
 introDoneButton.addEventListener('click', closeIntro);
 introVideoPlayButton.addEventListener('click', playIntroVideo);
@@ -3948,6 +4140,25 @@ document.addEventListener('click', (event) => {
   }
 });
 document.addEventListener('keydown', (event) => {
+  if (!sessionWarningOverlay.hidden) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      return;
+    }
+    if (event.key === 'Tab') {
+      const focusable = [sessionStayButton, sessionLogoutButton].filter((element) => !element.disabled);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    return;
+  }
   if (event.key === 'Escape' && !accountMenuPanel.hidden) {
     closeAccountMenu();
     accountMenuButton.focus();

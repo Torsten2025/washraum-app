@@ -61,23 +61,16 @@
           <div class="intro-copy-block">
             <p id="introHouseName" class="eyebrow">Waschraum Maneggplatz 18</p>
             <h2>Dein Waschplan f&uuml;r diese Woche.</h2>
-            <p>Freie Zeiten, deine n&auml;chsten Buchungen und die wichtigsten Hausregeln stehen direkt beieinander.</p>
+            <p>Freie Zeiten und deine n&auml;chsten Buchungen auf einen Blick.</p>
             <div class="intro-metrics" aria-hidden="true">
               <span><strong>Live</strong> Freigaben</span>
               <span><strong>Fix</strong> Admin-Schutz</span>
               <span><strong>Fair</strong> Hausregeln</span>
             </div>
           </div>
-          <div class="intro-panel-actions">
-            <button id="openIntroButton" type="button">Video ansehen</button>
-            <div class="intro-flow-strip" aria-hidden="true">
-              <span><strong>1</strong> &Uuml;berblick</span>
-              <span><strong>2</strong> Waschmaschine</span>
-              <span><strong>3</strong> Trocknen</span>
-              <span><strong>4</strong> Best&auml;tigen</span>
-            </div>
-          </div>
         </section>
+
+        <p id="statusText" class="notice muted" role="status" aria-live="polite"></p>
 
         <section class="panel my-bookings-panel">
           <div class="section-head">
@@ -166,34 +159,6 @@
       </div>
 
       <aside class="panel side-panel">
-        <h2>Gut zu wissen</h2>
-        <p id="statusText" class="notice muted" role="status" aria-live="polite"></p>
-        <div class="side-block knowledge-card">
-          <h3>Wissen kompakt</h3>
-          <p>Das kurze Video f&uuml;hrt durch Aufbau, Buchung und Regeln.</p>
-          <button id="sidebarKnowledgeButton" class="secondary" type="button">Video &ouml;ffnen</button>
-        </div>
-        <div class="side-block rules-block">
-          <h3>Regeln</h3>
-          <p>Massgebend bleibt der offizielle GBMZ-Aushang in der Waschk&uuml;che.</p>
-          <ul>
-            <li>Waschmaschinen: pro Waschtag ein Zeitfenster. Weitere Waschmaschinen d&uuml;rfen nur im gleichen Zeitfenster gebucht werden.</li>
-            <li>Der n&auml;chste Waschslot kann fr&uuml;hestens am bestehenden Waschtag reserviert werden.</li>
-            <li>Tumbler: pro Slot bleibt mindestens ein Tumbler frei.</li>
-            <li>Trockenraum: 07:00-Slot bis 21:00, 12:00-Slot bis Folgetag 12:00, 17:00-Slot bis Folgetag 12:00.</li>
-            <li>Bitte den Trockenraum fr&uuml;her freigeben, sobald die W&auml;sche trocken ist. &Uuml;ber Nacht hilft das Abh&auml;ngen vor 07:00 Uhr besonders.</li>
-          </ul>
-        </div>
-        <div class="side-block rules-block">
-          <h3>Reinigung</h3>
-          <ul>
-            <li>Waschmaschine: Waschmittelschublade herausnehmen und sp&uuml;len. Trommel und Gummidichtung ausreiben. Filter unten links sp&uuml;len, wieder bis zum Anschlag einschrauben und ausgelaufenes Wasser in den Abfluss geben. Geh&auml;use feucht abwischen.</li>
-            <li>Tumbler: Trommel ausreiben. Alle vier Filter reinigen. Unter den beiden mittleren Filtern den Abflussbereich auswischen. T&uuml;rdichtung und Geh&auml;use feucht abwischen.</li>
-            <li>Trockenraum: Tisch abstauben oder abwischen, beide Filter reinigen, Boden wischen und feucht aufnehmen.</li>
-            <li>Waschk&uuml;che: Boden wischen und feucht aufnehmen. Besen und Wischmopp von Fusseln befreien. Mopp aussp&uuml;len, auswringen und zum Trocknen aufh&auml;ngen.</li>
-            <li>Die Reinigung gilt auch bei einer einzelnen Nutzung zwischendurch. Die Bodenreinigung kann innerhalb desselben Slots abgesprochen werden.</li>
-          </ul>
-        </div>
         <div id="adminBox" class="admin-box" hidden>
           <header class="admin-workspace-header">
             <div>
@@ -437,6 +402,7 @@
           <button class="settings-tab active" role="tab" type="button" data-settings-target="profile" aria-controls="settingsPanelProfile" aria-selected="true">Profil</button>
           <button class="settings-tab" role="tab" type="button" data-settings-target="notifications" aria-controls="settingsPanelNotifications" aria-selected="false">Benachrichtigungen</button>
           <button class="settings-tab" role="tab" type="button" data-settings-target="device" aria-controls="settingsPanelDevice" aria-selected="false">App &amp; Ger&auml;t</button>
+          <button class="settings-tab" role="tab" type="button" data-settings-target="help" aria-controls="settingsPanelHelp" aria-selected="false">Hilfe &amp; Regeln</button>
           <button class="settings-tab" role="tab" type="button" data-settings-target="security" aria-controls="settingsPanelSecurity" aria-selected="false">Sicherheit &amp; Daten</button>
         </nav>
 
@@ -541,6 +507,45 @@
                 <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
               </div>
             </section>
+          </section>
+
+          <section id="settingsPanelHelp" class="settings-panel" role="tabpanel" data-settings-section="help" aria-labelledby="settingsHelpTitle" hidden>
+            <div class="settings-section-head">
+              <h3 id="settingsHelpTitle">Hilfe &amp; Regeln</h3>
+              <p class="muted">Einf&uuml;hrung, Hausregeln und Reinigung an einem ruhigen Ort.</p>
+            </div>
+            <section class="settings-help-video" aria-labelledby="settingsIntroTitle">
+              <div>
+                <h4 id="settingsIntroTitle">Einf&uuml;hrung</h4>
+                <p class="muted">Video, Untertitel, interaktiver Rundgang und kurzer Wissenstest.</p>
+              </div>
+              <button id="openIntroButton" class="secondary" type="button">Einf&uuml;hrung &ouml;ffnen</button>
+            </section>
+            <details class="settings-knowledge-details">
+              <summary>Hausregeln</summary>
+              <div class="settings-knowledge-content">
+                <p>Massgebend bleibt der offizielle GBMZ-Aushang in der Waschk&uuml;che.</p>
+                <ul>
+                  <li>Waschmaschinen: pro Waschtag ein Zeitfenster. Weitere Waschmaschinen d&uuml;rfen nur im gleichen Zeitfenster gebucht werden.</li>
+                  <li>Der n&auml;chste Waschslot kann fr&uuml;hestens am bestehenden Waschtag reserviert werden.</li>
+                  <li>Tumbler: pro Slot bleibt mindestens ein Tumbler frei.</li>
+                  <li>Trockenraum: 07:00-Slot bis 21:00, 12:00-Slot bis Folgetag 12:00, 17:00-Slot bis Folgetag 12:00.</li>
+                  <li>Bitte den Trockenraum fr&uuml;her freigeben, sobald die W&auml;sche trocken ist. &Uuml;ber Nacht hilft das Abh&auml;ngen vor 07:00 Uhr besonders.</li>
+                </ul>
+              </div>
+            </details>
+            <details class="settings-knowledge-details">
+              <summary>Reinigung</summary>
+              <div class="settings-knowledge-content">
+                <ul>
+                  <li>Waschmaschine: Waschmittelschublade herausnehmen und sp&uuml;len. Trommel und Gummidichtung ausreiben. Filter unten links sp&uuml;len, wieder bis zum Anschlag einschrauben und ausgelaufenes Wasser in den Abfluss geben. Geh&auml;use feucht abwischen.</li>
+                  <li>Tumbler: Trommel ausreiben. Alle vier Filter reinigen. Unter den beiden mittleren Filtern den Abflussbereich auswischen. T&uuml;rdichtung und Geh&auml;use feucht abwischen.</li>
+                  <li>Trockenraum: Tisch abstauben oder abwischen, beide Filter reinigen, Boden wischen und feucht aufnehmen.</li>
+                  <li>Waschk&uuml;che: Boden wischen und feucht aufnehmen. Besen und Wischmopp von Fusseln befreien. Mopp aussp&uuml;len, auswringen und zum Trocknen aufh&auml;ngen.</li>
+                  <li>Die Reinigung gilt auch bei einer einzelnen Nutzung zwischendurch. Die Bodenreinigung kann innerhalb desselben Slots abgesprochen werden.</li>
+                </ul>
+              </div>
+            </details>
           </section>
 
           <section id="settingsPanelSecurity" class="settings-panel" role="tabpanel" data-settings-section="security" aria-labelledby="settingsSecurityTitle" hidden>
@@ -690,6 +695,19 @@
         </section>
         <div class="intro-actions">
           <button id="introDoneButton" type="button">Zur App</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="sessionWarningOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal session-warning-modal" role="dialog" aria-modal="true" aria-labelledby="sessionWarningTitle" aria-describedby="sessionWarningText">
+        <p class="eyebrow">Sicherheit</p>
+        <h2 id="sessionWarningTitle">Noch da?</h2>
+        <p id="sessionWarningText">Ohne weitere Aktivit&auml;t wirst du automatisch abgemeldet. So bleibt dein Konto auf gemeinsam genutzten Ger&auml;ten gesch&uuml;tzt.</p>
+        <p id="sessionCountdown" class="session-countdown" role="timer" aria-live="polite">Abmeldung in 2:00 Minuten</p>
+        <div class="session-warning-actions">
+          <button id="sessionStayButton" type="button">Angemeldet bleiben</button>
+          <button id="sessionLogoutButton" class="secondary" type="button">Jetzt abmelden</button>
         </div>
       </section>
     </div>

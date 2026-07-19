@@ -55,12 +55,15 @@ cancelRecovery.addEventListener('click', () => setMode('login'));
 
 const verification = new URLSearchParams(window.location.search).get('verification');
 const loggedOut = new URLSearchParams(window.location.search).get('loggedOut');
+const sessionExpired = new URLSearchParams(window.location.search).get('sessionExpired');
 if (verification === 'ok') {
   message.textContent = 'E-Mail-Adresse best\u00e4tigt. Du kannst dich jetzt anmelden.';
 } else if (verification === 'invalid') {
   message.textContent = 'Der Best\u00e4tigungslink ist ung\u00fcltig oder abgelaufen.';
 } else if (loggedOut === '1') {
   message.textContent = 'Du bist abgemeldet.';
+} else if (sessionExpired === '1') {
+  message.textContent = 'Deine Sitzung wurde wegen Inaktivit\u00e4t automatisch beendet. Bitte melde dich erneut an.';
 }
 
 form.addEventListener('submit', async (event) => {
