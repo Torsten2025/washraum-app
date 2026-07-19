@@ -9,9 +9,17 @@ const required = String(process.env.E2E_REQUIRED || '').toLowerCase() === 'true'
 
 async function loadPlaywright() {
   try {
-    return await import('playwright');
-  } catch (error) {
-    if (required) throw error;
+    return require('playwright');
+  } catch (packageError) {
+    if (process.env.PLAYWRIGHT_MODULE_PATH) {
+      try {
+        return require(path.resolve(process.env.PLAYWRIGHT_MODULE_PATH));
+      } catch (configuredError) {
+        if (required) throw configuredError;
+      }
+    } else if (required) {
+      throw packageError;
+    }
     console.log(JSON.stringify({ ok: true, skipped: true, reason: 'playwright-not-installed' }));
     process.exit(0);
   }

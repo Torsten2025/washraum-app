@@ -1865,7 +1865,27 @@ function normalizeEmail(value) {
 }
 
 function isValidEmail(value) {
-  return String(value || '').length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+  const email = String(value || '').trim();
+  if (!email || email.length > 254 || /[\s\u0000-\u001f\u007f<>"\\]/.test(email)) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const [localPart, domain] = parts;
+  if (
+    !localPart
+    || localPart.length > 64
+    || localPart.startsWith('.')
+    || localPart.endsWith('.')
+    || localPart.includes('..')
+    || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)
+  ) return false;
+  const labels = domain.split('.');
+  return labels.length >= 2 && labels.every((label) => (
+    label.length >= 1
+    && label.length <= 63
+    && /^[A-Za-z0-9-]+$/.test(label)
+    && !label.startsWith('-')
+    && !label.endsWith('-')
+  ));
 }
 
 function normalizeAccessCode(value) {
@@ -5060,18 +5080,22 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
   const config = smtpConfig();
   const user = db.prepare('SELECT id, username, email FROM users WHERE id = ?').get(req.session.user.id);
   const house = db.prepare('SELECT name FROM houses WHERE id = ?').get(currentHouseId(req));
+  const configuredTestEmail = normalizeEmail(process.env.SMTP_TEST_TO);
+  const recipient = isValidEmail(configuredTestEmail) ? configuredTestEmail : user?.email;
 
   if (!config.host || !config.from) {
     return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht in Render konfiguriert.' });
   }
-  if (!user || !isValidEmail(user.email)) {
-    return res.status(400).json({ error: 'Bitte zuerst unter Benachrichtigungen eine g\u00fcltige E-Mail-Adresse speichern.' });
+  if (!user || !isValidEmail(recipient)) {
+    return res.status(400).json({
+      error: 'Bitte SMTP_TEST_TO in Render setzen oder unter Benachrichtigungen eine gueltige E-Mail-Adresse speichern.'
+    });
   }
 
   try {
     await sendMail({
       config,
-      to: user.email,
+      to: recipient,
       subject: 'WaschZeit: Testmail',
       text: [
         `Hallo ${apartmentAccountLabel(user.id, user.username)}`,
@@ -5082,7 +5106,7 @@ app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
         `WaschZeit ${house?.name || ''}`.trim()
       ].join('\n')
     });
-    res.json({ ok: true, message: `Testmail wurde an ${user.email} gesendet.` });
+    res.json({ ok: true, message: `Testmail wurde an ${recipient} gesendet.` });
   } catch (error) {
     next(error);
   }
@@ -5405,6 +5429,12 @@ app.get('/', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({ error: 'Die Anfrage ist zu gross.' });
+  }
+  if (err instanceof SyntaxError && err?.status === 400 && Object.hasOwn(err, 'body')) {
+    return res.status(400).json({ error: 'Die Anfrage enthaelt ungueltiges JSON.' });
+  }
   console.error(err);
   res.status(500).json({ error: 'Interner Serverfehler' });
 });

@@ -78,6 +78,7 @@ Im laufenden Zeitfenster meldet `Frueher frei`, dass ein Raum oder Geraet wieder
 - `SMTP_USER`
 - `SMTP_PASSWORD`
 - `SMTP_FROM`
+- `SMTP_TEST_TO` (optional; feste Zieladresse fuer den Admin-Testbutton, ohne sie wird die Konto-E-Mail des angemeldeten Admins verwendet)
 
 ## Sicherung
 

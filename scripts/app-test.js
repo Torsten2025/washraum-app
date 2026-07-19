@@ -202,7 +202,8 @@ async function verifySmtpDelivery() {
       SMTP_HOST: '127.0.0.1',
       SMTP_PORT: String(smtpPort),
       SMTP_FROM: 'waschplan@local.test',
-      SMTP_SECURE: 'false'
+      SMTP_SECURE: 'false',
+      SMTP_TEST_TO: 'smtp-test-target@example.com'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -262,13 +263,21 @@ async function verifySmtpDelivery() {
     const smtpAdminCookie = String(smtpAdminLogin.headers.get('set-cookie') || '').split(';')[0];
     assert.ok(smtpAdminCookie.includes('connect.sid='));
 
+    const adminEmailTest = await fetch(`http://127.0.0.1:${appPort}/api/admin/email-test`, {
+      method: 'POST',
+      headers: { Cookie: smtpAdminCookie }
+    });
+    assert.equal(adminEmailTest.status, 200);
+    assert.ok(messages[2].includes('To: smtp-test-target@example.com'));
+    assert.ok(messages[2].includes('Subject: WaschZeit: Testmail'));
+
     const adminResetRequest = await fetch(
       `http://127.0.0.1:${appPort}/api/admin/users/${registrationBody.user.id}/password-reset`,
       { method: 'POST', headers: { Cookie: smtpAdminCookie } }
     );
     assert.equal(adminResetRequest.status, 200);
-    assert.ok(messages[2].includes('Subject: WaschZeit:'));
-    assert.ok(messages[2].includes('/reset.html?token='));
+    assert.ok(messages[3].includes('Subject: WaschZeit:'));
+    assert.ok(messages[3].includes('/reset.html?token='));
 
     const resourcesResponse = await fetch(`http://127.0.0.1:${appPort}/api/resources`, {
       headers: { Cookie: smtpAdminCookie }
@@ -295,11 +304,11 @@ async function verifySmtpDelivery() {
     assert.equal(releaseMailBody.releaseNoticeCreated, true);
     assert.equal(releaseMailBody.emailNotifications.configured, true);
     assert.equal(releaseMailBody.emailNotifications.sent, 1);
-    assert.equal(messages.length, 4);
-    assert.ok(messages[3].includes('To: smtp-person@example.com'));
-    assert.ok(messages[3].includes('Subject: WaschZeit: Termin'));
-    assert.ok(messages[3].includes(smtpWasher.name));
-    assert.ok(messages[3].includes('wieder frei'));
+    assert.equal(messages.length, 5);
+    assert.ok(messages[4].includes('To: smtp-person@example.com'));
+    assert.ok(messages[4].includes('Subject: WaschZeit: Termin'));
+    assert.ok(messages[4].includes(smtpWasher.name));
+    assert.ok(messages[4].includes('wieder frei'));
   } finally {
     if (smtpApp.exitCode === null) {
       smtpApp.kill();

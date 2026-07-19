@@ -3799,7 +3799,7 @@ async function loadAdmin() {
   renderAdminRecovery(recoveryData, usersData.users);
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
-    ? 'Testmail an deine hinterlegte Adresse senden'
+    ? 'Testmail an die konfigurierte Testadresse senden'
     : 'Zuerst SMTP in Render konfigurieren';
   renderAdminPushTargets(pushDevicesData);
   adminPushTestButton.disabled = !overviewData.push.configured || !pushDevicesData.totalDevices;

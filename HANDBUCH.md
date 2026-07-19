@@ -300,7 +300,7 @@ Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranki
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
-| Testmail an eigene hinterlegte Adresse senden | Ja | Ja |
+| Testmail an die konfigurierte Betriebsadresse oder eigene hinterlegte Adresse senden | Ja | Ja |
 | Aktive Push-Geraete des Hauses sehen und Testpush senden | Ja | Ja |
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
 | Alle normalen Buchungen des aktiven Hauses mit Bestaetigungstext loeschen | Ja | Ja |
@@ -390,12 +390,16 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | Befehl | Zweck |
 | --- | --- |
 | `npm run verify` | Syntax aller zentralen Dateien pruefen |
+| `npm run test:security` | Sicherheitsheader, Origin-Schutz, Sitzungen, Anmeldewege, Einmalcodes, Passwortregeln und Rate-Limits dynamisch pruefen |
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
 | `npm run test:e2e` | Optionalen Browser-Smoke-Test fuer Registrierung und persoenliche Einrichtung ausfuehren, wenn Playwright verfuegbar ist |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
-| `npm run check` | Alle oben genannten Pruefungen nacheinander ausfuehren |
+| `npm run audit` | Den ausfuehrlichen Gesamtaudit Schritt fuer Schritt inklusive optionalem Browsertest ausfuehren |
+| `npm run check` | Verbindliches Abschluss-Gate aus Syntax-, Sicherheits-, Funktions-, Rollen-, Jahres- und Barrierefreiheitstest ausfuehren |
+
+Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg steht in `TESTPLAN_GESAMTAUDIT.md`. Externe Live-Dienste und reale Mobilgeraete werden dort als eigener manueller Abnahmeblock gefuehrt und duerfen nicht durch lokale Mocks als produktiv bestaetigt gelten.
 
 ## Entwicklerreferenz
 
@@ -411,6 +415,8 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `public/manifest.webmanifest`, `public/sw.js` | PWA-Installation, Offline-Shell und Push-Anzeige |
 | `public/styles.css` | Gemeinsames responsives Erscheinungsbild |
 | `scripts/` | Funktions-, Rollen-, Jahres- und Barrierefreiheitstests |
+| `TESTPLAN_GESAMTAUDIT.md` | Vollstaendiger Pruefkatalog fuer Sicherheit, Konten, Rollen, Regeln, Betrieb und Live-Abnahme |
+| `PRUEFBERICHT_GESAMTAUDIT_2026-07-19.md` | Ausgefuehrte Ergebnisse, behobene Fehler, Restrisiken und priorisierte Anpassungsvorschlaege |
 | `render.yaml` | Produktionsdienst und persistenter Datentraeger auf Render |
 | `render.staging.yaml` | Vorlage fuer eine getrennte Staging-Umgebung |
 
@@ -445,6 +451,10 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Admin-Testmail vom Benutzerkonto entkoppelt: `SMTP_TEST_TO` kann eine feste betriebliche Zieladresse vorgeben. Ohne diese Variable bleibt die eigene Admin-Adresse der Rueckfall, sodass Wohnungs-E-Mails weiterhin eindeutig genau einem Konto gehoeren.
+- Reproduzierbaren Gesamtaudit ergaenzt: eigener dynamischer Sicherheits- und Anmeldetest, schrittweiser Audit-Runner sowie vollstaendiger Pruefkatalog mit Soll-Ergebnissen und getrennt ausgewiesener Live-Abnahme. `npm run check` enthaelt den Sicherheitstest jetzt verbindlich.
+- Fehlerbehandlung fuer Eingaben geschaerft: JSON-Anfragen ueber 32 KB liefern kontrolliert `413`, fehlerhaftes JSON kontrolliert `400`, statt beide Faelle als internen Serverfehler zu melden.
+- E-Mail-Validierung gegen HTML-/Headerzeichen, Steuer- und Leerzeichen, mehrfache `@`, doppelte Punkte sowie ungueltige Domainsegmente gehaertet. Dadurch koennen ungeeignete Login- und Mailheaderwerte nicht mehr als Wohnungsadresse gespeichert werden.
 - Unveraenderbares Maschinen- und Raumtagebuch eingefuehrt: Bewohner melden Stoerungen, Haus-Admins fuehren den verbindlichen Ablauf `Meldung -> Sperre -> Reparatur -> Funktionspruefung -> Freigabe`, und eine Freigabe verlangt erfolgreiche Pruefung sowie Abschlussnotiz. Suche, Statusfilter, eigene Meldungsstatus, Hausgrenzen und hausuebergreifende Superadmin-Sicht sind in Rollen- und Funktionstests abgesichert.
 - Wohnungsidentitaet getrennt: stabile interne Wohnungsbezeichnung, adminverwalteter Klingelschildname und E-Mail als Bewohnerlogin. Buchungen, Freigaben, E-Mails, Push-Auswahl und Auswertung zeigen den Klingelschildnamen statt eines frei gewaehlten Benutzernamens.
 - Adminbearbeitung fuer Klingelschildname und bis zu zwei Wohnungs-E-Mails ergaenzt; geaenderte E-Mails werden erneut bestaetigt und alte Bewohner-Sitzungen beendet.
