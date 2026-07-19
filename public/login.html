@@ -72,9 +72,10 @@
         </div>
         <form id="loginForm" class="stack auth-form">
           <label>
-            Benutzername oder E-Mail
-            <input name="username" autocomplete="username" required>
+            E-Mail
+            <input name="email" autocomplete="username" inputmode="email" required>
           </label>
+          <p class="helper-text">Admin-Konten k&ouml;nnen hier ihren technischen Kontonamen verwenden.</p>
           <label>
             Passwort
             <input name="password" type="password" autocomplete="current-password" required>
@@ -96,10 +97,6 @@
         </form>
         <form id="registerForm" class="stack auth-form" hidden>
           <label>
-            Benutzername des Wohnungskontos
-            <input name="username" autocomplete="username" minlength="3" required>
-          </label>
-          <label>
             E-Mail f&uuml;r Passwort-Reset und Hinweise
             <input name="email" type="email" autocomplete="email" required>
           </label>
@@ -116,7 +113,7 @@
             <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
           </label>
           <button type="submit">Konto erstellen</button>
-          <p class="helper-text">Den einmaligen Code erh&auml;lt jede Wohnung pers&ouml;nlich von der Verwaltung. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
+          <p class="helper-text">Wohnung und Klingelschildname sind bereits durch die Verwaltung festgelegt. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
           <p id="registerMessage" class="message" role="status"></p>
         </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>

@@ -31,6 +31,7 @@
         <select id="houseSelect" aria-label="Hausnummer wechseln"></select>
       </label>
       <div class="topbar-utilities">
+        <button id="reportIssueButton" class="topbar-action" type="button" aria-controls="reportIssueOverlay" hidden>St&ouml;rung melden</button>
         <button id="messageCenterButton" class="topbar-action" type="button" aria-controls="messageCenterOverlay" aria-expanded="false">
           <span>Mitteilungen</span>
           <span id="messageCountBadge" class="message-count" aria-label="Ungelesene Mitteilungen" hidden>0</span>
@@ -182,6 +183,7 @@
           <nav id="adminSectionNav" class="admin-section-nav" aria-label="Verwaltungsbereiche">
             <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview">&Uuml;berblick</button>
             <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse">Haus &amp; Ger&auml;te</button>
+            <button class="admin-section-tab" type="button" data-admin-target="logbook" aria-controls="adminSectionLogbook">Tagebuch</button>
             <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed">Dauertermine</button>
             <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Wohnungskonten</button>
             <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics">Auswertung</button>
@@ -205,7 +207,11 @@
             <form id="apartmentForm" class="stack compact-form admin-narrow-form">
               <label>
                 Wohnungsbezeichnung
-                <input id="apartmentLabelInput" name="label" placeholder="z.B. Partei 07" maxlength="60" required>
+                <input id="apartmentLabelInput" name="label" placeholder="z.B. 2. OG links" maxlength="60" required>
+              </label>
+              <label>
+                Name am Klingelschild
+                <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
               </label>
               <button type="submit">Wohnungscode erzeugen</button>
             </form>
@@ -247,6 +253,32 @@
               <button type="submit">Hinzuf&uuml;gen</button>
             </form>
             <div id="resourceAdminList" class="resource-admin-list"></div>
+          </section>
+
+          <section id="adminSectionLogbook" class="admin-section" data-admin-section="logbook" hidden>
+            <div class="admin-section-heading">
+              <h3>Maschinen- &amp; Raumtagebuch</h3>
+              <span>Meldung, Sperre, Reparatur, Pr&uuml;fung und Freigabe l&uuml;ckenlos dokumentieren</span>
+            </div>
+            <div class="logbook-toolbar">
+              <label>
+                Suchen
+                <input id="maintenanceSearch" type="search" placeholder="Ger&auml;t, Meldung oder Person">
+              </label>
+              <label>
+                Status
+                <select id="maintenanceStatusFilter">
+                  <option value="open">Offene F&auml;lle</option>
+                  <option value="all">Alle F&auml;lle</option>
+                  <option value="reported">Neu gemeldet</option>
+                  <option value="blocked">Gesperrt</option>
+                  <option value="repairing">In Reparatur</option>
+                  <option value="tested">Gepr&uuml;ft</option>
+                  <option value="closed">Abgeschlossen</option>
+                </select>
+              </label>
+            </div>
+            <div id="maintenanceCaseList" class="maintenance-case-list" aria-live="polite"></div>
           </section>
 
           <section id="adminSectionFixed" class="admin-section" data-admin-section="fixed" hidden>
@@ -376,6 +408,39 @@
       </aside>
     </main>
 
+    <div id="reportIssueOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal report-issue-modal" role="dialog" aria-modal="true" aria-labelledby="reportIssueTitle">
+        <button id="closeReportIssueButton" class="icon-close" type="button" aria-label="St&ouml;rungsmeldung schliessen">x</button>
+        <div class="intro-copy">
+          <p class="eyebrow">Direkt an den Haus-Admin</p>
+          <h2 id="reportIssueTitle">St&ouml;rung melden</h2>
+          <p>Beschreibe kurz, was nicht funktioniert. Der Haus-Admin entscheidet danach &uuml;ber Sperre, Reparatur und Freigabe.</p>
+        </div>
+        <form id="reportIssueForm" class="stack compact-form">
+          <label>
+            Ger&auml;t oder Raum
+            <select id="reportIssueResource" required></select>
+          </label>
+          <label>
+            Kurzer Titel
+            <input id="reportIssueSubject" maxlength="120" placeholder="z.B. Wasser l&auml;uft nicht ab" required>
+          </label>
+          <label>
+            Was hast du beobachtet?
+            <textarea id="reportIssueDescription" rows="4" maxlength="1000" placeholder="Bitte nur sachlich beschreiben, ohne Vermutungen." required></textarea>
+          </label>
+          <div class="settings-actions">
+            <button type="submit">Meldung senden</button>
+            <button id="cancelReportIssueButton" class="secondary" type="button">Abbrechen</button>
+          </div>
+        </form>
+        <section class="own-maintenance-section">
+          <h3>Meine letzten Meldungen</h3>
+          <div id="ownMaintenanceCases" class="own-maintenance-list"></div>
+        </section>
+      </section>
+    </div>
+
     <div id="releaseNoticeOverlay" class="intro-overlay" hidden>
       <section class="intro-modal release-notice-modal" role="dialog" aria-modal="true" aria-labelledby="releaseNoticeTitle">
         <button id="closeReleaseNoticeButton" class="icon-close" type="button" aria-label="Freigabe schliessen">x</button>
@@ -446,8 +511,12 @@
               </div>
               <div class="settings-field-grid">
                 <label>
-                  Benutzername
+                  Klingelschild
                   <input id="settingsUsername" type="text" readonly>
+                </label>
+                <label id="settingsApartmentLabelWrap">
+                  Wohnung
+                  <input id="settingsApartmentLabel" type="text" readonly>
                 </label>
                 <label>
                   Rolle
@@ -458,6 +527,19 @@
                 <strong id="apartmentAccountStatus">Wohnungszuordnung wird gepr&uuml;ft.</strong>
                 <button id="openApartmentSetupButton" class="text-button" type="button" hidden>Jetzt Wohnung zuordnen</button>
               </div>
+              <details id="nameCorrectionPanel" class="profile-correction-panel">
+                <summary>Klingelschildname korrigieren lassen</summary>
+                <p class="muted">Dein Vorschlag wird erst nach Pr&uuml;fung durch den Haus-Admin sichtbar.</p>
+                <label>
+                  Gew&uuml;nschter Klingelschildname
+                  <input id="requestedDisplayName" maxlength="80">
+                </label>
+                <label>
+                  Kurzer Hinweis (optional)
+                  <textarea id="displayNameRequestNote" maxlength="300" rows="2"></textarea>
+                </label>
+                <button id="sendDisplayNameRequestButton" class="secondary" type="button">Korrektur anfragen</button>
+              </details>
               <label>
                 Erste E-Mail
                 <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>

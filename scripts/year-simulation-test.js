@@ -203,7 +203,7 @@ async function run() {
           insertSeededResident.run(username, seededResidentHash, email, house.id);
           await expectStatus(client, '/api/login', 200, {
             method: 'POST',
-            body: JSON.stringify({ username, password: seededResidentPassword })
+            body: JSON.stringify({ email, password: seededResidentPassword })
           });
         }
         const resident = { client, username, houseId: house.id };

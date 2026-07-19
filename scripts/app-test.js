@@ -417,6 +417,10 @@ async function run() {
       })
     });
     assert.equal(registration.body.user.username, 'Bewohner Test');
+    await expectStatus(new ApiClient(), '/api/login', 401, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-2026!' })
+    });
 
     const sessionDatabase = new Database(databasePath);
     const storedSession = sessionDatabase.prepare('SELECT sid, sess FROM sessions').all()
@@ -449,7 +453,7 @@ async function run() {
     const idleClient = new ApiClient();
     await expectStatus(idleClient, '/api/login', 200, {
       method: 'POST',
-      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-2026!' })
+      body: JSON.stringify({ username: 'bewohner-test@example.com', password: 'Bewohner-2026!' })
     });
     const signedSessionValue = decodeURIComponent(idleClient.cookie.split('=', 2)[1] || '');
     const idleSessionId = signedSessionValue.replace(/^s:/, '').split('.')[0];
@@ -1005,19 +1009,45 @@ async function run() {
 
     const existingApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
       method: 'POST',
-      body: JSON.stringify({ label: 'Partei Bestand' })
+      body: JSON.stringify({ label: '2. OG links', displayName: 'Meier / Keller' })
     });
     assert.match(existingApartment.body.activationCode, /^W-/);
     const claimedApartment = await expectStatus(user, '/api/me/apartment/claim', 200, {
       method: 'POST',
       body: JSON.stringify({ apartmentCode: existingApartment.body.activationCode })
     });
-    assert.equal(claimedApartment.body.user.apartmentLabel, 'Partei Bestand');
+    assert.equal(claimedApartment.body.user.apartmentLabel, '2. OG links');
+    assert.equal(claimedApartment.body.user.displayName, 'Meier / Keller');
     assert.equal(claimedApartment.body.user.apartmentSetupRequired, false);
+    const bookingWithDoorbellName = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(bookingWithDoorbellName.body.bookings.some((booking) => booking.username === 'Meier / Keller'));
+    await expectStatus(user, '/api/me/apartment-name-request', 201, {
+      method: 'POST',
+      body: JSON.stringify({ displayName: 'Meier-Keller', note: 'Klingelschild wurde angepasst.' })
+    });
+    const apartmentsWithRequest = await expectStatus(admin, '/api/admin/apartments', 200);
+    assert.ok(apartmentsWithRequest.body.apartments.some((apartment) => (
+      apartment.id === existingApartment.body.apartment.id
+      && apartment.requested_display_name === 'Meier-Keller'
+    )));
+    await expectStatus(admin, `/api/admin/apartments/${existingApartment.body.apartment.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        displayName: 'Meier-Keller',
+        email: 'bewohner-test@example.com',
+        secondaryEmail: 'bewohner-zweit@example.com'
+      })
+    });
+    const renamedBooking = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(renamedBooking.body.bookings.some((booking) => booking.username === 'Meier-Keller'));
+    const apartmentsAfterApproval = await expectStatus(admin, '/api/admin/apartments', 200);
+    assert.ok(apartmentsAfterApproval.body.apartments.some((apartment) => (
+      apartment.id === existingApartment.body.apartment.id && !apartment.name_request_id
+    )));
 
     const newApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
       method: 'POST',
-      body: JSON.stringify({ label: 'Partei Neu' })
+      body: JSON.stringify({ label: '3. OG rechts', displayName: 'Familie Neu' })
     });
     const apartmentResident = new ApiClient();
     const apartmentRegistration = await expectStatus(apartmentResident, '/api/register', 201, {
@@ -1030,7 +1060,17 @@ async function run() {
         notifyReleases: true
       })
     });
-    assert.equal(apartmentRegistration.body.user.apartmentLabel, 'Partei Neu');
+    assert.equal(apartmentRegistration.body.user.apartmentLabel, '3. OG rechts');
+    assert.equal(apartmentRegistration.body.user.displayName, 'Familie Neu');
+    assert.notEqual(apartmentRegistration.body.user.username, 'Partei Neu Konto');
+    await expectStatus(new ApiClient(), '/api/login', 401, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'Partei Neu Konto', password: 'Partei-Neu-2026!' })
+    });
+    await expectStatus(new ApiClient(), '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'partei-neu@example.test', password: 'Partei-Neu-2026!' })
+    });
     await expectStatus(new ApiClient(), '/api/register', 403, {
       method: 'POST',
       body: JSON.stringify({
@@ -1069,12 +1109,14 @@ async function run() {
     });
     assert.equal(merged.body.user.id, apartmentRegistration.body.user.id);
     assert.equal(merged.body.user.secondaryEmail, 'partei-neu-zweit@example.test');
-    await expectStatus(new ApiClient(), '/api/login', 403, {
+    await expectStatus(new ApiClient(), '/api/login', 401, {
       method: 'POST',
-      body: JSON.stringify({ username: 'Partei Neu Doppelt', password: 'Partei-Neu-Zweit-2026!' })
+      body: JSON.stringify({ username: 'partei-neu-zweit@example.test', password: 'Partei-Neu-Zweit-2026!' })
     });
     const apartments = await expectStatus(admin, '/api/admin/apartments', 200);
-    assert.ok(apartments.body.apartments.some((item) => item.label === 'Partei Neu' && item.claimed));
+    assert.ok(apartments.body.apartments.some((item) => (
+      item.label === '3. OG rechts' && item.display_name === 'Familie Neu' && item.claimed
+    )));
 
     const initialHouses = await expectStatus(admin, '/api/admin/houses', 200);
     assert.equal(initialHouses.body.houses.length, 1);
@@ -1089,17 +1131,101 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ name: 'Trockenraum Reserve', type: 'drying_room' })
     });
-    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
-      method: 'PUT',
-      body: JSON.stringify({ name: 'Trockenraum Reserve', active: false, blockReason: 'Wartungstest' })
+    const reportableResources = await expectStatus(user, '/api/maintenance-resources', 200);
+    assert.ok(reportableResources.body.resources.some((resource) => resource.id === addedResource.body.id));
+    const reportedIssue = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Ablauf pruefen',
+        description: 'Nach dem Trocknen steht Wasser unter dem Geraet.'
+      })
+    });
+    const ownIssues = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.ok(ownIssues.body.cases.some((item) => item.id === reportedIssue.body.id && item.status === 'reported'));
+    const additionalObservation = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Zweite Beobachtung',
+        description: 'Auch nach kurzem Warten bleibt Feuchtigkeit sichtbar.'
+      })
+    });
+    assert.equal(additionalObservation.body.id, reportedIssue.body.id);
+    assert.equal(additionalObservation.body.addedToExisting, true);
+    await expectStatus(user, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 403, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'block', note: 'Bewohner darf nicht sperren.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 409, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'release', note: 'Zu frueh.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'block', note: 'Wegen moeglichem Wasseraustritt gesperrt.' })
     });
     const adminResources = await expectStatus(admin, '/api/admin/resources', 200);
     assert.ok(adminResources.body.resources.some((resource) => (
-      resource.id === addedResource.body.id && resource.active === 0 && resource.blocked_reason === 'Wartungstest'
+      resource.id === addedResource.body.id
+        && resource.active === 0
+        && resource.blocked_reason === 'Wegen moeglichem Wasseraustritt gesperrt.'
     )));
-    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
+    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 409, {
       method: 'PUT',
       body: JSON.stringify({ name: 'Trockenraum Reserve', active: true })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'repair', note: 'Ablaufschlauch neu befestigt.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: false, note: 'Erster Probelauf zeigt noch Feuchtigkeit.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: true, note: 'Zweiter Probelauf ohne Wasseraustritt.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 400, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'release', note: '' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'release', note: 'Ablaufschlauch befestigt, Probelauf erfolgreich.' })
+    });
+    const closedIssues = await expectStatus(admin, '/api/admin/maintenance-cases', 200);
+    const closedIssue = closedIssues.body.cases.find((item) => item.id === reportedIssue.body.id);
+    assert.equal(closedIssue.status, 'closed');
+    assert.deepEqual(closedIssue.entries.map((entry) => entry.entry_type), [
+      'report', 'report', 'block', 'repair', 'test_failed', 'test_passed', 'release'
+    ]);
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}`, 404, { method: 'DELETE' });
+    const releasedResources = await expectStatus(admin, '/api/admin/resources', 200);
+    assert.ok(releasedResources.body.resources.some((resource) => resource.id === addedResource.body.id && resource.active === 1));
+
+    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: false, blockReason: 'Direkte Sicherheitssperre' })
+    });
+    const directBlockCases = await expectStatus(admin, '/api/admin/maintenance-cases', 200);
+    const directBlockCase = directBlockCases.body.cases.find((item) => (
+      item.resource_id === addedResource.body.id && item.status === 'blocked'
+    ));
+    assert.ok(directBlockCase);
+    assert.deepEqual(directBlockCase.entries.map((entry) => entry.entry_type), ['report', 'block']);
+    await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'repair', note: 'Sichtkontrolle und Reinigung abgeschlossen.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: true, note: 'Testbetrieb erfolgreich.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'release', note: 'Reinigung abgeschlossen, Testbetrieb erfolgreich.' })
     });
 
     const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
@@ -1214,7 +1340,7 @@ async function run() {
     });
     await expectStatus(new ApiClient(), '/api/login', 403, {
       method: 'POST',
-      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-Neu-2026!' })
+      body: JSON.stringify({ username: 'bewohner-test@example.com', password: 'Bewohner-Neu-2026!' })
     });
     await expectStatus(admin, `/api/admin/users/${resident.id}/status`, 200, {
       method: 'PUT',
@@ -1229,7 +1355,7 @@ async function run() {
     });
     await expectStatus(new ApiClient(), '/api/login', 200, {
       method: 'POST',
-      body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-Neu-2026!' })
+      body: JSON.stringify({ username: 'bewohner-test@example.com', password: 'Bewohner-Neu-2026!' })
     });
 
     const backup = await expectStatus(admin, '/api/admin/backup', 200);

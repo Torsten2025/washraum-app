@@ -32,9 +32,9 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 
 | Rolle | Geltungsbereich | Verwaltungsrechte |
 | --- | --- | --- |
-| Bewohner | Gemeinsames Wohnungskonto und zugeordnetes Haus | Eigene Wohnungsbuchungen, Hinweise, Geraete und Kontodaten |
-| Haus-Admin | Eigenes Haus | Wohnungen und Einmalcodes, Wohnungskonten, Geraete, Dauertermine und Buchungen des Hauses |
-| Superadmin | Alle Haeuser | Alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege, Backups und globaler Wartungsmodus |
+| Bewohner | Gemeinsames Wohnungskonto und zugeordnetes Haus | Eigene Wohnungsbuchungen, Hinweise, Kontodaten und sachliche Stoerungsmeldungen |
+| Haus-Admin | Eigenes Haus | Wohnungen und Einmalcodes, Wohnungskonten, Geraete, Tagebuch, Sperren, Reparaturpruefung, Dauertermine und Buchungen des Hauses |
+| Superadmin | Alle Haeuser | Hausuebergreifende Tagebuchsicht, alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege, Backups und globaler Wartungsmodus |
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
 
@@ -68,8 +68,8 @@ Organisatorischer Notfallprozess:
 | Bereich | Funktion | Zugang |
 | --- | --- | --- |
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
-| Anmelden | Anmeldung mit Benutzername oder E-Mail und Passwort | Oeffentlich |
-| Wohnung aktivieren | Erstes Wohnungskonto mit Benutzername, Pflicht-E-Mail, Passwort und einmaligem Wohnungscode erstellen | Oeffentlich |
+| Anmelden | Bewohner mit einer hinterlegten E-Mail und Passwort; Admins alternativ mit technischem Kontonamen | Oeffentlich |
+| Wohnung aktivieren | Erstes Wohnungskonto mit Pflicht-E-Mail, Passwort und einmaligem Wohnungscode erstellen | Oeffentlich |
 | Geraet verbinden | Weiteres Geraet mit einem zehn Minuten gueltigen Einmalcode am bestehenden Wohnungskonto anmelden | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
@@ -78,7 +78,9 @@ Organisatorischer Notfallprozess:
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
-Wohnungscodes sind zufaellig, werden serverseitig nur gehasht gespeichert und nach der Aktivierung vernichtet. Der Admin sieht danach nur den Status `aktiviert`, nicht mehr den Code. Ein nicht verwendeter Code kann widerrufen und neu erzeugt werden. Bestehende Bewohnerkonten ohne Wohnungszuordnung werden nach dem Login gefragt, ob sie eine Wohnung erstmals aktivieren oder sich per Geraetecode mit einem bereits bestehenden Wohnungskonto zusammenfuehren wollen. Buchungen und Push-Geraete werden bei der Zusammenfuehrung uebernommen; das alte Doppel-Konto wird deaktiviert und bleibt fuer Auditbezuege erhalten.
+Wohnungscodes sind zufaellig, werden serverseitig nur gehasht gespeichert und nach der Aktivierung vernichtet. Der Admin sieht danach nur den Status `aktiviert`, nicht mehr den Code. Ein nicht verwendeter Code kann widerrufen und neu erzeugt werden. Vor der Ausgabe legt der Admin eine stabile interne Wohnungsbezeichnung wie `2. OG links` und getrennt den Namen vom Klingelschild fest. Bewohner koennen bei der Aktivierung keinen eigenen Anzeigenamen waehlen. Bestehende Bewohnerkonten ohne Wohnungszuordnung werden nach dem Login gefragt, ob sie eine Wohnung erstmals aktivieren oder sich per Geraetecode mit einem bereits bestehenden Wohnungskonto zusammenfuehren wollen. Buchungen und Push-Geraete werden bei der Zusammenfuehrung uebernommen; das alte Doppel-Konto wird deaktiviert und bleibt fuer Auditbezuege erhalten.
+
+Bewohnerkonten melden sich mit der ersten oder zweiten hinterlegten E-Mail-Adresse an. Ein alter Bewohner-Benutzername ist bei vorhandener E-Mail kein Login mehr. Nur bestehende Bewohnerkonten ohne jede E-Mail duerfen ihren alten Kontonamen uebergangsweise verwenden, damit der Admin die fehlende Adresse nachtragen kann. Admin- und Superadmin-Konten behalten ihren technischen Kontonamen fuer Betrieb und Notfallzugang.
 
 Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
 
@@ -107,6 +109,7 @@ Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrieru
 | --- | :---: | :---: | :---: |
 | Angemeldete Person, Rolle und Haus anzeigen | Ja | Ja | Ja |
 | Mitteilungszentrum mit Ungelesen-Anzeige oeffnen | Ja | Ja | Ja |
+| Stoerung zu einem Geraet oder Raum melden | Ja | Nein | Nein |
 | Kontomenue und persoenliche Einstellungen oeffnen | Ja | Ja | Ja |
 | Zwischen `Buchen` und `Verwalten` wechseln | Nein | Ja | Ja |
 | Aktives Haus wechseln | Nein | Nein | Ja |
@@ -164,6 +167,10 @@ Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht
 
 Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein kann die Regeln deshalb nicht umgehen.
 
+### Stoerung melden
+
+Bewohner waehlen in der Kopfzeile `Stoerung melden`, das betroffene Geraet oder den Raum und beschreiben die Beobachtung sachlich. Sie sehen den Status ihrer eigenen Meldungen, koennen aber weder eine Ressource sperren noch Tagebucheintraege bearbeiten. Auch bereits gesperrte Ressourcen bleiben als meldbar sichtbar, damit neue Beobachtungen nicht verloren gehen.
+
 ### GBMZ-Buchungsregeln
 
 - Pro Tag darf nur ein Waschslot reserviert werden. Innerhalb dieses Slots koennen mehrere Waschmaschinen genutzt werden.
@@ -183,7 +190,8 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Neu frei | Den aktuellsten wieder freien Termin kompakt zwischen eigenen Buchungen und Kalender hervorheben |
 | Freien Termin buchen | Mitteilung mit Person, Geraet, Datum und Slot oeffnen und bei Verfuegbarkeit direkt buchen |
 | Kontomenue | Einstellungen, Hilfe und Abmeldung kompakt oben rechts anbieten |
-| Profil | Benutzername, Wohnung, Rolle, bis zu zwei getrennt bestaetigte E-Mail-Adressen und bevorzugten Buchungsweg anzeigen bzw. speichern |
+| Profil | Adminverwalteten Klingelschildnamen, stabile Wohnung, Rolle, bis zu zwei getrennt bestaetigte E-Mail-Adressen und bevorzugten Buchungsweg anzeigen bzw. speichern |
+| Namenskorrektur | Einen neuen Klingelschildnamen vorschlagen; sichtbar wird er erst nach Pruefung durch den Haus-Admin |
 | Benachrichtigungen | Freigabe-Hinweise ein- oder ausschalten und nach Bereich, Wochentag und Zeitfenster filtern |
 | App und Geraet | PWA installieren, Push verwalten, Versionsnummer und Stand sehen, nach Updates suchen und einen kurz gueltigen Code fuer ein weiteres Familiengeraet erzeugen |
 | Sicherheit und Daten | Passwort aendern, eigene Daten exportieren, Datenschutz oeffnen oder Konto loeschen |
@@ -203,7 +211,7 @@ Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere recht
 
 ## Verwaltungsansicht
 
-Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. Die Navigation teilt alle Aufgaben in fuenf klar getrennte Arbeitsbereiche. Auf kleinen Bildschirmen bricht die Navigation in gut erreichbare Zeilen um; Kontraste bleiben auch in der hellen Verwaltungsansicht lesbar.
+Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. Die Navigation teilt die Aufgaben in klar getrennte Arbeitsbereiche. Auf kleinen Bildschirmen bricht die Navigation in gut erreichbare Zeilen um; Kontraste bleiben auch in der hellen Verwaltungsansicht lesbar.
 
 ### 1. Ueberblick
 
@@ -214,6 +222,7 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 | Heutige Buchungen | Ja | Ja |
 | Aktive Geraete und Raeume | Ja | Ja |
 | Anzahl Dauertermine und Freigaben | Ja | Ja |
+| Offene Tagebuchfaelle | Ja | Ja |
 | E-Mail- und Backupstatus | Ja | Ja |
 
 ### 2. Haus und Geraete
@@ -221,16 +230,36 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
 | Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
+| Stabile Wohnungsbezeichnung und Klingelschildname getrennt festlegen | Ja | Ja |
+| Klingelschildname und E-Mail-Adressen eines Wohnungskontos aktualisieren | Ja | Ja |
+| Namenskorrektur eines Bewohners uebernehmen oder ablehnen | Ja | Ja |
 | Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
 | Geraet oder Raum anlegen | Ja | Ja |
 | Ressource umbenennen | Ja | Ja |
-| Ressource mit Grund sperren oder wieder freigeben | Ja | Ja |
+| Ressource mit Grund sperren und automatisch im Tagebuch erfassen | Ja | Ja |
 | Neues Haus mit Standardressourcen anlegen | Nein | Ja |
 | Haus anzeigen, umbenennen, aktivieren oder deaktivieren | Nein | Ja |
 
-Ressourcen, Wohnungen und Codes sind immer auf das aktive Haus begrenzt. Eine gesperrte Ressource ist fuer neue Buchungen nicht mehr verfuegbar und erscheint in der Admin-Auswertung mit Sperrgrund. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
+Ressourcen, Wohnungen und Codes sind immer auf das aktive Haus begrenzt. Die interne Wohnungsbezeichnung bleibt bei einem Bewohnerwechsel bestehen. Der Haus-Admin aendert nur Klingelschildname und E-Mail-Adressen; geaenderte Adressen muessen erneut bestaetigt werden und beenden aus Sicherheitsgruenden bestehende Bewohner-Sitzungen. Eine Sicherheitssperre ist auch bei kommenden Buchungen moeglich, nimmt die Ressource sofort aus der Buchungsauswahl und erzeugt einen Tagebuchfall. Eine direkte Aktivierung ist danach gesperrt; die Freigabe erfolgt ausschliesslich ueber den geprueften Tagebuchablauf. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
 
-### 3. Dauertermine
+### 3. Maschinen- und Raumtagebuch
+
+| Funktion | Bewohner | Haus-Admin | Superadmin |
+| --- | :---: | :---: | :---: |
+| Stoerung mit Ressource, Titel und Beobachtung melden | Ja | Nein | Nein |
+| Status eigener Meldungen sehen | Ja | Nein | Nein |
+| Alle Faelle des eigenen Hauses sehen und durchsuchen | Nein | Ja | Ja |
+| Faelle aller Haeuser sehen | Nein | Nein | Ja |
+| Ressource sperren | Nein | Ja | Ja |
+| Reparatur dokumentieren | Nein | Ja | Ja |
+| Funktionspruefung als erfolgreich oder nicht erfolgreich dokumentieren | Nein | Ja | Ja |
+| Nach erfolgreicher Pruefung mit Abschlussnotiz freigeben | Nein | Ja | Ja |
+| Bestehende Eintraege loeschen oder veraendern | Nein | Nein | Nein |
+| Zu einem abgeschlossenen Fall eine spaetere Notiz ergaenzen | Nein | Ja | Ja |
+
+Der technische Ablauf ist verbindlich: `Meldung -> Sperre -> Reparatur -> Funktionspruefung -> Freigabe`. Weitere Bewohnermeldungen zur gleichen Ressource werden in den bereits offenen Fall aufgenommen, statt konkurrierende Faelle zu erzeugen; jede meldende Wohnung sieht diesen Fall bei den eigenen Meldungen. Eine nicht erfolgreiche Funktionspruefung setzt den Fall nicht weiter und die Ressource bleibt gesperrt. Erst eine erfolgreiche Pruefung schaltet die Aktion `Freigeben und abschliessen` frei. Jede Aktion verlangt eine sachliche Notiz; bei der Freigabe dient sie als Abschlussnotiz, zum Beispiel `Ablaufpumpe ersetzt, Probelauf erfolgreich`. Faelle und Chronikzeilen besitzen absichtlich keine Loeschschnittstelle. Der Haus-Admin arbeitet nur im eigenen Haus. Der Superadmin sieht alle Haeuser und darf bei Bedarf eingreifen; sein Eingriff wird dem betroffenen Haus zugeordnet und auditiert.
+
+### 4. Dauertermine
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -241,7 +270,7 @@ Ressourcen, Wohnungen und Codes sind immer auf das aktive Haus begrenzt. Eine ge
 
 Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauertermin wird abgelehnt, wenn bereits eine normale zukuenftige Buchung im gleichen wiederkehrenden Termin liegt.
 
-### 4. Wohnungskonten
+### 5. Wohnungskonten
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -256,7 +285,7 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 
 Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
-### 5. Auswertung
+### 6. Auswertung
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -267,7 +296,7 @@ Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. N
 
 Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranking fuer den Aushang.
 
-### 6. System
+### 7. System
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -397,8 +426,9 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 ### Daten und Isolation
 
 - Produktion verwendet SQLite auf dem persistenten Render-Datentraeger unter `/var/data/washraum.sqlite`.
-- Jede Wohnung, jedes Konto, jede Ressource, Buchung und Freigabe ist einem Haus zugeordnet. Oeffentliche Buchungsnamen verwenden die Wohnungsbezeichnung statt einzelner Personen.
-- `apartments` speichert Wohnungsbezeichnung, Haus und Aktivierungsstatus. Aktivierungs- und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor; Klartext wird nur einmal an den berechtigten Aufrufer ausgegeben.
+- Jede Wohnung, jedes Konto, jede Ressource, Buchung und Freigabe ist einem Haus zugeordnet. Oeffentliche Buchungsnamen verwenden ausschliesslich den adminverwalteten Klingelschildnamen.
+- `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. Aktivierungs- und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor; Klartext wird nur einmal an den berechtigten Aufrufer ausgegeben.
+- `apartment_name_requests` speichert offene und entschiedene Korrekturwuensche. Ein Bewohnerwunsch aendert den sichtbaren Namen nie direkt; Freigabe oder Ablehnung erfolgt durch einen Admin und wird auditiert.
 - `users.apartment_id` bindet ein gemeinsames Konto an genau eine Wohnung. Zusammengefuehrte Alt-Konten werden deaktiviert, personenbezogene Login-Adressen entfernt und ueber `merged_into_user_id` fuer nachvollziehbare Auditbezuege markiert.
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
 - Nur der Superadmin darf das aktive Haus wechseln und hausuebergreifende Aktionen ausfuehren.
@@ -415,6 +445,10 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Unveraenderbares Maschinen- und Raumtagebuch eingefuehrt: Bewohner melden Stoerungen, Haus-Admins fuehren den verbindlichen Ablauf `Meldung -> Sperre -> Reparatur -> Funktionspruefung -> Freigabe`, und eine Freigabe verlangt erfolgreiche Pruefung sowie Abschlussnotiz. Suche, Statusfilter, eigene Meldungsstatus, Hausgrenzen und hausuebergreifende Superadmin-Sicht sind in Rollen- und Funktionstests abgesichert.
+- Wohnungsidentitaet getrennt: stabile interne Wohnungsbezeichnung, adminverwalteter Klingelschildname und E-Mail als Bewohnerlogin. Buchungen, Freigaben, E-Mails, Push-Auswahl und Auswertung zeigen den Klingelschildnamen statt eines frei gewaehlten Benutzernamens.
+- Adminbearbeitung fuer Klingelschildname und bis zu zwei Wohnungs-E-Mails ergaenzt; geaenderte E-Mails werden erneut bestaetigt und alte Bewohner-Sitzungen beendet.
+- Kontrollierten Korrekturwunsch eingefuehrt: Bewohner koennen einen Klingelschildnamen vorschlagen, Haus-Admins koennen ihn pruefen, uebernehmen oder ablehnen, ohne dass Bewohner fremde Namen selbst setzen koennen.
 - Kontrollierte PWA-Updates eingefuehrt: sichtbarer Updatehinweis, Aktualisierung erst nach Zustimmung, Schutz laufender Buchungsauswahlen sowie Versionsnummer und Auslieferungsdatum unter `App & Geraet`.
 - Globalen Superadmin-Wartungsmodus ergaenzt: automatisches geprueftes Backup beim Start, serverseitige Schreibsperre, Bewohnerdialog und Freigabe erst nach SQLite- und Buchungs-Schreibtest.
 - Health-, Versions-, Rollen-, Funktions- und Barrierefreiheitstests um Releasekennung, Wartungsstatus und Service-Worker-Aktivierung erweitert.

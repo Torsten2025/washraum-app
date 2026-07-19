@@ -13,6 +13,15 @@ const messageCenterOverlay = document.querySelector('#messageCenterOverlay');
 const closeMessageCenterButton = document.querySelector('#closeMessageCenterButton');
 const messageCenterList = document.querySelector('#messageCenterList');
 const openMessageCenterButton = document.querySelector('#openMessageCenterButton');
+const reportIssueButton = document.querySelector('#reportIssueButton');
+const reportIssueOverlay = document.querySelector('#reportIssueOverlay');
+const closeReportIssueButton = document.querySelector('#closeReportIssueButton');
+const cancelReportIssueButton = document.querySelector('#cancelReportIssueButton');
+const reportIssueForm = document.querySelector('#reportIssueForm');
+const reportIssueResource = document.querySelector('#reportIssueResource');
+const reportIssueSubject = document.querySelector('#reportIssueSubject');
+const reportIssueDescription = document.querySelector('#reportIssueDescription');
+const ownMaintenanceCases = document.querySelector('#ownMaintenanceCases');
 const releaseSpotlight = document.querySelector('#releaseSpotlight');
 const releaseSpotlightContent = document.querySelector('#releaseSpotlightContent');
 const brandHouseName = document.querySelector('#brandHouseName');
@@ -72,6 +81,7 @@ const maintenanceAdminStatus = document.querySelector('#maintenanceAdminStatus')
 const toggleMaintenanceButton = document.querySelector('#toggleMaintenanceButton');
 const apartmentForm = document.querySelector('#apartmentForm');
 const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
+const apartmentDisplayNameInput = document.querySelector('#apartmentDisplayNameInput');
 const apartmentCodeResult = document.querySelector('#apartmentCodeResult');
 const apartmentList = document.querySelector('#apartmentList');
 const superadminBox = document.querySelector('#superadminBox');
@@ -82,6 +92,9 @@ const resourceForm = document.querySelector('#resourceForm');
 const resourceNameInput = document.querySelector('#resourceNameInput');
 const resourceTypeInput = document.querySelector('#resourceTypeInput');
 const resourceAdminList = document.querySelector('#resourceAdminList');
+const maintenanceSearch = document.querySelector('#maintenanceSearch');
+const maintenanceStatusFilter = document.querySelector('#maintenanceStatusFilter');
+const maintenanceCaseList = document.querySelector('#maintenanceCaseList');
 const auditLog = document.querySelector('#auditLog');
 const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const appUpdateText = document.querySelector('#appUpdateText');
@@ -120,7 +133,13 @@ const settingsEyebrow = document.querySelector('#settingsEyebrow');
 const settingsTitle = document.querySelector('#settingsTitle');
 const settingsIntroText = document.querySelector('#settingsIntroText');
 const settingsUsername = document.querySelector('#settingsUsername');
+const settingsApartmentLabel = document.querySelector('#settingsApartmentLabel');
+const settingsApartmentLabelWrap = document.querySelector('#settingsApartmentLabelWrap');
 const settingsRole = document.querySelector('#settingsRole');
+const nameCorrectionPanel = document.querySelector('#nameCorrectionPanel');
+const requestedDisplayName = document.querySelector('#requestedDisplayName');
+const displayNameRequestNote = document.querySelector('#displayNameRequestNote');
+const sendDisplayNameRequestButton = document.querySelector('#sendDisplayNameRequestButton');
 const apartmentAccountStatus = document.querySelector('#apartmentAccountStatus');
 const openApartmentSetupButton = document.querySelector('#openApartmentSetupButton');
 const settingsBookingMode = document.querySelector('#settingsBookingMode');
@@ -190,6 +209,7 @@ let bookings = [];
 let slots = [];
 let releaseNoticeItems = [];
 let activeReleaseNotice = null;
+let maintenanceCases = [];
 let activeType = 'washer';
 let deferredInstallPrompt = null;
 let calendarView = (() => {
@@ -632,6 +652,96 @@ function closeMessageCenter() {
   }
 }
 
+const maintenanceStatusLabels = {
+  reported: 'Neu gemeldet',
+  blocked: 'Gesperrt',
+  repairing: 'In Reparatur',
+  tested: 'Pr\u00fcfung bestanden',
+  closed: 'Abgeschlossen'
+};
+
+const maintenanceEntryLabels = {
+  report: 'Meldung',
+  note: 'Notiz',
+  block: 'Sperre',
+  repair: 'Reparatur',
+  test_passed: 'Funktionspr\u00fcfung bestanden',
+  test_failed: 'Funktionspr\u00fcfung nicht bestanden',
+  release: 'Freigabe und Abschluss'
+};
+
+function renderOwnMaintenanceCases(cases) {
+  ownMaintenanceCases.innerHTML = '';
+  if (!cases.length) {
+    ownMaintenanceCases.innerHTML = '<p class="muted">Du hast noch keine St\u00f6rung gemeldet.</p>';
+    return;
+  }
+  for (const item of cases.slice(0, 8)) {
+    const row = document.createElement('div');
+    row.className = 'own-maintenance-item';
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(item.resource_name || 'Nicht mehr vorhandene Ressource')}</strong>
+        <span>${escapeHtml(item.title)}</span>
+      </div>
+      <span class="maintenance-status status-${escapeHtml(item.status)}">${escapeHtml(maintenanceStatusLabels[item.status] || item.status)}</span>
+    `;
+    ownMaintenanceCases.append(row);
+  }
+}
+
+async function openReportIssue() {
+  closeAccountMenu();
+  try {
+    const [resourceData, caseData] = await Promise.all([
+      api('/api/maintenance-resources'),
+      api('/api/maintenance-cases')
+    ]);
+    reportIssueResource.innerHTML = '';
+    for (const resource of resourceData.resources) {
+      const option = document.createElement('option');
+      option.value = String(resource.id);
+      option.textContent = `${resource.name}${resource.active ? '' : ' (bereits gesperrt)'}`;
+      reportIssueResource.append(option);
+    }
+    renderOwnMaintenanceCases(caseData.cases);
+    reportIssueOverlay.hidden = false;
+    document.body.classList.add('modal-open');
+    reportIssueResource.focus();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+function closeReportIssue() {
+  reportIssueOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  reportIssueButton.focus();
+}
+
+async function submitIssueReport() {
+  const submitButton = reportIssueForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const data = await api('/api/maintenance-cases', {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: Number(reportIssueResource.value),
+        title: reportIssueSubject.value,
+        description: reportIssueDescription.value
+      })
+    });
+    reportIssueForm.reset();
+    closeReportIssue();
+    showStatus(data.message);
+    rememberNotice(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 function openAccountMenu() {
   const open = accountMenuPanel.hidden;
   accountMenuPanel.hidden = !open;
@@ -746,7 +856,11 @@ function openSettings(firstRun = false) {
   settingsIntroText.textContent = firstRun
     ? 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.'
     : 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.';
-  settingsUsername.value = currentUser.username;
+  settingsUsername.value = currentUser.displayName || currentUser.username;
+  settingsApartmentLabel.value = currentUser.apartmentLabel || '';
+  settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
+  nameCorrectionPanel.hidden = currentUser.role !== 'user' || !currentUser.apartmentLabel;
+  requestedDisplayName.value = currentUser.displayName || '';
   settingsRole.value = currentRoleLabel();
   settingsBookingMode.value = bookingMode;
   apartmentAccountStatus.textContent = currentUser.apartmentLabel
@@ -1378,6 +1492,7 @@ async function init() {
   }
 
   currentUser = me.user;
+  reportIssueButton.hidden = currentUser.role !== 'user';
   await checkAppVersion();
   scheduleAppVersionChecks();
   configureSessionTimeout(me.session);
@@ -1645,12 +1760,15 @@ async function disablePushNotifications() {
 function renderHouseContext() {
   const roleLabel = currentRoleLabel();
   userLine.textContent = roleLabel;
-  const accountLabel = currentUser.apartmentLabel || currentUser.username;
+  const accountLabel = currentUser.displayName || currentUser.username;
   accountMenuName.textContent = accountLabel;
   accountMenuRole.textContent = roleLabel;
   accountPanelName.textContent = accountLabel;
-  accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}${currentUser.apartmentLabel ? ` - Login ${currentUser.username}` : ''}`;
-  settingsUsername.value = currentUser.username;
+  accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}${currentUser.apartmentLabel ? ` - ${currentUser.apartmentLabel}` : ''}`;
+  settingsUsername.value = accountLabel;
+  settingsApartmentLabel.value = currentUser.apartmentLabel || '';
+  settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
+  nameCorrectionPanel.hidden = currentUser.role !== 'user' || !currentUser.apartmentLabel;
   settingsRole.value = roleLabel;
   settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
@@ -3413,15 +3531,39 @@ async function createApartment() {
   try {
     const data = await api('/api/admin/apartments', {
       method: 'POST',
-      body: JSON.stringify({ label: apartmentLabelInput.value })
+      body: JSON.stringify({
+        label: apartmentLabelInput.value,
+        displayName: apartmentDisplayNameInput.value
+      })
     });
     apartmentLabelInput.value = '';
-    apartmentCodeResult.innerHTML = `<strong>${escapeHtml(data.apartment.label)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Diesen Code jetzt sicher weitergeben. Er wird nicht erneut angezeigt.</span>`;
+    apartmentDisplayNameInput.value = '';
+    apartmentCodeResult.innerHTML = `<strong>${escapeHtml(data.apartment.label)} - ${escapeHtml(data.apartment.display_name)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Diesen Code jetzt sicher weitergeben. Er wird nicht erneut angezeigt.</span>`;
     apartmentCodeResult.hidden = false;
     showStatus(data.message);
     await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
+  }
+}
+
+async function sendDisplayNameRequest() {
+  sendDisplayNameRequestButton.disabled = true;
+  try {
+    const data = await api('/api/me/apartment-name-request', {
+      method: 'POST',
+      body: JSON.stringify({
+        displayName: requestedDisplayName.value,
+        note: displayNameRequestNote.value
+      })
+    });
+    displayNameRequestNote.value = '';
+    nameCorrectionPanel.open = false;
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    sendDisplayNameRequestButton.disabled = false;
   }
 }
 
@@ -3436,9 +3578,14 @@ function renderApartments(apartments) {
     item.className = 'user-admin-item';
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
-    identity.innerHTML = `<strong>${escapeHtml(apartment.label)}</strong><span>${apartment.claimed ? 'aktiviert' : 'noch nicht aktiviert'}</span>`;
+    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} · ${apartment.claimed ? 'aktiviert' : 'noch nicht aktiviert'}</span>${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'secondary';
+    editButton.textContent = apartment.name_request_id ? 'Vorschlag prüfen' : 'Bearbeiten';
+    actions.append(editButton);
     if (!apartment.claimed) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -3447,7 +3594,7 @@ function renderApartments(apartments) {
       button.addEventListener('click', async () => {
         try {
           const data = await api(`/api/admin/apartments/${apartment.id}/new-code`, { method: 'POST' });
-          apartmentCodeResult.innerHTML = `<strong>${escapeHtml(apartment.label)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Der alte Code ist ung&uuml;ltig.</span>`;
+          apartmentCodeResult.innerHTML = `<strong>${escapeHtml(apartment.label)} - ${escapeHtml(apartment.display_name)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Der alte Code ist ung&uuml;ltig.</span>`;
           apartmentCodeResult.hidden = false;
           showStatus(data.message);
         } catch (error) {
@@ -3456,7 +3603,70 @@ function renderApartments(apartments) {
       });
       actions.append(button);
     }
-    item.append(identity, actions);
+
+    const editForm = document.createElement('form');
+    editForm.className = 'apartment-edit-form compact-form';
+    editForm.hidden = true;
+    editForm.innerHTML = `
+      <label>
+        Name am Klingelschild
+        <input name="displayName" maxlength="80" value="${escapeHtml(apartment.requested_display_name || apartment.display_name)}" required>
+      </label>
+      ${apartment.claimed ? `
+        <label>
+          Erste E-Mail
+          <input name="email" type="email" value="${escapeHtml(apartment.email || '')}" required>
+        </label>
+        <label>
+          Zweite E-Mail (optional)
+          <input name="secondaryEmail" type="email" value="${escapeHtml(apartment.secondary_email || '')}">
+        </label>
+      ` : '<p class="muted">E-Mail-Adressen werden bei der Aktivierung eingetragen.</p>'}
+      <div class="inline-actions">
+        <button type="submit">Speichern</button>
+        ${apartment.name_request_id ? '<button class="secondary danger" type="button" data-reject>Ablehnen</button>' : ''}
+        <button class="secondary" type="button" data-cancel>Abbrechen</button>
+      </div>
+    `;
+    editButton.addEventListener('click', () => {
+      editForm.hidden = false;
+      editButton.disabled = true;
+      editForm.querySelector('input')?.focus();
+    });
+    editForm.querySelector('[data-cancel]').addEventListener('click', () => {
+      editForm.hidden = true;
+      editButton.disabled = false;
+    });
+    editForm.querySelector('[data-reject]')?.addEventListener('click', async () => {
+      try {
+        const data = await api(`/api/admin/apartments/${apartment.id}/name-request/${apartment.name_request_id}/reject`, {
+          method: 'POST'
+        });
+        showStatus(data.message);
+        await loadAdmin();
+      } catch (error) {
+        showStatus(error.message, 'error');
+      }
+    });
+    editForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(editForm);
+      try {
+        const data = await api(`/api/admin/apartments/${apartment.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            displayName: formData.get('displayName'),
+            email: formData.get('email') || '',
+            secondaryEmail: formData.get('secondaryEmail') || ''
+          })
+        });
+        showStatus(data.message);
+        await loadAdmin();
+      } catch (error) {
+        showStatus(error.message, 'error');
+      }
+    });
+    item.append(identity, actions, editForm);
     apartmentList.append(item);
   }
 }
@@ -3537,7 +3747,7 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData] = await Promise.all([
+  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData, maintenanceData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/recovery-status'),
@@ -3548,13 +3758,14 @@ async function loadAdmin() {
     api('/api/admin/audit-log'),
     api('/api/admin/push-devices'),
     api('/api/admin/analytics?days=30'),
-    api('/api/admin/apartments')
+    api('/api/admin/apartments'),
+    api('/api/admin/maintenance-cases')
   ]);
   adminBox.hidden = false;
   adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
   adminRoleLabel.textContent = currentUser.isSuperadmin ? 'Superadmin' : 'Haus-Admin';
   adminScopeText.textContent = currentUser.isSuperadmin
-    ? 'Haus\u00fcbergreifende Verwaltung. Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
+    ? 'Haus\u00fcbergreifende Verwaltung. Das Tagebuch zeigt alle H\u00e4user; andere Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
     : 'Verwaltung der Wohnungskonten, Ger\u00e4te und Dauertermine dieses Hauses.';
   backupOperation.hidden = !currentUser.isSuperadmin;
   maintenanceOperation.hidden = !currentUser.isSuperadmin;
@@ -3567,6 +3778,8 @@ async function loadAdmin() {
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
   renderAdminResources(adminResources.resources);
+  maintenanceCases = maintenanceData.cases;
+  renderMaintenanceCases();
   renderApartments(apartmentsData.apartments);
   renderAdminAnalytics(analyticsData);
   renderAuditLog(auditData.entries);
@@ -3578,6 +3791,7 @@ async function loadAdmin() {
     <div><strong>${overviewData.activeResources}</strong><span>aktive Ressourcen</span></div>
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
+    <div class="${overviewData.openMaintenanceCases ? 'is-warning' : ''}"><strong>${overviewData.openMaintenanceCases}</strong><span>offene Tagebuchf\u00e4lle</span></div>
     <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
     <div class="wide"><strong>Push</strong><span>${overviewData.push.label} - ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
     <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
@@ -3827,13 +4041,14 @@ function renderAdminUsers(users) {
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
     const name = document.createElement('strong');
-    name.textContent = user.apartment_label || user.username;
+    const visibleName = user.apartment_display_name || user.apartment_label || user.username;
+    name.textContent = visibleName;
     const meta = document.createElement('span');
     const roleName = user.is_superadmin ? 'Superadmin' : user.role === 'admin' ? 'Haus-Admin' : 'Bewohner';
     const accountState = user.merged_into_user_id ? 'zusammengefuehrt' : user.active ? 'aktiv' : 'inaktiv';
-    const loginName = user.apartment_label ? ` \u00b7 Login ${user.username}` : '';
+    const apartmentName = user.apartment_label ? ` \u00b7 ${user.apartment_label}` : '';
     const secondEmail = user.secondary_email ? ` \u00b7 ${user.secondary_email}` : '';
-    meta.textContent = `${roleName} \u00b7 ${accountState}${loginName}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}${secondEmail}`;
+    meta.textContent = `${roleName} \u00b7 ${accountState}${apartmentName}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}${secondEmail}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -3849,7 +4064,7 @@ function renderAdminUsers(users) {
       statusButton.type = 'button';
       statusButton.className = user.active ? 'secondary danger' : 'secondary';
       statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
-      statusButton.title = `${user.username} ${statusButton.textContent.toLowerCase()}`;
+      statusButton.title = `${visibleName} ${statusButton.textContent.toLowerCase()}`;
       statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
       actions.append(statusButton);
     }
@@ -3870,7 +4085,7 @@ function renderAdminUsers(users) {
         const moveWrap = document.createElement('div');
         moveWrap.className = 'user-move-control';
         const moveSelect = document.createElement('select');
-        moveSelect.setAttribute('aria-label', `${user.username} in anderes Haus verschieben`);
+        moveSelect.setAttribute('aria-label', `${visibleName} in anderes Haus verschieben`);
         moveSelect.innerHTML = otherHouses.map((house) => (
           `<option value="${house.id}">${escapeHtml(house.name)}</option>`
         )).join('');
@@ -3892,7 +4107,7 @@ function renderAdminUsers(users) {
       resetButton.disabled = !user.email_verified && !user.secondary_email_verified;
       resetButton.title = resetButton.disabled
         ? 'Dafuer braucht das Konto eine bestaetigte E-Mail-Adresse.'
-        : `Passwort-Link an die best\u00e4tigte Adresse von ${user.username} senden`;
+        : `Passwort-Link an die best\u00e4tigte Adresse von ${visibleName} senden`;
       resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
       actions.append(resetButton);
     }
@@ -3981,6 +4196,152 @@ async function updateHouse(houseId, changes) {
   }
 }
 
+function maintenanceActionOptions(status) {
+  const options = [{ value: 'note', label: 'Notiz erg\u00e4nzen' }];
+  if (status === 'reported') options.unshift({ value: 'block', label: 'Ressource sperren' });
+  if (status === 'blocked') options.unshift({ value: 'repair', label: 'Reparatur dokumentieren' });
+  if (status === 'repairing') {
+    options.unshift({ value: 'test', label: 'Funktionspr\u00fcfung dokumentieren' });
+    options.unshift({ value: 'repair', label: 'Weitere Reparatur dokumentieren' });
+  }
+  if (status === 'tested') options.unshift({ value: 'release', label: 'Freigeben und abschliessen' });
+  return options;
+}
+
+function renderMaintenanceCases() {
+  const search = maintenanceSearch.value.trim().toLocaleLowerCase('de-CH');
+  const status = maintenanceStatusFilter.value;
+  const filtered = maintenanceCases.filter((item) => {
+    if (status === 'open' && item.status === 'closed') return false;
+    if (!['open', 'all'].includes(status) && item.status !== status) return false;
+    if (!search) return true;
+    const searchable = [
+      item.resource_name,
+      item.title,
+      item.description,
+      item.reported_by_name,
+      item.house_name,
+      ...(item.entries || []).flatMap((entry) => [entry.note, entry.created_by_name])
+    ].filter(Boolean).join(' ').toLocaleLowerCase('de-CH');
+    return searchable.includes(search);
+  });
+
+  maintenanceCaseList.innerHTML = '';
+  if (!filtered.length) {
+    maintenanceCaseList.innerHTML = '<div class="maintenance-empty"><strong>Keine passenden Tagebuchf\u00e4lle.</strong><span>Suche oder Statusfilter anpassen.</span></div>';
+    return;
+  }
+
+  for (const maintenanceCase of filtered) {
+    const article = document.createElement('article');
+    article.className = `maintenance-case status-${maintenanceCase.status}`;
+    const heading = document.createElement('header');
+    heading.className = 'maintenance-case-head';
+    heading.innerHTML = `
+      <div>
+        <span class="maintenance-resource">${escapeHtml(maintenanceCase.resource_name || 'Ressource entfernt')}</span>
+        <h4>${escapeHtml(maintenanceCase.title)}</h4>
+        <p>${escapeHtml(maintenanceCase.description)}</p>
+      </div>
+      <span class="maintenance-status status-${escapeHtml(maintenanceCase.status)}">${escapeHtml(maintenanceStatusLabels[maintenanceCase.status] || maintenanceCase.status)}</span>
+    `;
+    const meta = document.createElement('div');
+    meta.className = 'maintenance-case-meta';
+    meta.innerHTML = `
+      <span>Gemeldet von ${escapeHtml(maintenanceCase.reported_by_name)}</span>
+      <span>${escapeHtml(new Date(maintenanceCase.created_at).toLocaleString('de-CH'))}</span>
+      ${currentUser.isSuperadmin ? `<span>${escapeHtml(maintenanceCase.house_name)}</span>` : ''}
+    `;
+
+    const history = document.createElement('details');
+    history.className = 'maintenance-history';
+    history.open = maintenanceCase.status !== 'closed';
+    const summary = document.createElement('summary');
+    summary.textContent = `Chronik (${maintenanceCase.entries.length})`;
+    const timeline = document.createElement('ol');
+    timeline.className = 'maintenance-timeline';
+    for (const entry of maintenanceCase.entries) {
+      const row = document.createElement('li');
+      row.className = `entry-${entry.entry_type}`;
+      row.innerHTML = `
+        <div><strong>${escapeHtml(maintenanceEntryLabels[entry.entry_type] || entry.entry_type)}</strong><span>${escapeHtml(new Date(entry.created_at).toLocaleString('de-CH'))}</span></div>
+        <p>${escapeHtml(entry.note)}</p>
+        <small>${escapeHtml(entry.created_by_name)}</small>
+      `;
+      timeline.append(row);
+    }
+    history.append(summary, timeline);
+
+    const actionForm = document.createElement('form');
+    actionForm.className = 'maintenance-action-form';
+    const actionLabel = document.createElement('label');
+    actionLabel.className = 'maintenance-step-field';
+    actionLabel.textContent = 'N\u00e4chster Schritt';
+    const actionSelect = document.createElement('select');
+    for (const optionData of maintenanceActionOptions(maintenanceCase.status)) {
+      const option = document.createElement('option');
+      option.value = optionData.value;
+      option.textContent = optionData.label;
+      actionSelect.append(option);
+    }
+    actionLabel.append(actionSelect);
+    const testLabel = document.createElement('label');
+    testLabel.className = 'maintenance-test-field';
+    testLabel.textContent = 'Pr\u00fcfergebnis';
+    const testResult = document.createElement('select');
+    testResult.innerHTML = '<option value="true">Erfolgreich</option><option value="false">Nicht erfolgreich</option>';
+    testLabel.append(testResult);
+    testLabel.hidden = actionSelect.value !== 'test';
+    actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
+    const noteLabel = document.createElement('label');
+    noteLabel.className = 'maintenance-note-field';
+    noteLabel.textContent = 'Dokumentation';
+    const note = document.createElement('textarea');
+    note.rows = 3;
+    note.maxLength = 1000;
+    note.required = true;
+    note.placeholder = maintenanceCase.status === 'tested'
+      ? 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.'
+      : 'Sachlich festhalten, was gemacht oder festgestellt wurde.';
+    noteLabel.append(note);
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.textContent = 'Eintrag speichern';
+    actionSelect.addEventListener('change', () => {
+      testLabel.hidden = actionSelect.value !== 'test';
+      actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
+      note.placeholder = actionSelect.value === 'release'
+        ? 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.'
+        : 'Sachlich festhalten, was gemacht oder festgestellt wurde.';
+    });
+    actionForm.append(actionLabel, testLabel, noteLabel, submit);
+    actionForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      try {
+        const data = await api(`/api/admin/maintenance-cases/${maintenanceCase.id}/actions`, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: actionSelect.value,
+            note: note.value,
+            successful: actionSelect.value === 'test' ? testResult.value === 'true' : undefined
+          })
+        });
+        const resourceData = await api('/api/resources');
+        resources = resourceData.resources;
+        showStatus(data.message);
+        await Promise.all([loadAdmin(), refreshAll()]);
+      } catch (error) {
+        showStatus(error.message, 'error');
+        submit.disabled = false;
+      }
+    });
+
+    article.append(heading, meta, history, actionForm);
+    maintenanceCaseList.append(article);
+  }
+}
+
 function renderAdminResources(items) {
   resourceAdminList.innerHTML = '';
   for (const resource of items) {
@@ -4006,7 +4367,7 @@ function renderAdminResources(items) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = resource.active ? 'secondary danger' : 'secondary';
-    toggle.textContent = resource.active ? 'Deaktivieren' : 'Aktivieren';
+    toggle.textContent = resource.active ? 'Sperren' : 'Im Tagebuch';
     toggle.addEventListener('click', () => {
       if (resource.active) {
         const reason = window.prompt('Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.');
@@ -4014,7 +4375,10 @@ function renderAdminResources(items) {
         updateResource(resource.id, { active: false, blockReason: reason });
         return;
       }
-      updateResource(resource.id, { active: true });
+      maintenanceSearch.value = resource.name;
+      maintenanceStatusFilter.value = 'open';
+      setAdminSection('logbook');
+      renderMaintenanceCases();
     });
     const copy = document.createElement('div');
     copy.append(form, meta);
@@ -4067,6 +4431,12 @@ function renderAuditLog(entries) {
     'resource.update': 'Ger\u00e4t aktualisiert',
     'resource.block': 'Ressource gesperrt',
     'resource.unblock': 'Ressource freigegeben',
+    'maintenance_case.report': 'St\u00f6rung gemeldet',
+    'maintenance_case.note': 'Tagebuchnotiz ergaenzt',
+    'maintenance_case.block': 'Tagebuchsperre gesetzt',
+    'maintenance_case.repair': 'Reparatur dokumentiert',
+    'maintenance_case.test': 'Funktionspruefung dokumentiert',
+    'maintenance_case.release': 'Ressource geprueft freigegeben',
     'fixed_booking.create': 'Feste Buchung angelegt',
     'fixed_booking.delete': 'Feste Buchung entfernt',
     'bookings.reset': 'Buchungen zurueckgesetzt',
@@ -4369,6 +4739,7 @@ apartmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await createApartment();
 });
+sendDisplayNameRequestButton.addEventListener('click', sendDisplayNameRequest);
 
 notificationForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -4405,6 +4776,16 @@ closeMessageCenterButton.addEventListener('click', closeMessageCenter);
 messageCenterOverlay.addEventListener('click', (event) => {
   if (event.target === messageCenterOverlay) closeMessageCenter();
 });
+reportIssueButton.addEventListener('click', openReportIssue);
+closeReportIssueButton.addEventListener('click', closeReportIssue);
+cancelReportIssueButton.addEventListener('click', closeReportIssue);
+reportIssueOverlay.addEventListener('click', (event) => {
+  if (event.target === reportIssueOverlay) closeReportIssue();
+});
+reportIssueForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await submitIssueReport();
+});
 accountMenuButton.addEventListener('click', openAccountMenu);
 openSettingsButton.addEventListener('click', () => openSettings(false));
 openApartmentSetupButton.addEventListener('click', () => {
@@ -4434,6 +4815,8 @@ resourceForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await createResource();
 });
+maintenanceSearch.addEventListener('input', renderMaintenanceCases);
+maintenanceStatusFilter.addEventListener('change', renderMaintenanceCases);
 
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
@@ -4538,6 +4921,24 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Tab' && !messageCenterOverlay.hidden) {
     const focusable = [...messageCenterOverlay.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.disabled && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
+  if (event.key === 'Escape' && !reportIssueOverlay.hidden) {
+    closeReportIssue();
+    return;
+  }
+  if (event.key === 'Tab' && !reportIssueOverlay.hidden) {
+    const focusable = [...reportIssueOverlay.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
       .filter((element) => !element.disabled && element.getClientRects().length > 0);
     const first = focusable[0];
     const last = focusable[focusable.length - 1];

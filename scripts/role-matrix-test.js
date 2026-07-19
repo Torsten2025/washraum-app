@@ -232,6 +232,14 @@ async function run() {
         slot: '07:00-12:00'
       })
     });
+    const firstHouseIssue = await expectStatus(firstResident, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: firstWasher.id,
+        title: 'Rollenpruefung Haus 18',
+        description: 'Bewohnermeldung aus dem ersten Haus.'
+      })
+    });
 
     const secondHouse = await expectStatus(superadmin, '/api/admin/houses', 201, {
       method: 'POST',
@@ -285,6 +293,7 @@ async function run() {
       '/api/admin/overview',
       '/api/admin/settings',
       '/api/admin/resources',
+      '/api/admin/maintenance-cases',
       '/api/admin/apartments',
       '/api/admin/fixed-bookings',
       '/api/admin/audit-log'
@@ -293,9 +302,13 @@ async function run() {
     }
     const apartment = await expectStatus(houseAdmin, '/api/admin/apartments', 201, {
       method: 'POST',
-      body: JSON.stringify({ label: 'Rollen Partei 07' })
+      body: JSON.stringify({ label: 'Rollen 2. OG links', displayName: 'Rollenfamilie Sieben' })
     });
     assert.ok(apartment.body.activationCode);
+    await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: 'Rollenfamilie 7 aktualisiert' })
+    });
     await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}/new-code`, 200, {
       method: 'POST'
     });
@@ -308,9 +321,43 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ name: 'Rollen Trockenraum Reserve', type: 'drying_room' })
     });
-    await expectStatus(houseAdmin, `/api/admin/resources/${createdResource.body.id}`, 200, {
-      method: 'PUT',
-      body: JSON.stringify({ active: false })
+    const secondHouseIssue = await expectStatus(resident, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: createdResource.body.id,
+        title: 'Rollenpruefung Haus 20',
+        description: 'Bewohnermeldung aus dem zweiten Haus.'
+      })
+    });
+    const houseAdminCases = await expectStatus(houseAdmin, '/api/admin/maintenance-cases', 200);
+    assert.ok(houseAdminCases.body.cases.some((item) => item.id === secondHouseIssue.body.id));
+    assert.ok(!houseAdminCases.body.cases.some((item) => item.id === firstHouseIssue.body.id));
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/actions`, 404, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'note', note: 'Fremdes Haus darf nicht bearbeitet werden.' })
+    });
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'block', note: 'Haus-Admin sperrt nach Pruefung.' })
+    });
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'repair', note: 'Haus-Admin dokumentiert die Reparatur.' })
+    });
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: true, note: 'Haus-Admin bestaetigt den Probelauf.' })
+    });
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'release', note: 'Reparatur abgeschlossen und Probelauf erfolgreich.' })
+    });
+    const superadminCases = await expectStatus(superadmin, '/api/admin/maintenance-cases', 200);
+    assert.ok(superadminCases.body.cases.some((item) => item.id === firstHouseIssue.body.id));
+    assert.ok(superadminCases.body.cases.some((item) => item.id === secondHouseIssue.body.id));
+    await expectStatus(superadmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'note', note: 'Hausuebergreifende Sicht und Bedarfseingriff bestaetigt.' })
     });
 
     const secondResources = await expectStatus(houseAdmin, '/api/resources', 200);
@@ -345,7 +392,7 @@ async function run() {
     });
 
     const residentAfterReset = new ApiClient();
-    await login(residentAfterReset, 'Rollen Bewohner Haus 20', 'Rollen-Bewohner20!');
+    await login(residentAfterReset, 'rollen-20@example.test', 'Rollen-Bewohner20!');
     const residentBooking = await expectStatus(residentAfterReset, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
@@ -399,6 +446,7 @@ async function run() {
       ['/api/admin/analytics', 'GET'],
       ['/api/admin/settings', 'GET'],
       ['/api/admin/resources', 'GET'],
+      ['/api/admin/maintenance-cases', 'GET'],
       ['/api/admin/apartments', 'GET'],
       ['/api/admin/fixed-bookings', 'GET'],
       ['/api/admin/audit-log', 'GET'],
@@ -419,6 +467,10 @@ async function run() {
     }
     await expectStatus(residentAfterReset, '/api/calendar?from=' + futureMonday() + '&days=7', 200);
     await expectStatus(residentAfterReset, '/api/recommendation', 200);
+    await expectStatus(residentAfterReset, `/api/admin/apartments/${apartment.body.apartment.id}`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: 'Nicht erlaubt' })
+    });
 
     await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/password-reset`, 409, {
       method: 'POST'
@@ -517,6 +569,7 @@ async function run() {
         superadminTransfer: true,
         configuredAdminRecovery: true,
         crossHouseIsolation: true,
+        maintenanceWorkflow: true,
         roleSpecificLogout: true
       },
       users: {

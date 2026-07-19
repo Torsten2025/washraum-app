@@ -127,7 +127,7 @@ form.addEventListener('submit', async (event) => {
 
   const formData = new FormData(form);
   const data = await submitJson(form, '/api/login', {
-    username: formData.get('username'),
+    email: formData.get('email'),
     password: formData.get('password')
   }, message);
   if (!data) return;
@@ -141,7 +141,6 @@ registerForm.addEventListener('submit', async (event) => {
 
   const formData = new FormData(registerForm);
   const data = await submitJson(registerForm, '/api/register', {
-    username: formData.get('username'),
     email: formData.get('email'),
     password: formData.get('password'),
     apartmentCode: formData.get('apartmentCode'),
