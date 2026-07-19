@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+process.env.ALLOW_LEGACY_HOUSE_REGISTRATION = 'true';
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
@@ -433,6 +434,7 @@ async function run() {
     assert.equal(hydratedSession.body.user.houseName, 'Maneggplatz 18');
     assert.ok(hydratedSession.body.user.activeHouseId);
     assert.equal(hydratedSession.body.user.bookingMode, 'time');
+    assert.equal(hydratedSession.body.user.apartmentSetupRequired, true);
     assert.equal(hydratedSession.body.session.idleTimeoutMs, 30 * 60 * 1000);
     assert.equal(hydratedSession.body.session.warningMs, 2 * 60 * 1000);
     assert.ok(hydratedSession.body.session.lastActivityAt);
@@ -475,6 +477,7 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({
         email: 'bewohner-test@example.com',
+        secondaryEmail: 'bewohner-zweit@example.com',
         notifyReleases: true,
         resourceType: 'drying_room',
         weekday: 2,
@@ -482,6 +485,7 @@ async function run() {
       })
     });
     assert.equal(preferences.body.notificationPreferences.resourceType, 'drying_room');
+    assert.equal(preferences.body.user.secondaryEmail, 'bewohner-zweit@example.com');
     const preferencesMe = await expectStatus(user, '/api/me', 200);
     assert.equal(preferencesMe.body.notificationPreferences.weekday, 2);
     assert.equal(preferencesMe.body.push.available, true);
@@ -994,6 +998,79 @@ async function run() {
       body: JSON.stringify({ userId: 999999 })
     });
 
+    const existingApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({ label: 'Partei Bestand' })
+    });
+    assert.match(existingApartment.body.activationCode, /^W-/);
+    const claimedApartment = await expectStatus(user, '/api/me/apartment/claim', 200, {
+      method: 'POST',
+      body: JSON.stringify({ apartmentCode: existingApartment.body.activationCode })
+    });
+    assert.equal(claimedApartment.body.user.apartmentLabel, 'Partei Bestand');
+    assert.equal(claimedApartment.body.user.apartmentSetupRequired, false);
+
+    const newApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({ label: 'Partei Neu' })
+    });
+    const apartmentResident = new ApiClient();
+    const apartmentRegistration = await expectStatus(apartmentResident, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Partei Neu Konto',
+        email: 'partei-neu@example.test',
+        password: 'Partei-Neu-2026!',
+        apartmentCode: newApartment.body.activationCode,
+        notifyReleases: true
+      })
+    });
+    assert.equal(apartmentRegistration.body.user.apartmentLabel, 'Partei Neu');
+    await expectStatus(new ApiClient(), '/api/register', 403, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Doppeltes Konto',
+        email: 'doppelt@example.test',
+        password: 'Doppelt-Konto-2026!',
+        apartmentCode: newApartment.body.activationCode
+      })
+    });
+    const deviceCode = await expectStatus(apartmentResident, '/api/me/device-code', 201, { method: 'POST' });
+    const pairedDevice = new ApiClient();
+    const deviceLogin = await expectStatus(pairedDevice, '/api/device-login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ deviceCode: deviceCode.body.code })
+    });
+    assert.equal(deviceLogin.body.user.id, apartmentRegistration.body.user.id);
+    await expectStatus(new ApiClient(), '/api/device-login', 400, {
+      method: 'POST',
+      body: JSON.stringify({ deviceCode: deviceCode.body.code })
+    });
+    const duplicateApartmentAccount = new ApiClient();
+    const duplicateRegistration = await expectStatus(duplicateApartmentAccount, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Partei Neu Doppelt',
+        email: 'partei-neu-zweit@example.test',
+        password: 'Partei-Neu-Zweit-2026!',
+        houseCode: 'Testhaus 18'
+      })
+    });
+    assert.equal(duplicateRegistration.body.user.apartmentSetupRequired, true);
+    const mergeCode = await expectStatus(apartmentResident, '/api/me/device-code', 201, { method: 'POST' });
+    const merged = await expectStatus(duplicateApartmentAccount, '/api/me/apartment/join', 200, {
+      method: 'POST',
+      body: JSON.stringify({ deviceCode: mergeCode.body.code })
+    });
+    assert.equal(merged.body.user.id, apartmentRegistration.body.user.id);
+    assert.equal(merged.body.user.secondaryEmail, 'partei-neu-zweit@example.test');
+    await expectStatus(new ApiClient(), '/api/login', 403, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'Partei Neu Doppelt', password: 'Partei-Neu-Zweit-2026!' })
+    });
+    const apartments = await expectStatus(admin, '/api/admin/apartments', 200);
+    assert.ok(apartments.body.apartments.some((item) => item.label === 'Partei Neu' && item.claimed));
+
     const initialHouses = await expectStatus(admin, '/api/admin/houses', 200);
     assert.equal(initialHouses.body.houses.length, 1);
     const defaultHouseId = initialHouses.body.activeHouseId;
@@ -1401,6 +1478,8 @@ async function run() {
         legacySessionHydration: true,
         passwordRecovery: true,
         emailPreferences: true,
+        apartmentAccounts: true,
+        devicePairing: true,
         originProtection: true,
         privacyControls: true,
         bookingRules: true,

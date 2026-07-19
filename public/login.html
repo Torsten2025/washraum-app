@@ -53,7 +53,8 @@
         <p class="auth-panel-kicker">Anmelden und direkt zum Wochenplan</p>
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
-          <button id="showRegister" class="auth-tab" type="button">Neu hier</button>
+          <button id="showRegister" class="auth-tab" type="button">Wohnung aktivieren</button>
+          <button id="showDeviceLogin" class="auth-tab" type="button">Ger&auml;t verbinden</button>
         </div>
         <form id="loginForm" class="stack auth-form">
           <label>
@@ -81,7 +82,7 @@
         </form>
         <form id="registerForm" class="stack auth-form" hidden>
           <label>
-            Benutzername
+            Benutzername des Wohnungskontos
             <input name="username" autocomplete="username" minlength="3" required>
           </label>
           <label>
@@ -93,16 +94,26 @@
             <input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
           <label>
-            Hauscode
-            <input name="houseCode" autocomplete="off" required>
+            Einmaliger Wohnungscode
+            <input name="apartmentCode" autocomplete="one-time-code" required>
           </label>
           <label class="checkbox-label">
             <input name="notifyReleases" type="checkbox" checked>
             <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
           </label>
           <button type="submit">Konto erstellen</button>
-          <p class="helper-text">Der Hauscode wird von der Verwaltung oder den Admins mitgeteilt.</p>
+          <p class="helper-text">Den einmaligen Code erh&auml;lt jede Wohnung pers&ouml;nlich von der Verwaltung. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
           <p id="registerMessage" class="message" role="status"></p>
+        </form>
+        <form id="deviceLoginForm" class="stack auth-form" hidden>
+          <h2>Weiteres Handy verbinden</h2>
+          <p class="helper-text">Auf einem bereits angemeldeten Ger&auml;t unter Einstellungen &gt; App &amp; Ger&auml;t einen Ger&auml;tecode erzeugen.</p>
+          <label>
+            Ger&auml;tecode
+            <input name="deviceCode" autocomplete="one-time-code" required>
+          </label>
+          <button type="submit">Wohnungskonto verbinden</button>
+          <p id="deviceLoginMessage" class="message" role="status"></p>
         </form>
       </section>
     </main>

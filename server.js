@@ -22,6 +22,7 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
+const allowLegacyHouseRegistration = process.env.ALLOW_LEGACY_HOUSE_REGISTRATION === 'true';
 const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
 const renderDbPath = '/var/data/washraum.sqlite';
 const dbPath = path.resolve(
@@ -141,8 +142,37 @@ function createCurrentTables() {
       notify_releases INTEGER NOT NULL DEFAULT 1,
       email_verified INTEGER NOT NULL DEFAULT 1,
       booking_mode TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine')),
+      apartment_id INTEGER,
+      secondary_email TEXT,
+      secondary_email_verified INTEGER NOT NULL DEFAULT 0,
+      merged_into_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT,
+      FOREIGN KEY (merged_into_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS apartments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      house_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      activation_code_hash TEXT UNIQUE,
+      claimed_by INTEGER UNIQUE,
+      active INTEGER NOT NULL DEFAULT 1,
+      claimed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE,
+      FOREIGN KEY (claimed_by) REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE (house_id, label)
+    );
+
+    CREATE TABLE IF NOT EXISTS device_pairing_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      code_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS resources (
@@ -228,6 +258,8 @@ function createCurrentTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
+      email_kind TEXT NOT NULL DEFAULT 'primary',
+      email_value TEXT,
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -265,6 +297,10 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'booking_mode', "TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine'))");
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'apartment_id', 'INTEGER');
+  ensureColumn('users', 'secondary_email', 'TEXT');
+  ensureColumn('users', 'secondary_email_verified', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'merged_into_user_id', 'INTEGER');
   ensureColumn('resources', 'house_id', 'INTEGER');
   ensureColumn('resources', 'blocked_reason', 'TEXT');
   ensureColumn('resources', 'blocked_at', 'TEXT');
@@ -275,10 +311,16 @@ function seedCurrentDefaults() {
   ensureColumn('release_notices', 'resource_id', 'INTEGER');
   ensureColumn('push_subscriptions', 'user_agent', 'TEXT');
   ensureColumn('push_subscriptions', 'active', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('email_verification_tokens', 'email_kind', "TEXT NOT NULL DEFAULT 'primary'");
+  ensureColumn('email_verification_tokens', 'email_value', 'TEXT');
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apartment_unique ON users (apartment_id) WHERE apartment_id IS NOT NULL");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_apartments_house ON apartments (house_id, active, label)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_pairing_codes_user ON device_pairing_codes (user_id, expires_at)");
   const initialHouseCode = getSetting('house_code').trim()
     || process.env.HOUSE_CODE
     || (isProduction ? `GBMZ-${crypto.randomBytes(5).toString('hex')}` : 'GBMZ Maneggplatz 18');
@@ -1484,6 +1526,23 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireApartmentAccount(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Nicht angemeldet' });
+  }
+  if (
+    req.session.user.role === 'user'
+    && !req.session.user.apartmentId
+    && !allowLegacyHouseRegistration
+  ) {
+    return res.status(409).json({
+      code: 'APARTMENT_SETUP_REQUIRED',
+      error: 'Bitte ordne dieses bestehende Konto zuerst deiner Wohnung zu.'
+    });
+  }
+  next();
+}
+
 const authRateBuckets = new Map();
 const authRateWindowMs = 15 * 60 * 1000;
 const authRateMaxAttempts = 20;
@@ -1568,6 +1627,9 @@ function isSuperadmin(req) {
 
 function sessionUserFromRow(user, activeHouse = null) {
   const house = activeHouse || db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
+  const apartment = user.apartment_id
+    ? db.prepare('SELECT id, label FROM apartments WHERE id = ? AND active = 1').get(user.apartment_id)
+    : null;
   return {
     id: user.id,
     username: user.username,
@@ -1575,7 +1637,12 @@ function sessionUserFromRow(user, activeHouse = null) {
     email: user.email || '',
     notifyReleases: Boolean(user.notify_releases),
     emailVerified: Boolean(user.email_verified),
+    secondaryEmail: user.secondary_email || '',
+    secondaryEmailVerified: Boolean(user.secondary_email_verified),
     bookingMode: user.booking_mode === 'machine' ? 'machine' : 'time',
+    apartmentId: apartment?.id || null,
+    apartmentLabel: apartment?.label || '',
+    apartmentSetupRequired: user.role === 'user' && !apartment,
     houseId: user.house_id,
     activeHouseId: house?.id || user.house_id,
     houseName: house?.name || '',
@@ -1684,6 +1751,50 @@ function normalizeEmail(value) {
 
 function isValidEmail(value) {
   return String(value || '').length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+}
+
+function normalizeAccessCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '');
+}
+
+function generateReadableCode(prefix = '') {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let value = '';
+  for (let index = 0; index < 10; index += 1) {
+    value += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+  const groups = `${value.slice(0, 5)}-${value.slice(5)}`;
+  return prefix ? `${prefix}-${groups}` : groups;
+}
+
+function findEmailOwner(email, exceptUserId = 0) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  return db.prepare(`
+    SELECT id FROM users
+    WHERE id != ? AND (lower(email) = ? OR lower(secondary_email) = ?)
+    LIMIT 1
+  `).get(Number(exceptUserId || 0), normalized, normalized);
+}
+
+function apartmentForCode(code) {
+  const normalized = normalizeAccessCode(code);
+  if (!normalized) return null;
+  return db.prepare(`
+    SELECT a.id, a.house_id, a.label, a.claimed_by, h.name AS house_name
+    FROM apartments a
+    JOIN houses h ON h.id = a.house_id
+    WHERE a.activation_code_hash = ? AND a.active = 1 AND h.active = 1
+  `).get(tokenHash(normalized));
+}
+
+function apartmentAccountLabel(userId, fallback = 'Jemand') {
+  const row = db.prepare(`
+    SELECT COALESCE(a.label, u.username) AS label
+    FROM users u LEFT JOIN apartments a ON a.id = u.apartment_id
+    WHERE u.id = ?
+  `).get(userId);
+  return row?.label || fallback;
 }
 
 function isValidUsername(value) {
@@ -1925,21 +2036,22 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
-async function sendEmailVerification(req, user) {
+async function sendEmailVerification(req, user, emailKind = 'primary') {
   const config = smtpConfig();
-  if (!config.host || !config.from || !isValidEmail(user.email)) {
+  const email = emailKind === 'secondary' ? user.secondary_email : user.email;
+  if (!config.host || !config.from || !isValidEmail(email)) {
     return { configured: false, sent: false };
   }
   const token = crypto.randomBytes(32).toString('hex');
-  db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(user.id);
+  db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ? AND email_kind = ?').run(user.id, emailKind);
   db.prepare(`
-    INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-    VALUES (?, ?, ?)
-  `).run(user.id, tokenHash(token), String(Date.now() + 24 * 60 * 60 * 1000));
+    INSERT INTO email_verification_tokens (user_id, token_hash, email_kind, email_value, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(user.id, tokenHash(token), emailKind, email, String(Date.now() + 24 * 60 * 60 * 1000));
   const link = `${publicAppUrl(req)}/api/email-verification/confirm?token=${encodeURIComponent(token)}`;
   await sendMail({
     config,
-    to: user.email,
+    to: email,
     subject: 'WaschZeit: E-Mail-Adresse best\u00e4tigen',
     text: [
       `Hallo ${user.username}`,
@@ -1954,9 +2066,13 @@ async function sendEmailVerification(req, user) {
   return { configured: true, sent: true };
 }
 
-async function sendPasswordReset(req, user) {
+async function sendPasswordReset(req, user, deliveryEmail = user.email) {
   const config = smtpConfig();
-  if (!config.host || !config.from || !isValidEmail(user.email) || !user.email_verified) {
+  const email = normalizeEmail(deliveryEmail);
+  const verified = email === normalizeEmail(user.email)
+    ? Boolean(user.email_verified)
+    : email === normalizeEmail(user.secondary_email) && Boolean(user.secondary_email_verified);
+  if (!config.host || !config.from || !isValidEmail(email) || !verified) {
     return false;
   }
   const token = crypto.randomBytes(32).toString('hex');
@@ -1968,7 +2084,7 @@ async function sendPasswordReset(req, user) {
   const link = `${publicAppUrl(req)}/reset.html?token=${encodeURIComponent(token)}`;
   await sendMail({
     config,
-    to: user.email,
+    to: email,
     subject: 'WaschZeit: Passwort neu setzen',
     text: [
       `Hallo ${user.username}`,
@@ -1991,15 +2107,14 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
   }
 
   const recipients = db.prepare(`
-    SELECT u.id, u.username, u.email
+    SELECT u.id, u.username, u.email, u.secondary_email,
+           u.email_verified, u.secondary_email_verified
     FROM users u
     LEFT JOIN notification_preferences np ON np.user_id = u.id
     WHERE u.active = 1
       AND u.house_id = ?
       AND u.notify_releases = 1
-      AND u.email_verified = 1
-      AND u.email IS NOT NULL
-      AND u.email != ''
+      AND (u.email_verified = 1 OR u.secondary_email_verified = 1)
       AND u.id != ?
       AND (np.resource_type IS NULL OR np.resource_type = 'all' OR np.resource_type = ?)
       AND (np.weekday IS NULL OR np.weekday = ?)
@@ -2017,13 +2132,23 @@ async function notifyReleaseSubscribers(req, booking, message, subject = `Waschp
     return { configured: true, sent: 0 };
   }
 
+  const deliveries = recipients.flatMap((recipient) => {
+    const emails = [];
+    if (recipient.email_verified && isValidEmail(recipient.email)) emails.push(recipient.email);
+    if (
+      recipient.secondary_email_verified
+      && isValidEmail(recipient.secondary_email)
+      && normalizeEmail(recipient.secondary_email) !== normalizeEmail(recipient.email)
+    ) emails.push(recipient.secondary_email);
+    return emails.map((email) => ({ ...recipient, deliveryEmail: email }));
+  });
   const appUrl = `${publicAppUrl(req)}${releaseNoticeUrl(booking)}`;
   let sent = 0;
-  for (let start = 0; start < recipients.length; start += 5) {
-    const batch = recipients.slice(start, start + 5);
+  for (let start = 0; start < deliveries.length; start += 5) {
+    const batch = deliveries.slice(start, start + 5);
     const results = await Promise.allSettled(batch.map((recipient) => sendMail({
         config,
-        to: recipient.email,
+        to: recipient.deliveryEmail,
         subject,
         text: [
           `Hallo ${recipient.username}`,
@@ -2282,6 +2407,7 @@ function cleanupExpiredData() {
     db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
     db.prepare('DELETE FROM email_verification_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
     db.prepare('DELETE FROM password_reset_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
+    db.prepare('DELETE FROM device_pairing_codes WHERE used_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
     db.prepare("DELETE FROM release_notices WHERE created_at < datetime('now', '-30 days')").run();
     db.prepare("DELETE FROM bookings WHERE booking_date < date('now', '-365 days')").run();
     db.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', '-365 days')").run();
@@ -2306,8 +2432,10 @@ app.get(['/health', '/api/health'], (req, res) => {
 app.post('/api/login', authRateLimit, async (req, res, next) => {
   const { username, password } = req.body || {};
   const loginName = normalizeEmail(username);
-  const user = db.prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?')
-    .get(loginName, loginName);
+  const user = db.prepare(`
+    SELECT * FROM users
+    WHERE lower(username) = ? OR lower(email) = ? OR lower(secondary_email) = ?
+  `).get(loginName, loginName, loginName);
 
   if (!user || !verifyStoredPassword(String(password || ''), user.password_hash)) {
     return res.status(401).json({ error: 'Login fehlgeschlagen' });
@@ -2334,17 +2462,47 @@ app.post('/api/login', authRateLimit, async (req, res, next) => {
   }
 });
 
+app.post('/api/device-login', authRateLimit, async (req, res, next) => {
+  const code = normalizeAccessCode(req.body?.deviceCode);
+  const record = code ? db.prepare(`
+    SELECT dpc.id AS pairing_id, dpc.user_id, u.*
+    FROM device_pairing_codes dpc
+    JOIN users u ON u.id = dpc.user_id
+    WHERE dpc.code_hash = ?
+      AND dpc.used_at IS NULL
+      AND CAST(dpc.expires_at AS INTEGER) > ?
+      AND u.active = 1
+  `).get(tokenHash(code), Date.now()) : null;
+  if (!record) {
+    return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig oder abgelaufen.' });
+  }
+  try {
+    db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(record.pairing_id);
+    await regenerateSession(req);
+    req.session.user = sessionUserFromRow(record);
+    req.session.activeHouseId = record.house_id;
+    req.session.lastActivityAt = Date.now();
+    clearAuthRateLimit(req);
+    res.json({ user: req.session.user, message: `${req.session.user.apartmentLabel} wurde auf diesem Ger\u00e4t verbunden.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res, next) => {
   const username = String(req.body?.username || '').trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
-  const houseCode = String(req.body?.houseCode || '').trim();
+  const apartmentCode = String(req.body?.apartmentCode || '').trim();
+  const legacyHouseCode = String(req.body?.houseCode || (allowLegacyHouseRegistration ? req.body?.apartmentCode : '') || '').trim();
   const notifyReleases = req.body?.notifyReleases !== false ? 1 : 0;
-  const house = db.prepare(`
-    SELECT id, name
-    FROM houses
-    WHERE lower(code) = lower(?) AND active = 1
-  `).get(houseCode);
+  const apartment = apartmentForCode(apartmentCode);
+  const legacyHouse = allowLegacyHouseRegistration && legacyHouseCode
+    ? db.prepare('SELECT id, name FROM houses WHERE lower(code) = lower(?) AND active = 1').get(legacyHouseCode)
+    : null;
+  const house = apartment
+    ? { id: apartment.house_id, name: apartment.house_name }
+    : legacyHouse;
 
   if (!isValidUsername(username)) {
     return res.status(400).json({ error: 'Der Benutzername darf 3 bis 40 Buchstaben, Zahlen, Leerzeichen, Punkte, Binde- oder Unterstriche enthalten.' });
@@ -2355,16 +2513,52 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res,
   if (!isValidPassword(password)) {
     return res.status(400).json({ error: 'Das Passwort muss 12 bis 128 Zeichen haben.' });
   }
-  if (!house) {
-    return res.status(403).json({ error: 'Hauscode ist nicht korrekt' });
+  if (!house || (!apartment && !legacyHouse)) {
+    return res.status(403).json({ error: 'Der Wohnungscode ist nicht korrekt oder wurde bereits verwendet.' });
+  }
+  if (apartment?.claimed_by) {
+    return res.status(409).json({ error: 'Diese Wohnung ist bereits aktiviert. Nutze den Ger\u00e4tecode eines angemeldeten Handys.' });
+  }
+  if (findEmailOwner(email)) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben' });
   }
 
   try {
     const emailVerified = 0;
-    const result = db.prepare(`
-      INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases, email_verified)
-      VALUES (?, ?, ?, 'user', ?, 1, ?, ?)
-    `).run(username, email, bcrypt.hashSync(password, 10), house.id, notifyReleases, emailVerified);
+    const result = db.transaction(() => {
+      if (apartment) {
+        const available = db.prepare(`
+          SELECT id FROM apartments
+          WHERE id = ? AND claimed_by IS NULL AND activation_code_hash = ? AND active = 1
+        `).get(apartment.id, tokenHash(normalizeAccessCode(apartmentCode)));
+        if (!available) {
+          const conflict = new Error('APARTMENT_ALREADY_CLAIMED');
+          conflict.code = 'APARTMENT_ALREADY_CLAIMED';
+          throw conflict;
+        }
+      }
+      const inserted = db.prepare(`
+        INSERT INTO users
+          (username, email, password_hash, role, house_id, active, notify_releases, email_verified, apartment_id)
+        VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?)
+      `).run(
+        username,
+        email,
+        bcrypt.hashSync(password, 10),
+        house.id,
+        notifyReleases,
+        emailVerified,
+        apartment?.id || null
+      );
+      if (apartment) {
+        db.prepare(`
+          UPDATE apartments
+          SET claimed_by = ?, claimed_at = CURRENT_TIMESTAMP, activation_code_hash = NULL
+          WHERE id = ?
+        `).run(inserted.lastInsertRowid, apartment.id);
+      }
+      return inserted;
+    })();
 
     const createdUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     await regenerateSession(req);
@@ -2386,6 +2580,9 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res,
           : 'Konto erstellt. E-Mail-Hinweise werden nach Einrichtung des Versands freigeschaltet.'
     });
   } catch (error) {
+    if (error.code === 'APARTMENT_ALREADY_CLAIMED') {
+      return res.status(409).json({ error: 'Diese Wohnung wurde gerade bereits aktiviert.' });
+    }
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Benutzername oder E-Mail ist bereits vergeben' });
     }
@@ -2396,7 +2593,8 @@ app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res,
 app.get('/api/email-verification/confirm', (req, res) => {
   const token = String(req.query.token || '');
   const record = db.prepare(`
-    SELECT evt.id, evt.user_id
+    SELECT evt.id, evt.user_id, evt.email_kind, evt.email_value,
+           u.email, u.secondary_email
     FROM email_verification_tokens evt
     JOIN users u ON u.id = evt.user_id
     WHERE evt.token_hash = ? AND CAST(evt.expires_at AS INTEGER) > ? AND u.active = 1
@@ -2404,24 +2602,36 @@ app.get('/api/email-verification/confirm', (req, res) => {
   if (!record) {
     return res.redirect('/login.html?verification=invalid');
   }
+  const currentEmail = record.email_kind === 'secondary' ? record.secondary_email : record.email;
+  if (record.email_value && normalizeEmail(currentEmail) !== normalizeEmail(record.email_value)) {
+    db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').run(record.id);
+    return res.redirect('/login.html?verification=invalid');
+  }
   db.transaction(() => {
-    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(record.user_id);
-    db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(record.user_id);
+    const column = record.email_kind === 'secondary' ? 'secondary_email_verified' : 'email_verified';
+    db.prepare(`UPDATE users SET ${column} = 1 WHERE id = ?`).run(record.user_id);
+    db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').run(record.id);
   })();
   if (Number(req.session.user?.id) === Number(record.user_id)) {
-    req.session.user.emailVerified = true;
+    if (record.email_kind === 'secondary') req.session.user.secondaryEmailVerified = true;
+    else req.session.user.emailVerified = true;
   }
   res.redirect(req.session.user ? '/index.html?emailVerified=1' : '/login.html?verification=ok');
 });
 
 app.post('/api/email-verification/resend', requireAuth, recoveryRateLimit, async (req, res) => {
-  const user = db.prepare('SELECT id, username, email, email_verified FROM users WHERE id = ?')
+  const emailKind = req.body?.emailKind === 'secondary' ? 'secondary' : 'primary';
+  const user = db.prepare(`
+    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified
+    FROM users WHERE id = ?
+  `)
     .get(req.session.user.id);
-  if (!user || user.email_verified) {
+  const alreadyVerified = emailKind === 'secondary' ? user?.secondary_email_verified : user?.email_verified;
+  if (!user || alreadyVerified) {
     return res.json({ ok: true, message: 'Die E-Mail-Adresse ist bereits best\u00e4tigt.' });
   }
   try {
-    const result = await sendEmailVerification(req, user);
+    const result = await sendEmailVerification(req, user, emailKind);
     if (!result.sent) {
       return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht eingerichtet.' });
     }
@@ -2435,10 +2645,14 @@ app.post('/api/email-verification/resend', requireAuth, recoveryRateLimit, async
 app.post('/api/password-reset/request', recoveryRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const user = isValidEmail(email)
-    ? db.prepare('SELECT id, username, email, email_verified FROM users WHERE lower(email) = ? AND active = 1').get(email)
+    ? db.prepare(`
+        SELECT id, username, email, email_verified, secondary_email, secondary_email_verified
+        FROM users
+        WHERE (lower(email) = ? OR lower(secondary_email) = ?) AND active = 1
+      `).get(email, email)
     : null;
   if (user) {
-    await sendPasswordReset(req, user).catch((error) => {
+    await sendPasswordReset(req, user, email).catch((error) => {
       console.error(`Passwort-Mail konnte nicht gesendet werden: ${error.message}`);
     });
   }
@@ -2505,6 +2719,12 @@ app.get('/api/me', (req, res) => {
       session: { idleTimeoutMs: sessionIdleTimeoutMs, warningMs: sessionWarningMs }
     });
   }
+  const currentUserRow = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(req.session.user.id);
+  if (!currentUserRow) {
+    return req.session.destroy(() => res.status(401).json({ error: 'Dieses Konto ist nicht mehr aktiv.' }));
+  }
+  const activeHouse = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(currentHouseId(req) || currentUserRow.house_id);
+  req.session.user = sessionUserFromRow(currentUserRow, activeHouse);
   const houses = isSuperadmin(req)
     ? db.prepare('SELECT id, name, active FROM houses WHERE active = 1 ORDER BY name').all()
     : [];
@@ -2530,6 +2750,141 @@ app.get('/api/me', (req, res) => {
       lastActivityAt: req.session.lastActivityAt
     }
   });
+});
+
+app.post('/api/me/apartment/claim', requireAuth, (req, res) => {
+  if (req.session.user.role !== 'user') {
+    return res.status(400).json({ error: 'Admin-Konten werden keiner Wohnung zugeordnet.' });
+  }
+  if (req.session.user.apartmentId) {
+    return res.status(409).json({ error: 'Dieses Konto ist bereits einer Wohnung zugeordnet.' });
+  }
+  const apartment = apartmentForCode(req.body?.apartmentCode);
+  if (!apartment || apartment.house_id !== req.session.user.houseId || apartment.claimed_by) {
+    return res.status(403).json({ error: 'Der Wohnungscode ist nicht korrekt, passt nicht zum Haus oder wurde bereits verwendet.' });
+  }
+  const changed = db.transaction(() => {
+    const result = db.prepare(`
+      UPDATE apartments
+      SET claimed_by = ?, claimed_at = CURRENT_TIMESTAMP, activation_code_hash = NULL
+      WHERE id = ? AND claimed_by IS NULL AND activation_code_hash = ?
+    `).run(
+      req.session.user.id,
+      apartment.id,
+      tokenHash(normalizeAccessCode(req.body?.apartmentCode))
+    );
+    if (result.changes) {
+      db.prepare('UPDATE users SET apartment_id = ? WHERE id = ?').run(apartment.id, req.session.user.id);
+    }
+    return result;
+  })();
+  if (!changed.changes) {
+    return res.status(409).json({ error: 'Diese Wohnung wurde gerade bereits aktiviert.' });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+  req.session.user = sessionUserFromRow(user);
+  writeAudit(req, 'apartment.claim', 'apartment', apartment.id, { label: apartment.label });
+  res.json({ user: req.session.user, message: `${apartment.label} ist jetzt mit diesem Konto verbunden.` });
+});
+
+app.post('/api/me/device-code', requireAuth, requireApartmentAccount, (req, res) => {
+  if (!req.session.user.apartmentId) {
+    return res.status(409).json({ error: 'Zuerst muss eine Wohnung mit dem Konto verbunden sein.' });
+  }
+  const code = generateReadableCode();
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  db.transaction(() => {
+    db.prepare('DELETE FROM device_pairing_codes WHERE user_id = ? OR CAST(expires_at AS INTEGER) <= ?')
+      .run(req.session.user.id, Date.now());
+    db.prepare(`
+      INSERT INTO device_pairing_codes (user_id, code_hash, expires_at)
+      VALUES (?, ?, ?)
+    `).run(req.session.user.id, tokenHash(normalizeAccessCode(code)), String(expiresAt));
+  })();
+  res.status(201).json({
+    code,
+    expiresAt,
+    apartmentLabel: req.session.user.apartmentLabel,
+    message: 'Der Ger\u00e4tecode ist zehn Minuten g\u00fcltig und kann einmal verwendet werden.'
+  });
+});
+
+app.post('/api/me/apartment/join', requireAuth, async (req, res, next) => {
+  if (req.session.user.role !== 'user' || req.session.user.apartmentId) {
+    return res.status(409).json({ error: 'Dieses Konto ist bereits einer Wohnung zugeordnet.' });
+  }
+  const code = normalizeAccessCode(req.body?.deviceCode);
+  const pairing = code ? db.prepare(`
+    SELECT dpc.id, dpc.user_id, u.house_id, u.apartment_id, u.active
+    FROM device_pairing_codes dpc
+    JOIN users u ON u.id = dpc.user_id
+    WHERE dpc.code_hash = ? AND dpc.used_at IS NULL
+      AND CAST(dpc.expires_at AS INTEGER) > ? AND u.active = 1
+  `).get(tokenHash(code), Date.now()) : null;
+  if (!pairing || !pairing.apartment_id || pairing.house_id !== req.session.user.houseId) {
+    return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig, abgelaufen oder geh\u00f6rt zu einem anderen Haus.' });
+  }
+  if (Number(pairing.user_id) === Number(req.session.user.id)) {
+    return res.status(400).json({ error: 'Dieser Ger\u00e4tecode geh\u00f6rt bereits zu deinem Konto.' });
+  }
+
+  try {
+    const source = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(pairing.user_id);
+    const targetEmails = new Set([target.email, target.secondary_email].map(normalizeEmail).filter(Boolean));
+    const sourceEmails = [
+      { email: source.email, verified: source.email_verified },
+      { email: source.secondary_email, verified: source.secondary_email_verified }
+    ].filter((entry, index, entries) => (
+      isValidEmail(entry.email)
+      && !targetEmails.has(normalizeEmail(entry.email))
+      && entries.findIndex((candidate) => normalizeEmail(candidate.email) === normalizeEmail(entry.email)) === index
+    ));
+    const availableEmailSlots = target.secondary_email ? 0 : 1;
+    if (sourceEmails.length > availableEmailSlots) {
+      return res.status(409).json({
+        error: 'Das gemeinsame Wohnungskonto hat bereits zwei E-Mail-Adressen. Bitte dort zuerst eine Adresse anpassen und danach erneut verbinden.'
+      });
+    }
+    db.transaction(() => {
+      db.prepare('UPDATE bookings SET user_id = ? WHERE user_id = ?').run(target.id, source.id);
+      db.prepare('UPDATE push_subscriptions SET user_id = ?, house_id = ? WHERE user_id = ?')
+        .run(target.id, target.house_id, source.id);
+      const targetPreferences = db.prepare('SELECT user_id FROM notification_preferences WHERE user_id = ?').get(target.id);
+      if (!targetPreferences) {
+        db.prepare('UPDATE notification_preferences SET user_id = ? WHERE user_id = ?').run(target.id, source.id);
+      } else {
+        db.prepare('DELETE FROM notification_preferences WHERE user_id = ?').run(source.id);
+      }
+      if (!target.secondary_email && sourceEmails[0]) {
+        db.prepare(`
+          UPDATE users SET secondary_email = ?, secondary_email_verified = ? WHERE id = ?
+        `).run(sourceEmails[0].email, sourceEmails[0].verified, target.id);
+      }
+      db.prepare(`
+        UPDATE users
+        SET active = 0, apartment_id = NULL, merged_into_user_id = ?,
+            email = NULL, secondary_email = NULL,
+            email_verified = 0, secondary_email_verified = 0
+        WHERE id = ?
+      `).run(target.id, source.id);
+      db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(source.id);
+      db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(source.id);
+      db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(pairing.id);
+    })();
+
+    destroyUserSessions(source.id, req.sessionID);
+    req.session.user = sessionUserFromRow(db.prepare('SELECT * FROM users WHERE id = ?').get(target.id));
+    req.session.activeHouseId = target.house_id;
+    req.session.lastActivityAt = Date.now();
+    writeAudit(req, 'apartment.account_merge', 'user', source.id, { targetUserId: target.id });
+    res.json({
+      user: req.session.user,
+      message: `Dieses Ger\u00e4t nutzt jetzt das gemeinsame Konto ${req.session.user.apartmentLabel}.`
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/session/keepalive', requireAuth, (req, res) => {
@@ -2631,6 +2986,7 @@ app.put('/api/me/booking-mode', requireAuth, (req, res) => {
 
 app.put('/api/me/notifications', requireAuth, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
+  const secondaryEmail = normalizeEmail(req.body?.secondaryEmail);
   const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
   const resourceType = String(req.body?.resourceType || 'all');
   const weekday = req.body?.weekday === '' || req.body?.weekday == null ? null : Number(req.body.weekday);
@@ -2638,6 +2994,15 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
 
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
+  }
+  if (secondaryEmail && !isValidEmail(secondaryEmail)) {
+    return res.status(400).json({ error: 'Bitte eine g\u00fcltige zweite E-Mail-Adresse eintragen.' });
+  }
+  if (secondaryEmail && secondaryEmail === email) {
+    return res.status(400).json({ error: 'Die zweite E-Mail-Adresse muss sich von der ersten unterscheiden.' });
+  }
+  if (findEmailOwner(email, req.session.user.id) || (secondaryEmail && findEmailOwner(secondaryEmail, req.session.user.id))) {
+    return res.status(409).json({ error: 'Eine dieser E-Mail-Adressen ist bereits einem anderen Konto zugeordnet.' });
   }
   if (!['all', 'washer', 'drying_room', 'tumbler'].includes(resourceType)) {
     return res.status(400).json({ error: 'Ung\u00fcltiger Bereich f\u00fcr Benachrichtigungen.' });
@@ -2650,12 +3015,28 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
   }
 
   try {
-    const previous = db.prepare('SELECT email, email_verified FROM users WHERE id = ?').get(req.session.user.id);
+    const previous = db.prepare(`
+      SELECT email, email_verified, secondary_email, secondary_email_verified
+      FROM users WHERE id = ?
+    `).get(req.session.user.id);
     const emailChanged = normalizeEmail(previous?.email) !== email;
+    const secondaryEmailChanged = normalizeEmail(previous?.secondary_email) !== secondaryEmail;
     const emailVerified = emailChanged ? 0 : previous?.email_verified ?? 0;
+    const secondaryEmailVerified = secondaryEmailChanged ? 0 : previous?.secondary_email_verified ?? 0;
     db.transaction(() => {
-      db.prepare('UPDATE users SET email = ?, notify_releases = ?, email_verified = ? WHERE id = ?')
-        .run(email, notifyReleases, emailVerified, req.session.user.id);
+      db.prepare(`
+        UPDATE users
+        SET email = ?, secondary_email = NULLIF(?, ''), notify_releases = ?,
+            email_verified = ?, secondary_email_verified = ?
+        WHERE id = ?
+      `).run(
+        email,
+        secondaryEmail,
+        notifyReleases,
+        emailVerified,
+        secondaryEmailVerified,
+        req.session.user.id
+      );
       db.prepare(`
         INSERT INTO notification_preferences (user_id, resource_type, weekday, slot)
         VALUES (?, ?, ?, ?)
@@ -2672,7 +3053,15 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
         email
       }).catch((error) => console.error(`Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`));
     }
+    if (secondaryEmailChanged && secondaryEmail && emailStatus().configured) {
+      await sendEmailVerification(req, {
+        id: req.session.user.id,
+        username: req.session.user.username,
+        secondary_email: secondaryEmail
+      }, 'secondary').catch((error) => console.error(`Zweite Best\u00e4tigungsmail konnte nicht gesendet werden: ${error.message}`));
+    }
     req.session.user.emailVerified = Boolean(emailVerified);
+    req.session.user.secondaryEmailVerified = Boolean(secondaryEmailVerified);
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben' });
@@ -2681,6 +3070,7 @@ app.put('/api/me/notifications', requireAuth, async (req, res) => {
   }
 
   req.session.user.email = email;
+  req.session.user.secondaryEmail = secondaryEmail;
   req.session.user.notifyReleases = Boolean(notifyReleases);
   res.json({
     user: req.session.user,
@@ -2716,8 +3106,11 @@ app.put('/api/me/password', requireAuth, (req, res) => {
 
 app.get('/api/me/export', requireAuth, (req, res) => {
   const user = db.prepare(`
-    SELECT id, username, email, role, active, notify_releases, email_verified, booking_mode, created_at
-    FROM users WHERE id = ?
+    SELECT u.id, u.username, u.email, u.secondary_email, u.role, u.active,
+           u.notify_releases, u.email_verified, u.secondary_email_verified,
+           u.booking_mode, u.created_at, a.label AS apartment
+    FROM users u LEFT JOIN apartments a ON a.id = u.apartment_id
+    WHERE u.id = ?
   `).get(req.session.user.id);
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(req.session.user.houseId);
   const bookings = db.prepare(`
@@ -2954,10 +3347,11 @@ app.put('/api/admin/resources/:id', requireAdmin, (req, res) => {
 app.get('/api/my-bookings', requireAuth, (req, res) => {
   const bookings = db.prepare(`
     SELECT b.id, b.booking_date, b.slot, b.group_id, r.id AS resource_id, r.name AS resource_name,
-           r.type AS resource_type, u.id AS user_id, u.username
+           r.type AS resource_type, u.id AS user_id, COALESCE(a.label, u.username) AS username
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     JOIN users u ON u.id = b.user_id
+    LEFT JOIN apartments a ON a.id = u.apartment_id
     WHERE b.user_id = ?
       AND r.house_id = ?
       AND b.booking_date >= ?
@@ -2986,10 +3380,11 @@ app.get('/api/bookings', requireAuth, (req, res) => {
 
   const bookings = db.prepare(`
     SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name,
-           r.type AS resource_type, u.id AS user_id, u.username, 0 AS is_fixed
+           r.type AS resource_type, u.id AS user_id, COALESCE(a.label, u.username) AS username, 0 AS is_fixed
     FROM bookings b
     JOIN resources r ON r.id = b.resource_id
     JOIN users u ON u.id = b.user_id
+    LEFT JOIN apartments a ON a.id = u.apartment_id
     WHERE b.booking_date = ? AND r.house_id = ?
     ORDER BY b.slot, r.name
   `).all(date, houseId);
@@ -3001,7 +3396,7 @@ app.get('/api/bookings', requireAuth, (req, res) => {
   res.json({ bookings: allBookings });
 });
 
-app.post('/api/bookings', requireAuth, (req, res) => {
+app.post('/api/bookings', requireAuth, requireApartmentAccount, (req, res) => {
   const { resourceId, date, slot } = req.body || {};
   const houseId = currentHouseId(req);
 
@@ -3077,7 +3472,7 @@ function packageRequestError(status, message) {
   return error;
 }
 
-app.post('/api/booking-package', requireAuth, (req, res, next) => {
+app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res, next) => {
   const rawItems = req.body?.items;
   const washerBookingId = Number(req.body?.washerBookingId || 0);
   const houseId = currentHouseId(req);
@@ -3334,7 +3729,7 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
       return res.status(409).json({ error: 'Das ganze Paket kann nur vor Beginn abgesagt werden. Laufende Bestandteile bitte einzeln fr\u00fcher freigeben.' });
     }
 
-    const actorName = req.session.user.username || 'Jemand';
+    const actorName = req.session.user.apartmentLabel || req.session.user.username || 'Jemand';
     const noticeRows = db.transaction(() => {
       const createdNotices = [];
       db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
@@ -3423,7 +3818,7 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
     }
 
     db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
-    const actorName = req.session.user.username || 'Jemand';
+    const actorName = req.session.user.apartmentLabel || req.session.user.username || 'Jemand';
     const message = `${actorName} hat ${booking.resource_name} am ${booking.booking_date} im Zeitfenster ${booking.slot} abgesagt. Der Slot ist wieder buchbar.`;
     const noticeResult = db.prepare(`
       INSERT INTO release_notices (resource_id, resource_name, booking_date, slot, kind, message, house_id, created_by)
@@ -3475,7 +3870,7 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
       });
     }
 
-    const actorName = req.session.user.username || 'Jemand';
+    const actorName = req.session.user.apartmentLabel || req.session.user.username || 'Jemand';
     const message = releaseWindow.hasStarted
       ? `${actorName} hat ${booking.resource_name} freigegeben. Der Slot ist heute bis ${slotEndLabel(booking.slot)} wieder frei.`
       : `${actorName} hat ${booking.resource_name} freigegeben. Der Slot ist am ${booking.booking_date} im Zeitfenster ${booking.slot} wieder frei.`;
@@ -3529,7 +3924,7 @@ function releaseNoticeSelect(whereSql) {
            rn.kind,
            rn.message,
            rn.created_at,
-           u.username AS created_by_name,
+           COALESCE(a.label, u.username) AS created_by_name,
            r.active AS resource_active,
            CASE WHEN EXISTS (
              SELECT 1 FROM bookings b
@@ -3539,6 +3934,7 @@ function releaseNoticeSelect(whereSql) {
            ) THEN 1 ELSE 0 END AS is_booked
     FROM release_notices rn
     LEFT JOIN users u ON u.id = rn.created_by
+    LEFT JOIN apartments a ON a.id = u.apartment_id
     LEFT JOIN resources r ON r.id = rn.resource_id
       OR (rn.resource_id IS NULL AND r.house_id = rn.house_id AND r.name = rn.resource_name)
     ${whereSql}
@@ -3569,12 +3965,75 @@ app.get('/api/release-notices/:id', requireAuth, (req, res) => {
   res.json({ notice: decorateReleaseNotice(notice) });
 });
 
+app.get('/api/admin/apartments', requireAdmin, (req, res) => {
+  const apartments = db.prepare(`
+    SELECT a.id, a.label, a.active, a.claimed_at,
+           CASE WHEN a.claimed_by IS NULL THEN 0 ELSE 1 END AS claimed
+    FROM apartments a
+    WHERE a.house_id = ?
+    ORDER BY a.label COLLATE NOCASE
+  `).all(currentHouseId(req)).map((apartment) => ({
+    ...apartment,
+    active: Boolean(apartment.active),
+    claimed: Boolean(apartment.claimed)
+  }));
+  res.json({ apartments });
+});
+
+app.post('/api/admin/apartments', requireAdmin, (req, res) => {
+  const label = String(req.body?.label || '').trim();
+  if (!isValidPlainText(label, 2, 60)) {
+    return res.status(400).json({ error: 'Bitte eine Wohnungsbezeichnung mit 2 bis 60 Zeichen eingeben.' });
+  }
+  const code = generateReadableCode('W');
+  try {
+    const result = db.prepare(`
+      INSERT INTO apartments (house_id, label, activation_code_hash)
+      VALUES (?, ?, ?)
+    `).run(currentHouseId(req), label, tokenHash(normalizeAccessCode(code)));
+    writeAudit(req, 'apartment.create', 'apartment', result.lastInsertRowid, { label });
+    res.status(201).json({
+      apartment: { id: result.lastInsertRowid, label, claimed: false, active: true },
+      activationCode: code,
+      message: 'Wohnung angelegt. Der Code wird aus Sicherheitsgr\u00fcnden nur jetzt angezeigt.'
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese Wohnungsbezeichnung ist bereits vorhanden.' });
+    }
+    throw error;
+  }
+});
+
+app.post('/api/admin/apartments/:id/new-code', requireAdmin, (req, res) => {
+  const apartment = db.prepare(`
+    SELECT id, label, claimed_by FROM apartments WHERE id = ? AND house_id = ? AND active = 1
+  `).get(Number(req.params.id), currentHouseId(req));
+  if (!apartment) {
+    return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
+  }
+  if (apartment.claimed_by) {
+    return res.status(409).json({ error: 'Eine bereits aktivierte Wohnung erh\u00e4lt keinen neuen Aktivierungscode.' });
+  }
+  const code = generateReadableCode('W');
+  db.prepare('UPDATE apartments SET activation_code_hash = ? WHERE id = ?')
+    .run(tokenHash(normalizeAccessCode(code)), apartment.id);
+  writeAudit(req, 'apartment.code_regenerated', 'apartment', apartment.id, { label: apartment.label });
+  res.json({
+    activationCode: code,
+    message: 'Neuer Wohnungscode erstellt. Der vorherige Code ist ab sofort ung\u00fcltig.'
+  });
+});
+
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const users = db.prepare(`
-    SELECT id, username, email, role, house_id, is_superadmin, active, notify_releases, email_verified, created_at
-    FROM users
-    WHERE house_id = ?
-    ORDER BY username
+    SELECT u.id, u.username, u.email, u.secondary_email, u.role, u.house_id, u.is_superadmin,
+           u.active, u.notify_releases, u.email_verified, u.secondary_email_verified,
+           u.created_at, a.label AS apartment_label, u.merged_into_user_id
+    FROM users u
+    LEFT JOIN apartments a ON a.id = u.apartment_id
+    WHERE u.house_id = ?
+    ORDER BY COALESCE(a.label, u.username), u.username
   `).all(currentHouseId(req));
   res.json({ users });
 });
@@ -3583,12 +4042,15 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   const userId = Number(req.params.id);
   const active = req.body?.active === true ? 1 : 0;
   const user = db.prepare(`
-    SELECT id, username, role, is_superadmin, active
+    SELECT id, username, role, is_superadmin, active, merged_into_user_id
     FROM users WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
 
   if (!user) {
     return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (active && user.merged_into_user_id) {
+    return res.status(409).json({ error: 'Ein zusammengefuehrtes Alt-Konto kann nicht wieder aktiviert werden.' });
   }
   if (!active && user.id === req.session.user.id) {
     return res.status(400).json({ error: 'Du kannst dein eigenes Admin-Konto nicht deaktivieren.' });
@@ -3620,7 +4082,7 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
 app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateLimit, async (req, res, next) => {
   const userId = Number(req.params.id);
   const user = db.prepare(`
-    SELECT id, username, email, email_verified, role, is_superadmin FROM users
+    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified, role, is_superadmin FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
 
@@ -3637,7 +4099,8 @@ app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateL
     return res.status(403).json({ error: 'Hausadmins k\u00f6nnen keine Reset-Links f\u00fcr andere Admins senden.' });
   }
   try {
-    const sent = await sendPasswordReset(req, user);
+    const deliveryEmail = user.email_verified ? user.email : user.secondary_email;
+    const sent = await sendPasswordReset(req, user, deliveryEmail);
     if (!sent) {
       return res.status(409).json({
         error: 'F\u00fcr dieses Konto ist keine best\u00e4tigte E-Mail-Adresse oder kein E-Mail-Versand eingerichtet.'
@@ -3675,13 +4138,16 @@ app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res)
 app.put('/api/admin/users/:id/house', requireAdmin, requireSuperadmin, (req, res) => {
   const userId = Number(req.params.id);
   const houseId = Number(req.body?.houseId);
-  const user = db.prepare('SELECT id, username, house_id, is_superadmin FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, username, house_id, is_superadmin, apartment_id FROM users WHERE id = ?').get(userId);
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1').get(houseId);
   if (!user || !house) {
     return res.status(404).json({ error: 'Konto oder Zielhaus nicht gefunden.' });
   }
   if (user.is_superadmin) {
     return res.status(400).json({ error: 'Das Superadmin-Konto kann nicht verschoben werden.' });
+  }
+  if (user.apartment_id) {
+    return res.status(409).json({ error: 'Ein Wohnungskonto bleibt bei seiner Wohnung und kann nicht in ein anderes Haus verschoben werden.' });
   }
   if (user.house_id === house.id) {
     return res.status(400).json({ error: 'Das Konto geh\u00f6rt bereits zu diesem Haus.' });
@@ -3875,14 +4341,15 @@ app.get('/api/admin/analytics', requireAdmin, (req, res) => {
     ORDER BY count DESC, r.name
   `).all(since, until, houseId);
   const byUser = db.prepare(`
-    SELECT u.username, COUNT(b.id) AS count
+    SELECT COALESCE(a.label, u.username) AS username, COUNT(b.id) AS count
     FROM users u
+    LEFT JOIN apartments a ON a.id = u.apartment_id
     LEFT JOIN bookings b ON b.user_id = u.id
       AND b.booking_date BETWEEN ? AND ?
     WHERE u.house_id = ?
       AND u.active = 1
     GROUP BY u.id
-    ORDER BY count DESC, u.username
+    ORDER BY count DESC, COALESCE(a.label, u.username)
     LIMIT 10
   `).all(since, until, houseId);
   const releases = db.prepare(`
@@ -4073,12 +4540,12 @@ app.get('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
 
 app.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
   const name = String(req.body?.name || '').trim();
-  const code = String(req.body?.code || '').trim();
+  const code = String(req.body?.code || `HOUSE-${crypto.randomBytes(12).toString('hex')}`).trim();
   if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
   }
   if (!isValidPlainText(code, 12, 80)) {
-    return res.status(400).json({ error: 'Der Hauscode muss 12 bis 80 Zeichen haben und darf keine Steuerzeichen enthalten.' });
+    return res.status(400).json({ error: 'Der interne Hausschluessel ist ung\u00fcltig.' });
   }
   if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?)').get(name)) {
     return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });

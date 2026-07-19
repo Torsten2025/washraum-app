@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+process.env.ALLOW_LEGACY_HOUSE_REGISTRATION = 'true';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -284,11 +285,20 @@ async function run() {
       '/api/admin/overview',
       '/api/admin/settings',
       '/api/admin/resources',
+      '/api/admin/apartments',
       '/api/admin/fixed-bookings',
       '/api/admin/audit-log'
     ]) {
       await expectStatus(houseAdmin, route, 200);
     }
+    const apartment = await expectStatus(houseAdmin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({ label: 'Rollen Partei 07' })
+    });
+    assert.ok(apartment.body.activationCode);
+    await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}/new-code`, 200, {
+      method: 'POST'
+    });
 
     await expectStatus(houseAdmin, '/api/admin/settings/house-code', 200, {
       method: 'PUT',
@@ -384,6 +394,7 @@ async function run() {
       ['/api/admin/analytics', 'GET'],
       ['/api/admin/settings', 'GET'],
       ['/api/admin/resources', 'GET'],
+      ['/api/admin/apartments', 'GET'],
       ['/api/admin/fixed-bookings', 'GET'],
       ['/api/admin/audit-log', 'GET'],
       ['/api/admin/push-devices', 'GET'],

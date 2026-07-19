@@ -749,7 +749,7 @@ h3 {
   border: 1px solid rgba(0, 120, 90, 0.1);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 20px;
   padding: 5px;
@@ -3884,6 +3884,45 @@ aside.panel > * {
   }
 }
 
+.pairing-code {
+  background: var(--ink-panel);
+  border-radius: 6px;
+  color: #fff;
+  display: inline-block;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin-top: 12px;
+  padding: 10px 14px;
+}
+
+.apartment-setup-modal {
+  max-width: 820px;
+}
+
+.apartment-setup-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.apartment-setup-grid form {
+  background: #f7faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.apartment-setup-grid h3 {
+  margin-top: 0;
+}
+
+#apartmentCodeResult code {
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -3917,6 +3956,13 @@ aside.panel > * {
 }
 
 @media (max-width: 720px) {
+  .apartment-setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-panel .auth-tabs {
+    grid-template-columns: 1fr;
+  }
   .login-page,
   .layout {
     padding: 14px;

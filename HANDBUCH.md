@@ -1,6 +1,6 @@
 # WaschZeit-Handbuch
 
-Stand: 18. Juli 2026
+Stand: 19. Juli 2026
 
 Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der WaschZeit-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
 
@@ -17,13 +17,14 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 
 ## Schnellstart fuer Bewohner
 
-1. Auf der Anmeldeseite `Neu hier` waehlen.
-2. Benutzername, E-Mail, Passwort und den Hauscode eingeben. Die E-Mail ist Pflicht, weil Passwort-Reset und wichtige Kontohinweise sonst nicht funktionieren. Den Hauscode gibt der Haus-Admin weiter; er ordnet das Konto dem richtigen Haus zu.
-3. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Ein passender Termin ist mit `Empfohlen` und `Buchen` markiert; ein Tipp oeffnet direkt das vorgeschlagene Zeitfenster und die Waschmaschinenwahl.
-4. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
-5. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
-6. Beim ersten Start die `Einstellungen` durchgehen: E-Mail pruefen und bei Bedarf unter `App & Geraet` die App installieren sowie Push aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
-7. Oben rechts das Kontomenue oeffnen und mit `Abmelden` die Sitzung sicher beenden.
+1. Auf der Anmeldeseite `Wohnung aktivieren` waehlen.
+2. Benutzername, E-Mail, Passwort und den einmaligen Wohnungscode eingeben. Die E-Mail ist Pflicht, weil Passwort-Reset und wichtige Kontohinweise sonst nicht funktionieren. Jede Wohnung erhaelt ihren Code persoenlich von der Verwaltung; nach der ersten Aktivierung ist er verbraucht.
+3. Weitere Familienmitglieder waehlen `Geraet verbinden`. Ein bereits angemeldetes Geraet erzeugt unter `Einstellungen` > `App & Geraet` einen zehn Minuten gueltigen Einmalcode. So verwenden alle Geraete dasselbe Wohnungskonto, ohne das Passwort weiterzugeben.
+4. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Ein passender Termin ist mit `Empfohlen` und `Buchen` markiert; ein Tipp oeffnet direkt das vorgeschlagene Zeitfenster und die Waschmaschinenwahl.
+5. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
+6. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
+7. Beim ersten Start die `Einstellungen` durchgehen: E-Mail pruefen und bei Bedarf unter `App & Geraet` die App installieren sowie Push aktivieren. Fuer schnelle Freigaben ist Push der bevorzugte Kanal, E-Mail bleibt als Fallback moeglich.
+8. Oben rechts das Kontomenue oeffnen und mit `Abmelden` die Sitzung sicher beenden.
 
 Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
 
@@ -31,8 +32,8 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 
 | Rolle | Geltungsbereich | Verwaltungsrechte |
 | --- | --- | --- |
-| Bewohner | Eigenes Konto und zugeordnetes Haus | Eigene Buchungen, Hinweise und Kontodaten |
-| Haus-Admin | Eigenes Haus | Bewohner, Hauscode, Geraete, Dauertermine und Buchungen des Hauses |
+| Bewohner | Gemeinsames Wohnungskonto und zugeordnetes Haus | Eigene Wohnungsbuchungen, Hinweise, Geraete und Kontodaten |
+| Haus-Admin | Eigenes Haus | Wohnungen und Einmalcodes, Wohnungskonten, Geraete, Dauertermine und Buchungen des Hauses |
 | Superadmin | Alle Haeuser | Alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege und Backups |
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
@@ -68,7 +69,8 @@ Organisatorischer Notfallprozess:
 | --- | --- | --- |
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Anmeldung mit Benutzername oder E-Mail und Passwort | Oeffentlich |
-| Neu hier | Konto mit Benutzername, Pflicht-E-Mail, Passwort und Hauscode erstellen | Oeffentlich |
+| Wohnung aktivieren | Erstes Wohnungskonto mit Benutzername, Pflicht-E-Mail, Passwort und einmaligem Wohnungscode erstellen | Oeffentlich |
+| Geraet verbinden | Weiteres Geraet mit einem zehn Minuten gueltigen Einmalcode am bestehenden Wohnungskonto anmelden | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
 | Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link sowie manuelle oder automatische Abmeldung anzeigen | Oeffentlich |
@@ -76,7 +78,7 @@ Organisatorischer Notfallprozess:
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
-Der Hauscode ist kein persoenliches Passwort. Er sorgt dafuer, dass neue Konten nur dem richtigen Haus beitreten. Haus-Admins und Superadmins koennen ihn in der Verwaltung aendern.
+Wohnungscodes sind zufaellig, werden serverseitig nur gehasht gespeichert und nach der Aktivierung vernichtet. Der Admin sieht danach nur den Status `aktiviert`, nicht mehr den Code. Ein nicht verwendeter Code kann widerrufen und neu erzeugt werden. Bestehende Bewohnerkonten ohne Wohnungszuordnung werden nach dem Login gefragt, ob sie eine Wohnung erstmals aktivieren oder sich per Geraetecode mit einem bereits bestehenden Wohnungskonto zusammenfuehren wollen. Buchungen und Push-Geraete werden bei der Zusammenfuehrung uebernommen; das alte Doppel-Konto wird deaktiviert und bleibt fuer Auditbezuege erhalten.
 
 Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
 
@@ -181,9 +183,9 @@ Die App prueft die Buchungsregeln auf dem Server. Eine Anzeige im Browser allein
 | Neu frei | Den aktuellsten wieder freien Termin kompakt zwischen eigenen Buchungen und Kalender hervorheben |
 | Freien Termin buchen | Mitteilung mit Person, Geraet, Datum und Slot oeffnen und bei Verfuegbarkeit direkt buchen |
 | Kontomenue | Einstellungen, Hilfe und Abmeldung kompakt oben rechts anbieten |
-| Profil | Benutzername, Rolle, Pflicht-E-Mail, Bestaetigungsstatus und bevorzugten Buchungsweg anzeigen bzw. speichern |
+| Profil | Benutzername, Wohnung, Rolle, bis zu zwei getrennt bestaetigte E-Mail-Adressen und bevorzugten Buchungsweg anzeigen bzw. speichern |
 | Benachrichtigungen | Freigabe-Hinweise ein- oder ausschalten und nach Bereich, Wochentag und Zeitfenster filtern |
-| App und Geraet | PWA installieren und Push auf dem gerade verwendeten Geraet aktivieren oder deaktivieren |
+| App und Geraet | PWA installieren, Push verwalten und einen kurz gueltigen Code fuer ein weiteres Familiengeraet erzeugen |
 | Sicherheit und Daten | Passwort aendern, eigene Daten exportieren, Datenschutz oeffnen oder Konto loeschen |
 | Hilfe und Regeln | Einfuehrungsvideo, interaktiven Rundgang, Reservierungsregeln und Reinigung gebuendelt in den persoenlichen Einstellungen oeffnen |
 
@@ -218,14 +220,15 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle und ihr Geltungsbereich. D
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
-| Hauscode des aktiven Hauses aendern | Ja | Ja |
+| Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
+| Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
 | Geraet oder Raum anlegen | Ja | Ja |
 | Ressource umbenennen | Ja | Ja |
 | Ressource mit Grund sperren oder wieder freigeben | Ja | Ja |
 | Neues Haus mit Standardressourcen anlegen | Nein | Ja |
 | Haus anzeigen, umbenennen, aktivieren oder deaktivieren | Nein | Ja |
 
-Ressourcen und Hauscodes sind immer auf das aktive Haus begrenzt. Eine gesperrte Ressource ist fuer neue Buchungen nicht mehr verfuegbar und erscheint in der Admin-Auswertung mit Sperrgrund. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
+Ressourcen, Wohnungen und Codes sind immer auf das aktive Haus begrenzt. Eine gesperrte Ressource ist fuer neue Buchungen nicht mehr verfuegbar und erscheint in der Admin-Auswertung mit Sperrgrund. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
 
 ### 3. Dauertermine
 
@@ -238,7 +241,7 @@ Ressourcen und Hauscodes sind immer auf das aktive Haus begrenzt. Eine gesperrte
 
 Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauertermin wird abgelehnt, wenn bereits eine normale zukuenftige Buchung im gleichen wiederkehrenden Termin liegt.
 
-### 4. Personen
+### 4. Wohnungskonten
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -286,7 +289,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 ## E-Mail-Hinweise
 
 - Eine neue oder geaenderte E-Mail-Adresse muss bestaetigt werden.
-- Eine E-Mail-Adresse ist fuer jedes Konto Pflicht, damit Passwort-Reset und wichtige Kontohinweise moeglich bleiben.
+- Eine erste E-Mail-Adresse ist fuer jedes Wohnungskonto Pflicht; eine zweite Adresse ist optional. Beide werden separat bestaetigt und koennen danach Passwort-Reset und Hinweise empfangen.
 - Ohne Bestaetigung werden keine Freigabe-Hinweise und keine Passwort-Reset-Links versendet.
 - `Frueher frei` ist nur waehrend des aktuell gebuchten Slots moeglich.
 - `Absagen und informieren` ist nur vor Beginn des gebuchten Slots moeglich.
@@ -326,7 +329,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 
 ### Automatisch gepruefte Kernablaeufe
 
-- Registrierung, Hauscode, Anmeldung mit Benutzername oder E-Mail, manuelle Abmeldung und automatische Abmeldung nach Inaktivitaet.
+- Wohnungscode-Erzeugung, einmalige Aktivierung, Abfrage bestehender Konten, Geraetecode, Zusammenfuehrung, Anmeldung mit Benutzername oder einer der beiden E-Mail-Adressen sowie Sitzungsende.
 - E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
 - Admin-ausgeloester Passwort-Reset nur als Link an eine bestaetigte E-Mail; ein Admin kann kein fremdes Passwort festlegen.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
@@ -379,7 +382,9 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 ### Daten und Isolation
 
 - Produktion verwendet SQLite auf dem persistenten Render-Datentraeger unter `/var/data/washraum.sqlite`.
-- Jede Person, Ressource, Buchung und Freigabe ist einem Haus zugeordnet.
+- Jede Wohnung, jedes Konto, jede Ressource, Buchung und Freigabe ist einem Haus zugeordnet. Oeffentliche Buchungsnamen verwenden die Wohnungsbezeichnung statt einzelner Personen.
+- `apartments` speichert Wohnungsbezeichnung, Haus und Aktivierungsstatus. Aktivierungs- und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor; Klartext wird nur einmal an den berechtigten Aufrufer ausgegeben.
+- `users.apartment_id` bindet ein gemeinsames Konto an genau eine Wohnung. Zusammengefuehrte Alt-Konten werden deaktiviert, personenbezogene Login-Adressen entfernt und ueber `merged_into_user_id` fuer nachvollziehbare Auditbezuege markiert.
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
 - Nur der Superadmin darf das aktive Haus wechseln und hausuebergreifende Aktionen ausfuehren.
 - Rollen- und Hausgrenzen muessen immer serverseitig durchgesetzt und im Rollentest abgedeckt werden.
@@ -395,6 +400,11 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 19. Juli 2026
 
+- Wohnungskonto-Prinzip eingefuehrt: pro Wohnung ein gemeinsames Konto, zufaellige einmalige Wohnungscodes, Adminstatus nur als aktiviert/nicht aktiviert und verpflichtende Zuordnungsabfrage fuer bestehende Bewohnerkonten.
+- Beim Anlegen weiterer Haeuser wird der interne eindeutige Hausschluessel automatisch erzeugt und nicht mehr als Bewohnercode dargestellt.
+- Kurzlebige Geraetecodes ergaenzt: Weitere Handys koennen zehn Minuten lang und genau einmal ohne Passwortweitergabe verbunden werden; versehentliche Doppelkonten lassen sich samt Buchungen und Push-Geraeten sicher zusammenfuehren.
+- Zwei separat bestaetigte E-Mail-Adressen pro Wohnungskonto ergaenzt. Beide Adressen koennen fuer Passwort-Reset und Freigabe-Hinweise genutzt werden; Login ist ebenfalls mit beiden Adressen moeglich.
+- Rollenmatrix und automatische Tests um Wohnungserzeugung, Einmalcode-Verbrauch, Bestandszuordnung, Geraetekopplung und Admin-/Bewohnergrenzen erweitert.
 - Automatische Sitzungsabmeldung eingefuehrt: Nach 30 Minuten ohne Aktivitaet wird das serverseitige Konto-Cookie geloescht; zwei Minuten vorher erscheint ein barrierefreier Countdown mit den klaren Aktionen `Angemeldet bleiben` und `Jetzt abmelden`. Ablauf, Keepalive, Cookie-Loeschung und Login-Rueckmeldung werden automatisch getestet.
 - Empfohlenen Kalendertermin eindeutig nutzbar gemacht: Die bisher passive Markierung `Vorschlag` zeigt nun `Empfohlen` und `Buchen`; Klick oder Tipp oeffnet direkt das empfohlene Zeitfenster in der Waschmaschinenwahl. Auch Tagesvorschau und Empfehlungsbereich verwenden die klare Aktion `Empfohlenen Termin buchen`.
 - Buchungsansicht verbreitert: Den dauerhaften Block `Gut zu wissen` entfernt und Einfuehrung, Hausregeln sowie Reinigung in einem neuen Einstellungsreiter `Hilfe & Regeln` gebuendelt.

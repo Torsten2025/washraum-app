@@ -67,12 +67,13 @@ const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')]
 const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
 const runBackupButton = document.querySelector('#runBackupButton');
-const houseCodeForm = document.querySelector('#houseCodeForm');
-const houseCodeInput = document.querySelector('#houseCodeInput');
+const apartmentForm = document.querySelector('#apartmentForm');
+const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
+const apartmentCodeResult = document.querySelector('#apartmentCodeResult');
+const apartmentList = document.querySelector('#apartmentList');
 const superadminBox = document.querySelector('#superadminBox');
 const houseForm = document.querySelector('#houseForm');
 const houseNameInput = document.querySelector('#houseNameInput');
-const newHouseCodeInput = document.querySelector('#newHouseCodeInput');
 const houseList = document.querySelector('#houseList');
 const resourceForm = document.querySelector('#resourceForm');
 const resourceNameInput = document.querySelector('#resourceNameInput');
@@ -81,14 +82,19 @@ const resourceAdminList = document.querySelector('#resourceAdminList');
 const auditLog = document.querySelector('#auditLog');
 const notificationForm = document.querySelector('#notificationForm');
 const notificationEmail = document.querySelector('#notificationEmail');
+const secondaryNotificationEmail = document.querySelector('#secondaryNotificationEmail');
 const notifyReleasesInput = document.querySelector('#notifyReleases');
 const emailVerificationStatus = document.querySelector('#emailVerificationStatus');
 const resendVerificationButton = document.querySelector('#resendVerificationButton');
+const secondaryEmailVerificationStatus = document.querySelector('#secondaryEmailVerificationStatus');
+const resendSecondaryVerificationButton = document.querySelector('#resendSecondaryVerificationButton');
 const installHelpText = document.querySelector('#installHelpText');
 const installAppButton = document.querySelector('#installAppButton');
 const pushStatusText = document.querySelector('#pushStatusText');
 const enablePushButton = document.querySelector('#enablePushButton');
 const disablePushButton = document.querySelector('#disablePushButton');
+const createDeviceCodeButton = document.querySelector('#createDeviceCodeButton');
+const devicePairingCode = document.querySelector('#devicePairingCode');
 const notificationResourceType = document.querySelector('#notificationResourceType');
 const notificationWeekday = document.querySelector('#notificationWeekday');
 const notificationSlot = document.querySelector('#notificationSlot');
@@ -103,6 +109,8 @@ const settingsTitle = document.querySelector('#settingsTitle');
 const settingsIntroText = document.querySelector('#settingsIntroText');
 const settingsUsername = document.querySelector('#settingsUsername');
 const settingsRole = document.querySelector('#settingsRole');
+const apartmentAccountStatus = document.querySelector('#apartmentAccountStatus');
+const openApartmentSetupButton = document.querySelector('#openApartmentSetupButton');
 const settingsBookingMode = document.querySelector('#settingsBookingMode');
 const settingsTabButtons = [...document.querySelectorAll('.settings-tab')];
 const settingsPanels = [...document.querySelectorAll('[data-settings-section]')];
@@ -119,6 +127,14 @@ const fixedBookingWeekday = document.querySelector('#fixedBookingWeekday');
 const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
 const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
+const apartmentSetupOverlay = document.querySelector('#apartmentSetupOverlay');
+const claimApartmentForm = document.querySelector('#claimApartmentForm');
+const joinApartmentForm = document.querySelector('#joinApartmentForm');
+const existingApartmentCode = document.querySelector('#existingApartmentCode');
+const existingDeviceCode = document.querySelector('#existingDeviceCode');
+const apartmentSetupMessage = document.querySelector('#apartmentSetupMessage');
+const closeApartmentSetupButton = document.querySelector('#closeApartmentSetupButton');
+const postponeApartmentSetupButton = document.querySelector('#postponeApartmentSetupButton');
 const myBookings = document.querySelector('#myBookings');
 const releaseNoticeOverlay = document.querySelector('#releaseNoticeOverlay');
 const closeReleaseNoticeButton = document.querySelector('#closeReleaseNoticeButton');
@@ -715,6 +731,10 @@ function openSettings(firstRun = false) {
   settingsUsername.value = currentUser.username;
   settingsRole.value = currentRoleLabel();
   settingsBookingMode.value = bookingMode;
+  apartmentAccountStatus.textContent = currentUser.apartmentLabel
+    ? `Wohnungskonto: ${currentUser.apartmentLabel}`
+    : currentUser.role === 'user' ? 'Wohnung noch nicht zugeordnet.' : 'Admin-Konto ohne Wohnungszuordnung.';
+  openApartmentSetupButton.hidden = !currentUser.apartmentSetupRequired;
   setSettingsSection(firstRun ? 'profile' : activeSettingsSection);
   settingsOverlay.hidden = false;
   document.body.classList.add('modal-open');
@@ -1212,6 +1232,7 @@ async function init() {
   renderHouseContext();
   renderMessageCenter();
   notificationEmail.value = currentUser.email || '';
+  secondaryNotificationEmail.value = currentUser.secondaryEmail || '';
   notifyReleasesInput.checked = currentUser.notifyReleases !== false;
   notificationResourceType.value = me.notificationPreferences?.resourceType || 'all';
   notificationWeekday.value = String(me.notificationPreferences?.weekday || '');
@@ -1220,6 +1241,8 @@ async function init() {
   renderInstallStatus();
   await renderPushStatus();
   renderSettingsSummary();
+  apartmentSetupOverlay.hidden = !currentUser.apartmentSetupRequired;
+  if (currentUser.apartmentSetupRequired) document.body.classList.add('modal-open');
 
   const [resourceData, slotData] = await Promise.all([
     api('/api/resources'),
@@ -1275,6 +1298,14 @@ function renderEmailVerificationStatus() {
       : 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.';
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
+  const secondaryConfigured = Boolean(currentUser.secondaryEmail);
+  secondaryEmailVerificationStatus.textContent = !secondaryConfigured
+    ? 'Optional: Eine zweite Person kann eine eigene Adresse f\u00fcr Reset und Hinweise hinterlegen.'
+    : currentUser.secondaryEmailVerified
+      ? 'Zweite E-Mail-Adresse best\u00e4tigt.'
+      : 'Bitte auch die zweite E-Mail-Adresse best\u00e4tigen.';
+  secondaryEmailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.secondaryEmailVerified));
+  resendSecondaryVerificationButton.hidden = !secondaryConfigured || Boolean(currentUser.secondaryEmailVerified);
   renderSettingsSummary();
 }
 
@@ -1460,10 +1491,11 @@ async function disablePushNotifications() {
 function renderHouseContext() {
   const roleLabel = currentRoleLabel();
   userLine.textContent = roleLabel;
-  accountMenuName.textContent = currentUser.username;
+  const accountLabel = currentUser.apartmentLabel || currentUser.username;
+  accountMenuName.textContent = accountLabel;
   accountMenuRole.textContent = roleLabel;
-  accountPanelName.textContent = currentUser.username;
-  accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}`;
+  accountPanelName.textContent = accountLabel;
+  accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}${currentUser.apartmentLabel ? ` - Login ${currentUser.username}` : ''}`;
   settingsUsername.value = currentUser.username;
   settingsRole.value = roleLabel;
   settingsBookingMode.value = bookingMode;
@@ -3147,6 +3179,7 @@ async function saveNotifications() {
       method: 'PUT',
       body: JSON.stringify({
         email: notificationEmail.value,
+        secondaryEmail: secondaryNotificationEmail.value,
         notifyReleases: notifyReleasesInput.checked,
         resourceType: notificationResourceType.value,
         weekday: notificationWeekday.value,
@@ -3164,10 +3197,109 @@ async function saveNotifications() {
 
 async function resendEmailVerification() {
   try {
-    const data = await api('/api/email-verification/resend', { method: 'POST' });
+    const data = await api('/api/email-verification/resend', {
+      method: 'POST',
+      body: JSON.stringify({ emailKind: 'primary' })
+    });
     showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
+  }
+}
+
+async function resendSecondaryEmailVerification() {
+  try {
+    const data = await api('/api/email-verification/resend', {
+      method: 'POST',
+      body: JSON.stringify({ emailKind: 'secondary' })
+    });
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function createDevicePairingCode() {
+  createDeviceCodeButton.disabled = true;
+  try {
+    const data = await api('/api/me/device-code', { method: 'POST' });
+    devicePairingCode.textContent = data.code;
+    devicePairingCode.hidden = false;
+    showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    createDeviceCodeButton.disabled = false;
+  }
+}
+
+async function finishApartmentSetup(path, body) {
+  apartmentSetupMessage.textContent = '';
+  try {
+    const data = await api(path, { method: 'POST', body: JSON.stringify(body) });
+    currentUser = data.user;
+    apartmentSetupOverlay.hidden = true;
+    document.body.classList.remove('modal-open');
+    renderHouseContext();
+    notificationEmail.value = currentUser.email || '';
+    secondaryNotificationEmail.value = currentUser.secondaryEmail || '';
+    showStatus(data.message);
+    await refreshAll();
+  } catch (error) {
+    apartmentSetupMessage.textContent = error.message;
+  }
+}
+
+async function createApartment() {
+  apartmentCodeResult.hidden = true;
+  try {
+    const data = await api('/api/admin/apartments', {
+      method: 'POST',
+      body: JSON.stringify({ label: apartmentLabelInput.value })
+    });
+    apartmentLabelInput.value = '';
+    apartmentCodeResult.innerHTML = `<strong>${escapeHtml(data.apartment.label)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Diesen Code jetzt sicher weitergeben. Er wird nicht erneut angezeigt.</span>`;
+    apartmentCodeResult.hidden = false;
+    showStatus(data.message);
+    await loadAdmin();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+function renderApartments(apartments) {
+  apartmentList.innerHTML = '';
+  if (!apartments.length) {
+    apartmentList.innerHTML = '<p class="muted">Noch keine Wohnungen angelegt.</p>';
+    return;
+  }
+  for (const apartment of apartments) {
+    const item = document.createElement('article');
+    item.className = 'user-admin-item';
+    const identity = document.createElement('div');
+    identity.className = 'user-admin-identity';
+    identity.innerHTML = `<strong>${escapeHtml(apartment.label)}</strong><span>${apartment.claimed ? 'aktiviert' : 'noch nicht aktiviert'}</span>`;
+    const actions = document.createElement('div');
+    actions.className = 'user-admin-actions';
+    if (!apartment.claimed) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'secondary';
+      button.textContent = 'Neuen Code';
+      button.addEventListener('click', async () => {
+        try {
+          const data = await api(`/api/admin/apartments/${apartment.id}/new-code`, { method: 'POST' });
+          apartmentCodeResult.innerHTML = `<strong>${escapeHtml(apartment.label)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Der alte Code ist ung&uuml;ltig.</span>`;
+          apartmentCodeResult.hidden = false;
+          showStatus(data.message);
+        } catch (error) {
+          showStatus(error.message, 'error');
+        }
+      });
+      actions.append(button);
+    }
+    item.append(identity, actions);
+    apartmentList.append(item);
   }
 }
 
@@ -3247,7 +3379,7 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData] = await Promise.all([
+  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData] = await Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/recovery-status'),
@@ -3257,15 +3389,15 @@ async function loadAdmin() {
     api('/api/admin/resources'),
     api('/api/admin/audit-log'),
     api('/api/admin/push-devices'),
-    api('/api/admin/analytics?days=30')
+    api('/api/admin/analytics?days=30'),
+    api('/api/admin/apartments')
   ]);
   adminBox.hidden = false;
   adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
   adminRoleLabel.textContent = currentUser.isSuperadmin ? 'Superadmin' : 'Haus-Admin';
   adminScopeText.textContent = currentUser.isSuperadmin
     ? 'Haus\u00fcbergreifende Verwaltung. Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
-    : 'Verwaltung der Personen, Ger\u00e4te und Dauertermine dieses Hauses.';
-  houseCodeInput.value = settingsData.houseCode;
+    : 'Verwaltung der Wohnungskonten, Ger\u00e4te und Dauertermine dieses Hauses.';
   backupOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
   if (currentUser.isSuperadmin) {
@@ -3276,6 +3408,7 @@ async function loadAdmin() {
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
   renderAdminResources(adminResources.resources);
+  renderApartments(apartmentsData.apartments);
   renderAdminAnalytics(analyticsData);
   renderAuditLog(auditData.entries);
   adminOverview.innerHTML = `
@@ -3498,10 +3631,13 @@ function renderAdminUsers(users) {
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
     const name = document.createElement('strong');
-    name.textContent = user.username;
+    name.textContent = user.apartment_label || user.username;
     const meta = document.createElement('span');
     const roleName = user.is_superadmin ? 'Superadmin' : user.role === 'admin' ? 'Haus-Admin' : 'Bewohner';
-    meta.textContent = `${roleName} \u00b7 ${user.active ? 'aktiv' : 'inaktiv'}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}`;
+    const accountState = user.merged_into_user_id ? 'zusammengefuehrt' : user.active ? 'aktiv' : 'inaktiv';
+    const loginName = user.apartment_label ? ` \u00b7 Login ${user.username}` : '';
+    const secondEmail = user.secondary_email ? ` \u00b7 ${user.secondary_email}` : '';
+    meta.textContent = `${roleName} \u00b7 ${accountState}${loginName}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}${secondEmail}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -3509,6 +3645,7 @@ function renderAdminUsers(users) {
     const isSelf = Number(user.id) === Number(currentUser.id);
     const canManageAccount = !isSelf
       && !Boolean(user.is_superadmin)
+      && !Boolean(user.merged_into_user_id)
       && (currentUser.isSuperadmin || user.role === 'user');
 
     if (canManageAccount) {
@@ -3521,7 +3658,7 @@ function renderAdminUsers(users) {
       actions.append(statusButton);
     }
 
-    if (currentUser.isSuperadmin && !user.is_superadmin) {
+    if (currentUser.isSuperadmin && !user.is_superadmin && !user.merged_into_user_id) {
       const roleButton = document.createElement('button');
       roleButton.type = 'button';
       roleButton.className = 'secondary';
@@ -3556,7 +3693,7 @@ function renderAdminUsers(users) {
       resetButton.type = 'button';
       resetButton.className = 'secondary';
       resetButton.textContent = 'Reset-Link senden';
-      resetButton.disabled = !user.email || !user.email_verified;
+      resetButton.disabled = !user.email_verified && !user.secondary_email_verified;
       resetButton.title = resetButton.disabled
         ? 'Dafuer braucht das Konto eine bestaetigte E-Mail-Adresse.'
         : `Passwort-Link an die best\u00e4tigte Adresse von ${user.username} senden`;
@@ -3862,8 +3999,7 @@ async function createHouse() {
     const data = await api('/api/admin/houses', {
       method: 'POST',
       body: JSON.stringify({
-        name: houseNameInput.value,
-        code: newHouseCodeInput.value
+        name: houseNameInput.value
       })
     });
     houseForm.reset();
@@ -4030,17 +4166,9 @@ todayButton.addEventListener('click', () => {
   selectBookingDate(todayString());
 });
 
-houseCodeForm.addEventListener('submit', async (event) => {
+apartmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  try {
-    const data = await api('/api/admin/settings/house-code', {
-      method: 'PUT',
-      body: JSON.stringify({ houseCode: houseCodeInput.value })
-    });
-    showStatus(data.message || 'Hauscode gespeichert.');
-  } catch (error) {
-    showStatus(error.message, 'error');
-  }
+  await createApartment();
 });
 
 notificationForm.addEventListener('submit', async (event) => {
@@ -4059,9 +4187,11 @@ filterButtons.forEach((button) => {
   });
 });
 resendVerificationButton.addEventListener('click', resendEmailVerification);
+resendSecondaryVerificationButton.addEventListener('click', resendSecondaryEmailVerification);
 installAppButton.addEventListener('click', installApp);
 enablePushButton.addEventListener('click', enablePushNotifications);
 disablePushButton.addEventListener('click', disablePushNotifications);
+createDeviceCodeButton.addEventListener('click', createDevicePairingCode);
 bookReleaseNoticeButton.addEventListener('click', bookActiveReleaseNotice);
 closeReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
 dismissReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
@@ -4078,6 +4208,11 @@ messageCenterOverlay.addEventListener('click', (event) => {
 });
 accountMenuButton.addEventListener('click', openAccountMenu);
 openSettingsButton.addEventListener('click', () => openSettings(false));
+openApartmentSetupButton.addEventListener('click', () => {
+  closeSettings();
+  apartmentSetupOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+});
 closeSettingsButton.addEventListener('click', closeSettings);
 settingsDoneButton.addEventListener('click', finishSettings);
 settingsTabButtons.forEach((button) => {
@@ -4115,6 +4250,22 @@ deleteAccountForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await deleteOwnAccount();
 });
+claimApartmentForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await finishApartmentSetup('/api/me/apartment/claim', { apartmentCode: existingApartmentCode.value });
+});
+joinApartmentForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!window.confirm('Dieses bisherige Konto wird mit dem gemeinsamen Wohnungskonto zusammengefuehrt. Buchungen und Push-Geraete bleiben erhalten. Fortfahren?')) return;
+  await finishApartmentSetup('/api/me/apartment/join', { deviceCode: existingDeviceCode.value });
+});
+function postponeApartmentSetup() {
+  apartmentSetupOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  showStatus('Vor der naechsten Buchung muss das Konto noch einer Wohnung zugeordnet werden.', 'error');
+}
+closeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);
+postponeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);
 
 openIntroButton.addEventListener('click', openIntro);
 openKnowledgeButton.addEventListener('click', () => {

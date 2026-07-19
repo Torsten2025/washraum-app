@@ -172,7 +172,7 @@
             <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview">&Uuml;berblick</button>
             <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse">Haus &amp; Ger&auml;te</button>
             <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed">Dauertermine</button>
-            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Personen</button>
+            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople">Wohnungskonten</button>
             <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics">Auswertung</button>
             <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem">System</button>
           </nav>
@@ -188,30 +188,28 @@
 
           <section id="adminSectionHouse" class="admin-section" data-admin-section="house" hidden>
             <div class="admin-section-heading">
-              <h3>Hauszugang</h3>
-              <span>Code f&uuml;r neue Registrierungen</span>
+              <h3>Wohnungen &amp; Codes</h3>
+              <span>Einmalige Aktivierungscodes sicher ausgeben</span>
             </div>
-            <form id="houseCodeForm" class="stack compact-form admin-narrow-form">
+            <form id="apartmentForm" class="stack compact-form admin-narrow-form">
               <label>
-                Hauscode
-                <input id="houseCodeInput" name="houseCode" required>
+                Wohnungsbezeichnung
+                <input id="apartmentLabelInput" name="label" placeholder="z.B. Partei 07" maxlength="60" required>
               </label>
-              <button type="submit">Hauscode speichern</button>
+              <button type="submit">Wohnungscode erzeugen</button>
             </form>
+            <div id="apartmentCodeResult" class="verification-status" role="status" hidden></div>
+            <div id="apartmentList" class="user-admin-list"></div>
 
             <section id="superadminBox" class="superadmin-box" hidden>
               <div class="admin-section-heading">
                 <h3>Hausnummern</h3>
-                <span>Getrennte Personen, Ger&auml;te und Buchungen</span>
+                <span>Getrennte Wohnungskonten, Ger&auml;te und Buchungen</span>
               </div>
               <form id="houseForm" class="stack compact-form admin-inline-form">
                 <label>
                   Neue Hausnummer
                   <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
-                </label>
-                <label>
-                  Hauscode
-                  <input id="newHouseCodeInput" name="code" minlength="12" maxlength="80" required>
                 </label>
                 <button type="submit">Haus anlegen</button>
               </form>
@@ -276,8 +274,8 @@
 
           <section id="adminSectionPeople" class="admin-section" data-admin-section="people" hidden>
             <div class="admin-section-heading">
-              <h3>Personen</h3>
-              <span id="adminPeopleScope">Konten des ausgew&auml;hlten Hauses</span>
+              <h3>Wohnungskonten</h3>
+              <span id="adminPeopleScope">Aktive und noch nicht zugeordnete Konten</span>
             </div>
             <div id="userList" class="user-admin-list"></div>
           </section>
@@ -423,12 +421,22 @@
                   <input id="settingsRole" type="text" readonly>
                 </label>
               </div>
+              <div class="verification-status">
+                <strong id="apartmentAccountStatus">Wohnungszuordnung wird gepr&uuml;ft.</strong>
+                <button id="openApartmentSetupButton" class="text-button" type="button" hidden>Jetzt Wohnung zuordnen</button>
+              </div>
               <label>
-                E-Mail
+                Erste E-Mail
                 <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
               </label>
               <div id="emailVerificationStatus" class="verification-status" role="status"></div>
               <button id="resendVerificationButton" class="text-button" type="button" hidden>Best&auml;tigungsmail erneut senden</button>
+              <label>
+                Zweite E-Mail der Wohnung (optional)
+                <input id="secondaryNotificationEmail" name="secondaryEmail" type="email" autocomplete="email" placeholder="zweite-person@example.com">
+              </label>
+              <div id="secondaryEmailVerificationStatus" class="verification-status" role="status"></div>
+              <button id="resendSecondaryVerificationButton" class="text-button" type="button" hidden>Zweite Best&auml;tigungsmail erneut senden</button>
               <label>
                 Bevorzugter Buchungsweg
                 <select id="settingsBookingMode">
@@ -506,6 +514,14 @@
                 <button id="enablePushButton" class="secondary" type="button">Push aktivieren</button>
                 <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
               </div>
+            </section>
+            <section class="push-card" aria-labelledby="pairingTitle">
+              <div>
+                <h4 id="pairingTitle">Weiteres Handy verbinden</h4>
+                <p class="muted">Erzeuge einen einmaligen Code. Er ist zehn Minuten g&uuml;ltig und meldet das zweite Ger&auml;t am selben Wohnungskonto an.</p>
+                <output id="devicePairingCode" class="pairing-code" hidden></output>
+              </div>
+              <button id="createDeviceCodeButton" class="secondary" type="button">Ger&auml;tecode erzeugen</button>
             </section>
           </section>
 
@@ -595,6 +611,33 @@
           <p id="settingsProgressText" class="muted">Status wird gepr&uuml;ft.</p>
           <button id="settingsDoneButton" type="button">Fertig</button>
         </div>
+      </section>
+    </div>
+
+    <div id="apartmentSetupOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal apartment-setup-modal" role="dialog" aria-modal="true" aria-labelledby="apartmentSetupTitle">
+        <button id="closeApartmentSetupButton" class="icon-close" type="button" aria-label="Wohnungszuordnung spaeter fortsetzen">x</button>
+        <div class="intro-copy">
+          <p class="eyebrow">Bestehendes Konto</p>
+          <h2 id="apartmentSetupTitle">Zu welcher Wohnung geh&ouml;rt dieses Konto?</h2>
+          <p>Wir stellen auf ein gemeinsames Konto pro Wohnung um. Deine bisherigen Buchungen bleiben erhalten.</p>
+        </div>
+        <div class="apartment-setup-grid">
+          <form id="claimApartmentForm" class="stack compact-form">
+            <h3>Wohnung erstmals aktivieren</h3>
+            <p class="muted">Nutze den einmaligen Wohnungscode der Verwaltung.</p>
+            <label>Wohnungscode<input id="existingApartmentCode" autocomplete="one-time-code" required></label>
+            <button type="submit">Wohnung zuordnen</button>
+          </form>
+          <form id="joinApartmentForm" class="stack compact-form">
+            <h3>Mit bestehendem Wohnungskonto verbinden</h3>
+            <p class="muted">Auf einem bereits angemeldeten Handy einen Ger&auml;tecode erzeugen.</p>
+            <label>Ger&auml;tecode<input id="existingDeviceCode" autocomplete="one-time-code" required></label>
+            <button type="submit">Konten sicher zusammenf&uuml;hren</button>
+          </form>
+        </div>
+        <p id="apartmentSetupMessage" class="message" role="status"></p>
+        <button id="postponeApartmentSetupButton" class="text-button" type="button">Sp&auml;ter zuordnen</button>
       </section>
     </div>
 

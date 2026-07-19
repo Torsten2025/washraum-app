@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+process.env.ALLOW_LEGACY_HOUSE_REGISTRATION = 'true';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

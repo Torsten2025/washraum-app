@@ -4,6 +4,9 @@ const registerForm = document.querySelector('#registerForm');
 const registerMessage = document.querySelector('#registerMessage');
 const showLogin = document.querySelector('#showLogin');
 const showRegister = document.querySelector('#showRegister');
+const showDeviceLogin = document.querySelector('#showDeviceLogin');
+const deviceLoginForm = document.querySelector('#deviceLoginForm');
+const deviceLoginMessage = document.querySelector('#deviceLoginMessage');
 const recoveryForm = document.querySelector('#recoveryForm');
 const recoveryMessage = document.querySelector('#recoveryMessage');
 
@@ -39,17 +42,22 @@ async function submitJson(formElement, path, body, messageElement) {
 function setMode(mode) {
   const isRegister = mode === 'register';
   const isRecovery = mode === 'recovery';
-  form.hidden = isRegister || isRecovery;
+  const isDeviceLogin = mode === 'device';
+  form.hidden = isRegister || isRecovery || isDeviceLogin;
   registerForm.hidden = !isRegister;
   recoveryForm.hidden = !isRecovery;
-  showLogin.classList.toggle('active', !isRegister && !isRecovery);
+  deviceLoginForm.hidden = !isDeviceLogin;
+  showLogin.classList.toggle('active', !isRegister && !isRecovery && !isDeviceLogin);
   showRegister.classList.toggle('active', isRegister);
+  showDeviceLogin.classList.toggle('active', isDeviceLogin);
   message.textContent = '';
   registerMessage.textContent = '';
+  deviceLoginMessage.textContent = '';
 }
 
 showLogin.addEventListener('click', () => setMode('login'));
 showRegister.addEventListener('click', () => setMode('register'));
+showDeviceLogin.addEventListener('click', () => setMode('device'));
 showRecovery.addEventListener('click', () => setMode('recovery'));
 cancelRecovery.addEventListener('click', () => setMode('login'));
 
@@ -89,12 +97,23 @@ registerForm.addEventListener('submit', async (event) => {
     username: formData.get('username'),
     email: formData.get('email'),
     password: formData.get('password'),
-    houseCode: formData.get('houseCode'),
+    apartmentCode: formData.get('apartmentCode'),
     notifyReleases: formData.get('notifyReleases') === 'on'
   }, registerMessage);
   if (!data) return;
 
   window.location.href = '/index.html?welcome=1';
+});
+
+deviceLoginForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  deviceLoginMessage.textContent = '';
+  const formData = new FormData(deviceLoginForm);
+  const data = await submitJson(deviceLoginForm, '/api/device-login', {
+    deviceCode: formData.get('deviceCode')
+  }, deviceLoginMessage);
+  if (!data) return;
+  window.location.href = '/index.html';
 });
 
 recoveryForm.addEventListener('submit', async (event) => {

@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+process.env.ALLOW_LEGACY_HOUSE_REGISTRATION = 'true';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -63,6 +64,20 @@ async function run() {
   let browser;
   try {
     await waitForServer(baseUrl, output);
+    const adminLogin = await fetch(`${baseUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'e2e-admin', password: 'E2E-Admin-2026!' })
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminCookie = String(adminLogin.headers.get('set-cookie') || '').split(';')[0];
+    const apartmentResponse = await fetch(`${baseUrl}/api/admin/apartments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({ label: 'E2E Partei 07' })
+    });
+    assert.equal(apartmentResponse.status, 201);
+    const apartment = await apartmentResponse.json();
     const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || systemBrowserPath();
     browser = await playwright.chromium.launch({
       headless: true,
@@ -70,11 +85,11 @@ async function run() {
     });
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.goto(`${baseUrl}/login.html`, { waitUntil: 'domcontentloaded' });
-    await page.click('[data-auth-tab="register"]');
+    await page.click('#showRegister');
     await page.fill('#registerForm input[name="username"]', 'E2E Bewohner');
     await page.fill('#registerForm input[name="email"]', 'e2e@example.test');
     await page.fill('#registerForm input[name="password"]', 'E2E-Bewohner-2026!');
-    await page.fill('#registerForm input[name="houseCode"]', 'E2E Hauscode 18');
+    await page.fill('#registerForm input[name="apartmentCode"]', apartment.activationCode);
     await page.click('#registerForm button[type="submit"]');
     await page.waitForURL('**/index.html?welcome=1', { timeout: 10000 });
     await page.waitForSelector('#settingsOverlay:not([hidden])');
