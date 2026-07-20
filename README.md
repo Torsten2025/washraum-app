@@ -44,7 +44,7 @@ Danach `http://localhost:3000` oeffnen. Nur lokal werden diese Konten automatisc
 npm run check
 ```
 
-Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, eine eigene Rollenmatrix, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
+Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, Rollenmatrix, Mehrhaus-Isolation, Datenschutz, Audit, Backup-Wiederherstellung, Sicherheitsheader, Barrierefreiheit und einen verbindlichen Browserlauf mit drei Viewports. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
 
 ## Wohnungseinladung
 
@@ -64,7 +64,7 @@ Fuer eine neue Datenbank muessen in Render mindestens gesetzt sein:
 
 Die SQLite-Daten liegen unter `/var/data/washraum.sqlite`. Bestehende Daten bleiben bei Deployments erhalten. Der Render-Build verwendet reproduzierbar `npm ci`.
 
-Der Workflow `.github/workflows/deploy-render.yml` fuehrt `npm run check` aus und ruft erst danach den geheimen Render Deploy Hook fuer genau den getesteten Commit auf. GitHub benoetigt das Repository Secret `RENDER_DEPLOY_HOOK_URL`.
+Der Workflow `.github/workflows/deploy-render.yml` installiert Chromium, fuehrt `npm run check` einschliesslich verbindlichem Browser- und Screenshot-Test aus und ruft erst danach den geheimen Render Deploy Hook fuer genau den getesteten Commit auf. Die Screenshots fuer Mobiltelefon, Tablet und Desktop bleiben 14 Tage als CI-Artefakt erhalten. GitHub benoetigt das Repository Secret `RENDER_DEPLOY_HOOK_URL`.
 
 ## E-Mail-Hinweise
 

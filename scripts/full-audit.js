@@ -8,7 +8,8 @@ const steps = [
   { id: 'AUD-04', title: 'Rollenmatrix und Hausisolation', args: ['run', 'test:roles'] },
   { id: 'AUD-05', title: 'Jahres- und Lastsimulation', args: ['run', 'test:year'] },
   { id: 'AUD-06', title: 'Barrierefreiheit und PWA-Struktur', args: ['run', 'test:a11y'] },
-  { id: 'AUD-07', title: 'Browser-Smoke-Test', args: ['run', 'test:e2e'], optional: true }
+  { id: 'AUD-07', title: 'Externe Backup-Kopie und Wiederherstellungsprobe', args: ['run', 'test:backup'] },
+  { id: 'AUD-08', title: 'Verbindlicher Browser- und visueller Regressionstest', args: ['run', 'test:e2e'] }
 ];
 
 const results = [];
@@ -26,8 +27,7 @@ for (const step of steps) {
   });
   const output = `${result.stdout || ''}${result.stderr || ''}${result.error ? `\n${result.error.message}` : ''}`;
   if (output.trim()) console.log(output.trim());
-  const skipped = step.optional && /"skipped"\s*:\s*true/.test(output);
-  const status = result.status === 0 ? (skipped ? 'SKIP' : 'PASS') : 'FAIL';
+  const status = result.status === 0 ? 'PASS' : 'FAIL';
   const durationMs = Date.now() - startedAt;
   results.push({ id: step.id, title: step.title, status, durationMs });
   console.log(`[${status}] ${step.id} (${(durationMs / 1000).toFixed(1)} s)`);

@@ -9,6 +9,31 @@ const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const { releaseWindowStatus } = require('../release-window');
 const { isDateString, isPastSwissSlot, swissDateString } = require('../swiss-time');
+const { buildPuzzle, moduleAnswerIsCorrect, publicModule } = require('../src/routes/diaper-game');
+
+function answerForDiaperModule(module) {
+  if (module.type === 'wire') return { choice: module.targetId };
+  if (module.type === 'signal') return { sequence: module.sequence };
+  if (module.type === 'valve') return { position: (module.safeStart + module.safeEnd) / 2 };
+  if (module.type === 'code') return { code: module.answer };
+  if (module.type === 'temperature') return { value: module.target };
+  if (module.type === 'leak') return { zone: module.leakZone };
+  throw new Error(`Unbekanntes Spielmodul: ${module.type}`);
+}
+
+const diaperModuleSamples = new Map();
+for (let seed = 0; seed < 50 && diaperModuleSamples.size < 6; seed += 1) {
+  for (const module of buildPuzzle(`app-test-${seed}`).modules) diaperModuleSamples.set(module.type, module);
+}
+assert.deepEqual([...diaperModuleSamples.keys()].sort(), ['code', 'leak', 'signal', 'temperature', 'valve', 'wire']);
+for (const module of diaperModuleSamples.values()) {
+  assert.equal(moduleAnswerIsCorrect(module, answerForDiaperModule(module)), true);
+  assert.equal(moduleAnswerIsCorrect(module, { invalid: true }), false);
+  const publicShape = publicModule(module);
+  if (module.type === 'wire') assert.equal('targetId' in publicShape, false);
+  if (module.type === 'code') assert.equal('answer' in publicShape, false);
+  if (module.type === 'leak') assert.equal('leakZone' in publicShape, false);
+}
 
 const port = 33000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -413,12 +438,12 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.2.0');
+    assert.equal(health.body.version, '0.3.0-test.2');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.2.0');
+    assert.equal(versionStatus.body.version, '0.3.0-test.2');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -984,7 +1009,44 @@ async function run() {
     assert.equal(cancellation.body.releaseNoticeCreated, true);
     assert.ok(cancellation.body.message.includes('abgesagt'));
     assert.ok(cancellation.body.message.includes('Bewohner Test'));
-    const cancellationNotices = await expectStatus(user, '/api/release-notices', 200);
+    const ownCancellationNotices = await expectStatus(user, '/api/release-notices', 200);
+    assert.ok(!ownCancellationNotices.body.notices.some((notice) => (
+      notice.resource_name === 'Tumbler 1'
+      && notice.kind === 'cancellation'
+      && notice.created_by_name === 'Bewohner Test'
+    )));
+
+    const disabledCancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
+    assert.deepEqual(disabledCancellationNotices.body.notices, []);
+    await expectStatus(packageUser, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'paket-test@example.com',
+        secondaryEmail: '',
+        notifyReleases: true,
+        resourceType: 'washer',
+        weekday: '',
+        slot: ''
+      })
+    });
+    const mismatchedCancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
+    assert.ok(!mismatchedCancellationNotices.body.notices.some((notice) => (
+      notice.resource_name === 'Tumbler 1'
+      && notice.kind === 'cancellation'
+      && notice.created_by_name === 'Bewohner Test'
+    )));
+    await expectStatus(packageUser, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'paket-test@example.com',
+        secondaryEmail: '',
+        notifyReleases: true,
+        resourceType: 'tumbler',
+        weekday: new Date(`${bookingDate}T12:00:00Z`).getUTCDay(),
+        slot: '07:00-12:00'
+      })
+    });
+    const cancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
     const cancellationNotice = cancellationNotices.body.notices.find((notice) => (
       notice.resource_name === 'Tumbler 1'
       && notice.kind === 'cancellation'
@@ -1022,7 +1084,18 @@ async function run() {
       );
       assert.equal(timelyRelease.body.releaseNoticeCreated, true);
       assert.ok(timelyRelease.body.message.includes('Bewohner Test'));
-      const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
+      await expectStatus(packageUser, '/api/me/notifications', 200, {
+        method: 'PUT',
+        body: JSON.stringify({
+          email: 'paket-test@example.com',
+          secondaryEmail: '',
+          notifyReleases: true,
+          resourceType: 'tumbler',
+          weekday: new Date(`${nearTerm.date}T12:00:00Z`).getUTCDay(),
+          slot: nearTerm.slot
+        })
+      });
+      const timelyNotices = await expectStatus(packageUser, '/api/release-notices', 200);
       const timelyNotice = timelyNotices.body.notices.find((notice) => notice.resource_name === 'Tumbler 2');
       assert.ok(timelyNotice);
       assert.equal(timelyNotice.created_by_name, 'Bewohner Test');
@@ -1598,9 +1671,9 @@ async function run() {
     assert.ok(indexHtml.includes('recordedIntroVideo'));
     assert.ok(indexHtml.includes('scenes-v1'));
     assert.ok(indexHtml.includes('Kapitel 1 von 8'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.2.0"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.2.0'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.2.0'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.2"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.2'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.2'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -1611,11 +1684,17 @@ async function run() {
     assert.ok(indexHtml.includes('id="openDiaperGameButton"'));
     assert.ok(indexHtml.includes('id="diaperGameOverlay"'));
     assert.ok(indexHtml.includes('id="diaperPressureBar"'));
+    assert.ok(indexHtml.includes('id="diaperCountdown"'));
+    assert.ok(indexHtml.includes('id="diaperMissionBrief"'));
     assert.ok(indexHtml.includes('id="diaperLeaderboardList"'));
-    assert.ok(indexHtml.includes('Globale Bestenliste'));
+    assert.ok(indexHtml.includes('Globale Tageswertung'));
     assert.ok(indexHtml.includes('class="diaper-game-hero"'));
     assert.ok(indexHtml.includes('class="diaper-step-rail"'));
-    assert.ok(indexHtml.includes('entsch&auml;rfe die Windel'));
+    assert.ok(indexHtml.includes('Drei Module aus sechs Systemen. Drei Fehlerleben.'));
+    assert.ok(indexHtml.includes('id="diaperStrikeLights"'));
+    assert.ok(indexHtml.includes('id="rankedDiaperModeButton"'));
+    assert.ok(indexHtml.includes('id="practiceDiaperModeButton"'));
+    assert.ok(indexHtml.includes('id="diaperSoundButton"'));
     assert.ok(indexHtml.includes('data-settings-target="profile"'));
     assert.ok(indexHtml.includes('data-settings-target="notifications"'));
     assert.ok(indexHtml.includes('data-settings-target="device"'));
@@ -1629,7 +1708,6 @@ async function run() {
     assert.ok(indexHtml.includes('messageCenterOverlay'));
     assert.ok(indexHtml.includes('messageCenterList'));
     assert.ok(indexHtml.includes('etwa f&uuml;nfeinhalbmin&uuml;tige Video'));
-    assert.ok(indexHtml.includes('Freie Termine und deine letzten Aktionen'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
@@ -1659,6 +1737,16 @@ async function run() {
     assert.ok(indexHtml.includes('adminPeopleCount'));
     assert.ok(indexHtml.includes('adminHouseCount'));
     assert.ok(indexHtml.includes('adminSystemCount'));
+    assert.ok(indexHtml.includes('id="resourceOverview"'));
+    assert.ok(indexHtml.includes('class="admin-create-panel"'));
+    assert.ok(indexHtml.includes('id="adminPeopleSearch"'));
+    assert.ok(indexHtml.includes('class="admin-system-group"'));
+    assert.ok(indexHtml.includes('Haus &amp; Ger&auml;te'));
+    assert.ok(indexHtml.includes('id="superadminPermissionOperation"'));
+    assert.ok(indexHtml.includes('id="superadminPermissionAction"'));
+    assert.ok(indexHtml.includes('id="superadminPermissionTarget"'));
+    assert.ok(indexHtml.includes('SUPERADMINRECHT GEBEN'));
+    assert.ok(!indexHtml.includes('id="superadminTransferOperation"'));
     assert.ok(indexHtml.includes('adminAccountRecoveryResult'));
     assert.ok(indexHtml.includes('apartmentInviteEmailInput'));
     assert.ok(indexHtml.includes('apartmentInvitationResult'));
@@ -1675,6 +1763,7 @@ async function run() {
     assert.ok(indexHtml.includes('resetBookingsButton'));
     assert.ok(indexHtml.includes('releaseNoticeOverlay'));
     assert.ok(indexHtml.includes('bookReleaseNoticeButton'));
+    assert.ok(indexHtml.includes('Aktuell buchbare Freigaben passend zu deinen Benachrichtigungseinstellungen'));
     assert.ok(indexHtml.includes('sessionWarningOverlay'));
     assert.ok(indexHtml.includes('sessionStayButton'));
     assert.ok(indexHtml.includes('sessionLogoutButton'));
@@ -1710,6 +1799,16 @@ async function run() {
     assert.ok(stylesText.includes('.diaper-leaderboard'));
     assert.ok(stylesText.includes('@keyframes diaper-breathe'));
     assert.ok(stylesText.includes('@keyframes diaper-tool-in'));
+    assert.ok(stylesText.includes('@keyframes diaper-countdown-pulse'));
+    assert.ok(stylesText.includes('.diaper-wire-rack'));
+    assert.ok(stylesText.includes('.diaper-signal-bank'));
+    assert.ok(stylesText.includes('.diaper-valve-module'));
+    assert.ok(stylesText.includes('.diaper-code-module'));
+    assert.ok(stylesText.includes('.diaper-temperature-module'));
+    assert.ok(stylesText.includes('.diaper-leak-module'));
+    assert.ok(stylesText.includes('.diaper-strike-lights'));
+    assert.ok(stylesText.includes('.diaper-mode-switch'));
+    assert.ok(stylesText.includes('.diaper-final-module'));
     assert.ok(stylesText.includes('body:not(.admin-view) .side-panel'));
     assert.ok(stylesText.includes('.settings-step'));
     assert.ok(stylesText.includes('.notice-journal'));
@@ -1718,6 +1817,11 @@ async function run() {
     assert.ok(stylesText.includes('.admin-task-item'));
     assert.ok(stylesText.includes('.admin-responsibility-list'));
     assert.ok(stylesText.includes('.admin-tab-count'));
+    assert.ok(stylesText.includes('.admin-inventory-summary'));
+    assert.ok(stylesText.includes('.resource-admin-group'));
+    assert.ok(stylesText.includes('.admin-create-panel'));
+    assert.ok(stylesText.includes('.admin-system-group'));
+    assert.ok(stylesText.includes('.admin-list-search'));
     assert.ok(stylesText.includes('.admin-account-recovery-result'));
     assert.ok(stylesText.includes('.invitation-summary'));
     assert.ok(stylesText.includes('.apartment-invite-form'));
@@ -1737,6 +1841,15 @@ async function run() {
     assert.ok(appScriptText.includes('canManageAccount'));
     assert.ok(appScriptText.includes('setAdminSection'));
     assert.ok(appScriptText.includes('renderAdminWorkQueue'));
+    assert.ok(appScriptText.includes('filterAdminPeople'));
+    assert.ok(appScriptText.includes('resource-admin-group'));
+    assert.ok(appScriptText.includes('Tagebuch öffnen'));
+    assert.ok(appScriptText.includes('statusPriority'));
+    assert.match(appScriptText, /function renderFixedBookings\(items\)[\s\S]*?const sortedItems = \[\.\.\.items\]\.sort/);
+    assert.doesNotMatch(
+      appScriptText.match(/function renderMyBookings\(items\)[\s\S]*?function renderReleaseNoticeDetail/)?.[0] || '',
+      /left\.weekday/
+    );
     assert.ok(appScriptText.includes('Normale Waschzeiten werden von Bewohnern selbst gebucht'));
     assert.ok(appScriptText.includes("bookingViewButton.textContent = isAdmin ? 'Kalender' : 'Mein Waschplan'"));
     assert.ok(appScriptText.includes('bookingFlow.hidden = isAdmin'));
@@ -1779,8 +1892,17 @@ async function run() {
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
-    assert.ok(appScriptText.includes('const diaperGameSteps'));
+    assert.ok(appScriptText.includes("version.includes('-test.') ? 'Testversion' : 'Version'"));
+    assert.ok(appScriptText.includes('let diaperGameRoundMs = 45000'));
+    assert.ok(appScriptText.includes("setDiaperGameMode('practice')"));
+    assert.ok(appScriptText.includes('function playDiaperSignalSequence'));
+    assert.ok(appScriptText.includes('function lockDiaperPressureValve'));
+    assert.ok(appScriptText.includes('function submitDiaperCode'));
+    assert.ok(appScriptText.includes('function submitDiaperTemperature'));
+    assert.ok(appScriptText.includes('function chooseDiaperLeakZone'));
+    assert.ok(appScriptText.includes('function beginDiaperFinalHold'));
     assert.ok(appScriptText.includes('/api/diaper-game/leaderboard'));
+    assert.ok(appScriptText.includes('/api/diaper-game/action'));
     assert.ok(appScriptText.includes('/api/diaper-game/complete'));
     assert.ok(appScriptText.includes('function loseDiaperGame'));
     assert.ok(appScriptText.includes("activeSettingsSection = 'help'"));
@@ -1790,6 +1912,9 @@ async function run() {
     assert.ok(appScriptText.includes('openReleaseNoticeFromUrl'));
     assert.ok(appScriptText.includes('/api/release-notices/${noticeId}'));
     assert.ok(appScriptText.includes('bookActiveReleaseNotice'));
+    assert.ok(!appScriptText.includes('rememberNotice'));
+    assert.ok(!appScriptText.includes('readNoticeJournal'));
+    assert.ok(appScriptText.includes('Passende freie Termine erscheinen hier, solange sie noch buchbar sind.'));
     assert.ok(appScriptText.includes('Freigeben, Push antippen, buchen'));
     assert.ok(appScriptText.includes('Push-Nachricht'));
     assert.ok(appScriptText.includes("introSceneImage('booking-time-focused.png')"));
@@ -1831,8 +1956,12 @@ async function run() {
       assert.ok(sceneImage.body.length > 10000);
     }
     const privacyPage = await expectStatus(guest, '/privacy.html', 200);
-    assert.ok(privacyPage.body.toString().includes('Welche Daten der Waschplan verwendet'));
-    assert.ok(!privacyPage.body.toString().includes('/assets/gbmz-logo.svg'));
+    const privacyHtml = privacyPage.body.toString();
+    assert.ok(privacyHtml.includes('Welche Daten der Waschplan verwendet'));
+    assert.ok(privacyHtml.includes('WaschZeit wird von Torsten Letsch betrieben'));
+    assert.ok(privacyHtml.includes('mailto:torstenletsch@freenet.de'));
+    assert.ok(privacyHtml.includes('Die GBMZ ist nicht Betreiberin dieser App'));
+    assert.ok(!privacyHtml.includes('/assets/gbmz-logo.svg'));
     const loginPage = await expectStatus(guest, '/login.html', 200);
     assert.ok(loginPage.body.toString().includes('Wasch<strong>Zeit</strong>'));
     assert.ok(!loginPage.body.toString().includes('/assets/gbmz-logo.svg'));
@@ -1905,6 +2034,7 @@ async function run() {
         narratedVideo: true,
         releaseWindow: true,
         cancellationNotifications: true,
+        filteredInAppNotifications: true,
         concurrentBookingProtection: true,
         smtpDelivery: true,
         productionRecovery: true,

@@ -530,7 +530,7 @@ button.calendar-resource {
 }
 
 /* Windel-Alarm: eigenstaendige, animierte Arcade-Oberflaeche. */
-.diaper-game-modal {
+.intro-modal.diaper-game-modal {
   --game-coral: #ff735c;
   --game-cream: #fff7e8;
   --game-ink: #10251f;
@@ -638,6 +638,28 @@ button.calendar-resource {
   padding: 8px 11px;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.diaper-game-badges .diaper-sound-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.68);
+  display: flex;
+  font-size: 10px;
+  font-weight: 850;
+  gap: 4px;
+  min-height: 0;
+  padding: 8px 11px;
+  text-transform: uppercase;
+}
+
+.diaper-game-badges .diaper-sound-toggle[aria-pressed="true"] {
+  background: rgba(80, 210, 162, 0.18);
+  border-color: rgba(80, 210, 162, 0.42);
+  color: #c8ffeb;
 }
 
 .diaper-game-badges b {
@@ -849,6 +871,35 @@ button.calendar-resource {
   width: 88px;
 }
 
+.diaper-detonator {
+  align-items: center;
+  background: #16231f;
+  border: 2px solid #33443e;
+  border-radius: 6px;
+  bottom: 7px;
+  box-shadow: 0 3px 0 rgba(16, 37, 31, 0.18);
+  color: #ff7863;
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  gap: 4px;
+  justify-content: center;
+  left: 29px;
+  letter-spacing: 0.06em;
+  padding: 2px 4px;
+  position: absolute;
+  z-index: 2;
+}
+
+.diaper-detonator i {
+  animation: diaper-armed 850ms steps(2, end) infinite;
+  background: #ff5f4a;
+  border-radius: 50%;
+  box-shadow: 0 0 7px rgba(255, 95, 74, 0.8);
+  height: 4px;
+  width: 4px;
+}
+
 .baby-diaper::before,
 .baby-diaper::after {
   background: var(--game-coral);
@@ -919,6 +970,76 @@ button.calendar-resource {
   z-index: 2;
 }
 
+.diaper-defusal-strip {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    #101c18;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 13px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22), 0 10px 25px rgba(16, 37, 31, 0.16);
+  color: #dce9e4;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto 1fr;
+  margin-bottom: 17px;
+  min-height: 52px;
+  padding: 7px 12px;
+}
+
+.diaper-defusal-strip-sticky {
+  border-inline: 0;
+  border-radius: 0;
+  margin: 0;
+  padding-inline: 34px;
+  position: sticky;
+  top: 0;
+  z-index: 7;
+}
+
+.diaper-armed-light,
+.diaper-serial {
+  align-items: center;
+  color: #8ea39b;
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  gap: 7px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.diaper-armed-light i {
+  animation: diaper-armed 850ms steps(2, end) infinite;
+  background: #ff5f4a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255, 95, 74, 0.11), 0 0 10px rgba(255, 95, 74, 0.5);
+  height: 7px;
+  width: 7px;
+}
+
+.diaper-serial {
+  justify-content: end;
+}
+
+#diaperCountdown {
+  color: #9df3d2;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: clamp(24px, 4vw, 34px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(80, 210, 162, 0.35);
+}
+
+#diaperCountdown.is-critical {
+  animation: diaper-countdown-pulse 520ms steps(2, end) infinite;
+  color: #ff7863;
+  text-shadow: 0 0 18px rgba(255, 95, 74, 0.55);
+}
+
 .pups-meter-head {
   align-items: end;
   display: flex;
@@ -987,7 +1108,7 @@ button.calendar-resource {
 .diaper-step-rail {
   display: grid;
   gap: 7px;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin: 15px 0;
 }
 
@@ -1045,6 +1166,38 @@ button.calendar-resource {
   margin: 8px 0 0;
 }
 
+.diaper-strike-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.diaper-strike-row > span:first-child { display: grid; gap: 2px; }
+.diaper-strike-row small {
+  color: #85928d;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.diaper-strike-row strong { color: var(--game-ink); font-size: 12px; }
+.diaper-strike-lights { display: flex; gap: 7px; }
+.diaper-strike-lights i {
+  background: #50d2a2;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(80, 210, 162, 0.2), 0 0 13px rgba(80, 210, 162, 0.55);
+  height: 12px;
+  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  width: 12px;
+}
+.diaper-strike-lights i.is-used {
+  background: #ff705c;
+  box-shadow: 0 0 0 2px rgba(255, 112, 92, 0.2), 0 0 13px rgba(255, 112, 92, 0.6);
+  transform: scale(1.12);
+}
+
 .diaper-game-lower {
   display: grid;
   gap: 16px;
@@ -1093,12 +1246,24 @@ button.calendar-resource {
   font-weight: 750;
 }
 
+.diaper-mission-brief {
+  background: #f3f7f5;
+  border-left: 3px solid var(--game-coral);
+  border-radius: 0 9px 9px 0;
+  color: #52625c;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  margin: 12px 0 0;
+  min-height: 36px;
+  padding: 9px 11px;
+}
+
 .diaper-game-actions {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: block;
   margin-top: 14px;
-  min-height: 92px;
+  min-height: 150px;
+  position: relative;
 }
 
 .diaper-actions-empty {
@@ -1168,6 +1333,346 @@ button.calendar-resource {
 .diaper-game-actions button.is-done .tool-icon {
   background: #37b989;
   color: #fff;
+}
+
+.diaper-wire-rack,
+.signal-keys {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.diaper-game-actions .diaper-wire {
+  background: linear-gradient(155deg, #192823, #0e1915);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  min-height: 145px;
+  overflow: hidden;
+  padding: 12px 9px;
+  position: relative;
+}
+
+.diaper-game-actions .diaper-wire:hover:not(:disabled),
+.diaper-game-actions .diaper-wire:focus-visible:not(:disabled) {
+  background: #223730;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.diaper-wire .wire-terminal {
+  background: #b9c5c0;
+  border: 3px solid #53645e;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px #26352f;
+  height: 11px;
+  width: 11px;
+}
+
+.diaper-wire i {
+  animation: diaper-wire-hum 1.3s ease-in-out infinite;
+  background: currentColor;
+  border-radius: 999px;
+  box-shadow: 0 0 10px currentColor;
+  height: 48px;
+  opacity: 0.86;
+  transition: transform 180ms ease;
+  width: 7px;
+}
+
+.diaper-wire strong {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.diaper-wire span:last-child {
+  color: rgba(255, 255, 255, 0.63);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.diaper-wire.wire-coral { color: #ff705c; }
+.diaper-wire.wire-mint { color: #58dfae; }
+.diaper-wire.wire-amber { color: #f7c65a; }
+.diaper-wire.wire-blue { color: #62a9ff; }
+.diaper-wire.is-cut i { transform: scaleY(0.2) rotate(24deg); }
+
+.diaper-signal-bank {
+  display: grid;
+  gap: 14px;
+}
+
+.signal-lamps {
+  background: #101c18;
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 12px;
+}
+
+.signal-lamp {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  color: #52635c;
+  display: flex;
+  font-size: 19px;
+  height: 34px;
+  justify-content: center;
+}
+
+.signal-lamp.is-active {
+  animation: diaper-signal-flash 260ms ease both;
+  background: var(--signal-color);
+  box-shadow: 0 0 22px var(--signal-color);
+  color: #fff;
+}
+
+.signal-coral { --signal-color: #ff705c; color: #ff705c; }
+.signal-mint { --signal-color: #58dfae; color: #58dfae; }
+.signal-amber { --signal-color: #f7c65a; color: #f7c65a; }
+.signal-blue { --signal-color: #62a9ff; color: #62a9ff; }
+
+.diaper-game-actions .signal-key {
+  background: #f2f6f4;
+  color: #27443a;
+  flex-direction: row;
+  font-size: 11px;
+  min-height: 58px;
+}
+
+.signal-key strong {
+  font-size: 18px;
+}
+
+.signal-key.is-pressed {
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(80, 210, 162, 0.13);
+  transform: translateY(2px) scale(0.97);
+}
+
+.diaper-valve-module {
+  background: #101c18;
+  border-radius: 16px;
+  padding: 25px 18px 16px;
+}
+
+.diaper-valve-track {
+  background: linear-gradient(90deg, #ff725d, #f4bd4c 33%, #f4bd4c 67%, #ff725d);
+  border: 5px solid #263630;
+  border-radius: 999px;
+  box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.25);
+  height: 25px;
+  position: relative;
+}
+
+.valve-safe {
+  background: #54dda9;
+  bottom: 0;
+  box-shadow: 0 0 16px rgba(84, 221, 169, 0.7);
+  position: absolute;
+  top: 0;
+}
+
+.valve-needle {
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #12211c, 0 0 12px rgba(255, 255, 255, 0.8);
+  height: 38px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  z-index: 2;
+}
+
+.valve-scale {
+  color: #71847c;
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  justify-content: space-between;
+  margin: 8px 2px 12px;
+  position: relative;
+}
+
+.valve-scale .valve-safe-label {
+  color: #58dfae;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.diaper-game-actions .diaper-valve-lock {
+  background: linear-gradient(135deg, #ff725d, #db3f32);
+  box-shadow: 0 8px 24px rgba(219, 63, 50, 0.25);
+  color: #fff;
+  flex-direction: row;
+  font-size: 12px;
+  min-height: 48px;
+  width: 100%;
+}
+
+.diaper-code-module,
+.diaper-temperature-module,
+.diaper-leak-module {
+  background: linear-gradient(155deg, #16251f, #0e1814);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: #fff;
+  min-height: 150px;
+  padding: 14px;
+}
+
+.decoder-map { display: grid; gap: 7px; grid-template-columns: repeat(4, 1fr); }
+.decoder-map span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  padding: 7px;
+}
+.decoder-map strong { color: #58dfae; font-size: 17px; }
+.decoder-map i { color: #63736c; font-style: normal; }
+.decoder-target { display: flex; gap: 12px; justify-content: center; margin: 11px 0 7px; }
+.decoder-target strong { color: #f7c65a; font-size: 23px; text-shadow: 0 0 16px rgba(247, 198, 90, 0.38); }
+.decoder-display {
+  background: #07100d;
+  border: 1px solid #30433b;
+  border-radius: 8px;
+  color: #64ecb7;
+  display: block;
+  font: 900 22px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.22em;
+  margin-bottom: 9px;
+  padding: 8px;
+  text-align: center;
+}
+.decoder-keypad { display: grid; gap: 6px; grid-template-columns: repeat(6, 1fr); }
+.diaper-game-actions .decoder-keypad button { min-height: 39px; }
+.diaper-game-actions .decoder-keypad .decoder-confirm { flex-direction: row; grid-column: span 2; }
+
+.temperature-readout { align-items: center; display: flex; justify-content: center; margin: 8px 0 16px; }
+.temperature-readout span { color: #84958e; display: grid; font-size: 9px; gap: 3px; text-align: center; }
+.temperature-readout strong { color: #fff; font: 900 29px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.temperature-readout i { color: #58dfae; font-size: 25px; font-style: normal; margin: 0 22px; }
+.temperature-controls { display: grid; gap: 7px; grid-template-columns: repeat(5, 1fr); }
+.diaper-game-actions .temperature-controls button { min-height: 42px; }
+.diaper-game-actions .temperature-confirm { flex-direction: row; margin-top: 8px; min-height: 42px; width: 100%; }
+
+.leak-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+.diaper-game-actions .leak-grid button { min-height: 51px; position: relative; }
+.leak-grid button i { background: #4e625a; border-radius: 50%; height: 8px; width: 8px; }
+.leak-grid button.is-leak {
+  background: rgba(255, 112, 92, 0.17);
+  border-color: #ff705c;
+  box-shadow: inset 0 0 22px rgba(255, 112, 92, 0.16), 0 0 17px rgba(255, 112, 92, 0.18);
+}
+.leak-grid button.is-leak i { animation: diaper-armed 330ms steps(2, end) infinite; background: #ff705c; box-shadow: 0 0 12px #ff705c; }
+.diaper-leak-module p { color: #58dfae; font-size: 9px; font-weight: 900; letter-spacing: 0.16em; margin: 9px 0 0; text-align: center; }
+
+.diaper-final-module {
+  align-items: center;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 199, 83, 0.13) 0 9px, transparent 9px 18px),
+    #101c18;
+  border-radius: 17px;
+  display: grid;
+  gap: 13px;
+  min-height: 150px;
+  padding: 16px;
+}
+
+.final-locks {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.final-locks span {
+  background: #50d2a2;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(80, 210, 162, 0.7);
+  height: 8px;
+  width: 8px;
+}
+
+.diaper-game-actions .diaper-final-cut {
+  background: linear-gradient(90deg, #3fc895 calc(var(--hold-progress, 0) * 100%), #cb271f 0);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 5px rgba(255, 103, 83, 0.13), 0 15px 35px rgba(203, 39, 31, 0.35);
+  color: #fff;
+  gap: 3px;
+  min-height: 84px;
+  width: 100%;
+}
+
+.diaper-game-actions .diaper-final-cut.is-holding { transform: translateY(2px) scale(0.985); }
+.diaper-game-actions .diaper-final-cut.is-ready {
+  border-color: #c8ffeb;
+  box-shadow: 0 0 0 7px rgba(80, 210, 162, 0.18), 0 18px 38px rgba(34, 171, 123, 0.35);
+}
+.diaper-game-actions .diaper-final-cut.is-over { background: #8e1714; animation: diaper-screen-flicker 180ms steps(2, end) infinite; }
+
+.diaper-game-actions .diaper-final-cut:hover:not(:disabled),
+.diaper-game-actions .diaper-final-cut:focus-visible:not(:disabled) {
+  background: linear-gradient(135deg, #ff7965, #d72f25);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 7px rgba(255, 103, 83, 0.16), 0 18px 38px rgba(203, 39, 31, 0.4);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.diaper-final-cut i {
+  animation: diaper-armed 480ms steps(2, end) infinite;
+  background: #fff;
+  border-radius: 50%;
+  height: 7px;
+  width: 7px;
+}
+
+.diaper-final-cut strong {
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+.diaper-final-cut span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.diaper-defused-seal {
+  align-items: center;
+  background: radial-gradient(circle, rgba(80, 210, 162, 0.19), transparent 66%);
+  display: flex;
+  justify-content: center;
+  min-height: 150px;
+  position: relative;
+}
+
+.diaper-defused-seal span {
+  animation: diaper-defused-in 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  border: 5px solid #26a679;
+  border-radius: 11px;
+  color: #16805e;
+  font-size: 24px;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  padding: 9px 14px;
+  transform: rotate(-5deg);
+}
+
+.diaper-game-actions.is-error {
+  animation: diaper-screen-flicker 330ms steps(2, end);
+}
+
+.diaper-game-stage.module-cleared .diaper-status-pulse {
+  animation: diaper-module-clear 420ms ease-out;
 }
 
 .diaper-trophy {
@@ -1251,6 +1756,29 @@ button.calendar-resource {
   gap: 20px;
   justify-content: space-between;
   padding: 15px 26px 22px;
+}
+
+.diaper-mode-switch {
+  background: #edf3f0;
+  border-radius: 12px;
+  display: flex;
+  padding: 3px;
+}
+
+.diaper-game-footer .diaper-mode-switch button {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #65756f;
+  font-size: 10px;
+  min-height: 36px;
+  padding: 8px 11px;
+}
+
+.diaper-game-footer .diaper-mode-switch button.active {
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(16, 37, 31, 0.08);
+  color: #107b5a;
 }
 
 .diaper-game-footer .settings-actions {
@@ -1352,6 +1880,39 @@ button.calendar-resource {
   50% { box-shadow: 0 0 0 8px rgba(80, 210, 162, 0); opacity: 0.65; }
 }
 
+@keyframes diaper-armed {
+  50% { opacity: 0.2; }
+}
+
+@keyframes diaper-countdown-pulse {
+  50% { opacity: 0.46; transform: scale(0.97); }
+}
+
+@keyframes diaper-wire-hum {
+  50% { box-shadow: 0 0 18px currentColor; opacity: 1; }
+}
+
+@keyframes diaper-signal-flash {
+  0% { transform: scale(0.82); }
+  55% { transform: scale(1.13); }
+  100% { transform: scale(1); }
+}
+
+@keyframes diaper-module-clear {
+  from { box-shadow: 0 0 0 0 rgba(80, 210, 162, 0.7); }
+  to { box-shadow: 0 0 0 18px rgba(80, 210, 162, 0); }
+}
+
+@keyframes diaper-defused-in {
+  from { opacity: 0; transform: rotate(-14deg) scale(0.45); }
+  to { opacity: 1; transform: rotate(-5deg) scale(1); }
+}
+
+@keyframes diaper-screen-flicker {
+  20%, 60% { filter: saturate(2) brightness(1.15); transform: translateX(-3px); }
+  40%, 80% { filter: saturate(0.7); transform: translateX(3px); }
+}
+
 @keyframes diaper-breathe {
   50% { transform: translateY(-4px) scale(1.012); }
 }
@@ -1416,7 +1977,7 @@ button.calendar-resource {
 }
 
 @media (max-width: 620px) {
-  .diaper-game-modal { border-radius: 18px; width: 100%; }
+  .intro-modal.diaper-game-modal { border-radius: 18px; width: 100%; }
   .diaper-game-hero { padding: 25px 60px 23px 22px; }
   .diaper-game-hero h2 { font-size: 38px; }
   .diaper-game-hero > div > p:last-child { font-size: 12px; }
@@ -1429,15 +1990,31 @@ button.calendar-resource {
   }
 
   .diaper-baby-zone { height: 180px; transform: scale(0.72); }
+  .diaper-defusal-strip {
+    gap: 6px;
+    grid-template-columns: auto 1fr;
+    padding-inline: 9px;
+  }
+  .diaper-defusal-strip #diaperCountdown { justify-self: end; }
+  .diaper-serial { display: none; }
+  .diaper-armed-light { font-size: 8px; }
   .diaper-game-status { font-size: 13px; }
   .diaper-status-card { min-height: 84px; padding: 14px 12px 12px 35px; }
   .diaper-status-pulse { left: 14px; top: 20px; }
   .diaper-game-lower { padding: 14px 14px 2px; }
   .diaper-panel-head > span { display: none; }
-  .diaper-game-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .diaper-game-actions button { min-height: 82px; }
+  .diaper-wire-rack,
+  .signal-keys { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .diaper-game-actions .diaper-wire { min-height: 105px; }
+  .diaper-wire i { height: 30px; }
+  .diaper-game-actions button { min-height: 58px; }
   .diaper-game-footer { align-items: stretch; flex-direction: column; padding: 12px 14px 18px; }
+  .diaper-mode-switch { align-self: stretch; }
+  .diaper-mode-switch button { flex: 1; }
   .diaper-game-footer .settings-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .decoder-keypad { grid-template-columns: repeat(3, 1fr); }
+  .diaper-game-actions .decoder-keypad .decoder-confirm { grid-column: span 2; }
+  .temperature-readout strong { font-size: 24px; }
   .diaper-game-note { order: 2; }
 }
 
@@ -1613,8 +2190,11 @@ h3 {
   letter-spacing: 0.08em;
   line-height: 1.2;
   max-width: 260px;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .app-brand {
@@ -3273,7 +3853,9 @@ body::after {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
   outline: 3px solid rgba(220, 163, 60, 0.5);
   outline-offset: 2px;
 }
@@ -6495,6 +7077,281 @@ button:hover:not(:disabled),
   padding-top: 24px;
 }
 
+.admin-create-panel {
+  background: #f4f8f6;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 16px;
+}
+
+.admin-create-panel summary {
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  list-style-position: outside;
+  padding: 14px 34px 14px 4px;
+  position: relative;
+}
+
+.admin-create-panel summary::after {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  content: "+";
+  display: flex;
+  font-size: 16px;
+  height: 24px;
+  justify-content: center;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+}
+
+.admin-create-panel[open] summary::after {
+  content: "-";
+}
+
+.admin-create-panel summary span {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.admin-create-panel summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.admin-create-panel[open] {
+  padding-bottom: 16px;
+}
+
+.admin-create-panel[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-create-panel .compact-form {
+  align-items: end;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 16px 0 0;
+}
+
+.admin-create-panel .admin-narrow-form {
+  grid-template-columns: 1fr;
+}
+
+.admin-narrow-panel {
+  max-width: 520px;
+}
+
+.admin-list-search {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.admin-list-search span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-list-search input {
+  background: #fff;
+}
+
+body.admin-view .user-admin-item {
+  align-items: center;
+  grid-template-columns: minmax(240px, 1fr) auto;
+}
+
+body.admin-view .admin-box .user-admin-identity span,
+body.admin-view .house-admin-item span {
+  color: var(--muted);
+}
+
+body.admin-view .user-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: auto;
+  justify-content: flex-end;
+  width: auto;
+}
+
+body.admin-view .user-admin-actions button {
+  width: auto;
+}
+
+.admin-inventory-summary {
+  background: #f0f5f3;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-inventory-summary > div {
+  background: #fff;
+  border-top: 3px solid var(--accent);
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+}
+
+.admin-inventory-summary > div.is-warning {
+  border-top-color: var(--warning);
+}
+
+.admin-inventory-summary strong {
+  font-size: 20px;
+}
+
+.admin-inventory-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.resource-admin-list,
+.house-admin-list {
+  gap: 20px;
+}
+
+.resource-admin-group {
+  display: grid;
+}
+
+.admin-list-heading {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px 18px;
+  justify-content: space-between;
+  padding-bottom: 9px;
+}
+
+.admin-list-heading h4 {
+  color: var(--text);
+  font-size: 15px;
+  margin: 0;
+}
+
+.admin-list-heading span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.resource-admin-item,
+.house-admin-item {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  gap: 14px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  margin: 0;
+  padding: 13px 0;
+}
+
+.admin-list-identity {
+  align-items: center;
+  display: grid !important;
+  gap: 4px 10px !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.admin-list-identity > strong {
+  font-size: 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-list-identity > span:not(.admin-state-chip) {
+  grid-column: 1 / -1;
+}
+
+.admin-state-chip {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px !important;
+  font-weight: 850;
+  line-height: 1;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.admin-state-chip.is-active {
+  background: #e5f4ed;
+  border-color: #abd2c0;
+  color: #155944 !important;
+}
+
+.admin-state-chip.is-blocked {
+  background: #fff0ed;
+  border-color: #e6b1a9;
+  color: #8d2f24 !important;
+}
+
+.admin-block-reason {
+  color: #8d2f24 !important;
+}
+
+.resource-admin-actions,
+.house-admin-actions {
+  align-items: center;
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 7px !important;
+  justify-content: flex-end;
+}
+
+.admin-row-edit-form {
+  align-items: end;
+  background: #f4f8f6;
+  border-left: 3px solid var(--accent);
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  padding: 12px;
+}
+
+.admin-row-edit-form[hidden] {
+  display: none;
+}
+
+.admin-empty-row {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  padding: 16px 0;
+}
+
+.admin-system-group {
+  display: grid;
+  gap: 0;
+}
+
+.admin-system-group + .admin-system-group {
+  margin-top: 8px;
+}
+
+.admin-system-group .admin-list-heading {
+  margin-bottom: 2px;
+}
+
+.admin-system-group .admin-operation,
+.admin-system-group .admin-recovery-panel,
+.admin-system-group .audit-panel {
+  margin: 0;
+}
+
+.admin-system-group .admin-operation {
+  min-height: 72px;
+}
+
 /* Stoerungsmeldungen und unveraenderbares Maschinen-Tagebuch */
 .report-issue-modal {
   max-width: 720px;
@@ -6742,7 +7599,7 @@ button:hover:not(:disabled),
   border: 1px solid var(--line);
   color: var(--text);
   display: flex;
-  min-height: 42px;
+  min-height: 44px;
 }
 
 .topbar-action {
@@ -7198,6 +8055,17 @@ body:not(.admin-view) .side-panel {
   white-space: nowrap;
 }
 
+@media (max-width: 1100px) {
+  .admin-section-nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .admin-section-nav button {
+    min-width: 0;
+  }
+}
+
 @media (max-width: 980px) {
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -7542,8 +8410,134 @@ body:not(.admin-view) .side-panel {
     grid-template-columns: 1fr;
   }
 
+  .house-admin-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-view .user-admin-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .resource-admin-actions,
+  .house-admin-actions,
+  body.admin-view .user-admin-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .admin-row-edit-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-row-edit-form button {
+    width: 100%;
+  }
+
   .package-booking-line {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px 12px;
+  }
+
+  .topbar .app-brand {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .topbar .brand-address {
+    max-width: 100%;
+  }
+
+  .topbar .topbar-utilities {
+    display: flex;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .topbar .topbar-action,
+  .topbar .account-menu {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .topbar .topbar-action {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .topbar .account-menu-button {
+    width: 100%;
+  }
+
+  .topbar .topbar-title {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .topbar .view-switcher {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .topbar .house-switcher:not([hidden]) {
+    grid-column: 1;
+    grid-row: 5;
+  }
+
+  .topbar .account-menu-panel {
+    left: 12px;
+    max-height: calc(100vh - 130px);
+    overflow-y: auto;
+    right: 12px;
+    top: 118px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-inventory-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inventory-summary > div {
+    align-items: center;
+    border-left: 3px solid var(--accent);
+    border-top: 0;
+    grid-template-columns: auto 1fr;
+  }
+
+  .admin-inventory-summary > div.is-warning {
+    border-left-color: var(--warning);
+  }
+
+  .admin-list-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .resource-admin-actions,
+  .house-admin-actions,
+  body.admin-view .user-admin-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .resource-admin-actions button,
+  .house-admin-actions button,
+  body.admin-view .user-admin-actions button {
+    width: 100%;
   }
 }
 

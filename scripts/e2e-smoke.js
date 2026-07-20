@@ -51,12 +51,71 @@ function systemBrowserPath() {
 }
 
 const visualViewports = [
+  { name: 'small-mobile', width: 320, height: 720 },
   { name: 'mobile', width: 390, height: 844 },
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'desktop', width: 1440, height: 900 }
 ];
 
-async function captureVisualChecks(page, outputDirectory) {
+async function assertResponsiveTopbar(page, viewport, prefix) {
+  const result = await page.evaluate(async () => {
+    const topbar = document.querySelector('.topbar');
+    const address = document.querySelector('#brandHouseName');
+    const accountName = document.querySelector('#accountMenuName');
+    const actionElements = [
+      document.querySelector('#reportIssueButton'),
+      document.querySelector('#messageCenterButton'),
+      document.querySelector('#accountMenuButton')
+    ].filter((element) => element && !element.hidden && getComputedStyle(element).display !== 'none');
+    const measure = () => {
+      const addressStyle = getComputedStyle(address);
+      const addressLineHeight = Number.parseFloat(addressStyle.lineHeight);
+      const topbarRect = topbar.getBoundingClientRect();
+      return {
+        addressClientHeight: address.clientHeight,
+        addressLineHeight,
+        addressScrollHeight: address.scrollHeight,
+        addressWhiteSpace: addressStyle.whiteSpace,
+        addressRect: address.getBoundingClientRect().toJSON(),
+        topbarRect: topbarRect.toJSON(),
+        topbarScrollWidth: topbar.scrollWidth,
+        topbarClientWidth: topbar.clientWidth,
+        actions: actionElements.map((element) => ({
+          id: element.id,
+          ...element.getBoundingClientRect().toJSON()
+        }))
+      };
+    };
+    const normal = measure();
+    const originalAddress = address.textContent;
+    const originalAccountName = accountName.textContent;
+    address.textContent = 'Wohnueberbauung Maneggplatz Nord 18 Hinterhaus';
+    accountName.textContent = 'Alexandra-Maria Mustermann-Walser';
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const longNames = measure();
+    address.textContent = originalAddress;
+    accountName.textContent = originalAccountName;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return { normal, longNames };
+  });
+
+  for (const [name, state] of Object.entries(result)) {
+    assert.equal(state.addressWhiteSpace, 'nowrap', `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname darf nicht umbrechen`);
+    assert.ok(state.addressScrollHeight <= state.addressLineHeight + 1, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname belegt mehr als eine Textzeile`);
+    assert.ok(state.addressClientHeight <= state.addressLineHeight + 1, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname wird mehrzeilig dargestellt`);
+    assert.ok(state.topbarScrollWidth <= state.topbarClientWidth, `${prefix || 'resident'} ${viewport.width}px ${name}: Kopfzeile laeuft horizontal ueber`);
+    assert.ok(state.addressRect.left >= state.topbarRect.left && state.addressRect.right <= state.topbarRect.right, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname verlaesst die Kopfzeile`);
+    for (const action of state.actions) {
+      assert.ok(action.width >= 44 && action.height >= 44, `${prefix || 'resident'} ${viewport.width}px ${name}: ${action.id} ist kleiner als 44 x 44 Pixel`);
+      assert.ok(action.left >= 0 && action.right <= viewport.width, `${prefix || 'resident'} ${viewport.width}px ${name}: ${action.id} liegt ausserhalb des Viewports`);
+    }
+  }
+
+  const expectedActions = prefix.startsWith('admin-') ? 2 : 3;
+  assert.equal(result.normal.actions.length, expectedActions, `${prefix || 'resident'} ${viewport.width}px: unerwartete Zahl sichtbarer Kopfaktionen`);
+}
+
+async function captureVisualChecks(page, outputDirectory, prefix = '') {
   fs.mkdirSync(outputDirectory, { recursive: true });
   for (const viewport of visualViewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -64,6 +123,7 @@ async function captureVisualChecks(page, outputDirectory) {
       if (document.fonts?.ready) await document.fonts.ready;
       window.scrollTo(0, 0);
     });
+    await assertResponsiveTopbar(page, viewport, prefix);
     const layout = await page.evaluate(() => ({
       bodyWidth: document.body.scrollWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -74,7 +134,7 @@ async function captureVisualChecks(page, outputDirectory) {
       `${viewport.name}: Seite ist horizontal breiter als der Viewport (${JSON.stringify(layout)})`
     );
     await page.screenshot({
-      path: path.join(outputDirectory, `${viewport.name}-${viewport.width}x${viewport.height}.png`),
+      path: path.join(outputDirectory, `${prefix}${viewport.name}-${viewport.width}x${viewport.height}.png`),
       fullPage: false,
       animations: 'disabled'
     });
@@ -90,6 +150,7 @@ async function run() {
     process.env.E2E_SCREENSHOT_DIR || path.join('artifacts', 'e2e-screenshots')
   );
   const output = [];
+  const gameStateScreenshots = [];
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -177,18 +238,227 @@ async function run() {
     await page.click('[data-settings-target="security"]');
     assert.ok(await page.locator('#passwordForm').isVisible());
     await page.click('#closeSettingsButton');
+    await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
+    await page.click('#accountMenuButton');
+    await page.click('#openDiaperGameButton');
+    await page.waitForSelector('#diaperGameOverlay:not([hidden])');
+    const diaperNetwork = [];
+    const diaperPageErrors = [];
+    page.on('pageerror', (error) => diaperPageErrors.push(error.stack || error.message));
+    page.on('request', (request) => {
+      if (request.url().includes('/api/diaper-game/')) diaperNetwork.push(`request ${request.method()} ${request.url()}`);
+    });
+    page.on('response', (response) => {
+      if (response.url().includes('/api/diaper-game/')) diaperNetwork.push(`response ${response.status()} ${response.url()}`);
+    });
+    assert.equal(await page.locator('#diaperCountdown').innerText(), '00:45.0');
+    await page.click('#startDiaperGameButton');
+    try {
+      await page.waitForSelector('#diaperGameActions [data-game-module]', { timeout: 10000 });
+    } catch (error) {
+      const gameStartState = await page.evaluate(() => ({
+        status: document.querySelector('#diaperGameStatus')?.textContent,
+        actions: document.querySelector('#diaperGameActions')?.textContent,
+        startDisabled: document.querySelector('#startDiaperGameButton')?.disabled
+      }));
+      throw new Error(`Windel-Alarm konnte nicht starten: ${JSON.stringify(gameStartState)} Browser: ${diaperPageErrors.join(' | ')} Netzwerk: ${diaperNetwork.join(' | ')} Server: ${output.join('')} (${error.message})`);
+    }
+    const firstGameModule = await page.locator('#diaperGameActions [data-game-module]').getAttribute('data-game-module');
+    assert.ok(['wire', 'signal', 'valve', 'code', 'temperature', 'leak'].includes(firstGameModule));
+    await page.waitForTimeout(250);
+    assert.notEqual(await page.locator('#diaperCountdown').innerText(), '00:45.0');
+    await captureVisualChecks(page, screenshotDirectory, 'game-');
+
+    for (let moduleIndex = 0; moduleIndex < 3; moduleIndex += 1) {
+      await page.waitForSelector('#diaperGameActions [data-game-module]');
+      const moduleType = await page.locator('#diaperGameActions [data-game-module]').getAttribute('data-game-module');
+      const moduleScreenshot = path.join(screenshotDirectory, `game-${moduleType}-state-desktop.png`);
+      await page.screenshot({ path: moduleScreenshot, fullPage: false, animations: 'disabled' });
+      if (!gameStateScreenshots.includes(moduleScreenshot)) gameStateScreenshots.push(moduleScreenshot);
+
+      if (moduleIndex === 0) {
+        if (moduleType === 'wire') {
+          const clue = await page.locator('#diaperMissionBrief').innerText();
+          const targetSymbol = ['▲', '●', '◆', '■'].find((symbol) => clue.includes(symbol));
+          const wireButtons = page.locator('[data-wire-id]');
+          for (let index = 0; index < await wireButtons.count(); index += 1) {
+            const button = wireButtons.nth(index);
+            if (!(await button.innerText()).includes(targetSymbol)) {
+              await button.click();
+              break;
+            }
+          }
+        } else if (moduleType === 'signal') {
+          await page.waitForFunction(() => {
+            const button = document.querySelector('[data-signal-id]');
+            return button && !button.disabled;
+          });
+          const sequence = (await page.locator('[data-signal-sequence]').getAttribute('data-signal-sequence')).split(',');
+          const wrongSignal = ['coral', 'mint', 'amber', 'blue'].find((signal) => signal !== sequence[0]);
+          await page.click(`[data-signal-id="${wrongSignal}"]`);
+        } else if (moduleType === 'code') {
+          const answer = await page.locator('[data-code-answer]').getAttribute('data-code-answer');
+          const wrongFirst = String((Number(answer[0]) % 9) + 1);
+          for (const digit of `${wrongFirst}${answer.slice(1)}`) await page.click(`[data-code-digit="${digit}"]`);
+          await page.click('[data-code-confirm]');
+        } else if (moduleType === 'temperature') {
+          const target = Number(await page.locator('[data-temperature-target]').getAttribute('data-temperature-target'));
+          const current = Number((await page.locator('[data-temperature-value]').innerText()).replace('\u00b0', ''));
+          if (current === target) await page.locator('[data-temperature-step]').first().click();
+          await page.click('[data-temperature-confirm]');
+        } else if (moduleType === 'leak') {
+          const target = Number(await page.locator('[data-reveal-zone]').getAttribute('data-reveal-zone'));
+          await page.waitForFunction(() => !document.querySelector('[data-leak-zone]')?.disabled);
+          await page.click(`[data-leak-zone="${(target + 1) % 6}"]`);
+        } else {
+          await page.waitForFunction(() => {
+            const safe = document.querySelector('.valve-safe')?.getBoundingClientRect();
+            const needle = document.querySelector('.valve-needle')?.getBoundingClientRect();
+            if (!safe || !needle) return false;
+            const needleCenter = needle.left + needle.width / 2;
+            if (needleCenter >= safe.left && needleCenter <= safe.right) return false;
+            document.querySelector('.diaper-valve-lock')?.click();
+            return true;
+          });
+        }
+        await page.waitForFunction(() => document.querySelectorAll('#diaperStrikeLights .is-used').length === 1);
+        await page.waitForTimeout(550);
+      }
+
+      if (moduleType === 'wire') {
+        const clue = await page.locator('#diaperMissionBrief').innerText();
+        const targetSymbol = ['▲', '●', '◆', '■'].find((symbol) => clue.includes(symbol));
+        const wireButtons = page.locator('[data-wire-id]');
+        for (let index = 0; index < await wireButtons.count(); index += 1) {
+          const button = wireButtons.nth(index);
+          if ((await button.innerText()).includes(targetSymbol)) {
+            await button.click();
+            break;
+          }
+        }
+      } else if (moduleType === 'signal') {
+        await page.waitForFunction(() => {
+          const button = document.querySelector('[data-signal-id]');
+          return button && !button.disabled;
+        });
+        const sequence = (await page.locator('[data-signal-sequence]').getAttribute('data-signal-sequence')).split(',');
+        for (const signal of sequence) await page.click(`[data-signal-id="${signal}"]`);
+      } else if (moduleType === 'code') {
+        const answer = await page.locator('[data-code-answer]').getAttribute('data-code-answer');
+        for (const digit of answer) await page.click(`[data-code-digit="${digit}"]`);
+        await page.click('[data-code-confirm]');
+      } else if (moduleType === 'temperature') {
+        const state = await page.evaluate(() => ({
+          current: Number(document.querySelector('[data-temperature-value]')?.textContent.replace('\u00b0', '')),
+          target: Number(document.querySelector('[data-temperature-target]')?.dataset.temperatureTarget),
+          steps: [...document.querySelectorAll('[data-temperature-step]')].map((button) => Number(button.dataset.temperatureStep))
+        }));
+        const queue = [{ value: state.current, path: [] }];
+        const visited = new Set([state.current]);
+        let solution = null;
+        while (queue.length && !solution) {
+          const item = queue.shift();
+          if (item.value === state.target) {
+            solution = item.path;
+            break;
+          }
+          if (item.path.length >= 5) continue;
+          for (const step of state.steps) {
+            const value = item.value + step;
+            if (!visited.has(value)) {
+              visited.add(value);
+              queue.push({ value, path: [...item.path, step] });
+            }
+          }
+        }
+        assert.ok(solution, `Keine Temperaturloesung von ${state.current} nach ${state.target}`);
+        for (const step of solution) await page.click(`[data-temperature-step="${step}"]`);
+        await page.click('[data-temperature-confirm]');
+      } else if (moduleType === 'leak') {
+        const target = await page.locator('[data-reveal-zone]').getAttribute('data-reveal-zone');
+        await page.waitForFunction(() => !document.querySelector('[data-leak-zone]')?.disabled);
+        await page.click(`[data-leak-zone="${target}"]`);
+      } else {
+        await page.waitForFunction(() => {
+          const safe = document.querySelector('.valve-safe')?.getBoundingClientRect();
+          const needle = document.querySelector('.valve-needle')?.getBoundingClientRect();
+          if (!safe || !needle) return false;
+          const needleCenter = needle.left + needle.width / 2;
+          if (needleCenter < safe.left || needleCenter > safe.right) return false;
+          document.querySelector('.diaper-valve-lock')?.click();
+          return true;
+        });
+      }
+
+      try {
+        await page.waitForFunction((expected) => (
+          document.querySelectorAll('.diaper-step-rail .is-complete').length >= expected
+        ), moduleIndex + 1, { timeout: 5000 });
+      } catch {
+        const gameState = await page.evaluate(() => ({
+          countdown: document.querySelector('#diaperCountdown')?.textContent,
+          mood: document.querySelector('#diaperGameStage')?.dataset.mood,
+          status: document.querySelector('#diaperGameStatus')?.textContent,
+          completed: document.querySelectorAll('.diaper-step-rail .is-complete').length,
+          visibleModule: document.querySelector('#diaperGameActions [data-game-module]')?.dataset.gameModule
+        }));
+        throw new Error(`Windel-Alarm-Modul ${moduleIndex + 1} (${moduleType}) wurde nicht abgeschlossen: ${JSON.stringify(gameState)}`);
+      }
+      await page.waitForTimeout(500);
+    }
+
+    await page.waitForSelector('[data-game-module="final"]');
+    const finalGameScreenshot = path.join(screenshotDirectory, 'game-final-state-desktop.png');
+    await page.screenshot({ path: finalGameScreenshot, fullPage: false, animations: 'disabled' });
+    gameStateScreenshots.push(finalGameScreenshot);
+    await page.dispatchEvent('.diaper-final-cut', 'pointerdown');
+    await page.waitForTimeout(1100);
+    await page.dispatchEvent('.diaper-final-cut', 'pointerup');
+    await page.waitForFunction(() => document.querySelector('#diaperGameStage')?.dataset.mood === 'happy');
+    await page.waitForFunction(() => !document.querySelector('#diaperOwnRank')?.textContent.includes('Noch keine'));
+    await page.click('#closeDiaperGameButton');
+    await page.waitForFunction(() => document.querySelector('#diaperGameOverlay')?.hidden === true);
     await page.click('#messageCenterButton');
     await page.waitForSelector('#messageCenterOverlay:not([hidden])');
     assert.ok(await page.locator('#messageCenterList').isVisible());
     await page.click('#closeMessageCenterButton');
     await page.waitForFunction(() => document.querySelector('#messageCenterOverlay')?.hidden === true);
+    await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
     await captureVisualChecks(page, screenshotDirectory);
+
+    const adminContext = await browser.newContext();
+    const cookieSeparator = adminCookie.indexOf('=');
+    await adminContext.addCookies([{
+      name: adminCookie.slice(0, cookieSeparator),
+      value: adminCookie.slice(cookieSeparator + 1),
+      url: baseUrl
+    }]);
+    const adminPage = await adminContext.newPage();
+    await adminPage.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded' });
+    await adminPage.click('#adminViewButton');
+    await adminPage.waitForSelector('body.admin-view');
+
+    await adminPage.click('[data-admin-target="house"]');
+    await adminPage.waitForSelector('.resource-admin-group');
+    assert.equal(await adminPage.locator('.resource-admin-group').count(), 3);
+    await captureVisualChecks(adminPage, screenshotDirectory, 'admin-house-');
+
+    await adminPage.click('[data-admin-target="people"]');
+    await adminPage.waitForSelector('#adminPeopleSearch');
+    await captureVisualChecks(adminPage, screenshotDirectory, 'admin-people-');
+
+    await adminPage.click('[data-admin-target="system"]');
+    await adminPage.waitForSelector('.admin-system-group');
+    assert.equal(await adminPage.locator('.admin-system-group').count(), 3);
+    await captureVisualChecks(adminPage, screenshotDirectory, 'admin-system-');
+    await adminContext.close();
     console.log(JSON.stringify({
       ok: true,
       browser: executablePath ? 'system' : 'playwright',
-      screenshots: visualViewports.map((viewport) => (
-        path.join(screenshotDirectory, `${viewport.name}-${viewport.width}x${viewport.height}.png`)
-      ))
+      screenshots: [''].concat(['game-', 'admin-house-', 'admin-people-', 'admin-system-'])
+        .flatMap((prefix) => visualViewports.map((viewport) => (
+          path.join(screenshotDirectory, `${prefix}${viewport.name}-${viewport.width}x${viewport.height}.png`)
+        ))).concat(gameStateScreenshots)
     }));
   } finally {
     if (browser) await browser.close();
