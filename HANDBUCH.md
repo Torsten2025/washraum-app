@@ -126,6 +126,8 @@ Das Kontomenue oben rechts zeigt Benutzername und Rolle. Es fuehrt zu `Einstellu
 
 Die App tritt unter dem Namen `WaschZeit` auf. In der angemeldeten Ansicht steht die vollstaendige Adresse des aktiven Hauses dauerhaft direkt unter der Wortmarke und wird beim Hauswechsel sofort aktualisiert. Auf oeffentlichen Seiten ohne bekannte Hauszuordnung erscheint stattdessen `Der Waschplan fuer dein Haus`.
 
+Auf kleinen Smartphones stehen Wortmarke und Hausadresse bewusst in einer eigenen Zeile ueber den Kopfaktionen. Die Adresse bleibt dabei als zusammengehoerige Ortsangabe einzeilig; nur aussergewoehnlich lange Hausnamen werden am Zeilenende gekuerzt. `Stoerung melden`, `Mitteilungen` und das Kontomenue bleiben fuer Bewohner sichtbar und besitzen mindestens 44 x 44 Pixel grosse Bedienflaechen. Reine Adminkonten sehen weiterhin nur die fuer ihre Rolle zulaessigen Kopfaktionen.
+
 ### Meine Buchungen
 
 | Funktion | Beschreibung |
@@ -519,6 +521,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ### 20. Juli 2026
 
+- Nach der mobilen Kopfzeilen-Korrektur sichtbare Pilotversion fuer den Live-Push auf `0.3.0-test.2` angehoben.
+- Mobilen App-Kopf korrigiert: Hausadressen zerfallen bei 320 oder 390 Pixel Breite nicht mehr in Wortfragmente, sondern erhalten eine eigene einzeilige Markenebene. Kopfaktionen bleiben mit mindestens 44 x 44 Pixel grossen Bedienflaechen erreichbar; die Browserregression prueft Bewohner- und Adminkopf bei 320, 390, 768 und 1440 Pixeln sowie mit langen Haus- und Kontonamen.
 - Sichtbare Pilotversion fuer diesen Push auf `0.3.0-test.1` angehoben; App, Health-Endpunkt und Cache-Kennungen verwenden dieselbe Testversionsnummer.
 - Windel-Alarm als Tagesmission der Spielversion 3 vertieft: drei aus sechs serverseitig vorgegebenen Modulen, drei Fehlerchancen, Tages- und Uebungsmodus, servergepruefte Modulfortschritte, Fehleraufschlaege in der Wertungszeit und ein praezises Haltefinale ersetzen den wiederholbaren Drei-Modul-Ablauf. Neue Decoder-, Temperatur- und Leckmodule, Fehlerleuchten, optionaler Synthesizer-Ton und responsive Animationen steigern Abwechslung und Spannung; alte Spielwerte bleiben getrennt erhalten.
 - Betreibertransparenz ergaenzt: Torsten Letsch und `torstenletsch@freenet.de` stehen oeffentlich als Betreiber- und Datenschutzkontakt; die GBMZ wird ausdruecklich nur von der App-Betreiberschaft abgegrenzt, waehrend ihr offizieller Hausaushang als Regelquelle bestehen bleibt.

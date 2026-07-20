@@ -2190,8 +2190,11 @@ h3 {
   letter-spacing: 0.08em;
   line-height: 1.2;
   max-width: 260px;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .app-brand {
@@ -7596,7 +7599,7 @@ body.admin-view .user-admin-actions button {
   border: 1px solid var(--line);
   color: var(--text);
   display: flex;
-  min-height: 42px;
+  min-height: 44px;
 }
 
 .topbar-action {
@@ -8434,6 +8437,71 @@ body:not(.admin-view) .side-panel {
 
   .package-booking-line {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px 12px;
+  }
+
+  .topbar .app-brand {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .topbar .brand-address {
+    max-width: 100%;
+  }
+
+  .topbar .topbar-utilities {
+    display: flex;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .topbar .topbar-action,
+  .topbar .account-menu {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .topbar .topbar-action {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .topbar .account-menu-button {
+    width: 100%;
+  }
+
+  .topbar .topbar-title {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .topbar .view-switcher {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .topbar .house-switcher:not([hidden]) {
+    grid-column: 1;
+    grid-row: 5;
+  }
+
+  .topbar .account-menu-panel {
+    left: 12px;
+    max-height: calc(100vh - 130px);
+    overflow-y: auto;
+    right: 12px;
+    top: 118px;
   }
 }
 

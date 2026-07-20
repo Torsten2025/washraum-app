@@ -51,10 +51,69 @@ function systemBrowserPath() {
 }
 
 const visualViewports = [
+  { name: 'small-mobile', width: 320, height: 720 },
   { name: 'mobile', width: 390, height: 844 },
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'desktop', width: 1440, height: 900 }
 ];
+
+async function assertResponsiveTopbar(page, viewport, prefix) {
+  const result = await page.evaluate(async () => {
+    const topbar = document.querySelector('.topbar');
+    const address = document.querySelector('#brandHouseName');
+    const accountName = document.querySelector('#accountMenuName');
+    const actionElements = [
+      document.querySelector('#reportIssueButton'),
+      document.querySelector('#messageCenterButton'),
+      document.querySelector('#accountMenuButton')
+    ].filter((element) => element && !element.hidden && getComputedStyle(element).display !== 'none');
+    const measure = () => {
+      const addressStyle = getComputedStyle(address);
+      const addressLineHeight = Number.parseFloat(addressStyle.lineHeight);
+      const topbarRect = topbar.getBoundingClientRect();
+      return {
+        addressClientHeight: address.clientHeight,
+        addressLineHeight,
+        addressScrollHeight: address.scrollHeight,
+        addressWhiteSpace: addressStyle.whiteSpace,
+        addressRect: address.getBoundingClientRect().toJSON(),
+        topbarRect: topbarRect.toJSON(),
+        topbarScrollWidth: topbar.scrollWidth,
+        topbarClientWidth: topbar.clientWidth,
+        actions: actionElements.map((element) => ({
+          id: element.id,
+          ...element.getBoundingClientRect().toJSON()
+        }))
+      };
+    };
+    const normal = measure();
+    const originalAddress = address.textContent;
+    const originalAccountName = accountName.textContent;
+    address.textContent = 'Wohnueberbauung Maneggplatz Nord 18 Hinterhaus';
+    accountName.textContent = 'Alexandra-Maria Mustermann-Walser';
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const longNames = measure();
+    address.textContent = originalAddress;
+    accountName.textContent = originalAccountName;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return { normal, longNames };
+  });
+
+  for (const [name, state] of Object.entries(result)) {
+    assert.equal(state.addressWhiteSpace, 'nowrap', `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname darf nicht umbrechen`);
+    assert.ok(state.addressScrollHeight <= state.addressLineHeight + 1, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname belegt mehr als eine Textzeile`);
+    assert.ok(state.addressClientHeight <= state.addressLineHeight + 1, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname wird mehrzeilig dargestellt`);
+    assert.ok(state.topbarScrollWidth <= state.topbarClientWidth, `${prefix || 'resident'} ${viewport.width}px ${name}: Kopfzeile laeuft horizontal ueber`);
+    assert.ok(state.addressRect.left >= state.topbarRect.left && state.addressRect.right <= state.topbarRect.right, `${prefix || 'resident'} ${viewport.width}px ${name}: Hausname verlaesst die Kopfzeile`);
+    for (const action of state.actions) {
+      assert.ok(action.width >= 44 && action.height >= 44, `${prefix || 'resident'} ${viewport.width}px ${name}: ${action.id} ist kleiner als 44 x 44 Pixel`);
+      assert.ok(action.left >= 0 && action.right <= viewport.width, `${prefix || 'resident'} ${viewport.width}px ${name}: ${action.id} liegt ausserhalb des Viewports`);
+    }
+  }
+
+  const expectedActions = prefix.startsWith('admin-') ? 2 : 3;
+  assert.equal(result.normal.actions.length, expectedActions, `${prefix || 'resident'} ${viewport.width}px: unerwartete Zahl sichtbarer Kopfaktionen`);
+}
 
 async function captureVisualChecks(page, outputDirectory, prefix = '') {
   fs.mkdirSync(outputDirectory, { recursive: true });
@@ -64,6 +123,7 @@ async function captureVisualChecks(page, outputDirectory, prefix = '') {
       if (document.fonts?.ready) await document.fonts.ready;
       window.scrollTo(0, 0);
     });
+    await assertResponsiveTopbar(page, viewport, prefix);
     const layout = await page.evaluate(() => ({
       bodyWidth: document.body.scrollWidth,
       documentWidth: document.documentElement.scrollWidth,
