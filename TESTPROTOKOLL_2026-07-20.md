@@ -1,8 +1,8 @@
 # WaschZeit Testprotokoll
 
 Datum: 20. Juli 2026
-Ausgangsrevision: `21c55037f8e4b2baf5afa744cedada9e3232b17a`
-Pruefstand: Revision plus lokale, noch nicht veroeffentlichte Aenderungen
+Ausgangsrevision: `de5378ea424ec9b466a55e9654ad8a8e7d322a74`
+Pruefstand: Projektzweig `codex/render-design-sync`
 Prueferrolle: App- und Integrationstester
 
 ## 1. Auftrag und Ergebnis
@@ -37,6 +37,8 @@ Geprueft wurden alle zentralen Seiten, Rollen und Funktionsketten. Der Schwerpun
 | Hausisolation im Jahreslauf | PASS | 0 hausuebergreifende Verletzungen |
 | Simulierte Buchungen | PASS | 5.200 Waschmaschinen-, 5.200 Trockenraum- und 2.704 Tumbler-Buchungen |
 | Barrierefreiheit/PWA statisch | PASS | 4 Seiten; Struktur, eindeutige IDs, DOM-Verknuepfung, Alternativtexte, Untertitel, Fokus, reduzierte Bewegung und PWA |
+| Backup und Wiederherstellung | PASS | Authentifizierte externe PUT-Kopie, SQLite-Integritaet, Neustart aus Sicherung, Anmeldung und Ressourcenbestand |
+| Browser und visuelle Viewports | PASS | QR-Partnerzugang sowie Screenshots bei 390 x 844, 768 x 1024 und 1440 x 900 |
 
 Verbindlicher Abschlussbefehl:
 
@@ -44,7 +46,7 @@ Verbindlicher Abschlussbefehl:
 npm run check -> PASS
 ```
 
-Der zusaetzliche Befehl `npm run test:e2e` konnte lokal nicht gestartet werden, weil die bereits deklarierte Playwright-Abhaengigkeit in `node_modules` fehlt. Zwei Installationsversuche scheiterten an der lokalen Zertifikatskette mit `UNABLE_TO_VERIFY_LEAF_SIGNATURE`. Der betroffene Einladungs- und Einrichtungsweg wurde stattdessen praktisch im eingebauten Browser durchlaufen. Das Zertifikatsproblem darf nicht durch Abschalten der TLS-Pruefung umgangen werden.
+`npm run test:e2e` wurde mit dem vorhandenen System-Chrome und der gebuendelten Playwright-Laufzeit erfolgreich ausgefuehrt. `playwright-core` ist fuer CI reproduzierbar im Lockfile fixiert; ein fehlendes Playwright-Modul oder ein nicht erreichbarer Browser fuehrt nun zu einem Fehler statt zu einem uebersprungenen Test. Die normale lokale Paketinstallation bleibt wegen `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blockiert; die TLS-Pruefung wurde nicht abgeschaltet und der saubere GitHub-Lauf muss die Installation der fixierten Version bestaetigen.
 
 ## 4. Praktische Funktionsketten
 
@@ -114,8 +116,7 @@ Der zusaetzliche Befehl `npm run test:e2e` konnte lokal nicht gestartet werden, 
 3. Render-Revision mit dem erwarteten Git-Commit vergleichen und den persistenten Pfad `/var/data/washraum.sqlite` bestaetigen.
 4. Render-Backup herunterladen, mit SQLite `quick_check` pruefen und eine externe Kopie nachweisen.
 5. PWA auf iPhone und Android installieren, Updatehinweis und Touch-Bottom-Sheet auf echten Geraeten abnehmen.
-6. Lokale Zertifikatskette reparieren und danach `npm install` sowie `npm run test:e2e` reproduzierbar ausfuehren.
-7. Fuer groessere Einfuehrung vorab einen echten Lasttest mit gleichzeitigen Nutzern und Produktionsmetriken planen; die Jahressimulation prueft Logik und Isolation, nicht Render-Durchsatz unter Spitzenlast.
+6. Fuer groessere Einfuehrung vorab einen echten Lasttest mit gleichzeitigen Nutzern und Produktionsmetriken planen; die Jahressimulation prueft Logik und Isolation, nicht Render-Durchsatz unter Spitzenlast.
 
 ## 8. Freigabeurteil
 

@@ -10,10 +10,11 @@
     "test:security": "node scripts/security-auth-test.js",
     "test:roles": "node scripts/role-matrix-test.js",
     "test:year": "node scripts/year-simulation-test.js",
+    "test:backup": "node scripts/backup-restore-test.js",
     "test:e2e": "node scripts/e2e-smoke.js",
     "test:a11y": "node scripts/accessibility-check.js",
     "audit": "node scripts/full-audit.js",
-    "check": "npm run verify && npm run test:security && npm test && npm run test:roles && npm run test:year && npm run test:a11y"
+    "check": "npm run verify && npm run test:security && npm test && npm run test:roles && npm run test:year && npm run test:a11y && npm run test:backup && npm run test:e2e"
   },
   "engines": {
     "node": ">=20"

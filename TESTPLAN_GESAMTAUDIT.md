@@ -106,14 +106,14 @@ npm run check
 | NOT-03 | Freigabe-Mitteilung | Person, Ressource, Datum, Slot und direkte Buchungsfrage | `npm test` |
 | PWA-01 | Manifest und Service Worker | Installierbar, Update erst nach Zustimmung, Push-Klick oeffnet Ziel | `test:a11y`, `npm test` |
 | UI-01 | Tastatur, Fokus, Dialoge und Untertitel | Zugaengliche Namen, Fokusstatus und reduzierte Bewegung | `test:a11y`, `test:e2e` |
-| UI-02 | Mobile und Desktop | Keine Ueberlagerung, lesbare Kalender- und Verwaltungsansicht | Manueller Browsertest |
+| UI-02 | Mobile und Desktop | Kein horizontales Ueberlaufen; Screenshots bei 390 x 844, 768 x 1024 und 1440 x 900 | `test:e2e`, manuelle Sichtpruefung der Artefakte |
 | UI-03 | Skript- und HTML-Verknuepfung | Alle statischen `querySelector`-Ziele der Anmelde-, Waschplan- und Reset-Skripte existieren im zugehoerigen HTML | `test:a11y` |
 
 ## H. Betrieb, Daten und Belastung
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| OPS-01 | SQLite-Backup | Datei ist gueltig; Integritaetspruefung erfolgreich | `npm test`, `test:roles` |
+| OPS-01 | SQLite-Backup und Restore | Externe PUT-Kopie mit optionalem Token ist gueltig; Integritaetspruefung, Neustart, Anmeldung und Ressourcenbestand sind erfolgreich | `npm test`, `test:roles`, `test:backup` |
 | OPS-02 | Wartungsmodus | Aktuelles Superadmin-Passwort und Backup vor Start, Schreibsperre, Datenbank- und Buchungstest vor Ende | `npm test`, `test:roles` |
 | OPS-03 | Auditprotokoll | Kritische Adminaktionen sind mit Haus und Ausloeser nachvollziehbar | `npm test`, `test:roles` |
 | OPS-04 | Auswertung | Zeitraum, Ressourcen, Slots und gesperrte Ressourcen korrekt | `npm test` |

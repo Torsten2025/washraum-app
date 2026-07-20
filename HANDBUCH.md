@@ -425,10 +425,11 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
-| `npm run test:e2e` | Optionalen Browser-Smoke-Test fuer Einladungsannahme und persoenliche Einrichtung ausfuehren, wenn Playwright verfuegbar ist |
+| `npm run test:backup` | Externe PUT-Kopie, Tokenuebertragung, SQLite-Integritaet und den Neustart aus einer wiederhergestellten Sicherung pruefen |
+| `npm run test:e2e` | Verbindlichen Browserlauf fuer Einladung, persoenlichen QR-Zugang und visuelle Layoutpruefung bei 390 x 844, 768 x 1024 und 1440 x 900 ausfuehren |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
-| `npm run audit` | Den ausfuehrlichen Gesamtaudit Schritt fuer Schritt inklusive optionalem Browsertest ausfuehren |
-| `npm run check` | Verbindliches Abschluss-Gate aus Syntax-, Sicherheits-, Funktions-, Rollen-, Jahres- und Barrierefreiheitstest ausfuehren |
+| `npm run audit` | Den ausfuehrlichen Gesamtaudit inklusive Backup-Wiederherstellung und verbindlichem Browsertest Schritt fuer Schritt ausfuehren |
+| `npm run check` | Verbindliches Abschluss-Gate aus Syntax-, Sicherheits-, Funktions-, Rollen-, Jahres-, Barrierefreiheits-, Backup- und Browsertest ausfuehren |
 
 Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg steht in `TESTPLAN_GESAMTAUDIT.md`. Externe Live-Dienste und reale Mobilgeraete werden dort als eigener manueller Abnahmeblock gefuehrt und duerfen nicht durch lokale Mocks als produktiv bestaetigt gelten.
 
@@ -480,12 +481,13 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 ### Deployment
 
-Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run check` aus. Nur bei Erfolg ruft er den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
+Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium und fuehrt `npm run check` aus. Der verbindliche Browserlauf erzeugt Screenshots fuer Mobiltelefon, Tablet und Desktop; GitHub bewahrt sie 14 Tage als Testartefakt auf. Nur bei vollstaendigem Erfolg ruft der Workflow den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
 
 ## Aenderungsprotokoll
 
 ### 20. Juli 2026
 
+- Abschluss-Gate und Gesamtaudit um die praktische Backup-Wiederherstellung sowie den verpflichtenden Browser- und visuellen Regressionstest erweitert; CI installiert Chromium, prueft drei feste Viewports und bewahrt Screenshots 14 Tage auf.
 - Backup-Erstellung als zweite risikoarme Backend-Modularisierung in einen injizierbaren Service ausgelagert; lokale Aufbewahrung, SQLite-Integritaetspruefung, optionale externe Kopie und Statusspeicherung bleiben unveraendert.
 - Erste risikoarme Backend-Modularisierung umgesetzt: Windel-Alarm-Routen, serverseitige Rundenwertung und globale Bestenliste aus `server.js` in eine injizierbare Router-Fabrik ausgelagert; API und Rollenverhalten bleiben unveraendert.
 - Kritische Adminaktionen gegen uebernommene Sitzungen gehaertet: Superadmin-Uebergabe, Pilot-Reset, Wartungsstart und hausweiter Buchungsreset verlangen zusaetzlich zum Bestaetigungstext das aktuelle Passwort des handelnden Kontos; negative und positive Rollentests decken die serverseitige Pruefung ab.
