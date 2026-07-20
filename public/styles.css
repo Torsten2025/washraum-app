@@ -529,6 +529,918 @@ button.calendar-resource {
   }
 }
 
+/* Windel-Alarm: eigenstaendige, animierte Arcade-Oberflaeche. */
+.diaper-game-modal {
+  --game-coral: #ff735c;
+  --game-cream: #fff7e8;
+  --game-ink: #10251f;
+  --game-mint: #50d2a2;
+  background: #f7faf8;
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 36px 110px rgba(5, 25, 19, 0.36);
+  max-height: 94vh;
+  max-width: 980px;
+  padding: 0;
+  width: min(96vw, 980px);
+}
+
+.diaper-game-modal > .icon-close {
+  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(16, 37, 31, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(10, 41, 31, 0.12);
+  right: 20px;
+  top: 20px;
+  z-index: 8;
+}
+
+.diaper-game-hero {
+  align-items: end;
+  background:
+    radial-gradient(circle at 78% 10%, rgba(80, 210, 162, 0.24), transparent 34%),
+    linear-gradient(135deg, #0b201a, #123c30);
+  color: #fff;
+  display: flex;
+  gap: 30px;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 30px 78px 28px 32px;
+  position: relative;
+}
+
+.diaper-game-hero::after {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  content: "";
+  height: 210px;
+  position: absolute;
+  right: 80px;
+  top: -145px;
+  width: 210px;
+}
+
+.diaper-game-kicker {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.66);
+  display: flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 8px;
+  letter-spacing: 0.16em;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+.diaper-game-kicker span {
+  animation: diaper-live-pulse 1.8s infinite;
+  background: var(--game-mint);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(80, 210, 162, 0.12);
+  height: 7px;
+  width: 7px;
+}
+
+.diaper-game-hero h2 {
+  color: #fff;
+  font-size: clamp(34px, 5vw, 54px);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 0;
+}
+
+.diaper-game-hero h2 span {
+  color: var(--game-coral);
+}
+
+.diaper-game-hero > div > p:last-child {
+  color: rgba(255, 255, 255, 0.67);
+  line-height: 1.5;
+  margin: 11px 0 0;
+  max-width: 600px;
+}
+
+.diaper-game-badges {
+  display: flex;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.diaper-game-badges span {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 8px 11px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.diaper-game-badges b {
+  color: var(--game-mint);
+  margin-right: 3px;
+}
+
+.diaper-game-stage {
+  --pressure: 0;
+  align-items: center;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.78), rgba(240, 250, 246, 0.88)),
+    radial-gradient(circle at 20% 50%, #d9faed, transparent 45%);
+  border-bottom: 1px solid rgba(16, 37, 31, 0.08);
+  display: grid;
+  gap: 34px;
+  grid-template-columns: 270px minmax(0, 1fr);
+  min-height: 300px;
+  overflow: hidden;
+  padding: 28px 34px;
+  position: relative;
+}
+
+.diaper-stage-glow {
+  border-radius: 50%;
+  filter: blur(1px);
+  pointer-events: none;
+  position: absolute;
+}
+
+.diaper-stage-glow-one {
+  background: rgba(80, 210, 162, 0.11);
+  height: 250px;
+  left: -100px;
+  top: -80px;
+  width: 250px;
+}
+
+.diaper-stage-glow-two {
+  background: rgba(255, 115, 92, 0.07);
+  bottom: -120px;
+  height: 240px;
+  right: 18%;
+  width: 240px;
+}
+
+.diaper-baby-zone {
+  align-items: center;
+  display: flex;
+  height: 240px;
+  justify-content: center;
+  position: relative;
+}
+
+.diaper-baby-zone::before {
+  background: conic-gradient(var(--game-mint) calc(var(--pressure) * 1%), rgba(16, 37, 31, 0.07) 0);
+  border-radius: 50%;
+  content: "";
+  height: 220px;
+  mask: radial-gradient(transparent 64%, #000 65%);
+  -webkit-mask: radial-gradient(transparent 64%, #000 65%);
+  opacity: 0.72;
+  position: absolute;
+  transform: rotate(-90deg);
+  transition: background 220ms ease, filter 220ms ease;
+  width: 220px;
+}
+
+.diaper-baby-zone::after {
+  background: radial-gradient(circle, rgba(80, 210, 162, 0.16), transparent 68%);
+  border-radius: 50%;
+  content: "";
+  height: 188px;
+  position: absolute;
+  width: 188px;
+}
+
+.diaper-orbit {
+  background: #fff;
+  border: 4px solid rgba(80, 210, 162, 0.2);
+  border-radius: 50%;
+  height: 13px;
+  position: absolute;
+  width: 13px;
+  z-index: 3;
+}
+
+.orbit-one {
+  animation: diaper-orbit 7s linear infinite;
+}
+
+.orbit-two {
+  animation: diaper-orbit 9s linear infinite reverse;
+  height: 9px;
+  width: 9px;
+}
+
+.diaper-baby {
+  align-items: center;
+  animation: diaper-breathe 2.8s ease-in-out infinite;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transform-origin: 50% 100%;
+  z-index: 2;
+}
+
+.baby-face {
+  background: linear-gradient(145deg, #ffd8b7, #ffc89d);
+  border: 3px solid #47372f;
+  border-radius: 48% 48% 46% 46%;
+  box-shadow: inset -10px -8px 0 rgba(223, 144, 99, 0.1), 0 10px 24px rgba(60, 43, 34, 0.14);
+  height: 100px;
+  position: relative;
+  width: 108px;
+  z-index: 3;
+}
+
+.baby-ear {
+  background: #ffcda6;
+  border: 3px solid #47372f;
+  border-radius: 50%;
+  height: 24px;
+  position: absolute;
+  top: 39px;
+  width: 19px;
+  z-index: 1;
+}
+
+.baby-ear-left { left: 6px; }
+.baby-ear-right { right: 6px; }
+
+.baby-hair {
+  border-left: 4px solid #47372f;
+  border-radius: 50%;
+  border-top: 4px solid #47372f;
+  height: 22px;
+  left: 46px;
+  position: absolute;
+  top: -12px;
+  transform: rotate(24deg);
+  width: 25px;
+}
+
+.baby-eye {
+  animation: diaper-blink 4.4s infinite;
+  background: #352a25;
+  border-radius: 50%;
+  height: 10px;
+  position: absolute;
+  top: 40px;
+  width: 9px;
+}
+
+.baby-eye-left { left: 29px; }
+.baby-eye-right { right: 29px; }
+
+.baby-cheek {
+  background: rgba(240, 116, 106, 0.22);
+  border-radius: 50%;
+  height: 10px;
+  position: absolute;
+  top: 58px;
+  width: 18px;
+}
+
+.baby-cheek-left { left: 16px; }
+.baby-cheek-right { right: 16px; }
+
+.baby-mouth {
+  border-bottom: 3px solid #7c493f;
+  border-radius: 50%;
+  bottom: 17px;
+  height: 10px;
+  left: 43px;
+  position: absolute;
+  width: 20px;
+}
+
+.baby-body {
+  background: linear-gradient(150deg, #5edbb0, #2ca67f);
+  border: 3px solid #174d3d;
+  border-radius: 46% 46% 30% 30%;
+  box-shadow: 0 14px 24px rgba(18, 83, 64, 0.18);
+  height: 92px;
+  margin-top: -10px;
+  position: relative;
+  width: 126px;
+  z-index: 2;
+}
+
+.baby-suit {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 950;
+  left: 52px;
+  position: absolute;
+  top: 28px;
+}
+
+.baby-diaper {
+  background: #fffdf8;
+  border: 2px solid rgba(23, 77, 61, 0.26);
+  border-radius: 42% 42% 28% 28%;
+  bottom: -3px;
+  height: 42px;
+  left: 16px;
+  position: absolute;
+  width: 88px;
+}
+
+.baby-diaper::before,
+.baby-diaper::after {
+  background: var(--game-coral);
+  border-radius: 3px;
+  content: "";
+  height: 7px;
+  opacity: 0.68;
+  position: absolute;
+  top: 8px;
+  width: 18px;
+}
+
+.baby-diaper::before { left: 3px; }
+.baby-diaper::after { right: 3px; }
+
+.baby-arm {
+  background: #ffcda6;
+  border: 3px solid #47372f;
+  border-radius: 999px;
+  height: 54px;
+  position: absolute;
+  top: 10px;
+  width: 20px;
+  z-index: -1;
+}
+
+.baby-arm-left { left: -9px; transform: rotate(22deg); }
+.baby-arm-right { right: -9px; transform: rotate(-22deg); }
+
+.diaper-burst {
+  display: none;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+.diaper-burst span {
+  color: var(--game-coral);
+  font-size: 34px;
+  font-weight: 950;
+  left: 50%;
+  letter-spacing: -0.05em;
+  position: absolute;
+  text-shadow: 0 4px 0 #fff, 0 8px 24px rgba(255, 115, 92, 0.35);
+  top: 44%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+}
+
+.diaper-burst i {
+  background: var(--game-coral);
+  border-radius: 50%;
+  height: 12px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  width: 12px;
+}
+
+.diaper-burst i:nth-of-type(1) { --burst-x: -92px; --burst-y: -55px; }
+.diaper-burst i:nth-of-type(2) { --burst-x: 88px; --burst-y: -62px; }
+.diaper-burst i:nth-of-type(3) { --burst-x: -78px; --burst-y: 66px; }
+.diaper-burst i:nth-of-type(4) { --burst-x: 92px; --burst-y: 58px; }
+
+.diaper-game-console {
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.pups-meter-head {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pups-meter-head > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.pups-meter-head small {
+  color: #82908b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.pups-meter-head strong {
+  color: var(--game-ink);
+  font-size: 19px;
+}
+
+.pressure-chip {
+  background: #e1f7ee;
+  border: 1px solid rgba(44, 166, 127, 0.16);
+  border-radius: 999px;
+  color: #167457;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 11px;
+  text-transform: uppercase;
+}
+
+.pups-meter {
+  background: #dfe9e5;
+  border: 5px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  box-shadow: inset 0 2px 5px rgba(16, 37, 31, 0.11), 0 8px 22px rgba(16, 37, 31, 0.07);
+  height: 24px;
+  overflow: hidden;
+}
+
+.pups-meter > span {
+  background: linear-gradient(90deg, #38c995 0%, #f3be52 58%, #ff654f 100%);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  overflow: hidden;
+  position: relative;
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: 0;
+}
+
+.pups-meter > span i {
+  animation: diaper-meter-shine 1.8s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  inset: 0;
+  position: absolute;
+  transform: translateX(-100%);
+}
+
+.diaper-step-rail {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 15px 0;
+}
+
+.diaper-step-rail span {
+  background: rgba(16, 37, 31, 0.09);
+  border-radius: 999px;
+  height: 4px;
+  transition: background 220ms ease, transform 220ms ease;
+}
+
+.diaper-step-rail span.is-complete {
+  background: var(--game-mint);
+  transform: scaleY(1.5);
+}
+
+.diaper-step-rail span.is-current {
+  animation: diaper-current-step 1.2s infinite;
+  background: var(--game-coral);
+}
+
+.diaper-status-card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(16, 37, 31, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 12px 35px rgba(16, 37, 31, 0.06);
+  min-height: 94px;
+  padding: 17px 18px 15px 46px;
+  position: relative;
+}
+
+.diaper-status-pulse {
+  background: var(--game-mint);
+  border-radius: 50%;
+  box-shadow: 0 0 0 7px rgba(80, 210, 162, 0.12);
+  height: 9px;
+  left: 20px;
+  position: absolute;
+  top: 23px;
+  width: 9px;
+}
+
+.diaper-game-status {
+  color: var(--game-ink);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.35;
+  margin: 0;
+  min-height: 22px;
+}
+
+.diaper-game-progress {
+  color: #74817d;
+  font-size: 12px;
+  font-weight: 650;
+  margin: 8px 0 0;
+}
+
+.diaper-game-lower {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.8fr);
+  padding: 20px 26px 4px;
+}
+
+.diaper-tool-panel,
+.diaper-leaderboard {
+  background: #fff;
+  border: 1px solid rgba(16, 37, 31, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(16, 37, 31, 0.045);
+  min-width: 0;
+  padding: 17px;
+}
+
+.diaper-panel-head,
+.diaper-leaderboard-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.diaper-panel-head p,
+.diaper-leaderboard-head p {
+  color: var(--game-coral);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.15em;
+  margin: 0 0 3px;
+  text-transform: uppercase;
+}
+
+.diaper-panel-head h3,
+.diaper-leaderboard-head h3 {
+  color: var(--game-ink);
+  font-size: 16px;
+  margin: 0;
+}
+
+.diaper-panel-head > span {
+  color: #8a9692;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.diaper-game-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 14px;
+  min-height: 92px;
+}
+
+.diaper-actions-empty {
+  align-self: center;
+  color: #8a9692;
+  font-size: 11px;
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+}
+
+.diaper-game-actions button {
+  align-items: center;
+  animation: diaper-tool-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--order, 0) * 45ms);
+  background: #f4f8f6;
+  border: 1px solid rgba(16, 37, 31, 0.08);
+  border-radius: 14px;
+  box-shadow: none;
+  color: #1c4236;
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  line-height: 1.25;
+  min-height: 92px;
+  padding: 9px 7px;
+  transform: none;
+}
+
+.diaper-game-actions button:hover:not(:disabled),
+.diaper-game-actions button:focus-visible:not(:disabled) {
+  background: #e7f8f1;
+  border-color: rgba(44, 166, 127, 0.34);
+  box-shadow: 0 10px 22px rgba(23, 111, 84, 0.12);
+  color: #0c684d;
+  transform: translateY(-3px);
+}
+
+.diaper-game-actions .tool-icon {
+  align-items: center;
+  background: #fff;
+  border-radius: 11px;
+  box-shadow: 0 5px 14px rgba(16, 37, 31, 0.08);
+  color: #19825f;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.diaper-game-actions .tool-icon svg {
+  height: 20px;
+  stroke: currentColor;
+  width: 20px;
+}
+
+.diaper-game-actions button.is-done {
+  background: #e5f5ee;
+  border-color: transparent;
+  color: #72817c;
+  opacity: 0.72;
+}
+
+.diaper-game-actions button.is-done .tool-icon {
+  background: #37b989;
+  color: #fff;
+}
+
+.diaper-trophy {
+  align-items: center;
+  background: #fff5d7;
+  border-radius: 11px;
+  color: #d89517;
+  display: flex;
+  font-size: 17px;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.diaper-own-rank {
+  background: #edf8f4;
+  border-radius: 9px;
+  color: #176f55;
+  font-size: 10px;
+  font-weight: 850;
+  margin: 11px 0 8px;
+  padding: 7px 9px;
+}
+
+.diaper-leaderboard ol {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  max-height: 143px;
+  overflow: auto;
+  padding: 0 3px 0 0;
+}
+
+.diaper-leaderboard li {
+  align-items: center;
+  border-bottom: 1px solid rgba(16, 37, 31, 0.06);
+  color: #596963;
+  display: grid;
+  font-size: 11px;
+  gap: 8px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  padding: 6px 4px;
+}
+
+.diaper-leaderboard li.muted {
+  display: block;
+  line-height: 1.45;
+  padding: 8px 4px;
+}
+
+.diaper-leaderboard li strong {
+  align-items: center;
+  background: #eef3f1;
+  border-radius: 7px;
+  color: #40534c;
+  display: flex;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
+.diaper-leaderboard li:nth-child(1) strong { background: #fff0b8; color: #9b6910; }
+.diaper-leaderboard li:nth-child(2) strong { background: #e8eeec; color: #62716c; }
+.diaper-leaderboard li:nth-child(3) strong { background: #f4dfcf; color: #98613e; }
+
+.diaper-leaderboard li.is-own {
+  background: #e7f8f1;
+  border-radius: 8px;
+  color: #155f49;
+  padding-inline: 6px;
+}
+
+.diaper-leaderboard li b {
+  color: #153c30;
+}
+
+.diaper-game-footer {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 15px 26px 22px;
+}
+
+.diaper-game-footer .settings-actions {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+.diaper-game-footer button {
+  border-radius: 12px;
+  min-height: 44px;
+}
+
+.diaper-game-footer #startDiaperGameButton {
+  align-items: center;
+  background: linear-gradient(135deg, #13a97c, #087d5b);
+  box-shadow: 0 10px 22px rgba(8, 125, 91, 0.24);
+  display: flex;
+  gap: 8px;
+}
+
+.diaper-game-footer #startDiaperGameButton:hover:not(:disabled) {
+  box-shadow: 0 14px 28px rgba(8, 125, 91, 0.3);
+  transform: translateY(-2px);
+}
+
+.diaper-game-note {
+  align-items: center;
+  color: #77857f;
+  display: flex;
+  font-size: 10px;
+  gap: 7px;
+  margin: 0;
+}
+
+.diaper-game-note span {
+  align-items: center;
+  background: #e3f5ed;
+  border-radius: 50%;
+  color: #19825f;
+  display: flex;
+  flex: 0 0 auto;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.diaper-game-stage[data-mood="nervous"] .pressure-chip,
+.diaper-game-stage[data-mood="danger"] .pressure-chip {
+  background: #fff1d9;
+  color: #9a5a13;
+}
+
+.diaper-game-stage[data-mood="danger"] .pressure-chip,
+.diaper-game-stage[data-mood="burst"] .pressure-chip {
+  background: #ffebe7;
+  color: #b42318;
+}
+
+.diaper-game-stage[data-mood="nervous"] .diaper-baby,
+.diaper-game-stage[data-mood="danger"] .diaper-baby {
+  animation: diaper-nervous 390ms ease-in-out infinite;
+}
+
+.diaper-game-stage[data-mood="danger"] .diaper-baby-zone::before,
+.diaper-game-stage[data-mood="burst"] .diaper-baby-zone::before {
+  background: conic-gradient(var(--game-coral) calc(var(--pressure) * 1%), rgba(255, 115, 92, 0.1) 0);
+  filter: drop-shadow(0 0 12px rgba(255, 115, 92, 0.32));
+}
+
+.diaper-game-stage[data-mood="nervous"] .baby-mouth,
+.diaper-game-stage[data-mood="danger"] .baby-mouth,
+.diaper-game-stage[data-mood="burst"] .baby-mouth {
+  border-bottom: 0;
+  border-top: 3px solid #7c493f;
+  bottom: 11px;
+}
+
+.diaper-game-stage[data-mood="happy"] .baby-arm-left { transform: rotate(145deg) translate(-12px, 10px); }
+.diaper-game-stage[data-mood="happy"] .baby-arm-right { transform: rotate(-145deg) translate(12px, 10px); }
+.diaper-game-stage[data-mood="happy"] .baby-mouth { height: 13px; width: 24px; left: 41px; }
+
+.diaper-game-stage[data-mood="burst"] .diaper-burst {
+  display: block;
+}
+
+.diaper-game-stage[data-mood="burst"] .diaper-burst span {
+  animation: diaper-pop 650ms cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}
+
+.diaper-game-stage[data-mood="burst"] .diaper-burst i {
+  animation: diaper-particle 700ms ease-out both;
+}
+
+.diaper-game-stage.is-shaking {
+  animation: diaper-shake 300ms;
+}
+
+@keyframes diaper-live-pulse {
+  50% { box-shadow: 0 0 0 8px rgba(80, 210, 162, 0); opacity: 0.65; }
+}
+
+@keyframes diaper-breathe {
+  50% { transform: translateY(-4px) scale(1.012); }
+}
+
+@keyframes diaper-blink {
+  0%, 46%, 50%, 100% { transform: scaleY(1); }
+  48% { transform: scaleY(0.12); }
+}
+
+@keyframes diaper-orbit {
+  from { transform: rotate(0deg) translateX(102px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(102px) rotate(-360deg); }
+}
+
+@keyframes diaper-meter-shine {
+  to { transform: translateX(160%); }
+}
+
+@keyframes diaper-current-step {
+  50% { box-shadow: 0 0 0 4px rgba(255, 115, 92, 0.12); opacity: 0.65; }
+}
+
+@keyframes diaper-tool-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes diaper-nervous {
+  25% { transform: rotate(-2deg) translateX(-2px); }
+  75% { transform: rotate(2deg) translateX(2px); }
+}
+
+@keyframes diaper-shake {
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes diaper-pop {
+  from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(0.35); }
+  to { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1.2); }
+}
+
+@keyframes diaper-particle {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(0.4); }
+  to { opacity: 0; transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(1.25); }
+}
+
+@media (max-width: 820px) {
+  .diaper-game-badges { display: none; }
+
+  .diaper-game-stage {
+    gap: 18px;
+    grid-template-columns: 220px minmax(0, 1fr);
+    padding-inline: 22px;
+  }
+
+  .diaper-game-lower { grid-template-columns: 1fr; }
+
+  .diaper-leaderboard ol { max-height: 130px; }
+}
+
+@media (max-width: 620px) {
+  .diaper-game-modal { border-radius: 18px; width: 100%; }
+  .diaper-game-hero { padding: 25px 60px 23px 22px; }
+  .diaper-game-hero h2 { font-size: 38px; }
+  .diaper-game-hero > div > p:last-child { font-size: 12px; }
+
+  .diaper-game-stage {
+    gap: 8px;
+    grid-template-columns: 118px minmax(0, 1fr);
+    min-height: 245px;
+    padding: 18px 14px;
+  }
+
+  .diaper-baby-zone { height: 180px; transform: scale(0.72); }
+  .diaper-game-status { font-size: 13px; }
+  .diaper-status-card { min-height: 84px; padding: 14px 12px 12px 35px; }
+  .diaper-status-pulse { left: 14px; top: 20px; }
+  .diaper-game-lower { padding: 14px 14px 2px; }
+  .diaper-panel-head > span { display: none; }
+  .diaper-game-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .diaper-game-actions button { min-height: 82px; }
+  .diaper-game-footer { align-items: stretch; flex-direction: column; padding: 12px 14px 18px; }
+  .diaper-game-footer .settings-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .diaper-game-note { order: 2; }
+}
+
 [hidden] {
   display: none !important;
 }

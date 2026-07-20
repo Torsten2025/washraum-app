@@ -22,6 +22,23 @@ for (const page of pages) {
 }
 
 const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
+const appScript = fs.readFileSync(path.join(publicDir, 'app.js'), 'utf8');
+const loginHtml = fs.readFileSync(path.join(publicDir, 'login.html'), 'utf8');
+const loginScript = fs.readFileSync(path.join(publicDir, 'login.js'), 'utf8');
+const resetHtml = fs.readFileSync(path.join(publicDir, 'reset.html'), 'utf8');
+const resetScript = fs.readFileSync(path.join(publicDir, 'reset.js'), 'utf8');
+
+function assertStaticDomLinks(script, html, page) {
+  const selectorIds = [...script.matchAll(/document\.querySelector\(['"]#([^'"]+)['"]\)/g)]
+    .map((match) => match[1]);
+  for (const id of new Set(selectorIds)) {
+    assert.match(html, new RegExp(`\\sid=["']${id}["']`), `${page}: Skriptziel #${id} fehlt im HTML`);
+  }
+}
+
+assertStaticDomLinks(appScript, indexHtml, 'index.html');
+assertStaticDomLinks(loginScript, loginHtml, 'login.html');
+assertStaticDomLinks(resetScript, resetHtml, 'reset.html');
 assert.match(indexHtml, /<track kind="captions"/, 'Video ohne Untertitelspur');
 assert.match(indexHtml, /aria-modal="true"/, 'Dialog ohne modalen Status');
 assert.match(indexHtml, /aria-label="Kalenderansicht"/, 'Kalenderansicht ohne Beschriftung');
@@ -60,4 +77,4 @@ const serviceWorker = fs.readFileSync(path.join(publicDir, 'sw.js'), 'utf8');
 assert.match(serviceWorker, /showNotification/, 'Service Worker zeigt keine Push-Benachrichtigung');
 assert.match(serviceWorker, /SKIP_WAITING/, 'Service Worker kann ein bestaetigtes Update nicht aktivieren');
 
-console.log(JSON.stringify({ ok: true, pages, checks: ['structure', 'uniqueIds', 'imageAlternatives', 'captions', 'reducedMotion', 'keyboardFocus', 'pwa'] }));
+console.log(JSON.stringify({ ok: true, pages, checks: ['structure', 'uniqueIds', 'scriptDomLinks', 'imageAlternatives', 'captions', 'reducedMotion', 'keyboardFocus', 'pwa'] }));

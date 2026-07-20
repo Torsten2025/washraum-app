@@ -32,8 +32,11 @@ const viewSwitcher = document.querySelector('#viewSwitcher');
 const bookingViewButton = document.querySelector('#bookingViewButton');
 const adminViewButton = document.querySelector('#adminViewButton');
 const bookingDate = document.querySelector('#bookingDate');
+const bookingPanelTitle = document.querySelector('#bookingPanelTitle');
+const bookingPanelIntro = document.querySelector('#bookingPanelIntro');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
 const bookingFlow = document.querySelector('#bookingFlow');
+const singleBookingDetails = document.querySelector('#singleBookingDetails');
 const bookingFlowContent = document.querySelector('#bookingFlowContent');
 const bookingFlowNotice = document.querySelector('#bookingFlowNotice');
 const bookingFlowSteps = document.querySelector('#bookingFlowSteps');
@@ -65,9 +68,11 @@ const adminPushTarget = document.querySelector('#adminPushTarget');
 const superadminTransferOperation = document.querySelector('#superadminTransferOperation');
 const superadminTransferTarget = document.querySelector('#superadminTransferTarget');
 const superadminTransferConfirm = document.querySelector('#superadminTransferConfirm');
+const superadminTransferCurrentPassword = document.querySelector('#superadminTransferCurrentPassword');
 const superadminTransferButton = document.querySelector('#superadminTransferButton');
 const adminAnalytics = document.querySelector('#adminAnalytics');
 const resetBookingsConfirm = document.querySelector('#resetBookingsConfirm');
+const resetBookingsCurrentPassword = document.querySelector('#resetBookingsCurrentPassword');
 const resetBookingsButton = document.querySelector('#resetBookingsButton');
 const adminTitle = document.querySelector('#adminTitle');
 const adminRoleLabel = document.querySelector('#adminRoleLabel');
@@ -87,6 +92,8 @@ const backupOperation = document.querySelector('#backupOperation');
 const runBackupButton = document.querySelector('#runBackupButton');
 const maintenanceOperation = document.querySelector('#maintenanceOperation');
 const maintenanceAdminStatus = document.querySelector('#maintenanceAdminStatus');
+const maintenancePasswordLabel = document.querySelector('#maintenancePasswordLabel');
+const maintenanceCurrentPassword = document.querySelector('#maintenanceCurrentPassword');
 const toggleMaintenanceButton = document.querySelector('#toggleMaintenanceButton');
 const apartmentForm = document.querySelector('#apartmentForm');
 const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
@@ -130,6 +137,7 @@ const enablePushButton = document.querySelector('#enablePushButton');
 const disablePushButton = document.querySelector('#disablePushButton');
 const createDeviceCodeButton = document.querySelector('#createDeviceCodeButton');
 const devicePairingCode = document.querySelector('#devicePairingCode');
+const devicePairingCard = document.querySelector('#devicePairingCard');
 const devicePairingPanel = document.querySelector('#devicePairingPanel');
 const devicePairingQr = document.querySelector('#devicePairingQr');
 const devicePairingApartment = document.querySelector('#devicePairingApartment');
@@ -138,6 +146,20 @@ const notificationResourceType = document.querySelector('#notificationResourceTy
 const notificationWeekday = document.querySelector('#notificationWeekday');
 const notificationSlot = document.querySelector('#notificationSlot');
 const openSettingsButton = document.querySelector('#openSettingsButton');
+const openDiaperGameButton = document.querySelector('#openDiaperGameButton');
+const diaperGameOverlay = document.querySelector('#diaperGameOverlay');
+const closeDiaperGameButton = document.querySelector('#closeDiaperGameButton');
+const diaperGameStage = document.querySelector('#diaperGameStage');
+const diaperGameActions = document.querySelector('#diaperGameActions');
+const diaperGameStatus = document.querySelector('#diaperGameStatus');
+const diaperGameProgress = document.querySelector('#diaperGameProgress');
+const diaperLeaderboardList = document.querySelector('#diaperLeaderboardList');
+const diaperOwnRank = document.querySelector('#diaperOwnRank');
+const diaperStepRailSegments = [...document.querySelectorAll('.diaper-step-rail span')];
+const diaperPressureText = document.querySelector('#diaperPressureText');
+const diaperPressureBar = document.querySelector('#diaperPressureBar');
+const startDiaperGameButton = document.querySelector('#startDiaperGameButton');
+const resetDiaperBestButton = document.querySelector('#resetDiaperBestButton');
 const settingsSummary = document.querySelector('#settingsSummary');
 const settingsProgressText = document.querySelector('#settingsProgressText');
 const settingsOverlay = document.querySelector('#settingsOverlay');
@@ -174,8 +196,6 @@ const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
 const adminAccountRecoveryResult = document.querySelector('#adminAccountRecoveryResult');
 const apartmentSetupOverlay = document.querySelector('#apartmentSetupOverlay');
-const joinApartmentForm = document.querySelector('#joinApartmentForm');
-const existingDeviceCode = document.querySelector('#existingDeviceCode');
 const apartmentSetupMessage = document.querySelector('#apartmentSetupMessage');
 const closeApartmentSetupButton = document.querySelector('#closeApartmentSetupButton');
 const postponeApartmentSetupButton = document.querySelector('#postponeApartmentSetupButton');
@@ -873,13 +893,13 @@ function openSettings(firstRun = false) {
   settingsUsername.value = currentUser.displayName || currentUser.username;
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
-  nameCorrectionPanel.hidden = currentUser.role !== 'user' || !currentUser.apartmentLabel;
+  nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
   requestedDisplayName.value = currentUser.displayName || '';
   settingsRole.value = currentRoleLabel();
   settingsBookingMode.value = bookingMode;
   apartmentAccountStatus.textContent = currentUser.apartmentLabel
     ? `Wohnungskonto: ${currentUser.apartmentLabel}`
-    : currentUser.role === 'user' ? 'Wohnung noch nicht zugeordnet.' : 'Admin-Konto ohne Wohnungszuordnung.';
+    : currentUser.canManage ? 'Verwaltungszugang ohne Wohnungszuordnung.' : 'Wohnung noch nicht zugeordnet.';
   openApartmentSetupButton.hidden = !currentUser.apartmentSetupRequired;
   setSettingsSection(firstRun ? 'profile' : activeSettingsSection);
   settingsOverlay.hidden = false;
@@ -1378,7 +1398,7 @@ function applyMaintenanceStatus(maintenance = {}) {
   }
   maintenanceText.textContent = maintenance.message
     || 'WaschZeit wird gerade sicher aktualisiert. Deine bestehenden Buchungen bleiben erhalten.';
-  if (currentUser?.role === 'admin') {
+  if (currentUser?.canManage) {
     maintenanceOverlay.hidden = true;
     syncModalStateAfterMaintenance();
     return;
@@ -1506,7 +1526,7 @@ async function init() {
   }
 
   currentUser = me.user;
-  reportIssueButton.hidden = currentUser.role !== 'user';
+  reportIssueButton.hidden = !currentUser.canBook;
   await checkAppVersion();
   scheduleAppVersionChecks();
   configureSessionTimeout(me.session);
@@ -1534,12 +1554,13 @@ async function init() {
   resources = resourceData.resources;
   slots = slotData.slots;
 
-  if (currentUser.role === 'admin') {
+  if (currentUser.canManage) {
     viewSwitcher.hidden = false;
     await loadAdmin();
   }
 
   await refreshAll();
+  if (currentUser.canManage && !currentUser.canBook) setAppView('admin');
   const pageUrl = new URL(window.location.href);
   if (pageUrl.searchParams.get('notice')) {
     await openReleaseNoticeFromUrl(pageUrl);
@@ -1551,7 +1572,7 @@ async function init() {
 }
 
 function setAppView(view) {
-  const adminView = view === 'admin' && currentUser?.role === 'admin';
+  const adminView = view === 'admin' && currentUser?.canManage;
   document.body.classList.toggle('admin-view', adminView);
   bookingViewButton.classList.toggle('active', !adminView);
   adminViewButton.classList.toggle('active', adminView);
@@ -1913,6 +1934,7 @@ async function disablePushNotifications() {
 
 function renderHouseContext() {
   const roleLabel = currentRoleLabel();
+  const isAdmin = !currentUser.canBook;
   userLine.textContent = roleLabel;
   const accountLabel = currentUser.displayName || currentUser.username;
   accountMenuName.textContent = accountLabel;
@@ -1922,7 +1944,8 @@ function renderHouseContext() {
   settingsUsername.value = accountLabel;
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
-  nameCorrectionPanel.hidden = currentUser.role !== 'user' || !currentUser.apartmentLabel;
+  nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
+  devicePairingCard.hidden = !currentUser.canBook;
   settingsRole.value = roleLabel;
   settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
@@ -1930,6 +1953,14 @@ function renderHouseContext() {
   document.title = `WaschZeit | ${currentUser.houseName}`;
   introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
   adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
+  bookingViewButton.textContent = isAdmin ? 'Kalender' : 'Mein Waschplan';
+  bookingPanelTitle.textContent = isAdmin ? 'Belegungsplan' : 'Buchen';
+  bookingPanelIntro.textContent = isAdmin
+    ? 'Belegungen und freie Kapazitaeten ansehen. Normale Waschzeiten buchen Bewohner selbst.'
+    : 'Verschaffe dir zuerst einen Ueberblick. Danach stellst du dein Waschpaket Schritt fuer Schritt zusammen.';
+  bookingSuggestion.hidden = isAdmin;
+  bookingFlow.hidden = isAdmin;
+  singleBookingDetails.hidden = isAdmin;
 
   houseSwitcher.hidden = !currentUser.isSuperadmin;
   if (currentUser.isSuperadmin) {
@@ -1941,11 +1972,11 @@ function renderHouseContext() {
 }
 
 function currentRoleLabel() {
-  return currentUser.isSuperadmin
-    ? 'Superadmin'
-    : currentUser.role === 'admin'
-      ? 'Haus-Admin'
-      : 'Bewohner';
+  const roles = [];
+  if (currentUser.isResident) roles.push('Bewohner');
+  if (currentUser.isHouseAdmin) roles.push('Haus-Admin');
+  if (currentUser.isSuperadmin) roles.push('Superadmin');
+  return roles.join(' \u00b7 ') || 'Persoenlicher Zugang';
 }
 
 async function refreshCurrentUser() {
@@ -2072,6 +2103,7 @@ function calendarResourceStateLabel(state) {
 function calendarSlotTypeMarkup(day, slotDetail, typeMeta) {
   const detail = slotDetail.types[typeMeta.type];
   const canStartWasher = typeMeta.type === 'washer'
+    && currentUser?.canBook
     && !day.closed
     && !slotDetail.past
     && day.ownByType.washer === 0;
@@ -2180,7 +2212,9 @@ function renderCalendarDayDetails() {
 
   calendarDayDetails.hidden = false;
   calendarDayDetailsTitle.textContent = formatShortDate(day.date);
-  const recommendedSlot = currentRecommendation?.date === day.date ? currentRecommendation.slot : '';
+  const recommendedSlot = currentUser?.canBook && currentRecommendation?.date === day.date
+    ? currentRecommendation.slot
+    : '';
   const slotsMarkup = (day.slotDetails || []).map((slotDetail) => {
     const hasOwnBooking = calendarResourceTypes.some(({ type }) => (
       slotDetail.types[type]?.resources.some((resource) => resource.state === 'own')
@@ -2192,7 +2226,7 @@ function renderCalendarDayDetails() {
         : hasOwnBooking
           ? '<span class="calendar-slot-note is-own">Deine Buchung</span>'
           : '';
-    const ownAction = hasOwnBooking && !slotDetail.past
+    const ownAction = currentUser?.canBook && hasOwnBooking && !slotDetail.past
       ? `<button class="secondary calendar-open-package" type="button" data-calendar-open-package="${day.date}">Waschpaket erg\u00e4nzen</button>`
       : '';
     return `
@@ -2202,7 +2236,7 @@ function renderCalendarDayDetails() {
       </section>
     `;
   }).join('');
-  const openDayAction = !day.closed && day.date >= todayString()
+  const openDayAction = currentUser?.canBook && !day.closed && day.date >= todayString()
     ? recommendedSlot
       ? `<button type="button" data-calendar-use-recommendation="${day.date}" data-calendar-slot="${recommendedSlot}">Empfohlenen Termin buchen</button>`
       : `<button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button>`
@@ -2282,7 +2316,7 @@ function renderCalendar() {
     const outsideMonth = monthView && day.date.slice(0, 7) !== calendarAnchorDate.slice(0, 7);
     const closed = Boolean(day.closed);
     const past = day.date < todayString();
-    const recommended = currentRecommendation?.date === day.date;
+    const recommended = currentUser?.canBook && currentRecommendation?.date === day.date;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'calendar-day';
@@ -2350,6 +2384,10 @@ function renderCalendar() {
     button.addEventListener('click', async () => {
       calendarPointerFocus = false;
       if (past || closed) {
+        openCalendarPreview(day, button, { pinned: true });
+        return;
+      }
+      if (!currentUser?.canBook) {
         openCalendarPreview(day, button, { pinned: true });
         return;
       }
@@ -3269,8 +3307,9 @@ function renderBookingFlow() {
 function renderRecommendation() {
   bookingSuggestion.innerHTML = '';
   const recommendation = currentRecommendation;
-  bookingSuggestion.hidden = !recommendation?.date;
-  if (!recommendation?.date) return;
+  const canUseRecommendation = currentUser?.canBook && Boolean(recommendation?.date);
+  bookingSuggestion.hidden = !canUseRecommendation;
+  if (!canUseRecommendation) return;
   const copy = document.createElement('div');
   copy.className = 'suggestion-copy';
   copy.innerHTML = `
@@ -3332,7 +3371,7 @@ function renderSchedule() {
       card.className = `booking-card ${booking ? 'is-booked' : ''} ${booking?.is_fixed ? 'is-fixed' : ''} ${slotIsPast ? 'is-disabled' : ''}`;
 
       const owner = booking ? booking.username : slotIsPast ? 'vorbei' : 'frei';
-      const canDelete = booking && !booking.is_fixed && (currentUser.role === 'admin' || booking.user_id === currentUser.id);
+      const canDelete = booking && !booking.is_fixed && (currentUser.canManage || booking.user_id === currentUser.bookingUserId);
       card.innerHTML = `
         <div>
           <strong>${escapeHtml(resource.name)}</strong>
@@ -3686,23 +3725,6 @@ async function createDevicePairingCode() {
   }
 }
 
-async function finishApartmentSetup(path, body) {
-  apartmentSetupMessage.textContent = '';
-  try {
-    const data = await api(path, { method: 'POST', body: JSON.stringify(body) });
-    currentUser = data.user;
-    apartmentSetupOverlay.hidden = true;
-    document.body.classList.remove('modal-open');
-    renderHouseContext();
-    notificationEmail.value = currentUser.email || '';
-    secondaryNotificationEmail.value = currentUser.secondaryEmail || '';
-    showStatus(data.message);
-    await refreshAll();
-  } catch (error) {
-    apartmentSetupMessage.textContent = error.message;
-  }
-}
-
 async function createApartment() {
   apartmentInvitationResult.hidden = true;
   try {
@@ -3733,7 +3755,7 @@ function showApartmentInvitationResult(data, apartment) {
   title.textContent = `${apartment.label} - ${apartment.display_name}`;
   const status = document.createElement('span');
   status.textContent = invitation.emailSent
-    ? `Einladung an ${invitation.email} gesendet.`
+    ? `Persoenliche Einladung an ${invitation.email} gesendet.`
     : `Technische Testeinladung fuer ${invitation.email} angelegt.`;
   apartmentInvitationResult.append(title, status);
   apartmentInvitationResult.hidden = false;
@@ -3770,16 +3792,16 @@ function renderApartments(apartments) {
     item.className = 'user-admin-item';
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
-    const invitationState = apartment.claimed
-      ? 'aktiviert'
-      : apartment.invitationStatus === 'pending'
+    const invitationState = apartment.invitationStatus === 'pending'
         ? `Einladung offen fuer ${escapeHtml(apartment.invitation_email)}`
+        : apartment.claimed
+          ? `${apartment.member_count} ${apartment.member_count === 1 ? 'Person' : 'Personen'} verbunden`
         : apartment.invitationStatus === 'expired'
           ? 'Einladung abgelaufen'
           : apartment.invitationStatus === 'not_sent'
             ? 'Einladung nicht versendet'
             : 'noch nicht eingeladen';
-    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${invitationState}</span>${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
+    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${invitationState}</span>${apartment.member_emails ? `<span>${escapeHtml(apartment.member_emails)}</span>` : ''}${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
     const editButton = document.createElement('button');
@@ -3787,27 +3809,27 @@ function renderApartments(apartments) {
     editButton.className = 'secondary';
     editButton.textContent = apartment.name_request_id ? 'Vorschlag prüfen' : 'Bearbeiten';
     actions.append(editButton);
-    if (!apartment.claimed) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'secondary';
-      button.textContent = apartment.invitationStatus === 'pending' ? 'Einladung erneuern' : 'Einladen';
-      button.addEventListener('click', () => {
-        const inviteForm = item.querySelector('.apartment-invite-form');
-        inviteForm.hidden = false;
-        button.disabled = true;
-        inviteForm.querySelector('input')?.focus();
-      });
-      actions.append(button);
-    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = apartment.invitationStatus === 'pending'
+      ? 'Einladung erneuern'
+      : apartment.claimed ? 'Weitere Person' : 'Einladen';
+    button.addEventListener('click', () => {
+      const inviteForm = item.querySelector('.apartment-invite-form');
+      inviteForm.hidden = false;
+      button.disabled = true;
+      inviteForm.querySelector('input')?.focus();
+    });
+    actions.append(button);
 
     const inviteForm = document.createElement('form');
     inviteForm.className = 'apartment-invite-form compact-form';
     inviteForm.hidden = true;
     inviteForm.innerHTML = `
       <label>
-        E-Mail fuer die Einladung
-        <input name="email" type="email" value="${escapeHtml(apartment.invitation_email || '')}" required>
+        Persoenliche E-Mail fuer die Einladung
+        <input name="email" type="email" value="" required>
       </label>
       <div class="inline-actions">
         <button type="submit">Einladung senden</button>
@@ -3817,7 +3839,7 @@ function renderApartments(apartments) {
     inviteForm.querySelector('[data-cancel]').addEventListener('click', () => {
       inviteForm.hidden = true;
       const inviteButton = [...actions.querySelectorAll('button')]
-        .find((candidate) => candidate.textContent.includes('Einlad') || candidate.textContent === 'Einladen');
+        .find((candidate) => candidate.textContent.includes('Einlad') || candidate.textContent.includes('Person'));
       if (inviteButton) inviteButton.disabled = false;
     });
     inviteForm.addEventListener('submit', async (event) => {
@@ -3847,7 +3869,7 @@ function renderApartments(apartments) {
         Name am Klingelschild
         <input name="displayName" maxlength="80" value="${escapeHtml(apartment.requested_display_name || apartment.display_name)}" required>
       </label>
-      <p class="muted">E-Mail-Adressen gehoeren zum geschuetzten Wohnungskonto und werden nur dort geaendert.</p>
+      <p class="muted">Jede Person verwaltet ihre eigene E-Mail. Die Wohnung bleibt ueber den Klingelschildnamen gemeinsam erkennbar.</p>
       <div class="inline-actions">
         <button type="submit">Speichern</button>
         ${apartment.name_request_id ? '<button class="secondary danger" type="button" data-reject>Ablehnen</button>' : ''}
@@ -4110,7 +4132,7 @@ function renderAdminRecovery(data, users) {
 
   const candidates = users.filter((user) => (
     user.active
-      && user.role === 'admin'
+      && user.is_house_admin
       && !user.is_superadmin
       && Number(user.id) !== Number(currentUser.id)
   ));
@@ -4129,18 +4151,28 @@ function renderAdminRecovery(data, users) {
   }
   superadminTransferTarget.disabled = !candidates.length;
   superadminTransferConfirm.disabled = !candidates.length;
+  superadminTransferCurrentPassword.disabled = !candidates.length;
+  if (!candidates.length) superadminTransferCurrentPassword.value = '';
   superadminTransferButton.disabled = !candidates.length;
 }
 
 async function transferSuperadmin() {
+  if (!superadminTransferCurrentPassword.value) {
+    showStatus('Bitte dein aktuelles Passwort eingeben.', 'error');
+    superadminTransferCurrentPassword.focus();
+    return;
+  }
   if (!window.confirm('Superadmin-Verantwortung wirklich an dieses Konto uebergeben? Deine hausuebergreifenden Rechte enden danach.')) return;
+  const currentPassword = superadminTransferCurrentPassword.value;
+  superadminTransferCurrentPassword.value = '';
   superadminTransferButton.disabled = true;
   try {
     const data = await api('/api/admin/superadmin-transfer', {
       method: 'POST',
       body: JSON.stringify({
         targetUserId: Number(superadminTransferTarget.value),
-        confirm: superadminTransferConfirm.value.trim()
+        confirm: superadminTransferConfirm.value.trim(),
+        currentPassword
       })
     });
     superadminTransferConfirm.value = '';
@@ -4217,19 +4249,29 @@ function renderAdminMaintenance(maintenance = {}) {
   toggleMaintenanceButton.dataset.active = String(active);
   toggleMaintenanceButton.textContent = active ? 'Wartung beenden' : 'Wartung starten';
   toggleMaintenanceButton.classList.toggle('danger', active);
+  maintenancePasswordLabel.hidden = active;
+  maintenanceCurrentPassword.disabled = active;
+  if (active) maintenanceCurrentPassword.value = '';
 }
 
 async function toggleMaintenanceMode() {
   const active = toggleMaintenanceButton.dataset.active === 'true';
+  if (!active && !maintenanceCurrentPassword.value) {
+    showStatus('Bitte dein aktuelles Passwort eingeben.', 'error');
+    maintenanceCurrentPassword.focus();
+    return;
+  }
   const confirmation = active
     ? 'Wartung jetzt beenden? Zuerst laufen Datenbank- und Buchungspruefung.'
     : 'Wartung jetzt starten? Zuerst wird automatisch ein geprueftes Backup erstellt.';
   if (!window.confirm(confirmation)) return;
+  const currentPassword = active ? '' : maintenanceCurrentPassword.value;
+  maintenanceCurrentPassword.value = '';
   toggleMaintenanceButton.disabled = true;
   try {
     const data = await api('/api/admin/maintenance', {
       method: 'PUT',
-      body: JSON.stringify({ active: !active })
+      body: JSON.stringify({ active: !active, currentPassword })
     });
     renderAdminMaintenance(data.maintenance);
     if (latestReleaseStatus) latestReleaseStatus.maintenance = data.maintenance;
@@ -4248,12 +4290,22 @@ async function resetAllBookings() {
     showStatus('Bitte ALLE BUCHUNGEN als Bestaetigung eingeben.', 'error');
     return;
   }
+  if (!resetBookingsCurrentPassword.value) {
+    showStatus('Bitte dein aktuelles Passwort eingeben.', 'error');
+    resetBookingsCurrentPassword.focus();
+    return;
+  }
   if (!window.confirm('Alle normalen Buchungen dieses Hauses wirklich loeschen? Dauertermine bleiben erhalten.')) return;
+  const currentPassword = resetBookingsCurrentPassword.value;
+  resetBookingsCurrentPassword.value = '';
   resetBookingsButton.disabled = true;
   try {
     const data = await api('/api/admin/bookings', {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: resetBookingsConfirm.value.trim() })
+      body: JSON.stringify({
+        confirm: resetBookingsConfirm.value.trim(),
+        currentPassword
+      })
     });
     resetBookingsConfirm.value = '';
     showStatus(data.message);
@@ -4278,7 +4330,12 @@ function renderAdminUsers(users) {
     const visibleName = user.apartment_display_name || user.apartment_label || user.username;
     name.textContent = visibleName;
     const meta = document.createElement('span');
-    const roleName = user.is_superadmin ? 'Superadmin' : user.role === 'admin' ? 'Haus-Admin' : 'Bewohner';
+    const roleNames = [
+      ...(user.is_resident ? ['Bewohner'] : []),
+      ...(user.is_house_admin ? ['Haus-Admin'] : []),
+      ...(user.is_superadmin ? ['Superadmin'] : [])
+    ];
+    const roleName = roleNames.join(' \u00b7 ') || 'Ohne Zuordnung';
     const accountState = user.merged_into_user_id ? 'zusammengefuehrt' : user.active ? 'aktiv' : 'inaktiv';
     const apartmentName = user.apartment_label ? ` \u00b7 ${user.apartment_label}` : '';
     const secondEmail = user.secondary_email ? ` \u00b7 ${user.secondary_email}` : '';
@@ -4291,7 +4348,7 @@ function renderAdminUsers(users) {
     const canManageAccount = !isSelf
       && !Boolean(user.is_superadmin)
       && !Boolean(user.merged_into_user_id)
-      && (currentUser.isSuperadmin || user.role === 'user');
+      && (currentUser.isSuperadmin || !user.is_house_admin);
 
     if (canManageAccount) {
       const statusButton = document.createElement('button');
@@ -4307,10 +4364,10 @@ function renderAdminUsers(users) {
       const roleButton = document.createElement('button');
       roleButton.type = 'button';
       roleButton.className = 'secondary';
-      roleButton.textContent = user.role === 'admin' ? 'Zu Bewohner' : 'Zu Haus-Admin';
+      roleButton.textContent = user.is_house_admin ? 'Adminrecht entziehen' : 'Haus-Adminrecht geben';
       roleButton.addEventListener('click', () => updateUserRole(
         user.id,
-        user.role === 'admin' ? 'user' : 'admin'
+        user.is_house_admin ? 'user' : 'admin'
       ));
       actions.append(roleButton);
 
@@ -4345,7 +4402,7 @@ function renderAdminUsers(users) {
         resetButton.title = `Passwort-Link an die best\u00e4tigte Adresse von ${visibleName} senden`;
         resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
         actions.append(resetButton);
-      } else if (user.active && user.role === 'user') {
+      } else if (user.active && user.is_resident && !user.is_house_admin) {
         const recoveryButton = document.createElement('button');
         recoveryButton.type = 'button';
         recoveryButton.className = 'secondary';
@@ -4948,6 +5005,195 @@ sessionLogoutButton.addEventListener('click', async () => {
   } catch {}
   window.location.replace('/login.html?loggedOut=1');
 });
+const diaperGameSteps = [
+  { id: 'calm', label: 'Baby beruhigen' },
+  { id: 'mat', label: 'Unterlage auslegen' },
+  { id: 'open', label: 'Windel vorsichtig \u00f6ffnen' },
+  { id: 'clean', label: 'Sanft sauber machen' },
+  { id: 'fresh', label: 'Frische Windel schlie\u00dfen' }
+];
+const diaperGameIcons = {
+  calm: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg>',
+  mat: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h10M7 13h6"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 5.5 9 3h6l3 2.5-1 14-5 1.5-5-1.5-1-14Z"/><path d="m7 8 5 2 5-2M9 15h6"/></svg>',
+  clean: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3s5 5.4 5 10a5 5 0 0 1-10 0c0-4.6 5-10 5-10Z"/><path d="M9.5 14.5c.6 1.2 1.4 1.7 2.5 1.7"/></svg>',
+  fresh: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg>'
+};
+let diaperGameTimer = null;
+let diaperGamePressure = 0;
+let diaperGameStep = 0;
+let diaperGameStartedAt = 0;
+let diaperGameRunning = false;
+let diaperGameReturnFocus = null;
+let diaperGameRoundToken = null;
+let diaperLeaderboardState = { leaderboard: [], own: null };
+let diaperGameStartRequest = 0;
+
+function diaperGameBest() {
+  return diaperLeaderboardState.own ? diaperLeaderboardState.own.timeMs / 1000 : null;
+}
+
+function renderDiaperGameProgress() {
+  const best = diaperGameBest();
+  diaperGameProgress.textContent = `${diaperGameStep} von ${diaperGameSteps.length} Handgriffen \u00b7 Bestwert: ${best ? `${best.toFixed(1)} s` : '\u2013'}`;
+  diaperStepRailSegments.forEach((segment, index) => {
+    segment.classList.toggle('is-complete', index < diaperGameStep);
+    segment.classList.toggle('is-current', diaperGameRunning && index === diaperGameStep);
+  });
+}
+
+function renderDiaperLeaderboard(data) {
+  diaperLeaderboardState = data || { leaderboard: [], own: null };
+  const entries = diaperLeaderboardState.leaderboard || [];
+  diaperLeaderboardList.innerHTML = entries.length ? entries.map((entry) => `
+    <li class="${entry.isOwn ? 'is-own' : ''}">
+      <strong>${entry.position}.</strong>
+      <span>${escapeHtml(entry.isOwn ? 'Du' : entry.player)}</span>
+      <b>${(entry.timeMs / 1000).toFixed(1)} s</b>
+    </li>
+  `).join('') : '<li class="muted">Noch keine gewertete Runde. Hol dir Platz 1!</li>';
+  diaperOwnRank.textContent = diaperLeaderboardState.own
+    ? `Dein Platz: ${diaperLeaderboardState.own.position} \u00b7 ${(diaperLeaderboardState.own.timeMs / 1000).toFixed(1)} s`
+    : 'Noch keine eigene Zeit';
+  renderDiaperGameProgress();
+}
+
+async function loadDiaperLeaderboard() {
+  try {
+    renderDiaperLeaderboard(await api('/api/diaper-game/leaderboard'));
+  } catch (error) {
+    diaperLeaderboardList.innerHTML = `<li class="muted">${escapeHtml(error.message)}</li>`;
+  }
+}
+
+function setDiaperPressure(value) {
+  diaperGamePressure = Math.max(0, Math.min(100, value));
+  diaperGameStage.style.setProperty('--pressure', String(diaperGamePressure));
+  diaperPressureBar.style.width = `${diaperGamePressure}%`;
+  diaperPressureBar.parentElement.setAttribute('aria-valuenow', String(Math.round(diaperGamePressure)));
+  diaperPressureText.textContent = diaperGamePressure >= 75 ? 'Alarm!' : diaperGamePressure >= 45 ? 'Achtung' : 'Alles ruhig';
+  diaperGameStage.dataset.mood = diaperGamePressure >= 75 ? 'danger' : diaperGamePressure >= 45 ? 'nervous' : 'calm';
+}
+
+function stopDiaperGame() {
+  window.clearInterval(diaperGameTimer);
+  diaperGameTimer = null;
+  diaperGameRunning = false;
+  for (const button of diaperGameActions.querySelectorAll('button')) button.disabled = true;
+}
+
+function setDiaperStartButton(label, icon = '\u21bb') {
+  startDiaperGameButton.innerHTML = `<span aria-hidden="true">${icon}</span> ${label}`;
+}
+
+function loseDiaperGame() {
+  stopDiaperGame();
+  setDiaperPressure(100);
+  diaperGameStage.dataset.mood = 'burst';
+  diaperGameStatus.textContent = 'Windel-Plopp! Zwei Bodys und ein Handtuch wandern in die virtuelle W\u00e4sche.';
+  setDiaperStartButton('Noch einmal');
+}
+
+async function winDiaperGame() {
+  stopDiaperGame();
+  const seconds = (performance.now() - diaperGameStartedAt) / 1000;
+  diaperGameStage.dataset.mood = 'happy';
+  diaperGameStatus.textContent = `Geschafft in ${seconds.toFixed(1)} Sekunden \u2013 Zeit wird gewertet.`;
+  setDiaperStartButton('Noch einmal');
+  try {
+    const leaderboard = await api('/api/diaper-game/complete', {
+      method: 'POST',
+      body: JSON.stringify({ token: diaperGameRoundToken })
+    });
+    renderDiaperLeaderboard(leaderboard);
+    diaperGameStatus.textContent = `Fleckenfrei gewickelt! Deine globale Zeit: ${(leaderboard.own.timeMs / 1000).toFixed(1)} Sekunden.`;
+  } catch (error) {
+    diaperGameStatus.textContent = `Geschafft, aber nicht gewertet: ${error.message}`;
+  }
+}
+
+function chooseDiaperGameStep(stepId) {
+  if (!diaperGameRunning) return;
+  const expected = diaperGameSteps[diaperGameStep];
+  if (stepId !== expected.id) {
+    setDiaperPressure(diaperGamePressure + 24);
+    diaperGameStatus.textContent = `Falscher Kniff! Als N\u00e4chstes: ${expected.label}.`;
+    diaperGameStage.classList.remove('is-shaking');
+    window.requestAnimationFrame(() => diaperGameStage.classList.add('is-shaking'));
+    if (diaperGamePressure >= 100) loseDiaperGame();
+    return;
+  }
+  diaperGameStep += 1;
+  setDiaperPressure(diaperGamePressure - 7);
+  const usedButton = diaperGameActions.querySelector(`[data-diaper-step="${stepId}"]`);
+  usedButton.disabled = true;
+  usedButton.classList.add('is-done');
+  if (diaperGameStep === diaperGameSteps.length) {
+    winDiaperGame();
+  } else {
+    diaperGameStatus.textContent = `Gut! Jetzt: ${diaperGameSteps[diaperGameStep].label}.`;
+    renderDiaperGameProgress();
+  }
+}
+
+async function startDiaperGame() {
+  window.clearInterval(diaperGameTimer);
+  const requestId = ++diaperGameStartRequest;
+  startDiaperGameButton.disabled = true;
+  diaperGameStatus.textContent = 'Sichere Spielrunde wird vorbereitet.';
+  try {
+    const round = await api('/api/diaper-game/start', { method: 'POST' });
+    if (requestId !== diaperGameStartRequest || diaperGameOverlay.hidden) {
+      startDiaperGameButton.disabled = false;
+      return;
+    }
+    diaperGameRoundToken = round.token;
+  } catch (error) {
+    diaperGameStatus.textContent = error.message;
+    startDiaperGameButton.disabled = false;
+    return;
+  }
+  diaperGameStep = 0;
+  diaperGameRunning = true;
+  diaperGameStartedAt = performance.now();
+  diaperGameStage.classList.remove('is-shaking');
+  setDiaperPressure(12);
+  const shuffledSteps = [...diaperGameSteps].sort(() => Math.random() - 0.5);
+  diaperGameActions.innerHTML = shuffledSteps.map((step, index) => (
+    `<button type="button" data-diaper-step="${step.id}" style="--order:${index}"><span class="tool-icon" aria-hidden="true">${diaperGameIcons[step.id]}</span><span class="tool-label">${step.label}</span></button>`
+  )).join('');
+  diaperGameActions.querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => chooseDiaperGameStep(button.dataset.diaperStep));
+  });
+  diaperGameStatus.textContent = `Los geht's: ${diaperGameSteps[0].label}.`;
+  setDiaperStartButton('Neu starten');
+  startDiaperGameButton.disabled = false;
+  renderDiaperGameProgress();
+  diaperGameTimer = window.setInterval(() => {
+    setDiaperPressure(diaperGamePressure + 2.5);
+    if (diaperGamePressure >= 100) loseDiaperGame();
+  }, 700);
+}
+
+function openDiaperGame() {
+  closeAccountMenu();
+  diaperGameReturnFocus = document.activeElement;
+  diaperGameOverlay.hidden = false;
+  document.body.classList.add('modal-open');
+  renderDiaperGameProgress();
+  loadDiaperLeaderboard();
+  diaperGameOverlay.querySelector('.diaper-game-modal').scrollTop = 0;
+  startDiaperGameButton.focus({ preventScroll: true });
+}
+
+function closeDiaperGame() {
+  diaperGameStartRequest += 1;
+  stopDiaperGame();
+  diaperGameOverlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  if (diaperGameReturnFocus instanceof HTMLElement) diaperGameReturnFocus.focus();
+}
+
 logoutForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (logoutInProgress) return;
@@ -5132,11 +5378,6 @@ deleteAccountForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await deleteOwnAccount();
 });
-joinApartmentForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (!window.confirm('Dieses bisherige Konto wird mit dem gemeinsamen Wohnungskonto zusammengefuehrt. Buchungen und Push-Geraete bleiben erhalten. Fortfahren?')) return;
-  await finishApartmentSetup('/api/me/apartment/join', { deviceCode: existingDeviceCode.value });
-});
 function postponeApartmentSetup() {
   apartmentSetupOverlay.hidden = true;
   document.body.classList.remove('modal-open');
@@ -5146,6 +5387,23 @@ closeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);
 postponeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);
 
 openIntroButton.addEventListener('click', openIntro);
+openDiaperGameButton.addEventListener('click', openDiaperGame);
+closeDiaperGameButton.addEventListener('click', closeDiaperGame);
+startDiaperGameButton.addEventListener('click', startDiaperGame);
+resetDiaperBestButton.addEventListener('click', async () => {
+  resetDiaperBestButton.disabled = true;
+  try {
+    renderDiaperLeaderboard(await api('/api/diaper-game/score', { method: 'DELETE' }));
+    diaperGameStatus.textContent = 'Dein globaler Bestwert wurde gel\u00f6scht.';
+  } catch (error) {
+    diaperGameStatus.textContent = error.message;
+  } finally {
+    resetDiaperBestButton.disabled = false;
+  }
+});
+diaperGameOverlay.addEventListener('click', (event) => {
+  if (event.target === diaperGameOverlay) closeDiaperGame();
+});
 openKnowledgeButton.addEventListener('click', () => {
   closeAccountMenu();
   activeSettingsSection = 'help';
@@ -5185,6 +5443,24 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
         first.focus();
       }
+    }
+    return;
+  }
+  if (event.key === 'Escape' && !diaperGameOverlay.hidden) {
+    closeDiaperGame();
+    return;
+  }
+  if (event.key === 'Tab' && !diaperGameOverlay.hidden) {
+    const focusable = [...diaperGameOverlay.querySelectorAll('button:not(:disabled), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
     return;
   }

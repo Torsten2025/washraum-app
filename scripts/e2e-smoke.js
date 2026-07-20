@@ -6,23 +6,22 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const required = String(process.env.E2E_REQUIRED || '').toLowerCase() === 'true';
-
 async function loadPlaywright() {
   try {
     return require('playwright');
-  } catch (packageError) {
-    if (process.env.PLAYWRIGHT_MODULE_PATH) {
-      try {
-        return require(path.resolve(process.env.PLAYWRIGHT_MODULE_PATH));
-      } catch (configuredError) {
-        if (required) throw configuredError;
+  } catch {
+    try {
+      return require('playwright-core');
+    } catch (packageError) {
+      if (process.env.PLAYWRIGHT_MODULE_PATH) {
+        try {
+          return require(path.resolve(process.env.PLAYWRIGHT_MODULE_PATH));
+        } catch (configuredError) {
+          throw new Error(`Browser-E2E ist verpflichtend, das konfigurierte Playwright-Modul konnte aber nicht geladen werden: ${configuredError.message}`);
+        }
       }
-    } else if (required) {
-      throw packageError;
+      throw new Error(`Browser-E2E ist verpflichtend, Playwright ist aber nicht installiert: ${packageError.message}`);
     }
-    console.log(JSON.stringify({ ok: true, skipped: true, reason: 'playwright-not-installed' }));
-    process.exit(0);
   }
 }
 
@@ -42,9 +41,44 @@ function systemBrowserPath() {
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
   ];
   return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+const visualViewports = [
+  { name: 'mobile', width: 390, height: 844 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'desktop', width: 1440, height: 900 }
+];
+
+async function captureVisualChecks(page, outputDirectory) {
+  fs.mkdirSync(outputDirectory, { recursive: true });
+  for (const viewport of visualViewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready;
+      window.scrollTo(0, 0);
+    });
+    const layout = await page.evaluate(() => ({
+      bodyWidth: document.body.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth
+    }));
+    assert.ok(
+      Math.max(layout.bodyWidth, layout.documentWidth) <= layout.viewportWidth,
+      `${viewport.name}: Seite ist horizontal breiter als der Viewport (${JSON.stringify(layout)})`
+    );
+    await page.screenshot({
+      path: path.join(outputDirectory, `${viewport.name}-${viewport.width}x${viewport.height}.png`),
+      fullPage: false,
+      animations: 'disabled'
+    });
+  }
 }
 
 async function run() {
@@ -52,6 +86,9 @@ async function run() {
   const port = 34000 + (process.pid % 1000);
   const baseUrl = `http://127.0.0.1:${port}`;
   const databasePath = path.join(os.tmpdir(), `waschplan-e2e-${process.pid}.sqlite`);
+  const screenshotDirectory = path.resolve(
+    process.env.E2E_SCREENSHOT_DIR || path.join('artifacts', 'e2e-screenshots')
+  );
   const output = [];
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
@@ -125,21 +162,34 @@ async function run() {
     const partnerPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await partnerPage.goto(`${baseUrl}/login.html?device=${encodeURIComponent(pairingCode)}`, { waitUntil: 'domcontentloaded' });
     assert.equal(await partnerPage.locator('#deviceLoginForm input[name="deviceCode"]').inputValue(), pairingCode);
+    await partnerPage.fill('#deviceLoginForm input[name="email"]', 'e2e-partner@example.test');
+    await partnerPage.fill('#deviceLoginForm input[name="password"]', 'E2E-Partner-2026!');
+    await partnerPage.fill('#deviceLoginForm input[name="passwordConfirmation"]', 'E2E-Partner-2026!');
     await partnerPage.click('#deviceLoginForm button[type="submit"]');
     await partnerPage.waitForURL('**/index.html', { timeout: 10000 });
+    const [primaryIdentity, partnerIdentity] = await Promise.all([
+      page.evaluate(() => fetch('/api/me').then((response) => response.json())),
+      partnerPage.evaluate(() => fetch('/api/me').then((response) => response.json()))
+    ]);
+    assert.notEqual(partnerIdentity.user.id, primaryIdentity.user.id);
+    assert.equal(partnerIdentity.user.apartmentId, primaryIdentity.user.apartmentId);
+    assert.deepEqual(partnerIdentity.user.roles, ['resident']);
     await page.click('[data-settings-target="security"]');
     assert.ok(await page.locator('#passwordForm').isVisible());
     await page.click('#closeSettingsButton');
     await page.click('#messageCenterButton');
     await page.waitForSelector('#messageCenterOverlay:not([hidden])');
     assert.ok(await page.locator('#messageCenterList').isVisible());
-    console.log(JSON.stringify({ ok: true, browser: executablePath ? 'system' : 'playwright' }));
-  } catch (error) {
-    if (/Executable doesn't exist|browserType.launch/.test(error.message) && !required) {
-      console.log(JSON.stringify({ ok: true, skipped: true, reason: 'browser-not-installed' }));
-      return;
-    }
-    throw error;
+    await page.click('#closeMessageCenterButton');
+    await page.waitForFunction(() => document.querySelector('#messageCenterOverlay')?.hidden === true);
+    await captureVisualChecks(page, screenshotDirectory);
+    console.log(JSON.stringify({
+      ok: true,
+      browser: executablePath ? 'system' : 'playwright',
+      screenshots: visualViewports.map((viewport) => (
+        path.join(screenshotDirectory, `${viewport.name}-${viewport.width}x${viewport.height}.png`)
+      ))
+    }));
   } finally {
     if (browser) await browser.close();
     if (server.exitCode === null) {

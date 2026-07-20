@@ -34,7 +34,7 @@ npm run check
 | AUTH-04 | Adminlogin | Technischer Kontoname bleibt fuer Notfallzugang nutzbar | `test:security` |
 | AUTH-05 | Bewohnerlogin | Primaere E-Mail funktioniert ohne Beachtung der Grossschreibung; freier Name nicht | `test:security` |
 | AUTH-06 | Zweite E-Mail | Beide Adressen melden dasselbe Wohnungskonto an | `test:security`, `npm test` |
-| AUTH-07 | Partnergeraet per QR | QR enthaelt die vorausgefuellte Loginadresse; Token ist zehn Minuten gueltig, kontogebunden und nur einmal verwendbar; Adminrechte werden nicht uebertragen | `test:security`, `npm test`, `test:roles`, `test:e2e` |
+| AUTH-07 | Partnerzugang per QR | QR enthaelt die vorausgefuellte Loginadresse; Partner nutzt eigene E-Mail und eigenes Passwort; Token ist zehn Minuten gueltig und einmalig; Adminrechte werden nicht uebertragen | `test:security`, `npm test`, `test:roles`, `test:e2e` |
 | AUTH-08 | Passwortwechsel | Altes Passwort erforderlich; anderes Passwort; weitere Sitzungen enden | `test:security`, `npm test` |
 | AUTH-09 | Passwort-Reset-Anfrage | Bekannte und unbekannte E-Mail erhalten dieselbe Antwort | `test:security` |
 | AUTH-10 | Deaktiviertes Konto | Aktive Sitzungen verlieren Zugriff; erneuter Login liefert 403 | `test:security`, `npm test` |
@@ -49,10 +49,11 @@ npm run check
 | --- | --- | --- | --- |
 | REG-01 | Wohnung einladen | Stabile Wohnungsbezeichnung, Klingelschildname, feste Ziel-E-Mail und gehashter Sieben-Tage-Link; produktiv ausschliesslich nach erfolgreichem SMTP-Versand | `test:security`, `npm test` |
 | REG-02 | Freie Registrierung, schwaches Passwort oder falscher Link | Klare 400/404/410-Antwort | `test:security` |
-| REG-03 | Einladungsannahme | Link erzeugt genau ein gemeinsames, fest zugeordnetes Wohnungskonto und ist danach verbraucht; SMTP-Versand bestaetigt zusaetzlich die E-Mail | `test:security`, `npm test` |
+| REG-03 | Einladungsannahme mit neuer E-Mail | Link erzeugt genau eine persoenliche Identitaet mit fester Wohnungsmitgliedschaft und ist danach verbraucht; SMTP-Versand bestaetigt zusaetzlich die E-Mail | `test:security`, `npm test` |
 | REG-04 | Klingelschildkorrektur | Bewohner beantragt; Admin entscheidet; sichtbarer Name aendert sich nicht direkt | `npm test`, `test:roles` |
-| REG-05 | Doppelkonten zusammenfuehren | Buchungen, Push und zweite E-Mail gehen kontrolliert an das Zielkonto | `npm test` |
+| REG-05 | Alter Zusammenfuehrungsweg | Wird mit 410 abgelehnt; neue Partner verwenden eigene Identitaeten | `npm test` |
 | REG-06 | Umzug | Nur Superadmin; keine kommenden Buchungen; Rolle wird Bewohner | `npm test`, `test:roles` |
+| REG-07 | Einladung mit bestehender E-Mail | Vorhandenes Passwort wird geprueft; dieselbe Identitaet erhaelt die Wohnung, ohne zweites Konto oder Rollenverlust | `test:roles` |
 
 ## D. Rollen und Hausgrenzen
 
@@ -65,6 +66,8 @@ npm run check
 | ROLE-05 | Superadmin-Uebergabe | Nur an aktiven Haus-Admin, altes Konto verliert globale Rechte | `test:roles` |
 | ROLE-06 | Notfallwiederherstellung | Seed-Admin wird kontrolliert reaktiviert; Passwort nur mit Break-Glass-Schalter ersetzt | `test:roles` |
 | ROLE-07 | Fremdhausdaten | Bewohner und Haus-Admin sehen und aendern keine fremden Konten, Meldungen oder Buchungen | `test:roles`, `test:year` |
+| ROLE-08 | Kombinierte und reine Adminrollen | Wohnungskonto plus Hausrolle darf getrennt buchen und verwalten; reine Admins und Superadmins ohne Wohnung koennen keine normale Buchung erzeugen | `test:roles`, manueller Browsertest |
+| ROLE-09 | QR von Bewohner-Hausadmin | Partner erhaelt eigene Identitaet und nur Bewohnerrecht; gemeinsame Buchungen und Vorausbuchungsgrenze gelten wohnungsweit | `test:roles`, `npm test` |
 
 ## E. Buchungen und Regelwerk
 
@@ -104,13 +107,14 @@ npm run check
 | PWA-01 | Manifest und Service Worker | Installierbar, Update erst nach Zustimmung, Push-Klick oeffnet Ziel | `test:a11y`, `npm test` |
 | UI-01 | Tastatur, Fokus, Dialoge und Untertitel | Zugaengliche Namen, Fokusstatus und reduzierte Bewegung | `test:a11y`, `test:e2e` |
 | UI-02 | Mobile und Desktop | Keine Ueberlagerung, lesbare Kalender- und Verwaltungsansicht | Manueller Browsertest |
+| UI-03 | Skript- und HTML-Verknuepfung | Alle statischen `querySelector`-Ziele der Anmelde-, Waschplan- und Reset-Skripte existieren im zugehoerigen HTML | `test:a11y` |
 
 ## H. Betrieb, Daten und Belastung
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
 | OPS-01 | SQLite-Backup | Datei ist gueltig; Integritaetspruefung erfolgreich | `npm test`, `test:roles` |
-| OPS-02 | Wartungsmodus | Backup vor Start, Schreibsperre, Datenbank- und Buchungstest vor Ende | `npm test`, `test:roles` |
+| OPS-02 | Wartungsmodus | Aktuelles Superadmin-Passwort und Backup vor Start, Schreibsperre, Datenbank- und Buchungstest vor Ende | `npm test`, `test:roles` |
 | OPS-03 | Auditprotokoll | Kritische Adminaktionen sind mit Haus und Ausloeser nachvollziehbar | `npm test`, `test:roles` |
 | OPS-04 | Auswertung | Zeitraum, Ressourcen, Slots und gesperrte Ressourcen korrekt | `npm test` |
 | OPS-05 | Mehrhaus-Jahr | 100 Personen, sechs Haeuser, 52 Wochen und 5.200 Waschpakete ohne Kollision | `test:year` |
