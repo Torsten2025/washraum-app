@@ -167,6 +167,7 @@ const fixedBookingWeekday = document.querySelector('#fixedBookingWeekday');
 const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
 const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
+const adminAccountRecoveryResult = document.querySelector('#adminAccountRecoveryResult');
 const apartmentSetupOverlay = document.querySelector('#apartmentSetupOverlay');
 const claimApartmentForm = document.querySelector('#claimApartmentForm');
 const joinApartmentForm = document.querySelector('#joinApartmentForm');
@@ -1610,7 +1611,7 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     tasks.push({
       level: 'attention',
       title: `${overview.usersMissingEmail} ${overview.usersMissingEmail === 1 ? 'Konto' : 'Konten'} ohne E-Mail`,
-      text: 'Adresse nachtragen, damit Passwort-Reset und wichtige Hinweise funktionieren.',
+      text: 'Identitaet persoenlich pruefen und bei Bedarf einen kurz gueltigen Wiederherstellungscode ausgeben.',
       section: 'people'
     });
   }
@@ -3761,16 +3762,7 @@ function renderApartments(apartments) {
         Name am Klingelschild
         <input name="displayName" maxlength="80" value="${escapeHtml(apartment.requested_display_name || apartment.display_name)}" required>
       </label>
-      ${apartment.claimed ? `
-        <label>
-          Erste E-Mail
-          <input name="email" type="email" value="${escapeHtml(apartment.email || '')}" required>
-        </label>
-        <label>
-          Zweite E-Mail (optional)
-          <input name="secondaryEmail" type="email" value="${escapeHtml(apartment.secondary_email || '')}">
-        </label>
-      ` : '<p class="muted">E-Mail-Adressen werden bei der Aktivierung eingetragen.</p>'}
+      <p class="muted">E-Mail-Adressen gehoeren zum geschuetzten Wohnungskonto und werden nur dort geaendert.</p>
       <div class="inline-actions">
         <button type="submit">Speichern</button>
         ${apartment.name_request_id ? '<button class="secondary danger" type="button" data-reject>Ablehnen</button>' : ''}
@@ -3804,9 +3796,7 @@ function renderApartments(apartments) {
         const data = await api(`/api/admin/apartments/${apartment.id}`, {
           method: 'PUT',
           body: JSON.stringify({
-            displayName: formData.get('displayName'),
-            email: formData.get('email') || '',
-            secondaryEmail: formData.get('secondaryEmail') || ''
+            displayName: formData.get('displayName')
           })
         });
         showStatus(data.message);
@@ -3938,7 +3928,7 @@ async function loadAdmin() {
   if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
-    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>ohne E-Mail</span></div>
+    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>ohne bestaetigte E-Mail</span></div>
     <div><strong>${overviewData.todayBookings}</strong><span>Buchungen heute</span></div>
     <div><strong>${overviewData.activeResources}</strong><span>aktive Ressourcen</span></div>
     <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
@@ -4259,16 +4249,26 @@ function renderAdminUsers(users) {
     }
 
     if (canManageAccount) {
-      const resetButton = document.createElement('button');
-      resetButton.type = 'button';
-      resetButton.className = 'secondary';
-      resetButton.textContent = 'Reset-Link senden';
-      resetButton.disabled = !user.email_verified && !user.secondary_email_verified;
-      resetButton.title = resetButton.disabled
-        ? 'Dafuer braucht das Konto eine bestaetigte E-Mail-Adresse.'
-        : `Passwort-Link an die best\u00e4tigte Adresse von ${visibleName} senden`;
-      resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
-      actions.append(resetButton);
+      const hasVerifiedEmail = Boolean(
+        (user.email_verified && user.email) || (user.secondary_email_verified && user.secondary_email)
+      );
+      if (hasVerifiedEmail) {
+        const resetButton = document.createElement('button');
+        resetButton.type = 'button';
+        resetButton.className = 'secondary';
+        resetButton.textContent = 'Reset-Link senden';
+        resetButton.title = `Passwort-Link an die best\u00e4tigte Adresse von ${visibleName} senden`;
+        resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
+        actions.append(resetButton);
+      } else if (user.active && user.role === 'user') {
+        const recoveryButton = document.createElement('button');
+        recoveryButton.type = 'button';
+        recoveryButton.className = 'secondary';
+        recoveryButton.textContent = 'Wiederherstellungscode';
+        recoveryButton.title = `Einmalcode fuer ${visibleName} nach persoenlicher Identitaetspruefung erzeugen`;
+        recoveryButton.addEventListener('click', () => requestUserRecoveryCode(user, visibleName, recoveryButton));
+        actions.append(recoveryButton);
+      }
     }
 
     if (!actions.childElementCount) {
@@ -4581,6 +4581,8 @@ function renderAuditLog(entries) {
   const actionLabels = {
     'user.status': 'Kontostatus ge\u00e4ndert',
     'user.password_reset_requested': 'Passwort-Link gesendet',
+    'user.recovery_code_created': 'Wiederherstellungscode erstellt',
+    'user.recovery_completed': 'Konto wiederhergestellt',
     'user.role': 'Rolle ge\u00e4ndert',
     'user.move': 'Konto verschoben',
     'house.create': 'Haus angelegt',
@@ -4647,6 +4649,32 @@ async function requestUserPasswordReset(userId, button) {
   try {
     const data = await api(`/api/admin/users/${userId}/password-reset`, { method: 'POST' });
     showStatus(data.message);
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function requestUserRecoveryCode(user, visibleName, button) {
+  if (!window.confirm(
+    `Hast du die Identitaet von ${visibleName} persoenlich geprueft? Der Code beendet bestehende Sitzungen und darf nur der berechtigten Person direkt uebergeben werden.`
+  )) return;
+  button.disabled = true;
+  adminAccountRecoveryResult.hidden = true;
+  try {
+    const data = await api(`/api/admin/users/${user.id}/recovery-code`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+    });
+    adminAccountRecoveryResult.innerHTML = `
+      <strong>${escapeHtml(visibleName)}:</strong>
+      <code>${escapeHtml(data.code)}</code>
+      <span>${escapeHtml(data.message)}</span>
+    `;
+    adminAccountRecoveryResult.hidden = false;
+    showStatus('Wiederherstellungscode erstellt und im Kontenbereich angezeigt.');
+    await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {

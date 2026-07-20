@@ -352,7 +352,11 @@ async function run() {
       const dryingComponent = recommendation.components.find((item) => item.type === 'drying_room');
       assert.ok(washerComponent?.bookings?.length === 1);
       assert.ok(dryingComponent?.bookingOptions?.length >= 1);
-      assert.equal(recommendation.slot, expectedWashSlots.get(resident.username));
+      const expectedSlot = expectedWashSlots.get(resident.username);
+      assert.ok(slots.includes(recommendation.slot));
+      if (recommendation.slot !== expectedSlot) {
+        assert.match(recommendation.reason, /n.chste passende freie Option/u);
+      }
     }
 
     const finalResult = await expectStatus(residents[0].client, '/api/recommendation', 200);

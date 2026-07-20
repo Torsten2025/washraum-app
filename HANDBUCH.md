@@ -73,6 +73,7 @@ Organisatorischer Notfallprozess:
 | Geraet verbinden | Weiteres Geraet mit einem zehn Minuten gueltigen Einmalcode am bestehenden Wohnungskonto anmelden | Oeffentlich |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
+| Persoenlicher Wiederherstellungscode | Ein Konto ohne bestaetigte E-Mail mit einem 15 Minuten gueltigen, einmaligen Admin-Code, eigener E-Mail und neuem Passwort wiederherstellen | Oeffentlich mit gueltigem Code |
 | Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link sowie manuelle oder automatische Abmeldung anzeigen | Oeffentlich |
 | Datenschutz | Zur Datenschutzerklaerung wechseln | Oeffentlich |
 
@@ -80,7 +81,7 @@ Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem 
 
 Wohnungscodes sind zufaellig, werden serverseitig nur gehasht gespeichert und nach der Aktivierung vernichtet. Der Admin sieht danach nur den Status `aktiviert`, nicht mehr den Code. Ein nicht verwendeter Code kann widerrufen und neu erzeugt werden. Vor der Ausgabe legt der Admin eine stabile interne Wohnungsbezeichnung wie `2. OG links` und getrennt den Namen vom Klingelschild fest. Bewohner koennen bei der Aktivierung keinen eigenen Anzeigenamen waehlen. Bestehende Bewohnerkonten ohne Wohnungszuordnung werden nach dem Login gefragt, ob sie eine Wohnung erstmals aktivieren oder sich per Geraetecode mit einem bereits bestehenden Wohnungskonto zusammenfuehren wollen. Buchungen und Push-Geraete werden bei der Zusammenfuehrung uebernommen; das alte Doppel-Konto wird deaktiviert und bleibt fuer Auditbezuege erhalten.
 
-Bewohnerkonten melden sich mit der ersten oder zweiten hinterlegten E-Mail-Adresse an. Ein alter Bewohner-Benutzername ist bei vorhandener E-Mail kein Login mehr. Nur bestehende Bewohnerkonten ohne jede E-Mail duerfen ihren alten Kontonamen uebergangsweise verwenden, damit der Admin die fehlende Adresse nachtragen kann. Admin- und Superadmin-Konten behalten ihren technischen Kontonamen fuer Betrieb und Notfallzugang.
+Bewohnerkonten melden sich mit der ersten oder zweiten hinterlegten E-Mail-Adresse an. Ein alter Bewohner-Benutzername ist bei vorhandener E-Mail kein Login mehr. Nur bestehende Bewohnerkonten ohne jede E-Mail duerfen ihren alten Kontonamen uebergangsweise verwenden. Admins duerfen eine fremde Konto-E-Mail nicht eintragen oder ersetzen. Ist auch das Passwort unbekannt und keine bestaetigte Adresse vorhanden, prueft der Admin die Person ausserhalb der App und erzeugt danach einen einmaligen Wiederherstellungscode. Die Person traegt Code, eigene E-Mail und neues Passwort selbst auf der Loginseite ein. Ein alter technischer Bestaetigungsstatus ohne tatsaechlich hinterlegte Adresse gilt immer als `E-Mail fehlt` und berechtigt nie zu einem Reset-Link. Admin- und Superadmin-Konten behalten ihren technischen Kontonamen fuer Betrieb und Notfallzugang.
 
 Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
 
@@ -276,19 +277,21 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 | --- | :---: | :---: |
 | Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
 | Stabile Wohnungsbezeichnung und Klingelschildname getrennt festlegen | Ja | Ja |
-| Klingelschildname und E-Mail-Adressen eines Wohnungskontos aktualisieren | Ja | Ja |
+| Klingelschildname eines Wohnungskontos aktualisieren | Ja | Ja |
+| E-Mail-Adressen eines fremden Wohnungskontos ersetzen | Nein | Nein |
 | Namenskorrektur eines Bewohners uebernehmen oder ablehnen | Ja | Ja |
 | Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
 | Konten des aktiven Hauses sehen | Ja | Ja |
 | Bewohner aktivieren oder deaktivieren | Ja | Ja |
 | Reset-Link an bestaetigte Bewohner-E-Mail senden | Ja | Ja |
+| Nach persoenlicher Identitaetspruefung einen Einmalcode fuer Bewohner ohne bestaetigte E-Mail erzeugen | Ja | Ja |
 | Anderen Haus-Admin verwalten | Nein | Ja |
 | Bewohner zu Haus-Admin machen oder zurueckstufen | Nein | Ja |
 | Konto in ein anderes Haus verschieben | Nein | Ja |
 | Superadmin-Konto veraendern oder verschieben | Nein | Nein |
 | Eigenes Passwort ohne bisheriges Passwort zuruecksetzen | Nein | Nein |
 
-Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
+Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen und fremde E-Mail-Adressen nicht ersetzen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Fehlt jede bestaetigte Adresse, darf nach persoenlicher Identitaetspruefung ein 15 Minuten gueltiger Einmalcode erzeugt und direkt an die berechtigte Person ausgegeben werden. Das Erzeugen beendet bestehende Sitzungen und wird auditiert. Erst die Person selbst setzt mit dem Code eine neue E-Mail und ein neues Passwort; Wohnung, Buchungen, Push-Geraete und Protokollbezuege bleiben erhalten. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
 ### 6. Auswertung
 
@@ -338,6 +341,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 
 - Eine neue oder geaenderte E-Mail-Adresse muss bestaetigt werden.
 - Eine erste E-Mail-Adresse ist fuer jedes Wohnungskonto Pflicht; eine zweite Adresse ist optional. Beide werden separat bestaetigt und koennen danach Passwort-Reset und Hinweise empfangen.
+- E-Mail-Adressen werden ausschliesslich durch das angemeldete Wohnungskonto oder bei einer persoenlich geprueften Wiederherstellung durch die betroffene Person selbst gesetzt; Admins koennen sie nicht direkt ersetzen.
 - Ohne Bestaetigung werden keine Freigabe-Hinweise und keine Passwort-Reset-Links versendet.
 - `Frueher frei` ist nur waehrend des aktuell gebuchten Slots moeglich.
 - `Absagen und informieren` ist nur vor Beginn des gebuchten Slots moeglich.
@@ -453,6 +457,15 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run check` aus. Nur bei Erfolg ruft er den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
 
 ## Aenderungsprotokoll
+
+### 20. Juli 2026
+
+- Direkte Admin-Aenderung fremder Bewohner-E-Mails gesperrt. Damit kann ein Admin keine eigene Adresse mehr in ein Wohnungskonto eintragen, bestaetigen und anschliessend dessen Passwort uebernehmen.
+- Persoenlich geprueften Kontowiederherstellungsprozess fuer Bewohner ohne bestaetigte E-Mail eingefuehrt: protokollierter Einmalcode, 15 Minuten Laufzeit, einmalige Verwendung, sofortiges Sitzungsende und selbststaendige Eingabe von E-Mail und neuem Passwort durch die betroffene Person.
+- Widerspruechliche Altdaten mit gesetztem Bestaetigungsstatus, aber ohne hinterlegte E-Mail werden bereinigt und koennen keinen Reset-Link mehr vortaeuschen.
+- Regressionstests sichern ab, dass die Wiederherstellung Wohnungszuordnung, Buchungsidentitaet und Rollenbindung nicht veraendert und dass Bewohner keine Admin-Codes fuer sich oder andere erzeugen koennen.
+- Die Admin-Warnzahl zaehlt nur noch aktive Bewohnerkonten ohne irgendeine bestaetigte E-Mail; technische Admin-Konten werden nicht faelschlich als Bewohner-Recovery-Aufgabe angezeigt.
+- Jahressimulation zeitunabhaengig gemacht: Liegt der gelernte Lieblingsslot am aktuellen Tag bereits in der Vergangenheit, wird auch die naechste regelkonforme Alternative als korrekt geprueft.
 
 ### 19. Juli 2026
 

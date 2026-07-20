@@ -323,6 +323,20 @@ async function run() {
       });
     });
 
+    await check('AUTH-05A', 'Admin kann die E-Mail eines fremden Wohnungskontos nicht uebernehmen', async () => {
+      await expectStatus(admin, `/api/admin/apartments/${apartment.apartment.id}`, 403, {
+        method: 'PUT',
+        body: JSON.stringify({
+          displayName: 'Audit Familie',
+          email: 'security-admin@example.test',
+          secondaryEmail: ''
+        })
+      });
+      const residentState = await expectStatus(resident, '/api/me', 200);
+      assert.equal(residentState.body.user.email, 'audit-familie@example.test');
+      assert.equal(residentState.body.user.apartmentLabel, 'Audit 2. OG links');
+    });
+
     await check('AUTH-05', 'Bewohnerlogin erfolgt per E-Mail, nicht per frei gewaehltem Namen', async () => {
       await expectStatus(new ApiClient(), '/api/login', 401, {
         method: 'POST',
@@ -387,6 +401,10 @@ async function run() {
       await expectStatus(resident, '/api/admin/resources', 403);
       await expectStatus(resident, '/api/admin/houses', 403);
       await expectStatus(resident, '/api/admin/backup', 403);
+      await expectStatus(resident, `/api/admin/users/${residentId}/recovery-code`, 403, {
+        method: 'POST',
+        body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+      });
       await expectStatus(resident, '/api/me/active-house', 403, {
         method: 'PUT',
         body: JSON.stringify({ houseId: 1 })

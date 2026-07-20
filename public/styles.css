@@ -1280,6 +1280,23 @@ aside.panel {
   color: var(--accent-dark);
 }
 
+.admin-account-recovery-result {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.admin-account-recovery-result[hidden] {
+  display: none;
+}
+
+.admin-account-recovery-result code {
+  color: var(--night);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .notification-filters {
   border-block: 1px solid var(--line);
   padding-block: 8px;

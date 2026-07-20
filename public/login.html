@@ -92,8 +92,32 @@
             <input name="email" type="email" autocomplete="email" required>
           </label>
           <button type="submit">Link anfordern</button>
+          <button id="showAccountRecovery" class="text-button" type="button">Pers&ouml;nlichen Wiederherstellungscode verwenden</button>
           <button id="cancelRecovery" class="text-button" type="button">Zur&uuml;ck zur Anmeldung</button>
           <p id="recoveryMessage" class="message" role="status"></p>
+        </form>
+        <form id="accountRecoveryForm" class="stack auth-form" hidden>
+          <h2>Konto sicher wiederherstellen</h2>
+          <p class="helper-text">Dieser Einmalcode wird nach pers&ouml;nlicher Pr&uuml;fung durch die Hausverwaltung ausgegeben und ist 15 Minuten g&uuml;ltig.</p>
+          <label>
+            Wiederherstellungscode
+            <input name="code" autocomplete="one-time-code" required>
+          </label>
+          <label>
+            Eigene E-Mail-Adresse
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            Neues Passwort
+            <input name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          </label>
+          <label>
+            Neues Passwort wiederholen
+            <input name="newPasswordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          </label>
+          <button type="submit">Konto wiederherstellen</button>
+          <button id="cancelAccountRecovery" class="text-button" type="button">Zur&uuml;ck zur Anmeldung</button>
+          <p id="accountRecoveryMessage" class="message" role="status"></p>
         </form>
         <form id="registerForm" class="stack auth-form" hidden>
           <label>

@@ -9,6 +9,10 @@ const deviceLoginForm = document.querySelector('#deviceLoginForm');
 const deviceLoginMessage = document.querySelector('#deviceLoginMessage');
 const recoveryForm = document.querySelector('#recoveryForm');
 const recoveryMessage = document.querySelector('#recoveryMessage');
+const accountRecoveryForm = document.querySelector('#accountRecoveryForm');
+const accountRecoveryMessage = document.querySelector('#accountRecoveryMessage');
+const showAccountRecovery = document.querySelector('#showAccountRecovery');
+const cancelAccountRecovery = document.querySelector('#cancelAccountRecovery');
 const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const updateAppButton = document.querySelector('#updateAppButton');
 const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
@@ -89,24 +93,30 @@ async function submitJson(formElement, path, body, messageElement) {
 function setMode(mode) {
   const isRegister = mode === 'register';
   const isRecovery = mode === 'recovery';
+  const isAccountRecovery = mode === 'account-recovery';
   const isDeviceLogin = mode === 'device';
-  form.hidden = isRegister || isRecovery || isDeviceLogin;
+  form.hidden = isRegister || isRecovery || isAccountRecovery || isDeviceLogin;
   registerForm.hidden = !isRegister;
   recoveryForm.hidden = !isRecovery;
+  accountRecoveryForm.hidden = !isAccountRecovery;
   deviceLoginForm.hidden = !isDeviceLogin;
-  showLogin.classList.toggle('active', !isRegister && !isRecovery && !isDeviceLogin);
+  showLogin.classList.toggle('active', !isRegister && !isRecovery && !isAccountRecovery && !isDeviceLogin);
   showRegister.classList.toggle('active', isRegister);
   showDeviceLogin.classList.toggle('active', isDeviceLogin);
   message.textContent = '';
   registerMessage.textContent = '';
   deviceLoginMessage.textContent = '';
+  recoveryMessage.textContent = '';
+  accountRecoveryMessage.textContent = '';
 }
 
 showLogin.addEventListener('click', () => setMode('login'));
 showRegister.addEventListener('click', () => setMode('register'));
 showDeviceLogin.addEventListener('click', () => setMode('device'));
 showRecovery.addEventListener('click', () => setMode('recovery'));
+showAccountRecovery.addEventListener('click', () => setMode('account-recovery'));
 cancelRecovery.addEventListener('click', () => setMode('login'));
+cancelAccountRecovery.addEventListener('click', () => setMode('login'));
 
 const verification = new URLSearchParams(window.location.search).get('verification');
 const loggedOut = new URLSearchParams(window.location.search).get('loggedOut');
@@ -171,5 +181,24 @@ recoveryForm.addEventListener('submit', async (event) => {
   }, recoveryMessage);
   if (data) {
     recoveryMessage.textContent = data.message || 'Die Anfrage wurde verarbeitet.';
+  }
+});
+
+accountRecoveryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  accountRecoveryMessage.textContent = '';
+  const formData = new FormData(accountRecoveryForm);
+  if (formData.get('newPassword') !== formData.get('newPasswordConfirmation')) {
+    accountRecoveryMessage.textContent = 'Die beiden neuen Passwoerter stimmen nicht ueberein.';
+    return;
+  }
+  const data = await submitJson(accountRecoveryForm, '/api/account-recovery/confirm', {
+    code: formData.get('code'),
+    email: formData.get('email'),
+    newPassword: formData.get('newPassword')
+  }, accountRecoveryMessage);
+  if (data) {
+    accountRecoveryForm.reset();
+    accountRecoveryMessage.textContent = data.message || 'Das Konto wurde wiederhergestellt.';
   }
 });

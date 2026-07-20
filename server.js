@@ -149,7 +149,7 @@ function createCurrentTables() {
       is_superadmin INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       notify_releases INTEGER NOT NULL DEFAULT 1,
-      email_verified INTEGER NOT NULL DEFAULT 1,
+      email_verified INTEGER NOT NULL DEFAULT 0,
       booking_mode TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine')),
       apartment_id INTEGER,
       secondary_email TEXT,
@@ -326,6 +326,18 @@ function createCurrentTables() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS account_recovery_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      code_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       house_id INTEGER,
@@ -345,7 +357,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
-  ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'booking_mode', "TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine'))");
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
@@ -366,6 +378,12 @@ function seedCurrentDefaults() {
   ensureColumn('push_subscriptions', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('email_verification_tokens', 'email_kind', "TEXT NOT NULL DEFAULT 'primary'");
   ensureColumn('email_verification_tokens', 'email_value', 'TEXT');
+  db.exec(`
+    UPDATE users SET email_verified = 0
+    WHERE email IS NULL OR trim(email) = '';
+    UPDATE users SET secondary_email_verified = 0
+    WHERE secondary_email IS NULL OR trim(secondary_email) = '';
+  `);
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
@@ -379,6 +397,7 @@ function seedCurrentDefaults() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_entries_case ON maintenance_entries (case_id, created_at, id)");
   db.prepare("UPDATE apartments SET display_name = label WHERE display_name IS NULL OR trim(display_name) = ''").run();
   db.exec("CREATE INDEX IF NOT EXISTS idx_pairing_codes_user ON device_pairing_codes (user_id, expires_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_account_recovery_user ON account_recovery_codes (user_id, expires_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_name_requests ON apartment_name_requests (apartment_id, status, created_at)");
   const initialHouseCode = getSetting('house_code').trim()
     || process.env.HOUSE_CODE
@@ -1888,6 +1907,14 @@ function isValidEmail(value) {
   ));
 }
 
+function verifiedEmailForUser(user) {
+  if (user?.email_verified && isValidEmail(user.email)) return normalizeEmail(user.email);
+  if (user?.secondary_email_verified && isValidEmail(user.secondary_email)) {
+    return normalizeEmail(user.secondary_email);
+  }
+  return '';
+}
+
 function normalizeAccessCode(value) {
   return String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '');
 }
@@ -2598,6 +2625,7 @@ function cleanupExpiredData() {
     db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
     db.prepare('DELETE FROM email_verification_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
     db.prepare('DELETE FROM password_reset_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
+    db.prepare('DELETE FROM account_recovery_codes WHERE used_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
     db.prepare('DELETE FROM device_pairing_codes WHERE used_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
     db.prepare("DELETE FROM release_notices WHERE created_at < datetime('now', '-30 days')").run();
     db.prepare("DELETE FROM bookings WHERE booking_date < date('now', '-365 days')").run();
@@ -2889,6 +2917,72 @@ app.post('/api/password-reset/confirm', recoveryRateLimit, (req, res) => {
   })();
   destroyUserSessions(record.user_id);
   res.json({ ok: true, message: 'Passwort ge\u00e4ndert. Du kannst dich jetzt anmelden.' });
+});
+
+app.post('/api/account-recovery/confirm', recoveryRateLimit, async (req, res, next) => {
+  const code = normalizeAccessCode(req.body?.code);
+  const email = normalizeEmail(req.body?.email);
+  const newPassword = String(req.body?.newPassword || '');
+  if (!code || !isValidEmail(email) || !isValidPassword(newPassword)) {
+    return res.status(400).json({
+      error: 'Bitte einen gueltigen Wiederherstellungscode, eine E-Mail-Adresse und ein Passwort mit 12 bis 128 Zeichen eingeben.'
+    });
+  }
+
+  const record = db.prepare(`
+    SELECT arc.id AS recovery_id, arc.user_id, u.*
+    FROM account_recovery_codes arc
+    JOIN users u ON u.id = arc.user_id
+    WHERE arc.code_hash = ? AND arc.used_at IS NULL
+      AND CAST(arc.expires_at AS INTEGER) > ?
+      AND u.active = 1 AND u.role = 'user' AND u.merged_into_user_id IS NULL
+  `).get(tokenHash(code), Date.now());
+  if (!record) {
+    return res.status(400).json({ error: 'Der Wiederherstellungscode ist ungueltig, abgelaufen oder bereits verwendet.' });
+  }
+  if (verifiedEmailForUser(record)) {
+    return res.status(409).json({ error: 'Dieses Konto besitzt inzwischen eine bestaetigte E-Mail-Adresse. Bitte den normalen Passwort-Reset verwenden.' });
+  }
+  if (findEmailOwner(email, record.user_id)) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einem anderen Konto.' });
+  }
+
+  try {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE users
+        SET email = ?, email_verified = 0,
+            secondary_email = NULL, secondary_email_verified = 0,
+            password_hash = ?
+        WHERE id = ?
+      `).run(email, bcrypt.hashSync(newPassword, 10), record.user_id);
+      db.prepare('UPDATE account_recovery_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(record.recovery_id);
+      db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(record.user_id);
+      db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(record.user_id);
+    })();
+    destroyUserSessions(record.user_id);
+
+    const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(record.user_id);
+    const verification = await sendEmailVerification(req, updatedUser).catch((error) => {
+      console.error(`Bestaetigungsmail nach Kontowiederherstellung fehlgeschlagen: ${error.message}`);
+      return { configured: true, sent: false };
+    });
+    writeAuditForHouse(req, record.house_id, 'user.recovery_completed', 'user', record.user_id, {
+      verificationSent: Boolean(verification.sent)
+    });
+    res.json({
+      ok: true,
+      message: verification.sent
+        ? 'Konto wiederhergestellt. Bitte bestaetige jetzt deine E-Mail-Adresse und melde dich danach an.'
+        : 'Konto wiederhergestellt. Du kannst dich mit der neuen E-Mail-Adresse und dem neuen Passwort anmelden; die E-Mail-Bestaetigung muss noch versendet werden.'
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben.' });
+    }
+    next(error);
+  }
 });
 
 function finishLogout(req, res, next, redirectToLogin = false) {
@@ -4510,24 +4604,19 @@ app.put('/api/admin/apartments/:id', requireAdmin, async (req, res, next) => {
     return res.status(400).json({ error: 'Bitte den Namen vom Klingelschild mit 2 bis 80 Zeichen eingeben.' });
   }
 
-  const email = normalizeEmail(req.body?.email);
-  const secondaryEmail = normalizeEmail(req.body?.secondaryEmail);
-  if (apartment.claimed_by) {
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Fuer das aktivierte Wohnungskonto ist eine gueltige erste E-Mail erforderlich.' });
-    }
-    if (secondaryEmail && (!isValidEmail(secondaryEmail) || secondaryEmail === email)) {
-      return res.status(400).json({ error: 'Die zweite E-Mail muss gueltig sein und sich von der ersten unterscheiden.' });
-    }
-    if (findEmailOwner(email, apartment.claimed_by) || (secondaryEmail && findEmailOwner(secondaryEmail, apartment.claimed_by))) {
-      return res.status(409).json({ error: 'Eine dieser E-Mail-Adressen gehoert bereits zu einem anderen Konto.' });
-    }
+  const requestedEmail = normalizeEmail(req.body?.email);
+  const requestedSecondaryEmail = normalizeEmail(req.body?.secondaryEmail);
+  if (apartment.claimed_by && (
+    (Object.hasOwn(req.body || {}, 'email') && requestedEmail !== normalizeEmail(apartment.email))
+    || (Object.hasOwn(req.body || {}, 'secondaryEmail')
+      && requestedSecondaryEmail !== normalizeEmail(apartment.secondary_email))
+  )) {
+    return res.status(403).json({
+      error: 'Admins duerfen die E-Mail-Adressen eines Wohnungskontos nicht ersetzen. Bewohner aendern sie selbst unter Einstellungen; ohne bestaetigte Adresse wird ein persoenlicher Wiederherstellungscode verwendet.'
+    });
   }
 
   try {
-    const emailChanged = apartment.claimed_by && normalizeEmail(apartment.email) !== email;
-    const secondaryEmailChanged = apartment.claimed_by
-      && normalizeEmail(apartment.secondary_email) !== secondaryEmail;
     db.transaction(() => {
       db.prepare('UPDATE apartments SET display_name = ? WHERE id = ?').run(displayName, apartment.id);
       db.prepare(`
@@ -4536,48 +4625,15 @@ app.put('/api/admin/apartments/:id', requireAdmin, async (req, res, next) => {
             resolved_by = ?, resolved_at = CURRENT_TIMESTAMP
         WHERE apartment_id = ? AND status = 'pending'
       `).run(displayName, req.session.user.id, apartment.id);
-      if (apartment.claimed_by) {
-        db.prepare(`
-          UPDATE users
-          SET email = ?, secondary_email = NULLIF(?, ''),
-              email_verified = ?, secondary_email_verified = ?
-          WHERE id = ?
-        `).run(
-          email,
-          secondaryEmail,
-          emailChanged ? 0 : apartment.email_verified,
-          secondaryEmailChanged ? 0 : apartment.secondary_email_verified,
-          apartment.claimed_by
-        );
-      }
     })();
-
-    if (apartment.claimed_by && (emailChanged || secondaryEmailChanged)) {
-      destroyUserSessions(apartment.claimed_by);
-      const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(apartment.claimed_by);
-      if (emailChanged) {
-        await sendEmailVerification(req, updatedUser).catch((error) => {
-          console.error(`Bestaetigungsmail konnte nicht gesendet werden: ${error.message}`);
-        });
-      }
-      if (secondaryEmailChanged && secondaryEmail) {
-        await sendEmailVerification(req, updatedUser, 'secondary').catch((error) => {
-          console.error(`Zweite Bestaetigungsmail konnte nicht gesendet werden: ${error.message}`);
-        });
-      }
-    }
 
     writeAudit(req, 'apartment.update', 'apartment', apartment.id, {
       label: apartment.label,
-      displayName,
-      emailChanged: Boolean(emailChanged),
-      secondaryEmailChanged: Boolean(secondaryEmailChanged)
+      displayName
     });
     res.json({
       ok: true,
-      message: apartment.claimed_by && (emailChanged || secondaryEmailChanged)
-        ? `${apartment.label} wurde aktualisiert. Das Wohnungskonto meldet sich jetzt mit der neuen E-Mail an.`
-        : `${apartment.label} wurde aktualisiert.`
+      message: `${apartment.label} wurde aktualisiert.`
     });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -4704,7 +4760,7 @@ app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateL
     return res.status(403).json({ error: 'Hausadmins k\u00f6nnen keine Reset-Links f\u00fcr andere Admins senden.' });
   }
   try {
-    const deliveryEmail = user.email_verified ? user.email : user.secondary_email;
+    const deliveryEmail = verifiedEmailForUser(user);
     const sent = await sendPasswordReset(req, user, deliveryEmail);
     if (!sent) {
       return res.status(409).json({
@@ -4716,6 +4772,46 @@ app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateL
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/admin/users/:id/recovery-code', requireAdmin, adminRecoveryRateLimit, (req, res) => {
+  const userId = Number(req.params.id);
+  const user = db.prepare(`
+    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified, role, is_superadmin,
+           active, merged_into_user_id, house_id
+    FROM users
+    WHERE id = ? AND house_id = ?
+  `).get(userId, currentHouseId(req));
+  if (!user) {
+    return res.status(404).json({ error: 'Konto nicht gefunden.' });
+  }
+  if (user.role !== 'user' || user.is_superadmin || user.merged_into_user_id || !user.active) {
+    return res.status(409).json({ error: 'Nur ein aktives, nicht zusammengefuehrtes Bewohnerkonto kann so wiederhergestellt werden.' });
+  }
+  if (verifiedEmailForUser(user)) {
+    return res.status(409).json({ error: 'Dieses Konto besitzt eine bestaetigte E-Mail-Adresse. Bitte stattdessen einen normalen Reset-Link senden.' });
+  }
+  if (req.body?.confirm !== 'KONTO WIEDERHERSTELLEN') {
+    return res.status(400).json({ error: 'Bitte die Wiederherstellung eindeutig bestaetigen.' });
+  }
+
+  const code = generateReadableCode('R');
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+  db.transaction(() => {
+    db.prepare('DELETE FROM account_recovery_codes WHERE user_id = ? OR CAST(expires_at AS INTEGER) <= ?')
+      .run(user.id, Date.now());
+    db.prepare(`
+      INSERT INTO account_recovery_codes (user_id, code_hash, expires_at, created_by)
+      VALUES (?, ?, ?, ?)
+    `).run(user.id, tokenHash(normalizeAccessCode(code)), String(expiresAt), req.session.user.id);
+  })();
+  destroyUserSessions(user.id);
+  writeAudit(req, 'user.recovery_code_created', 'user', user.id, { expiresAt });
+  res.status(201).json({
+    code,
+    expiresAt,
+    message: 'Wiederherstellungscode erstellt. Er ist 15 Minuten gueltig, nur einmal verwendbar und muss der berechtigten Person direkt uebergeben werden.'
+  });
 });
 
 app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res) => {
@@ -4886,7 +4982,9 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     FROM users
     WHERE active = 1
       AND house_id = ?
-      AND (email IS NULL OR email = '')
+      AND role = 'user'
+      AND NOT (email_verified = 1 AND email IS NOT NULL AND trim(email) != '')
+      AND NOT (secondary_email_verified = 1 AND secondary_email IS NOT NULL AND trim(secondary_email) != '')
   `).get(houseId).count;
   const todayBookings = db.prepare(`
     SELECT COUNT(*) AS count

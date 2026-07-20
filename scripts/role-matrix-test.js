@@ -309,8 +309,19 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ displayName: 'Rollenfamilie 7 aktualisiert' })
     });
-    await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}/new-code`, 200, {
+    const renewedApartmentCode = await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}/new-code`, 200, {
       method: 'POST'
+    });
+    await expectStatus(resident, '/api/me/apartment/claim', 200, {
+      method: 'POST',
+      body: JSON.stringify({ apartmentCode: renewedApartmentCode.body.activationCode })
+    });
+    await expectStatus(houseAdmin, `/api/admin/apartments/${apartment.body.apartment.id}`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({
+        displayName: 'Rollenfamilie 7 aktualisiert',
+        email: 'hausadmin-uebernahme@example.test'
+      })
     });
 
     await expectStatus(houseAdmin, '/api/admin/settings/house-code', 200, {
@@ -391,8 +402,32 @@ async function run() {
       method: 'POST'
     });
 
+    await expectStatus(houseAdmin, `/api/admin/users/${firstResidentRegistration.body.user.id}/recovery-code`, 404, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+    });
+    const residentRecovery = await expectStatus(
+      houseAdmin,
+      `/api/admin/users/${residentRegistration.body.user.id}/recovery-code`,
+      201,
+      {
+        method: 'POST',
+        body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+      }
+    );
+    await expectStatus(new ApiClient(), '/api/account-recovery/confirm', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: residentRecovery.body.code,
+        email: 'rollen-20-neu@example.test',
+        newPassword: 'Rollen-Bewohner20-Neu!'
+      })
+    });
+
     const residentAfterReset = new ApiClient();
-    await login(residentAfterReset, 'rollen-20@example.test', 'Rollen-Bewohner20!');
+    await login(residentAfterReset, 'rollen-20-neu@example.test', 'Rollen-Bewohner20-Neu!');
+    const recoveredResident = await expectStatus(residentAfterReset, '/api/me', 200);
+    assert.equal(recoveredResident.body.user.apartmentLabel, 'Rollen 2. OG links');
     const residentBooking = await expectStatus(residentAfterReset, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
@@ -460,7 +495,8 @@ async function run() {
       ['/api/admin/bookings', 'DELETE'],
       ['/api/admin/backup/run', 'POST'],
       ['/api/admin/maintenance', 'GET'],
-      ['/api/admin/maintenance', 'PUT']
+      ['/api/admin/maintenance', 'PUT'],
+      [`/api/admin/users/${residentRegistration.body.user.id}/recovery-code`, 'POST']
     ];
     for (const [route, method] of residentDeniedRoutes) {
       await expectStatus(residentAfterReset, route, 403, { method });

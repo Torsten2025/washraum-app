@@ -1016,6 +1016,92 @@ async function run() {
       body: JSON.stringify({ userId: 999999 })
     });
 
+    const recoveryApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({ label: '1. OG rechts', displayName: 'Familie Recovery' })
+    });
+    const recoveryAccount = new ApiClient();
+    const recoveryAccountRegistration = await expectStatus(recoveryAccount, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        email: 'recovery-alt@example.test',
+        password: 'Recovery-Alt-2026!',
+        apartmentCode: recoveryApartment.body.activationCode,
+        notifyReleases: true
+      })
+    });
+    const recoveryUserId = recoveryAccountRegistration.body.user.id;
+    await expectStatus(admin, `/api/admin/apartments/${recoveryApartment.body.apartment.id}`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({
+        displayName: 'Familie Recovery',
+        email: 'admin-takeover@example.test',
+        secondaryEmail: ''
+      })
+    });
+    const beforeRecoveryDatabase = new Database(databasePath);
+    const beforeRecoveryUser = beforeRecoveryDatabase.prepare(
+      'SELECT email, apartment_id FROM users WHERE id = ?'
+    ).get(recoveryUserId);
+    assert.equal(beforeRecoveryUser.email, 'recovery-alt@example.test');
+    assert.equal(beforeRecoveryUser.apartment_id, recoveryApartment.body.apartment.id);
+    beforeRecoveryDatabase.prepare(`
+      UPDATE users
+      SET email = NULL, secondary_email = NULL,
+          email_verified = 1, secondary_email_verified = 1
+      WHERE id = ?
+    `).run(recoveryUserId);
+    beforeRecoveryDatabase.close();
+
+    const recoveryOverview = await expectStatus(admin, '/api/admin/overview', 200);
+    assert.ok(recoveryOverview.body.usersMissingEmail >= 1);
+
+    await expectStatus(admin, `/api/admin/users/${recoveryUserId}/recovery-code`, 400, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'falsch' })
+    });
+    const recoveryCode = await expectStatus(admin, `/api/admin/users/${recoveryUserId}/recovery-code`, 201, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+    });
+    assert.match(recoveryCode.body.code, /^R-[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+    await expectStatus(guest, '/api/account-recovery/confirm', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: recoveryCode.body.code,
+        email: 'recovery-neu@example.test',
+        newPassword: 'zu-kurz'
+      })
+    });
+    await expectStatus(guest, '/api/account-recovery/confirm', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: recoveryCode.body.code,
+        email: 'recovery-neu@example.test',
+        newPassword: 'Recovery-Neu-2026!'
+      })
+    });
+    await expectStatus(guest, '/api/account-recovery/confirm', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: recoveryCode.body.code,
+        email: 'recovery-nochmal@example.test',
+        newPassword: 'Recovery-Nochmal-2026!'
+      })
+    });
+    await expectStatus(new ApiClient(), '/api/login', 401, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'recovery-alt@example.test', password: 'Recovery-Alt-2026!' })
+    });
+    const recoveredAccount = new ApiClient();
+    await expectStatus(recoveredAccount, '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'recovery-neu@example.test', password: 'Recovery-Neu-2026!' })
+    });
+    const recoveredMe = await expectStatus(recoveredAccount, '/api/me', 200);
+    assert.equal(recoveredMe.body.user.apartmentLabel, '1. OG rechts');
+    assert.equal(recoveredMe.body.user.emailVerified, false);
+
     const existingApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
       method: 'POST',
       body: JSON.stringify({ label: '2. OG links', displayName: 'Meier / Keller' })
@@ -1042,9 +1128,7 @@ async function run() {
     await expectStatus(admin, `/api/admin/apartments/${existingApartment.body.apartment.id}`, 200, {
       method: 'PUT',
       body: JSON.stringify({
-        displayName: 'Meier-Keller',
-        email: 'bewohner-test@example.com',
-        secondaryEmail: 'bewohner-zweit@example.com'
+        displayName: 'Meier-Keller'
       })
     });
     const renamedBooking = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
@@ -1495,6 +1579,7 @@ async function run() {
     assert.ok(indexHtml.includes('adminPeopleCount'));
     assert.ok(indexHtml.includes('adminHouseCount'));
     assert.ok(indexHtml.includes('adminSystemCount'));
+    assert.ok(indexHtml.includes('adminAccountRecoveryResult'));
     assert.ok(indexHtml.includes('data-admin-target="overview"'));
     assert.ok(indexHtml.includes('data-admin-target="house"'));
     assert.ok(indexHtml.includes('data-admin-target="fixed"'));
@@ -1541,6 +1626,7 @@ async function run() {
     assert.ok(stylesText.includes('.admin-task-item'));
     assert.ok(stylesText.includes('.admin-responsibility-list'));
     assert.ok(stylesText.includes('.admin-tab-count'));
+    assert.ok(stylesText.includes('.admin-account-recovery-result'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
     assert.ok(stylesText.includes('.session-warning-modal'));
@@ -1583,6 +1669,9 @@ async function run() {
     assert.ok(appScriptText.includes('configureSessionTimeout'));
     assert.ok(appScriptText.includes('SESSION_IDLE_TIMEOUT'));
     assert.ok(appScriptText.includes('Reset-Link senden'));
+    assert.ok(appScriptText.includes('Wiederherstellungscode'));
+    assert.ok(appScriptText.includes('/recovery-code'));
+    assert.ok(!appScriptText.includes('input name="secondaryEmail" type="email"'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
@@ -1640,6 +1729,10 @@ async function run() {
     const loginPage = await expectStatus(guest, '/login.html', 200);
     assert.ok(loginPage.body.toString().includes('Wasch<strong>Zeit</strong>'));
     assert.ok(!loginPage.body.toString().includes('/assets/gbmz-logo.svg'));
+    assert.ok(loginPage.body.toString().includes('accountRecoveryForm'));
+    assert.ok(loginPage.body.toString().includes('Wiederherstellungscode'));
+    const loginScript = await expectStatus(guest, '/login.js', 200);
+    assert.ok(loginScript.body.toString().includes('/api/account-recovery/confirm'));
     await expectStatus(guest, '/reset.html?token=test', 200);
 
     await verifySmtpDelivery();
