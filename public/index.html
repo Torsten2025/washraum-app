@@ -23,7 +23,7 @@
         <p id="userLine"></p>
       </div>
       <nav id="viewSwitcher" class="view-switcher" aria-label="Ansicht" hidden>
-        <button id="bookingViewButton" class="active" type="button">Buchen</button>
+        <button id="bookingViewButton" class="active" type="button">Mein Waschplan</button>
         <button id="adminViewButton" type="button">Verwalten</button>
       </nav>
       <label id="houseSwitcher" class="house-switcher" hidden>
@@ -51,6 +51,7 @@
             </div>
             <button id="openSettingsButton" class="account-menu-item" type="button">Einstellungen</button>
             <button id="openKnowledgeButton" class="account-menu-item" type="button">Hilfe &amp; Einf&uuml;hrung</button>
+            <button id="openDiaperGameButton" class="account-menu-item" type="button">Windel-Alarm spielen</button>
             <form id="logoutForm" class="logout-form" method="post" action="/logout">
               <button id="logoutButton" class="account-menu-item account-menu-logout" type="submit">Abmelden</button>
             </form>
@@ -102,8 +103,8 @@
         <section class="panel booking-panel">
           <div class="section-head">
             <div>
-              <h2>Buchen</h2>
-              <p class="muted">Verschaffe dir zuerst einen &Uuml;berblick. Danach stellst du dein Waschpaket Schritt f&uuml;r Schritt zusammen.</p>
+              <h2 id="bookingPanelTitle">Buchen</h2>
+              <p id="bookingPanelIntro" class="muted">Verschaffe dir zuerst einen &Uuml;berblick. Danach stellst du dein Waschpaket Schritt f&uuml;r Schritt zusammen.</p>
             </div>
             <input id="bookingDate" type="date" aria-label="Buchungsdatum">
           </div>
@@ -156,7 +157,7 @@
               <div id="bookingFlowContent" class="booking-flow-content" aria-live="polite"></div>
             </section>
           </div>
-          <details class="single-booking-details">
+          <details id="singleBookingDetails" class="single-booking-details">
             <summary>Einzelnes Ger&auml;t separat buchen</summary>
             <p class="muted">F&uuml;r eine einzelne Nutzung kannst du weiterhin direkt ein Ger&auml;t ausw&auml;hlen.</p>
             <div class="filters" role="group" aria-label="Ger&auml;tetyp">
@@ -402,7 +403,13 @@
                 <strong>Wartungsmodus</strong>
                 <span id="maintenanceAdminStatus">Status wird gepr&uuml;ft.</span>
               </div>
-              <button id="toggleMaintenanceButton" class="secondary" type="button">Wartung starten</button>
+              <div class="inline-actions">
+                <label id="maintenancePasswordLabel">
+                  Aktuelles Passwort
+                  <input id="maintenanceCurrentPassword" type="password" autocomplete="current-password">
+                </label>
+                <button id="toggleMaintenanceButton" class="secondary" type="button">Wartung starten</button>
+              </div>
             </div>
             <div id="superadminTransferOperation" class="admin-operation" hidden>
               <div>
@@ -418,6 +425,10 @@
                   Best&auml;tigung
                   <input id="superadminTransferConfirm" autocomplete="off" placeholder="SUPERADMIN UEBERGEBEN">
                 </label>
+                <label>
+                  Aktuelles Passwort
+                  <input id="superadminTransferCurrentPassword" type="password" autocomplete="current-password">
+                </label>
                 <button id="superadminTransferButton" class="secondary danger" type="button">&Uuml;bergeben</button>
               </div>
             </div>
@@ -427,6 +438,10 @@
               <label>
                 Best&auml;tigung
                 <input id="resetBookingsConfirm" autocomplete="off" placeholder="ALLE BUCHUNGEN">
+              </label>
+              <label>
+                Aktuelles Passwort
+                <input id="resetBookingsCurrentPassword" type="password" autocomplete="current-password">
               </label>
               <button id="resetBookingsButton" class="secondary danger" type="button">Alle Buchungen l&ouml;schen</button>
             </details>
@@ -438,6 +453,103 @@
         </div>
       </aside>
     </main>
+
+    <div id="diaperGameOverlay" class="intro-overlay" hidden>
+      <section class="intro-modal diaper-game-modal" role="dialog" aria-modal="true" aria-labelledby="diaperGameTitle" aria-describedby="diaperGameIntro">
+        <button id="closeDiaperGameButton" class="icon-close" type="button" aria-label="Windel-Alarm schliessen">x</button>
+        <header class="diaper-game-hero">
+          <div>
+            <p class="diaper-game-kicker"><span></span> WaschZeit Arcade</p>
+            <h2 id="diaperGameTitle">Windel-Alarm<span>!</span></h2>
+            <p id="diaperGameIntro">F&uuml;nf Handgriffe. Eine steigende Spannung. Bleib ruhig und entsch&auml;rfe die Windel, bevor es ploppt.</p>
+          </div>
+          <div class="diaper-game-badges" aria-label="Spielmerkmale">
+            <span><b>5</b> Griffe</span>
+            <span><b>LIVE</b> Global</span>
+          </div>
+        </header>
+        <div id="diaperGameStage" class="diaper-game-stage" data-mood="calm">
+          <div class="diaper-stage-glow diaper-stage-glow-one" aria-hidden="true"></div>
+          <div class="diaper-stage-glow diaper-stage-glow-two" aria-hidden="true"></div>
+          <div class="diaper-baby-zone" aria-hidden="true">
+            <span class="diaper-orbit orbit-one"></span>
+            <span class="diaper-orbit orbit-two"></span>
+            <div class="diaper-baby">
+              <span class="baby-ear baby-ear-left"></span>
+              <span class="baby-ear baby-ear-right"></span>
+              <div class="baby-face">
+                <span class="baby-hair"></span>
+                <span class="baby-eye baby-eye-left"></span>
+                <span class="baby-eye baby-eye-right"></span>
+                <span class="baby-cheek baby-cheek-left"></span>
+                <span class="baby-cheek baby-cheek-right"></span>
+                <span class="baby-mouth"></span>
+              </div>
+              <div class="baby-body">
+                <span class="baby-arm baby-arm-left"></span>
+                <span class="baby-arm baby-arm-right"></span>
+                <span class="baby-suit">WZ</span>
+                <span class="baby-diaper"></span>
+              </div>
+            </div>
+            <div class="diaper-burst">
+              <span>PLOPP!</span><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <div class="diaper-game-console">
+            <div class="pups-meter-head">
+              <span><small>Live-Sensor</small><strong>Pups-O-Meter</strong></span>
+              <span id="diaperPressureText" class="pressure-chip">Bereit</span>
+            </div>
+            <div class="pups-meter" role="progressbar" aria-label="Pupsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <span id="diaperPressureBar"><i></i></span>
+            </div>
+            <div class="diaper-step-rail" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="diaper-status-card">
+              <span class="diaper-status-pulse" aria-hidden="true"></span>
+              <p id="diaperGameStatus" class="diaper-game-status" role="status" aria-live="polite">Dr&uuml;cke auf Start, wenn du bereit bist.</p>
+              <p id="diaperGameProgress" class="diaper-game-progress">0 von 5 Handgriffen &middot; Bestwert: &ndash;</p>
+            </div>
+          </div>
+        </div>
+        <div class="diaper-game-lower">
+          <section class="diaper-tool-panel" aria-labelledby="diaperToolTitle">
+            <div class="diaper-panel-head">
+              <div>
+                <p>Dein Zug</p>
+                <h3 id="diaperToolTitle">Was kommt als N&auml;chstes?</h3>
+              </div>
+              <span>Tempo + Reihenfolge</span>
+            </div>
+            <div id="diaperGameActions" class="diaper-game-actions" aria-label="Wickelutensilien">
+              <p class="diaper-actions-empty">Starte eine Runde, um die Wickelutensilien zu mischen.</p>
+            </div>
+          </section>
+          <section class="diaper-leaderboard" aria-labelledby="diaperLeaderboardTitle">
+            <div class="diaper-leaderboard-head">
+              <div>
+                <p>Alle H&auml;user</p>
+                <h3 id="diaperLeaderboardTitle">Globale Bestenliste</h3>
+              </div>
+              <span class="diaper-trophy" aria-hidden="true">&#9733;</span>
+            </div>
+            <p id="diaperOwnRank" class="diaper-own-rank">Noch keine eigene Zeit</p>
+            <ol id="diaperLeaderboardList" aria-live="polite">
+              <li class="muted">Bestenliste wird geladen.</li>
+            </ol>
+          </section>
+        </div>
+        <footer class="diaper-game-footer">
+          <p class="diaper-game-note"><span aria-hidden="true">&#10003;</span> Sicheres Minispiel ohne echte Buchungen oder Waschladungen</p>
+          <div class="settings-actions">
+            <button id="resetDiaperBestButton" class="secondary" type="button">Bestwert l&ouml;schen</button>
+            <button id="startDiaperGameButton" type="button"><span aria-hidden="true">&#9654;</span> Spiel starten</button>
+          </div>
+        </footer>
+      </section>
+    </div>
 
     <div id="reportIssueOverlay" class="intro-overlay" hidden>
       <section class="intro-modal report-issue-modal" role="dialog" aria-modal="true" aria-labelledby="reportIssueTitle">
@@ -661,10 +773,10 @@
                 <button id="disablePushButton" class="text-button" type="button" hidden>Push deaktivieren</button>
               </div>
             </section>
-            <section class="push-card" aria-labelledby="pairingTitle">
+            <section id="devicePairingCard" class="push-card" aria-labelledby="pairingTitle">
               <div>
-                <h4 id="pairingTitle">Weiteres Handy verbinden</h4>
-                <p class="muted">Erzeuge einen einmaligen QR-Code. Dein Partner scannt ihn mit der Handykamera und best&auml;tigt die Verbindung zum gemeinsamen Wohnungskonto.</p>
+                <h4 id="pairingTitle">Partner zur Wohnung einladen</h4>
+                <p class="muted">Der Partner scannt den einmaligen QR-Code und verwendet danach eine eigene E-Mail und ein eigenes Passwort. Es werden nur Bewohnerrechte f&uuml;r diese Wohnung vergeben.</p>
                 <div id="devicePairingPanel" class="pairing-panel" hidden>
                   <img id="devicePairingQr" class="pairing-qr" alt="QR-Code zum Verbinden eines weiteren Handys" width="256" height="256">
                   <div class="pairing-details">
@@ -782,14 +894,13 @@
         <div class="intro-copy">
           <p class="eyebrow">Bestehendes Konto</p>
           <h2 id="apartmentSetupTitle">Dieses alte Konto braucht eine Wohnung.</h2>
-          <p>Bitte aktiviere zuerst das eingeladene Wohnungskonto. Danach lassen sich bisherige Buchungen und Ger&auml;te sicher dorthin &uuml;bernehmen.</p>
+          <p>Bitte die Hausverwaltung um eine Einladung an deine pers&ouml;nliche E-Mail-Adresse. Nach der Best&auml;tigung bleibt dein Login bestehen und wird sicher der richtigen Wohnung zugeordnet.</p>
         </div>
         <div class="apartment-setup-grid">
-          <form id="joinApartmentForm" class="stack compact-form">
-            <h3>Mit bestehendem Wohnungskonto verbinden</h3>
-            <p class="muted">Auf einem bereits angemeldeten Handy einen Ger&auml;tecode erzeugen.</p>
-            <label>Ger&auml;tecode<input id="existingDeviceCode" autocomplete="one-time-code" required></label>
-            <button type="submit">Konten sicher zusammenf&uuml;hren</button>
+          <form action="/logout" method="post" class="stack compact-form">
+            <h3>Pers&ouml;nliche Einladung verwenden</h3>
+            <p class="muted">Melde dich ab und &ouml;ffne den Einladungslink aus deiner E-Mail. Ein Partner-QR ist nur f&uuml;r eine weitere Person derselben Wohnung vorgesehen.</p>
+            <button type="submit">Abmelden</button>
           </form>
         </div>
         <p id="apartmentSetupMessage" class="message" role="status"></p>

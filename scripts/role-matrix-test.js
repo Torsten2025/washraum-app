@@ -354,6 +354,69 @@ async function run() {
     });
     await expectStatus(houseAdmin, '/api/me/device-code', 403, { method: 'POST' });
 
+    const dualRoleApartment = await expectStatus(houseAdmin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Rollen Hauswartwohnung',
+        displayName: 'Familie Hausadmin',
+        email: 'rollen-admin@example.test'
+      })
+    });
+    const dualRoleToken = new URL(dualRoleApartment.body.invitationLink).searchParams.get('invite');
+    const dualRoleIdentity = new ApiClient();
+    const dualRoleAcceptance = await expectStatus(dualRoleIdentity, '/api/invitations/accept', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        token: dualRoleToken,
+        password: 'Rollen-Hausadmin-2026!',
+        notifyReleases: true
+      })
+    });
+    assert.equal(dualRoleAcceptance.body.user.id, houseAdminRegistration.body.user.id);
+    assert.deepEqual(dualRoleAcceptance.body.user.roles, ['resident', 'house_admin']);
+    assert.equal(dualRoleAcceptance.body.user.canBook, true);
+    assert.equal(dualRoleAcceptance.body.user.canManage, true);
+    await expectStatus(dualRoleIdentity, '/api/admin/resources', 200);
+
+    const dualRoleResources = await expectStatus(dualRoleIdentity, '/api/resources', 200);
+    const dualRoleWasher = dualRoleResources.body.resources.find((resource) => resource.type === 'washer');
+    const dualRoleBooking = await expectStatus(dualRoleIdentity, '/api/bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: dualRoleWasher.id,
+        date: futureMonday(),
+        slot: '17:00-21:00'
+      })
+    });
+    const residentQr = await expectStatus(dualRoleIdentity, '/api/me/device-code', 201, { method: 'POST' });
+    const partnerIdentity = new ApiClient();
+    const partnerAcceptance = await expectStatus(partnerIdentity, '/api/device-login', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        deviceCode: residentQr.body.code,
+        email: 'rollen-partner@example.test',
+        password: 'Rollen-Partner-2026!',
+        passwordConfirmation: 'Rollen-Partner-2026!'
+      })
+    });
+    assert.notEqual(partnerAcceptance.body.user.id, dualRoleAcceptance.body.user.id);
+    assert.deepEqual(partnerAcceptance.body.user.roles, ['resident']);
+    assert.equal(partnerAcceptance.body.user.canManage, false);
+    assert.equal(partnerAcceptance.body.user.bookingUserId, dualRoleAcceptance.body.user.bookingUserId);
+    await expectStatus(partnerIdentity, '/api/admin/resources', 403);
+    const sharedBookings = await expectStatus(partnerIdentity, '/api/my-bookings', 200);
+    assert.ok(sharedBookings.body.bookings.some((booking) => booking.id === dualRoleBooking.body.id));
+    const nextWashDate = new Date(`${futureMonday()}T12:00:00`);
+    nextWashDate.setDate(nextWashDate.getDate() + 7);
+    await expectStatus(partnerIdentity, '/api/bookings', 409, {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceId: dualRoleWasher.id,
+        date: dateString(nextWashDate),
+        slot: '17:00-21:00'
+      })
+    });
+
     await expectStatus(houseAdmin, '/api/admin/settings/house-code', 200, {
       method: 'PUT',
       body: JSON.stringify({ houseCode: 'Rollencode 20 neu' })
@@ -403,6 +466,29 @@ async function run() {
 
     const secondResources = await expectStatus(houseAdmin, '/api/resources', 200);
     const secondWasher = secondResources.body.resources.find((resource) => resource.type === 'washer');
+    const adminOnly = new ApiClient();
+    await login(adminOnly, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
+    const forbiddenAdminBooking = {
+      resourceId: secondWasher.id,
+      date: futureMonday(),
+      slot: '17:00-21:00'
+    };
+    await expectStatus(adminOnly, '/api/bookings', 403, {
+      method: 'POST',
+      body: JSON.stringify(forbiddenAdminBooking)
+    });
+    await expectStatus(adminOnly, '/api/booking-package', 403, {
+      method: 'POST',
+      body: JSON.stringify({ items: [forbiddenAdminBooking] })
+    });
+    await expectStatus(superadmin, '/api/bookings', 403, {
+      method: 'POST',
+      body: JSON.stringify(forbiddenAdminBooking)
+    });
+    await expectStatus(superadmin, '/api/booking-package', 403, {
+      method: 'POST',
+      body: JSON.stringify({ items: [forbiddenAdminBooking] })
+    });
     const fixedBooking = await expectStatus(houseAdmin, '/api/admin/fixed-bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
@@ -545,13 +631,63 @@ async function run() {
     const peerAdmin = new ApiClient();
     await login(peerAdmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
 
+    const playScoredRound = async (client, delayMs) => {
+      const round = await expectStatus(client, '/api/diaper-game/start', 201, { method: 'POST' });
+      assert.match(round.body.token, /^[a-f0-9]{64}$/);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return expectStatus(client, '/api/diaper-game/complete', 200, {
+        method: 'POST',
+        body: JSON.stringify({ token: round.body.token })
+      });
+    };
+    await expectStatus(new ApiClient(), '/api/diaper-game/leaderboard', 401);
+    await playScoredRound(firstResident, 650);
+    const globalGameScores = await playScoredRound(residentAfterReset, 720);
+    assert.equal(globalGameScores.body.leaderboard.length, 2);
+    assert.ok(globalGameScores.body.leaderboard.every((entry) => /^Wickelprofi #\d+$/.test(entry.player)));
+    assert.equal(globalGameScores.body.own.isOwn, true);
+    assert.ok(globalGameScores.body.own.position >= 1);
+    assert.equal((await expectStatus(houseAdmin, '/api/diaper-game/leaderboard', 200)).body.leaderboard.length, 2);
+    assert.equal((await expectStatus(superadmin, '/api/diaper-game/leaderboard', 200)).body.leaderboard.length, 2);
+    await expectStatus(residentAfterReset, '/api/diaper-game/complete', 409, {
+      method: 'POST',
+      body: JSON.stringify({ token: globalGameScores.body.token || '0'.repeat(64) })
+    });
+    const scoreDeleted = await expectStatus(residentAfterReset, '/api/diaper-game/score', 200, { method: 'DELETE' });
+    assert.equal(scoreDeleted.body.own, null);
+    assert.equal(scoreDeleted.body.leaderboard.length, 1);
+
     const globalAudit = await expectStatus(superadmin, '/api/admin/audit-log', 200);
     assert.ok(globalAudit.body.entries.some((entry) => entry.action === 'resource.create'));
     const backup = await expectStatus(superadmin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(backup.body.status.ok, true);
+    await expectStatus(houseAdmin, '/api/admin/bookings', 403, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        confirm: 'ALLE BUCHUNGEN',
+        currentPassword: 'falsches-passwort'
+      })
+    });
+    await expectStatus(houseAdmin, '/api/admin/bookings', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        confirm: 'ALLE BUCHUNGEN',
+        currentPassword: 'Rollen-Hausadmin-2026!'
+      })
+    });
+    await expectStatus(superadmin, '/api/admin/maintenance', 403, {
+      method: 'PUT',
+      body: JSON.stringify({
+        active: true,
+        currentPassword: 'falsches-passwort'
+      })
+    });
     const maintenanceStarted = await expectStatus(superadmin, '/api/admin/maintenance', 200, {
       method: 'PUT',
-      body: JSON.stringify({ active: true })
+      body: JSON.stringify({
+        active: true,
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
     });
     assert.equal(maintenanceStarted.body.maintenance.active, true);
     await expectStatus(residentAfterReset, '/api/bookings', 503, {
@@ -584,14 +720,24 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({
         targetUserId: superLogin.body.user.id,
-        confirm: 'SUPERADMIN UEBERGEBEN'
+        confirm: 'SUPERADMIN UEBERGEBEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 403, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetUserId: peerAdminRegistration.body.user.id,
+        confirm: 'SUPERADMIN UEBERGEBEN',
+        currentPassword: 'falsches-passwort'
       })
     });
     await expectStatus(superadmin, '/api/admin/superadmin-transfer', 200, {
       method: 'POST',
       body: JSON.stringify({
         targetUserId: peerAdminRegistration.body.user.id,
-        confirm: 'SUPERADMIN UEBERGEBEN'
+        confirm: 'SUPERADMIN UEBERGEBEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
       })
     });
     const oldSuperSession = await expectStatus(superadmin, '/api/me', 200);
@@ -611,11 +757,24 @@ async function run() {
     });
     await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 400, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'falsch' })
+      body: JSON.stringify({
+        confirm: 'falsch',
+        currentPassword: 'Rollen-Zweitadmin-2026!'
+      })
+    });
+    await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 403, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        confirm: 'ALLE TESTKONTEN LOESCHEN',
+        currentPassword: 'falsches-passwort'
+      })
     });
     const pilotReset = await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 200, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+      body: JSON.stringify({
+        confirm: 'ALLE TESTKONTEN LOESCHEN',
+        currentPassword: 'Rollen-Zweitadmin-2026!'
+      })
     });
     assert.ok(pilotReset.body.deleted >= 4);
     assert.ok(pilotReset.body.residents >= 2);
@@ -649,6 +808,8 @@ async function run() {
       roles: ['Bewohner', 'Haus-Admin', 'Superadmin'],
       checks: {
         residentBoundaries: true,
+        adminBookingBoundary: true,
+        combinedResidentAdminRole: true,
         houseAdminOwnHouse: true,
         houseAdminPeerAdminProtection: true,
         superadminGlobalActions: true,
@@ -658,6 +819,10 @@ async function run() {
         maintenanceWorkflow: true,
         invitationOnboarding: true,
         residentOnlyQrPairing: true,
+        personalMultiRoleIdentity: true,
+        sharedApartmentBookingScope: true,
+        qrNeverCopiesAdminRights: true,
+        globalDiaperGameLeaderboard: true,
         pilotReset: true,
         roleSpecificLogout: true
       },

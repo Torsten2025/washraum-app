@@ -12,6 +12,8 @@ const QRCode = require('qrcode');
 const webPush = require('web-push');
 const packageInfo = require('./package.json');
 const { releaseWindowStatus } = require('./release-window');
+const { createDiaperGameRouter } = require('./src/routes/diaper-game');
+const { createBackupService } = require('./src/services/backup');
 const {
   addDays,
   isDateString,
@@ -195,11 +197,25 @@ function createCurrentTables() {
     CREATE TABLE IF NOT EXISTS device_pairing_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
+      apartment_id INTEGER,
       code_hash TEXT NOT NULL UNIQUE,
       expires_at TEXT NOT NULL,
       used_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS user_house_roles (
+      user_id INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('house_admin')),
+      granted_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, house_id, role),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE,
+      FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS apartment_name_requests (
@@ -367,6 +383,28 @@ function createCurrentTables() {
       FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE SET NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS diaper_game_rounds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      started_at_ms INTEGER NOT NULL,
+      expires_at_ms INTEGER NOT NULL,
+      completed_at_ms INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS diaper_game_scores (
+      user_id INTEGER PRIMARY KEY,
+      house_id INTEGER,
+      best_time_ms INTEGER NOT NULL CHECK (best_time_ms BETWEEN 600 AND 120000),
+      achieved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_diaper_game_scores_best
+      ON diaper_game_scores(best_time_ms, achieved_at);
   `);
 }
 
@@ -382,6 +420,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'secondary_email', 'TEXT');
   ensureColumn('users', 'secondary_email_verified', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'merged_into_user_id', 'INTEGER');
+  ensureColumn('device_pairing_codes', 'apartment_id', 'INTEGER');
   ensureColumn('apartments', 'display_name', 'TEXT');
   ensureColumn('resources', 'house_id', 'INTEGER');
   ensureColumn('resources', 'blocked_reason', 'TEXT');
@@ -406,7 +445,7 @@ function seedCurrentDefaults() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apartment_unique ON users (apartment_id) WHERE apartment_id IS NOT NULL");
+  db.exec('DROP INDEX IF EXISTS idx_users_apartment_unique');
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartments_house ON apartments (house_id, active, label)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_apartment ON apartment_invitations (apartment_id, created_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_email ON apartment_invitations (lower(email), expires_at)");
@@ -416,6 +455,8 @@ function seedCurrentDefaults() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_entries_case ON maintenance_entries (case_id, created_at, id)");
   db.prepare("UPDATE apartments SET display_name = label WHERE display_name IS NULL OR trim(display_name) = ''").run();
   db.exec("CREATE INDEX IF NOT EXISTS idx_pairing_codes_user ON device_pairing_codes (user_id, expires_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_pairing_codes_apartment ON device_pairing_codes (apartment_id, expires_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_user_house_roles_house ON user_house_roles (house_id, role, user_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_account_recovery_user ON account_recovery_codes (user_id, expires_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_name_requests ON apartment_name_requests (apartment_id, status, created_at)");
   const initialHouseCode = getSetting('house_code').trim()
@@ -425,6 +466,12 @@ function seedCurrentDefaults() {
   db.prepare('UPDATE users SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
   db.prepare('UPDATE resources SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
   db.prepare('UPDATE release_notices SET house_id = ? WHERE house_id IS NULL').run(defaultHouse.id);
+  db.prepare(`
+    INSERT OR IGNORE INTO user_house_roles (user_id, house_id, role, granted_by)
+    SELECT id, house_id, 'house_admin', NULL
+    FROM users
+    WHERE role = 'admin' AND house_id IS NOT NULL
+  `).run();
 
   const seededAdminPassword = String(process.env.SEED_ADMIN_PASSWORD || '');
   if (seededAdminPassword) {
@@ -687,6 +734,13 @@ function seedUser(username, password, role, houseId, isSuperadmin = false, force
     db.prepare('UPDATE users SET house_id = COALESCE(house_id, ?) WHERE id = ?')
       .run(houseId, exists.id);
   }
+  if (role === 'admin') {
+    const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    db.prepare(`
+      INSERT OR IGNORE INTO user_house_roles (user_id, house_id, role, granted_by)
+      VALUES (?, ?, 'house_admin', NULL)
+    `).run(user.id, houseId);
+  }
 }
 
 function seedHouse(name, code) {
@@ -795,7 +849,13 @@ function verifyStoredPassword(password, storedHash) {
 
 initDb();
 
-const activeAdminAtStartup = db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get();
+const activeAdminAtStartup = db.prepare(`
+  SELECT u.id
+  FROM users u
+  LEFT JOIN user_house_roles uhr ON uhr.user_id = u.id AND uhr.role = 'house_admin'
+  WHERE u.active = 1 AND (u.is_superadmin = 1 OR uhr.user_id IS NOT NULL)
+  LIMIT 1
+`).get();
 if (isProduction && !activeAdminAtStartup) {
   console.warn('Kein aktives Admin-Konto vorhanden. Zur Wiederherstellung SEED_ADMIN_PASSWORD in Render setzen.');
 }
@@ -1682,14 +1742,23 @@ function requireApartmentAccount(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Nicht angemeldet' });
   }
-  if (
-    req.session.user.role === 'user'
-    && !req.session.user.apartmentId
-    && !allowLegacyHouseRegistration
-  ) {
+  if (!req.session.user.canBook && !allowLegacyHouseRegistration) {
     return res.status(409).json({
       code: 'APARTMENT_SETUP_REQUIRED',
-      error: 'Bitte ordne dieses bestehende Konto zuerst deiner Wohnung zu.'
+      error: 'Fuer Buchungen braucht dein persoenlicher Zugang eine Wohnungszuordnung im aktuell ausgewaehlten Haus.'
+    });
+  }
+  next();
+}
+
+function requireResident(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Nicht angemeldet' });
+  }
+  const legacyResident = allowLegacyHouseRegistration && req.session.user.role === 'user';
+  if (!req.session.user.canBook && !legacyResident) {
+    return res.status(403).json({
+      error: 'Normale Waschzeiten werden mit einem aktiven Wohnungskonto gebucht. Nutze als Admin den Kalender zur Kontrolle.'
     });
   }
   next();
@@ -1777,15 +1846,50 @@ function isSuperadmin(req) {
   return Boolean(req.session.user?.isSuperadmin);
 }
 
+function hasHouseRole(userId, houseId, role = 'house_admin') {
+  if (!userId || !houseId) return false;
+  return Boolean(db.prepare(`
+    SELECT 1 FROM user_house_roles
+    WHERE user_id = ? AND house_id = ? AND role = ?
+  `).get(Number(userId), Number(houseId), role));
+}
+
+function bookingUserIdForApartment(apartmentId, fallbackUserId) {
+  if (!apartmentId) return Number(fallbackUserId);
+  const owner = db.prepare(`
+    SELECT COALESCE(
+      (SELECT claimed_by FROM apartments WHERE id = ?),
+      (SELECT MIN(id) FROM users WHERE apartment_id = ? AND active = 1),
+      ?
+    ) AS user_id
+  `).get(apartmentId, apartmentId, Number(fallbackUserId));
+  return Number(owner?.user_id || fallbackUserId);
+}
+
 function sessionUserFromRow(user, activeHouse = null) {
   const house = activeHouse || db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
   const apartment = user.apartment_id
-    ? db.prepare('SELECT id, label, display_name FROM apartments WHERE id = ? AND active = 1').get(user.apartment_id)
+    ? db.prepare('SELECT id, house_id, label, display_name FROM apartments WHERE id = ? AND active = 1').get(user.apartment_id)
     : null;
+  const isResident = Boolean(apartment);
+  const canBook = Boolean(apartment && Number(apartment.house_id) === Number(house?.id || user.house_id));
+  const isHouseAdmin = hasHouseRole(user.id, house?.id || user.house_id);
+  const isSuperadmin = Boolean(user.is_superadmin);
+  const canManage = isSuperadmin || isHouseAdmin;
+  const roles = [
+    ...(isResident ? ['resident'] : []),
+    ...(isHouseAdmin ? ['house_admin'] : []),
+    ...(isSuperadmin ? ['superadmin'] : [])
+  ];
   return {
     id: user.id,
     username: user.username,
-    role: user.role,
+    role: canManage ? 'admin' : 'user',
+    roles,
+    isResident,
+    isHouseAdmin,
+    canBook,
+    canManage,
     email: user.email || '',
     notifyReleases: Boolean(user.notify_releases),
     emailVerified: Boolean(user.email_verified),
@@ -1795,11 +1899,12 @@ function sessionUserFromRow(user, activeHouse = null) {
     apartmentId: apartment?.id || null,
     apartmentLabel: apartment?.label || '',
     displayName: apartment?.display_name || apartment?.label || user.username,
-    apartmentSetupRequired: user.role === 'user' && !apartment,
+    apartmentSetupRequired: !apartment && !canManage,
+    bookingUserId: apartment ? bookingUserIdForApartment(apartment.id, user.id) : user.id,
     houseId: user.house_id,
     activeHouseId: house?.id || user.house_id,
     houseName: house?.name || '',
-    isSuperadmin: Boolean(user.is_superadmin)
+    isSuperadmin
   };
 }
 
@@ -1810,7 +1915,7 @@ function clearAuthRateLimit(req) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== 'admin') {
+  if (!req.session.user || !req.session.user.canManage) {
     return res.status(403).json({ error: 'Nur f\u00fcr Admins erlaubt' });
   }
   next();
@@ -1823,15 +1928,28 @@ function requireSuperadmin(req, res, next) {
   next();
 }
 
+function confirmCurrentAdminPassword(req, res) {
+  const currentPassword = String(req.body?.currentPassword || '');
+  const user = db.prepare('SELECT password_hash FROM users WHERE id = ? AND active = 1')
+    .get(req.session.user?.id);
+  if (!currentPassword || !user || !verifyStoredPassword(currentPassword, user.password_hash)) {
+    res.status(403).json({ error: 'Zur Bestaetigung ist dein aktuelles Passwort erforderlich.' });
+    return false;
+  }
+  return true;
+}
+
 function adminRecoveryStatus(houseId) {
   const houseAdminCount = db.prepare(`
-    SELECT COUNT(*) AS count FROM users
-    WHERE house_id = ? AND role = 'admin' AND active = 1
+    SELECT COUNT(*) AS count
+    FROM user_house_roles uhr
+    JOIN users u ON u.id = uhr.user_id
+    WHERE uhr.house_id = ? AND uhr.role = 'house_admin' AND u.active = 1
   `).get(houseId).count;
   const activeSuperadmins = db.prepare(`
     SELECT id, username, house_id
     FROM users
-    WHERE role = 'admin' AND active = 1 AND is_superadmin = 1
+    WHERE active = 1 AND is_superadmin = 1
     ORDER BY username
   `).all();
   const seedAdminName = String(process.env.SEED_ADMIN_NAME || 'admin');
@@ -1985,7 +2103,6 @@ function apartmentInvitationForToken(token) {
       AND CAST(ai.expires_at AS INTEGER) > ?
       AND (ai.email_sent_at IS NOT NULL OR ? = 1)
       AND a.active = 1
-      AND a.claimed_by IS NULL
       AND h.active = 1
   `).get(tokenHash(normalized), Date.now(), allowTestInvitationLink ? 1 : 0);
 }
@@ -2002,7 +2119,6 @@ function pendingInvitationForEmail(email, exceptApartmentId = 0) {
       AND CAST(ai.expires_at AS INTEGER) > ?
       AND (ai.email_sent_at IS NOT NULL OR ? = 1)
       AND a.active = 1
-      AND a.claimed_by IS NULL
     LIMIT 1
   `).get(email, Number(exceptApartmentId || 0), Date.now(), allowTestInvitationLink ? 1 : 0);
 }
@@ -2036,12 +2152,12 @@ async function issueApartmentInvitation(req, apartment, email) {
           `Hallo ${apartment.display_name}`,
           '',
           `du wurdest fuer die Wohnung ${apartment.label} in ${apartment.house_name} zu WaschZeit eingeladen.`,
-          'Oeffne den folgenden Link und lege dein persoenliches Passwort fest:',
+          'Oeffne den folgenden Link. Mit einer neuen E-Mail legst du dein persoenliches Passwort fest; mit einem bestehenden WaschZeit-Zugang bestaetigst du dein vorhandenes Passwort:',
           '',
           link,
           '',
           'Der Link ist sieben Tage gueltig und kann nur einmal verwendet werden.',
-          'Weitere Handys derselben Wohnung werden spaeter mit einem kurz gueltigen Geraetecode verbunden.'
+          'Jede Person behaelt einen eigenen Zugang. Wohnungsbuchungen werden trotzdem gemeinsam gezaehlt.'
         ].join('\n')
       });
     } catch (error) {
@@ -2057,9 +2173,9 @@ async function issueApartmentInvitation(req, apartment, email) {
     db.prepare(`
       UPDATE apartment_invitations
       SET revoked_at = CURRENT_TIMESTAMP
-      WHERE apartment_id = ? AND token_hash != ?
+      WHERE apartment_id = ? AND lower(email) = lower(?) AND token_hash != ?
         AND accepted_at IS NULL AND revoked_at IS NULL
-    `).run(apartment.id, hashedToken);
+    `).run(apartment.id, email, hashedToken);
     if (emailConfigured) {
       db.prepare(`
         UPDATE apartment_invitations SET email_sent_at = CURRENT_TIMESTAMP
@@ -2083,6 +2199,15 @@ function apartmentAccountLabel(userId, fallback = 'Jemand') {
 function apartmentAccountUsername(apartmentId) {
   const base = `wohnung-${Number(apartmentId)}`;
   if (!db.prepare('SELECT id FROM users WHERE username = ?').get(base)) return base;
+  return `${base}-${crypto.randomBytes(3).toString('hex')}`;
+}
+
+function personalAccountUsername(email) {
+  const localPart = normalizeEmail(email).split('@')[0]
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'person';
+  const base = localPart.slice(0, 48);
+  if (!db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(base)) return base;
   return `${base}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
@@ -2632,67 +2757,16 @@ function smtpSession(socket) {
   };
 }
 
-function backupDirectory() {
-  return path.resolve(process.env.BACKUP_DIR || (
-    process.env.RENDER === 'true' ? '/var/data/backups' : path.join(dbDir, 'backups')
-  ));
-}
-
-async function createVerifiedBackup() {
-  const directory = backupDirectory();
-  fs.mkdirSync(directory, { recursive: true });
-  const filename = `washplan-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
-  const backupPath = path.join(directory, filename);
-  await db.backup(backupPath);
-  const verificationDb = new Database(backupPath, { readonly: true, fileMustExist: true });
-  const integrity = verificationDb.pragma('integrity_check', { simple: true });
-  verificationDb.close();
-  if (integrity !== 'ok') {
-    fs.rmSync(backupPath, { force: true });
-    throw new Error(`Backup-Integrit\u00e4tspr\u00fcfung: ${integrity}`);
-  }
-
-  const backups = fs.readdirSync(directory)
-    .filter((name) => name.startsWith('washplan-') && name.endsWith('.sqlite'))
-    .sort()
-    .reverse();
-  const retainedBackups = new Set(backups.slice(0, 3));
-  const retainedDays = new Set();
-  for (const backupName of backups) {
-    const day = backupName.slice('washplan-'.length, 'washplan-'.length + 10);
-    if (retainedDays.size >= 14 || retainedDays.has(day)) continue;
-    retainedDays.add(day);
-    retainedBackups.add(backupName);
-  }
-  for (const oldName of backups) {
-    if (!retainedBackups.has(oldName)) fs.rmSync(path.join(directory, oldName), { force: true });
-  }
-
-  let uploaded = false;
-  const uploadUrl = String(process.env.BACKUP_UPLOAD_URL || '').trim();
-  if (uploadUrl) {
-    const target = uploadUrl.includes('{filename}')
-      ? uploadUrl.replace('{filename}', encodeURIComponent(filename))
-      : uploadUrl;
-    const response = await fetch(target, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/vnd.sqlite3',
-        ...(process.env.BACKUP_UPLOAD_TOKEN
-          ? { Authorization: `Bearer ${process.env.BACKUP_UPLOAD_TOKEN}` }
-          : {})
-      },
-      body: fs.readFileSync(backupPath)
-    });
-    if (!response.ok) {
-      throw new Error(`Externe Backup-Kopie fehlgeschlagen (${response.status})`);
-    }
-    uploaded = true;
-  }
-  const status = { ok: true, filename, createdAt: new Date().toISOString(), uploaded };
-  setSetting('backup_status', JSON.stringify(status));
-  return status;
-}
+const { backupDirectory, createVerifiedBackup } = createBackupService({
+  db,
+  Database,
+  fs,
+  path,
+  env: process.env,
+  dbDir,
+  setSetting,
+  fetchImpl: fetch
+});
 
 function runMaintenanceSelfCheck() {
   const quickCheck = db.pragma('quick_check', { simple: true });
@@ -2758,9 +2832,13 @@ app.get(['/health', '/api/health'], (req, res) => {
   const storage = process.env.RENDER === 'true'
     ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
     : 'local';
-  const adminReady = Boolean(
-    db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").get()
-  );
+  const adminReady = Boolean(db.prepare(`
+    SELECT u.id
+    FROM users u
+    LEFT JOIN user_house_roles uhr ON uhr.user_id = u.id AND uhr.role = 'house_admin'
+    WHERE u.active = 1 AND (u.is_superadmin = 1 OR uhr.user_id IS NOT NULL)
+    LIMIT 1
+  `).get());
   res.json({
     ok: true,
     storage,
@@ -2814,28 +2892,92 @@ app.post('/api/login', authRateLimit, async (req, res, next) => {
 
 app.post('/api/device-login', authRateLimit, async (req, res, next) => {
   const code = normalizeAccessCode(req.body?.deviceCode);
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || '');
+  const passwordConfirmation = String(req.body?.passwordConfirmation || '');
   const record = code ? db.prepare(`
-    SELECT dpc.id AS pairing_id, dpc.user_id, u.*
+    SELECT dpc.id AS pairing_id, dpc.user_id AS created_by,
+           COALESCE(dpc.apartment_id, u.apartment_id) AS pairing_apartment_id,
+           a.house_id, a.label AS apartment_label, a.display_name AS apartment_display_name
     FROM device_pairing_codes dpc
     JOIN users u ON u.id = dpc.user_id
+    JOIN apartments a ON a.id = COALESCE(dpc.apartment_id, u.apartment_id)
     WHERE dpc.code_hash = ?
       AND dpc.used_at IS NULL
       AND CAST(dpc.expires_at AS INTEGER) > ?
       AND u.active = 1
-      AND u.role = 'user'
-      AND u.apartment_id IS NOT NULL
+      AND a.active = 1
   `).get(tokenHash(code), Date.now()) : null;
   if (!record) {
     return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig oder abgelaufen.' });
   }
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte deine persoenliche E-Mail-Adresse eintragen.' });
+  }
+  const existingOwner = findEmailOwner(email);
+  const existingUser = existingOwner ? db.prepare('SELECT * FROM users WHERE id = ?').get(existingOwner.id) : null;
+  if (existingUser && (!existingUser.active || !verifyStoredPassword(password, existingUser.password_hash))) {
+    return res.status(401).json({ error: 'E-Mail-Adresse oder vorhandenes Passwort ist nicht korrekt.' });
+  }
+  if (!existingUser && (!isValidPassword(password) || password !== passwordConfirmation)) {
+    return res.status(400).json({ error: 'Fuer einen neuen Zugang muessen beide Passwoerter uebereinstimmen und 12 bis 128 Zeichen haben.' });
+  }
+  if (existingUser?.apartment_id && Number(existingUser.apartment_id) !== Number(record.pairing_apartment_id)) {
+    return res.status(409).json({ error: 'Dieser persoenliche Zugang ist bereits einer anderen Wohnung zugeordnet.' });
+  }
+  if (existingUser && Number(existingUser.house_id) !== Number(record.house_id)) {
+    return res.status(409).json({ error: 'Dieser Zugang gehoert zu einem anderen Haus.' });
+  }
   try {
-    db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(record.pairing_id);
+    const userId = db.transaction(() => {
+      let identityId = existingUser?.id;
+      if (existingUser) {
+        db.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
+          .run(record.pairing_apartment_id, existingUser.id);
+      } else {
+        const inserted = db.prepare(`
+          INSERT INTO users
+            (username, email, password_hash, role, house_id, active, notify_releases,
+             email_verified, apartment_id)
+          VALUES (?, ?, ?, 'user', ?, 1, 1, 0, ?)
+        `).run(
+          personalAccountUsername(email),
+          email,
+          bcrypt.hashSync(password, 10),
+          record.house_id,
+          record.pairing_apartment_id
+        );
+        identityId = inserted.lastInsertRowid;
+      }
+      db.prepare(`
+        UPDATE apartments
+        SET claimed_by = COALESCE(claimed_by, ?), claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP)
+        WHERE id = ?
+      `).run(identityId, record.pairing_apartment_id);
+      db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ? AND used_at IS NULL')
+        .run(record.pairing_id);
+      return identityId;
+    })();
+    const identity = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    if (!existingUser) {
+      await sendEmailVerification(req, identity).catch((error) => {
+        console.error(`QR-Mitglied konnte keine Bestaetigungsmail erhalten: ${error.message}`);
+      });
+    }
     await regenerateSession(req);
-    req.session.user = sessionUserFromRow(record);
-    req.session.activeHouseId = record.house_id;
+    req.session.user = sessionUserFromRow(identity);
+    req.session.activeHouseId = identity.house_id;
     req.session.lastActivityAt = Date.now();
     clearAuthRateLimit(req);
-    res.json({ user: req.session.user, message: `${req.session.user.apartmentLabel} wurde auf diesem Ger\u00e4t verbunden.` });
+    writeAuditForHouse(req, record.house_id, 'apartment.qr_member_added', 'apartment', record.pairing_apartment_id, {
+      userId,
+      createdBy: record.created_by,
+      existingIdentity: Boolean(existingUser)
+    });
+    res.json({
+      user: req.session.user,
+      message: `${req.session.user.apartmentLabel} wurde deinem persoenlichen Zugang hinzugefuegt. Adminrechte wurden nicht uebertragen.`
+    });
   } catch (error) {
     next(error);
   }
@@ -2852,7 +2994,8 @@ app.get('/api/invitations/:token', registrationRateLimit, (req, res) => {
       apartmentLabel: invitation.label,
       displayName: invitation.display_name,
       houseName: invitation.house_name,
-      expiresAt: new Date(Number(invitation.expires_at)).toISOString()
+      expiresAt: new Date(Number(invitation.expires_at)).toISOString(),
+      existingAccount: Boolean(findEmailOwner(invitation.email))
     }
   });
 });
@@ -2868,8 +3011,18 @@ app.post('/api/invitations/accept', registrationRateLimit, authRateLimit, async 
   if (!isValidPassword(password)) {
     return res.status(400).json({ error: 'Das Passwort muss 12 bis 128 Zeichen haben.' });
   }
-  if (findEmailOwner(invitation.email)) {
-    return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einem Konto.' });
+  const existingOwner = findEmailOwner(invitation.email);
+  const existingUser = existingOwner
+    ? db.prepare('SELECT * FROM users WHERE id = ?').get(existingOwner.id)
+    : null;
+  if (existingUser && (!existingUser.active || !verifyStoredPassword(password, existingUser.password_hash))) {
+    return res.status(401).json({ error: 'Das vorhandene Passwort fuer diese E-Mail-Adresse ist nicht korrekt.' });
+  }
+  if (existingUser?.apartment_id && Number(existingUser.apartment_id) !== Number(invitation.apartment_id)) {
+    return res.status(409).json({ error: 'Dieser persoenliche Zugang gehoert bereits zu einer anderen Wohnung.' });
+  }
+  if (existingUser && Number(existingUser.house_id) !== Number(invitation.house_id)) {
+    return res.status(409).json({ error: 'Dieser Zugang gehoert zu einem anderen Haus. Bitte die Verwaltung kontaktieren.' });
   }
 
   try {
@@ -2880,34 +3033,52 @@ app.post('/api/invitations/accept', registrationRateLimit, authRateLimit, async 
         conflict.code = 'INVITATION_ALREADY_USED';
         throw conflict;
       }
-      const inserted = db.prepare(`
-        INSERT INTO users
-          (username, email, password_hash, role, house_id, active, notify_releases,
-           email_verified, apartment_id)
-        VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?)
-      `).run(
-        apartmentAccountUsername(current.apartment_id),
-        normalizeEmail(current.email),
-        bcrypt.hashSync(password, 10),
-        current.house_id,
-        notifyReleases,
-        current.email_sent_at ? 1 : 0,
-        current.apartment_id
-      );
+      let identityId = existingUser?.id;
+      if (existingUser) {
+        const normalizedInvitationEmail = normalizeEmail(current.email);
+        const verifiesPrimary = normalizeEmail(existingUser.email) === normalizedInvitationEmail;
+        const verifiesSecondary = normalizeEmail(existingUser.secondary_email) === normalizedInvitationEmail;
+        db.prepare(`
+          UPDATE users
+          SET apartment_id = ?, notify_releases = ?,
+              email_verified = CASE WHEN ? THEN 1 ELSE email_verified END,
+              secondary_email_verified = CASE WHEN ? THEN 1 ELSE secondary_email_verified END
+          WHERE id = ?
+        `).run(current.apartment_id, notifyReleases, verifiesPrimary ? 1 : 0, verifiesSecondary ? 1 : 0, identityId);
+      } else {
+        const inserted = db.prepare(`
+          INSERT INTO users
+            (username, email, password_hash, role, house_id, active, notify_releases,
+             email_verified, apartment_id)
+          VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?)
+        `).run(
+          personalAccountUsername(current.email),
+          normalizeEmail(current.email),
+          bcrypt.hashSync(password, 10),
+          current.house_id,
+          notifyReleases,
+          current.email_sent_at ? 1 : 0,
+          current.apartment_id
+        );
+        identityId = inserted.lastInsertRowid;
+      }
       db.prepare(`
         UPDATE apartments
-        SET claimed_by = ?, claimed_at = CURRENT_TIMESTAMP, activation_code_hash = NULL
-        WHERE id = ? AND claimed_by IS NULL
-      `).run(inserted.lastInsertRowid, current.apartment_id);
+        SET claimed_by = COALESCE(claimed_by, ?),
+            claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP),
+            activation_code_hash = NULL
+        WHERE id = ?
+      `).run(identityId, current.apartment_id);
       db.prepare(`
         UPDATE apartment_invitations SET accepted_at = CURRENT_TIMESTAMP
         WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL
       `).run(current.invitation_id);
       db.prepare(`
         UPDATE apartment_invitations SET revoked_at = CURRENT_TIMESTAMP
-        WHERE apartment_id = ? AND id != ? AND accepted_at IS NULL AND revoked_at IS NULL
-      `).run(current.apartment_id, current.invitation_id);
-      return inserted.lastInsertRowid;
+        WHERE apartment_id = ? AND lower(email) = lower(?) AND id != ?
+          AND accepted_at IS NULL AND revoked_at IS NULL
+      `).run(current.apartment_id, current.email, current.invitation_id);
+      return identityId;
     })();
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
@@ -2922,9 +3093,11 @@ app.post('/api/invitations/accept', registrationRateLimit, authRateLimit, async 
     });
     res.status(201).json({
       user: req.session.user,
-      message: invitation.email_sent_at
-        ? `${invitation.label} ist aktiviert. Willkommen bei WaschZeit.`
-        : `${invitation.label} ist aktiviert. Die E-Mail wird bestaetigt, sobald der Versand eingerichtet ist.`
+      message: existingUser
+        ? `${invitation.label} wurde deinem persoenlichen Zugang hinzugefuegt.`
+        : invitation.email_sent_at
+          ? `${invitation.label} ist aktiviert. Willkommen bei WaschZeit.`
+          : `${invitation.label} ist aktiviert. Die E-Mail wird bestaetigt, sobald der Versand eingerichtet ist.`
     });
   } catch (error) {
     if (error.code === 'INVITATION_ALREADY_USED' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -3309,7 +3482,7 @@ app.post('/api/me/apartment/claim', requireAuth, (req, res) => {
 });
 
 app.post('/api/me/apartment-name-request', requireAuth, requireApartmentAccount, (req, res) => {
-  if (req.session.user.role !== 'user' || !req.session.user.apartmentId) {
+  if (!req.session.user.canBook || !req.session.user.apartmentId) {
     return res.status(400).json({ error: 'Nur ein aktives Wohnungskonto kann eine Namenskorrektur melden.' });
   }
   const proposedName = String(req.body?.displayName || '').trim();
@@ -3346,8 +3519,8 @@ app.post('/api/me/apartment-name-request', requireAuth, requireApartmentAccount,
 });
 
 app.post('/api/me/device-code', requireAuth, requireApartmentAccount, async (req, res, next) => {
-  if (req.session.user.role !== 'user') {
-    return res.status(403).json({ error: 'QR-Geraeteverbindungen sind nur fuer Bewohnerkonten verfuegbar.' });
+  if (!req.session.user.canBook) {
+    return res.status(403).json({ error: 'QR-Einladungen sind nur fuer eine eigene Wohnung im aktuellen Haus verfuegbar.' });
   }
   if (!req.session.user.apartmentId) {
     return res.status(409).json({ error: 'Zuerst muss eine Wohnung mit dem Konto verbunden sein.' });
@@ -3358,9 +3531,9 @@ app.post('/api/me/device-code', requireAuth, requireApartmentAccount, async (req
     db.prepare('DELETE FROM device_pairing_codes WHERE user_id = ? OR CAST(expires_at AS INTEGER) <= ?')
       .run(req.session.user.id, Date.now());
     db.prepare(`
-      INSERT INTO device_pairing_codes (user_id, code_hash, expires_at)
-      VALUES (?, ?, ?)
-    `).run(req.session.user.id, tokenHash(normalizeAccessCode(code)), String(expiresAt));
+      INSERT INTO device_pairing_codes (user_id, apartment_id, code_hash, expires_at)
+      VALUES (?, ?, ?, ?)
+    `).run(req.session.user.id, req.session.user.apartmentId, tokenHash(normalizeAccessCode(code)), String(expiresAt));
   })();
   try {
     const loginUrl = `${publicAppUrl(req)}/login.html?device=${encodeURIComponent(code)}`;
@@ -3384,6 +3557,10 @@ app.post('/api/me/device-code', requireAuth, requireApartmentAccount, async (req
 });
 
 app.post('/api/me/apartment/join', requireAuth, async (req, res, next) => {
+  return res.status(410).json({
+    error: 'Konten werden nicht mehr zusammengefuehrt. Nutze die QR-Einladung auf der Loginseite mit deiner eigenen E-Mail-Adresse.'
+  });
+  /* Alte Zusammenfuehrung bleibt nur waehrend der Datenmigration im Quelltext dokumentiert. */
   if (req.session.user.role !== 'user' || req.session.user.apartmentId) {
     return res.status(409).json({ error: 'Dieses Konto ist bereits einer Wohnung zugeordnet.' });
   }
@@ -3473,6 +3650,8 @@ app.post('/api/session/keepalive', requireAuth, (req, res) => {
   });
 });
 
+app.use(createDiaperGameRouter({ db, requireAuth, tokenHash }));
+
 app.get('/api/push/public-key', requireAuth, (req, res) => {
   const status = pushStatus();
   res.json({
@@ -3537,8 +3716,8 @@ app.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
     return res.status(404).json({ error: 'Hausnummer nicht gefunden.' });
   }
   req.session.activeHouseId = house.id;
-  req.session.user.activeHouseId = house.id;
-  req.session.user.houseName = house.name;
+  const identity = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+  req.session.user = sessionUserFromRow(identity, house);
   res.json({ user: req.session.user, message: `Ansicht gewechselt zu ${house.name}.` });
 });
 
@@ -3692,7 +3871,7 @@ app.get('/api/me/export', requireAuth, (req, res) => {
     SELECT b.booking_date, b.slot, b.group_id, b.created_at, r.name AS resource, r.type AS resource_type
     FROM bookings b JOIN resources r ON r.id = b.resource_id
     WHERE b.user_id = ? ORDER BY b.booking_date, b.slot
-  `).all(req.session.user.id);
+  `).all(req.session.user.bookingUserId);
   const notificationPreferences = db.prepare(`
     SELECT resource_type, weekday, slot FROM notification_preferences WHERE user_id = ?
   `).get(req.session.user.id) || null;
@@ -3716,9 +3895,11 @@ app.delete('/api/me', requireAuth, (req, res) => {
   if (user.is_superadmin) {
     return res.status(400).json({ error: 'Das Superadmin-Konto kann nur nach \u00dcbergabe der Verantwortung entfernt werden.' });
   }
-  if (user.role === 'admin') {
+  if (hasHouseRole(user.id, user.house_id)) {
     const activeAdmins = db.prepare(`
-      SELECT COUNT(*) AS count FROM users WHERE house_id = ? AND role = 'admin' AND active = 1
+      SELECT COUNT(*) AS count
+      FROM user_house_roles uhr JOIN users u ON u.id = uhr.user_id
+      WHERE uhr.house_id = ? AND uhr.role = 'house_admin' AND u.active = 1
     `).get(user.house_id).count;
     if (activeAdmins <= 1) {
       return res.status(409).json({ error: 'Zuerst muss ein anderes aktives Admin-Konto f\u00fcr dieses Haus vorhanden sein.' });
@@ -3726,8 +3907,22 @@ app.delete('/api/me', requireAuth, (req, res) => {
   }
   writeAudit(req, 'user.self_delete', 'user', user.id);
   destroyUserSessions(user.id, req.sessionID);
-  db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
-  req.session.destroy(() => res.json({ ok: true, message: 'Dein Konto und deine Buchungen wurden gel\u00f6scht.' }));
+  db.transaction(() => {
+    if (user.apartment_id) {
+      const successor = db.prepare(`
+        SELECT id FROM users
+        WHERE apartment_id = ? AND active = 1 AND id != ?
+        ORDER BY id LIMIT 1
+      `).get(user.apartment_id, user.id);
+      if (successor) {
+        db.prepare('UPDATE bookings SET user_id = ? WHERE user_id = ?').run(successor.id, user.id);
+        db.prepare('UPDATE apartments SET claimed_by = ? WHERE id = ? AND claimed_by = ?')
+          .run(successor.id, user.apartment_id, user.id);
+      }
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+  })();
+  req.session.destroy(() => res.json({ ok: true, message: 'Dein persoenlicher Zugang wurde geloescht. Gemeinsame Wohnungsbuchungen bleiben fuer andere Mitglieder erhalten.' }));
 });
 
 app.get('/api/calendar', requireAuth, (req, res) => {
@@ -3741,7 +3936,7 @@ app.get('/api/calendar', requireAuth, (req, res) => {
   res.json({
     from,
     days: Array.from({ length: days }, (_, index) => (
-      calendarDaySummary(req.session.user.id, addDays(from, index), houseId)
+      calendarDaySummary(req.session.user.bookingUserId, addDays(from, index), houseId)
     ))
   });
 });
@@ -3764,22 +3959,22 @@ app.get('/api/booking-options', requireAuth, (req, res) => {
       AND r.house_id = ?
       AND b.booking_date = ?
     ORDER BY b.slot, r.name
-  `).all(req.session.user.id, houseId, date);
+  `).all(req.session.user.bookingUserId, houseId, date);
 
   const slotOptions = slots.map((slot) => {
     const unavailableByTime = isSunday(date) || isPastSlot(date, slot);
     const washerError = unavailableByTime
       ? ''
-      : validateWasherBooking(req.session.user.id, date, slot, houseId);
+      : validateWasherBooking(req.session.user.bookingUserId, date, slot, houseId);
     const washers = unavailableByTime
       ? []
-      : findAvailableResources(req.session.user.id, 'washer', date, slot, houseId, 3)
+      : findAvailableResources(req.session.user.bookingUserId, 'washer', date, slot, houseId, 3)
         .map((resource) => ({ resourceId: resource.id, resourceName: resource.name }));
     const dryingRoomCount = washers.length
-      ? availableDryingRoomsForWasher(req.session.user.id, date, slot, houseId).length
+      ? availableDryingRoomsForWasher(req.session.user.bookingUserId, date, slot, houseId).length
       : 0;
     const tumblerCount = washers.length
-      ? findAvailableResources(req.session.user.id, 'tumbler', date, slot, houseId, 2).length
+      ? findAvailableResources(req.session.user.bookingUserId, 'tumbler', date, slot, houseId, 2).length
       : 0;
     return { slot, washerError, washers, dryingRoomCount, tumblerCount };
   });
@@ -3788,13 +3983,13 @@ app.get('/api/booking-options', requireAuth, (req, res) => {
   if (selectedSlot) {
     companions = {
       dryingRooms: availableDryingRoomsForWasher(
-        req.session.user.id,
+        req.session.user.bookingUserId,
         date,
         selectedSlot,
         houseId
       ),
       tumblers: findAvailableResources(
-        req.session.user.id,
+        req.session.user.bookingUserId,
         'tumbler',
         date,
         selectedSlot,
@@ -3814,7 +4009,7 @@ app.get('/api/booking-options', requireAuth, (req, res) => {
 });
 
 app.get('/api/recommendation', requireAuth, (req, res) => {
-  res.json({ recommendation: bookingRecommendation(req.session.user.id, currentHouseId(req)) });
+  res.json({ recommendation: bookingRecommendation(req.session.user.bookingUserId, currentHouseId(req)) });
 });
 
 app.get('/api/slots', requireAuth, (req, res) => {
@@ -3909,17 +4104,11 @@ function appendMaintenanceEntry(caseId, entryType, note, userId) {
   db.prepare('UPDATE maintenance_cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(caseId);
 }
 
-app.get('/api/maintenance-cases', requireAuth, requireApartmentAccount, (req, res) => {
-  if (req.session.user.role !== 'user') {
-    return res.status(403).json({ error: 'St\u00f6rungsmeldungen sind f\u00fcr Bewohnerkonten vorgesehen.' });
-  }
+app.get('/api/maintenance-cases', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
   res.json({ cases: maintenanceCasesForHouse(currentHouseId(req), req.session.user.id) });
 });
 
-app.post('/api/maintenance-cases', requireAuth, requireApartmentAccount, (req, res) => {
-  if (req.session.user.role !== 'user') {
-    return res.status(403).json({ error: 'St\u00f6rungsmeldungen sind f\u00fcr Bewohnerkonten vorgesehen.' });
-  }
+app.post('/api/maintenance-cases', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
   const resourceId = Number(req.body?.resourceId);
   const title = String(req.body?.title || '').trim();
   const description = String(req.body?.description || '').trim();
@@ -4163,7 +4352,7 @@ app.get('/api/my-bookings', requireAuth, (req, res) => {
       AND b.booking_date >= ?
     ORDER BY b.booking_date, b.slot, r.name
     LIMIT 30
-  `).all(req.session.user.id, currentHouseId(req), todayStringLocal());
+  `).all(req.session.user.bookingUserId, currentHouseId(req), todayStringLocal());
 
   res.json({
     bookings: bookings.map((booking) => {
@@ -4203,7 +4392,7 @@ app.get('/api/bookings', requireAuth, (req, res) => {
   res.json({ bookings: allBookings });
 });
 
-app.post('/api/bookings', requireAuth, requireApartmentAccount, (req, res) => {
+app.post('/api/bookings', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
   const { resourceId, date, slot } = req.body || {};
   const houseId = currentHouseId(req);
 
@@ -4237,11 +4426,11 @@ app.post('/api/bookings', requireAuth, requireApartmentAccount, (req, res) => {
 
   let ruleError = '';
   if (resource.type === 'washer') {
-    ruleError = validateWasherBooking(req.session.user.id, date, slot, houseId);
+    ruleError = validateWasherBooking(req.session.user.bookingUserId, date, slot, houseId);
   } else if (resource.type === 'tumbler') {
     ruleError = validateTumblerBooking(date, slot, houseId);
   } else if (resource.type === 'drying_room') {
-    ruleError = validateDryingRoomBooking(req.session.user.id, date, slot, houseId);
+    ruleError = validateDryingRoomBooking(req.session.user.bookingUserId, date, slot, houseId);
   }
 
   if (ruleError) {
@@ -4252,7 +4441,7 @@ app.post('/api/bookings', requireAuth, requireApartmentAccount, (req, res) => {
     const result = db.prepare(`
       INSERT INTO bookings (user_id, resource_id, booking_date, slot)
       VALUES (?, ?, ?, ?)
-    `).run(req.session.user.id, Number(resourceId), date, slot);
+    `).run(req.session.user.bookingUserId, Number(resourceId), date, slot);
 
     const created = db.prepare(`
       SELECT b.id, b.booking_date, b.slot, r.name AS resource_name
@@ -4279,7 +4468,7 @@ function packageRequestError(status, message) {
   return error;
 }
 
-app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res, next) => {
+app.post('/api/booking-package', requireAuth, requireResident, requireApartmentAccount, (req, res, next) => {
   const rawItems = req.body?.items;
   const washerBookingId = Number(req.body?.washerBookingId || 0);
   const houseId = currentHouseId(req);
@@ -4327,7 +4516,7 @@ app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res
       if (!existingWasher) {
         throw packageRequestError(404, 'Die Waschmaschinen-Buchung wurde nicht gefunden.');
       }
-      if (existingWasher.user_id !== req.session.user.id) {
+      if (existingWasher.user_id !== req.session.user.bookingUserId) {
         throw packageRequestError(403, 'Diese Waschmaschinen-Buchung geh\u00f6rt dir nicht.');
       }
       if (washerItems.length) {
@@ -4402,7 +4591,7 @@ app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res
     }
 
     if (newWashers.length) {
-      const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
+      const washerError = validateWasherBooking(req.session.user.bookingUserId, washDate, washSlot, houseId);
       if (washerError) {
         throw packageRequestError(409, washerError);
       }
@@ -4427,22 +4616,22 @@ app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res
       }
 
       if (newWashers.length) {
-        const washerError = validateWasherBooking(req.session.user.id, washDate, washSlot, houseId);
+        const washerError = validateWasherBooking(req.session.user.bookingUserId, washDate, washSlot, houseId);
         if (washerError) {
           throw packageRequestError(409, washerError);
         }
         for (const washer of newWashers) {
-          const result = insert.run(req.session.user.id, washer.resourceId, washDate, washSlot, groupId);
+          const result = insert.run(req.session.user.bookingUserId, washer.resourceId, washDate, washSlot, groupId);
           created.push({ id: result.lastInsertRowid, type: 'washer' });
         }
       }
 
       for (const item of sortedDryingItems) {
-        const dryingError = validateDryingRoomBooking(req.session.user.id, item.date, item.slot, houseId);
+        const dryingError = validateDryingRoomBooking(req.session.user.bookingUserId, item.date, item.slot, houseId);
         if (dryingError) {
           throw packageRequestError(409, dryingError);
         }
-        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot, groupId);
+        const result = insert.run(req.session.user.bookingUserId, item.resourceId, item.date, item.slot, groupId);
         created.push({ id: result.lastInsertRowid, type: 'drying_room' });
       }
 
@@ -4451,7 +4640,7 @@ app.post('/api/booking-package', requireAuth, requireApartmentAccount, (req, res
         if (tumblerError) {
           throw packageRequestError(409, tumblerError);
         }
-        const result = insert.run(req.session.user.id, item.resourceId, item.date, item.slot, groupId);
+        const result = insert.run(req.session.user.bookingUserId, item.resourceId, item.date, item.slot, groupId);
         created.push({ id: result.lastInsertRowid, type: 'tumbler' });
       }
       return created;
@@ -4502,8 +4691,8 @@ app.delete('/api/booking-groups/:groupId', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'Waschpaket nicht gefunden' });
   }
   if (
-    req.session.user.role !== 'admin'
-    && groupedBookings.some((booking) => booking.user_id !== req.session.user.id)
+    !req.session.user.canManage
+    && groupedBookings.some((booking) => booking.user_id !== req.session.user.bookingUserId)
   ) {
     return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
   }
@@ -4527,8 +4716,8 @@ app.post('/api/booking-groups/:groupId/cancel-notify', requireAuth, async (req, 
       return res.status(404).json({ error: 'Waschpaket nicht gefunden' });
     }
     if (
-      req.session.user.role !== 'admin'
-      && groupedBookings.some((booking) => booking.user_id !== req.session.user.id)
+      !req.session.user.canManage
+      && groupedBookings.some((booking) => booking.user_id !== req.session.user.bookingUserId)
     ) {
       return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
     }
@@ -4592,7 +4781,7 @@ app.delete('/api/bookings/:id', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'Buchung nicht gefunden' });
   }
 
-  if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+  if (!req.session.user.canManage && booking.user_id !== req.session.user.bookingUserId) {
     return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
   }
 
@@ -4613,7 +4802,7 @@ app.post('/api/bookings/:id/cancel-notify', requireAuth, async (req, res, next) 
     if (!booking) {
       return res.status(404).json({ error: 'Buchung nicht gefunden' });
     }
-    if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+    if (!req.session.user.canManage && booking.user_id !== req.session.user.bookingUserId) {
       return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
     }
 
@@ -4657,7 +4846,7 @@ app.post('/api/bookings/:id/release', requireAuth, async (req, res, next) => {
     if (!booking) {
       return res.status(404).json({ error: 'Buchung nicht gefunden' });
     }
-    if (req.session.user.role !== 'admin' && booking.user_id !== req.session.user.id) {
+    if (!req.session.user.canManage && booking.user_id !== req.session.user.bookingUserId) {
       return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
     }
 
@@ -4775,7 +4964,9 @@ app.get('/api/release-notices/:id', requireAuth, (req, res) => {
 app.get('/api/admin/apartments', requireAdmin, (req, res) => {
   const apartments = db.prepare(`
     SELECT a.id, a.label, a.display_name, a.active, a.claimed_at,
-           CASE WHEN a.claimed_by IS NULL THEN 0 ELSE 1 END AS claimed,
+           CASE WHEN EXISTS (SELECT 1 FROM users member WHERE member.apartment_id = a.id AND member.active = 1) THEN 1 ELSE 0 END AS claimed,
+           (SELECT COUNT(*) FROM users member WHERE member.apartment_id = a.id AND member.active = 1) AS member_count,
+           (SELECT group_concat(member.email, ', ') FROM users member WHERE member.apartment_id = a.id AND member.active = 1 AND member.email IS NOT NULL) AS member_emails,
            u.email, u.secondary_email, u.email_verified, u.secondary_email_verified,
            ai.email AS invitation_email, ai.expires_at AS invitation_expires_at,
            ai.email_sent_at AS invitation_email_sent_at,
@@ -4800,9 +4991,7 @@ app.get('/api/admin/apartments', requireAdmin, (req, res) => {
     ...apartment,
     active: Boolean(apartment.active),
     claimed: Boolean(apartment.claimed),
-    invitationStatus: apartment.claimed
-      ? 'accepted'
-      : !apartment.invitation_email
+    invitationStatus: !apartment.invitation_email
         ? 'none'
         : apartment.invitation_accepted_at
           ? 'accepted'
@@ -4812,7 +5001,8 @@ app.get('/api/admin/apartments', requireAdmin, (req, res) => {
               ? 'not_sent'
               : Number(apartment.invitation_expires_at) <= Date.now()
                 ? 'expired'
-                : 'pending'
+                : 'pending',
+    member_count: Number(apartment.member_count || 0)
   }));
   res.json({ apartments });
 });
@@ -4849,8 +5039,17 @@ app.post('/api/admin/apartments', requireAdmin, async (req, res, next) => {
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse fuer die Einladung eingeben.' });
   }
-  if (findEmailOwner(email) || pendingInvitationForEmail(email)) {
-    return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer offenen Einladung zugeordnet.' });
+  const existingIdentity = findEmailOwner(email);
+  const existingIdentityRow = existingIdentity
+    ? db.prepare('SELECT id, house_id, apartment_id FROM users WHERE id = ? AND active = 1').get(existingIdentity.id)
+    : null;
+  if (
+    (existingIdentity && !existingIdentityRow)
+    || existingIdentityRow?.apartment_id
+    || (existingIdentityRow && Number(existingIdentityRow.house_id) !== currentHouseId(req))
+    || pendingInvitationForEmail(email)
+  ) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einer Wohnung, einem anderen Haus oder einer offenen Einladung.' });
   }
   const invitationConfig = smtpConfig();
   if (!allowTestInvitationLink && (!invitationConfig.host || !invitationConfig.from)) {
@@ -4907,15 +5106,24 @@ app.post('/api/admin/apartments/:id/invitation', requireAdmin, async (req, res, 
     WHERE a.id = ? AND a.house_id = ? AND a.active = 1
   `).get(Number(req.params.id), currentHouseId(req));
   if (!apartment) return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
-  if (apartment.claimed_by) {
-    return res.status(409).json({ error: 'Diese Wohnung ist bereits aktiviert.' });
-  }
   const email = normalizeEmail(req.body?.email);
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse fuer die Einladung eingeben.' });
   }
-  if (findEmailOwner(email) || pendingInvitationForEmail(email, apartment.id)) {
-    return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer anderen Einladung zugeordnet.' });
+  const existingIdentity = findEmailOwner(email);
+  const existingIdentityRow = existingIdentity
+    ? db.prepare('SELECT id, house_id, apartment_id FROM users WHERE id = ? AND active = 1').get(existingIdentity.id)
+    : null;
+  if (
+    (existingIdentity && !existingIdentityRow)
+    || (existingIdentityRow?.apartment_id && Number(existingIdentityRow.apartment_id) !== Number(apartment.id))
+    || (existingIdentityRow && Number(existingIdentityRow.house_id) !== Number(apartment.house_id))
+    || pendingInvitationForEmail(email, apartment.id)
+  ) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einer anderen Wohnung, einem anderen Haus oder einer offenen Einladung.' });
+  }
+  if (existingIdentityRow?.apartment_id && Number(existingIdentityRow.apartment_id) === Number(apartment.id)) {
+    return res.status(409).json({ error: 'Diese Person ist bereits Mitglied dieser Wohnung.' });
   }
   const invitationConfig = smtpConfig();
   if (!allowTestInvitationLink && (!invitationConfig.host || !invitationConfig.from)) {
@@ -5050,12 +5258,17 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
     SELECT u.id, u.username, u.email, u.secondary_email, u.role, u.house_id, u.is_superadmin,
            u.active, u.notify_releases, u.email_verified, u.secondary_email_verified,
            u.created_at, a.label AS apartment_label, a.display_name AS apartment_display_name,
-           u.merged_into_user_id
+           u.merged_into_user_id,
+           CASE WHEN u.apartment_id IS NULL THEN 0 ELSE 1 END AS is_resident,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM user_house_roles uhr
+             WHERE uhr.user_id = u.id AND uhr.house_id = ? AND uhr.role = 'house_admin'
+           ) THEN 1 ELSE 0 END AS is_house_admin
     FROM users u
     LEFT JOIN apartments a ON a.id = u.apartment_id
     WHERE u.house_id = ?
     ORDER BY COALESCE(NULLIF(a.display_name, ''), a.label, u.username), u.username
-  `).all(currentHouseId(req));
+  `).all(currentHouseId(req), currentHouseId(req));
   res.json({ users });
 });
 
@@ -5079,13 +5292,15 @@ app.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
   if (user.is_superadmin && user.id !== req.session.user.id) {
     return res.status(403).json({ error: 'Das Superadmin-Konto kann hier nicht ge\u00e4ndert werden.' });
   }
-  if (!isSuperadmin(req) && user.role === 'admin') {
+  const targetIsHouseAdmin = hasHouseRole(user.id, currentHouseId(req));
+  if (!isSuperadmin(req) && targetIsHouseAdmin) {
     return res.status(403).json({ error: 'Hausadmins k\u00f6nnen andere Admin-Konten nicht verwalten.' });
   }
-  if (!active && user.role === 'admin') {
+  if (!active && targetIsHouseAdmin) {
     const activeAdmins = db.prepare(`
-      SELECT COUNT(*) AS count FROM users
-      WHERE role = 'admin' AND active = 1 AND house_id = ?
+      SELECT COUNT(*) AS count
+      FROM user_house_roles uhr JOIN users u ON u.id = uhr.user_id
+      WHERE uhr.role = 'house_admin' AND uhr.house_id = ? AND u.active = 1
     `).get(currentHouseId(req)).count;
     if (activeAdmins <= 1) {
       return res.status(400).json({ error: 'Mindestens ein aktives Admin-Konto muss erhalten bleiben.' });
@@ -5116,7 +5331,7 @@ app.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateL
   if (user.is_superadmin && user.id !== req.session.user.id) {
     return res.status(403).json({ error: 'Das Superadmin-Passwort kann hier nicht ge\u00e4ndert werden.' });
   }
-  if (!isSuperadmin(req) && user.role === 'admin') {
+  if (!isSuperadmin(req) && hasHouseRole(user.id, currentHouseId(req))) {
     return res.status(403).json({ error: 'Hausadmins k\u00f6nnen keine Reset-Links f\u00fcr andere Admins senden.' });
   }
   try {
@@ -5138,14 +5353,14 @@ app.post('/api/admin/users/:id/recovery-code', requireAdmin, adminRecoveryRateLi
   const userId = Number(req.params.id);
   const user = db.prepare(`
     SELECT id, username, email, email_verified, secondary_email, secondary_email_verified, role, is_superadmin,
-           active, merged_into_user_id, house_id
+           active, merged_into_user_id, house_id, apartment_id
     FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
   if (!user) {
     return res.status(404).json({ error: 'Konto nicht gefunden.' });
   }
-  if (user.role !== 'user' || user.is_superadmin || user.merged_into_user_id || !user.active) {
+  if (!user.apartment_id || hasHouseRole(user.id, currentHouseId(req)) || user.is_superadmin || user.merged_into_user_id || !user.active) {
     return res.status(409).json({ error: 'Nur ein aktives, nicht zusammengefuehrtes Bewohnerkonto kann so wiederhergestellt werden.' });
   }
   if (verifiedEmailForUser(user)) {
@@ -5190,7 +5405,18 @@ app.put('/api/admin/users/:id/role', requireAdmin, requireSuperadmin, (req, res)
   if (user.is_superadmin) {
     return res.status(400).json({ error: 'Die Rolle des Superadmins kann nicht ge\u00e4ndert werden.' });
   }
-  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+  if (role === 'admin') {
+    db.prepare(`
+      INSERT OR IGNORE INTO user_house_roles (user_id, house_id, role, granted_by)
+      VALUES (?, ?, 'house_admin', ?)
+    `).run(user.id, currentHouseId(req), req.session.user.id);
+    db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+  } else {
+    db.prepare(`
+      DELETE FROM user_house_roles WHERE user_id = ? AND house_id = ? AND role = 'house_admin'
+    `).run(user.id, currentHouseId(req));
+    db.prepare("UPDATE users SET role = 'user' WHERE id = ? AND is_superadmin = 0").run(user.id);
+  }
   destroyUserSessions(user.id);
   writeAudit(req, 'user.role', 'user', user.id, { role });
   res.json({ message: `${apartmentAccountLabel(user.id, user.username)} ist jetzt ${role === 'admin' ? 'Haus-Admin' : 'Bewohner'}.` });
@@ -5219,7 +5445,10 @@ app.put('/api/admin/users/:id/house', requireAdmin, requireSuperadmin, (req, res
     return res.status(409).json({ error: 'Vor dem Umzug m\u00fcssen die kommenden Buchungen dieses Kontos gel\u00f6scht werden.' });
   }
   const previousHouseId = user.house_id;
-  db.prepare('UPDATE users SET house_id = ?, role = ? WHERE id = ?').run(house.id, 'user', user.id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM user_house_roles WHERE user_id = ?').run(user.id);
+    db.prepare('UPDATE users SET house_id = ?, role = ? WHERE id = ?').run(house.id, 'user', user.id);
+  })();
   destroyUserSessions(user.id);
   writeAudit(req, 'user.move', 'user', user.id, { fromHouseId: previousHouseId, toHouseId: house.id });
   res.json({ ok: true, message: `${apartmentAccountLabel(user.id, user.username)} wurde nach ${house.name} verschoben.` });
@@ -5281,6 +5510,7 @@ app.put('/api/admin/maintenance', requireAdmin, requireSuperadmin, async (req, r
   const current = maintenanceStatus();
 
   if (active) {
+    if (!confirmCurrentAdminPassword(req, res)) return;
     if (current.active) {
       return res.json({ maintenance: current, message: 'Der Wartungsmodus ist bereits aktiv.' });
     }
@@ -5342,7 +5572,6 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     FROM users
     WHERE active = 1
       AND house_id = ?
-      AND role = 'user'
       AND NOT (email_verified = 1 AND email IS NOT NULL AND trim(email) != '')
       AND NOT (secondary_email_verified = 1 AND secondary_email IS NOT NULL AND trim(secondary_email) != '')
   `).get(houseId).count;
@@ -5391,6 +5620,7 @@ app.get('/api/admin/recovery-status', requireAdmin, (req, res) => {
 app.post('/api/admin/superadmin-transfer', requireAdmin, requireSuperadmin, (req, res) => {
   const targetUserId = Number(req.body?.targetUserId);
   const confirm = String(req.body?.confirm || '').trim();
+  if (!confirmCurrentAdminPassword(req, res)) return;
   if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
     return res.status(400).json({ error: 'Bitte ein gueltiges Zielkonto waehlen.' });
   }
@@ -5409,7 +5639,7 @@ app.post('/api/admin/superadmin-transfer', requireAdmin, requireSuperadmin, (req
   if (!target) {
     return res.status(404).json({ error: 'Zielkonto im aktuellen Haus nicht gefunden.' });
   }
-  if (!target.active || target.role !== 'admin') {
+  if (!target.active || !hasHouseRole(target.id, currentHouseId(req))) {
     return res.status(409).json({ error: 'Die Uebergabe ist nur an ein aktives Haus-Admin-Konto moeglich.' });
   }
   if (target.is_superadmin) {
@@ -5419,6 +5649,10 @@ app.post('/api/admin/superadmin-transfer', requireAdmin, requireSuperadmin, (req
   const previousSuperadminId = req.session.user.id;
   db.transaction(() => {
     db.prepare('UPDATE users SET is_superadmin = 1, role = ?, active = 1 WHERE id = ?').run('admin', target.id);
+    db.prepare(`
+      INSERT OR IGNORE INTO user_house_roles (user_id, house_id, role, granted_by)
+      VALUES (?, ?, 'house_admin', ?)
+    `).run(target.id, target.house_id, previousSuperadminId);
     db.prepare('UPDATE users SET is_superadmin = 0 WHERE id = ?').run(previousSuperadminId);
   })();
 
@@ -5511,6 +5745,7 @@ app.get('/api/admin/analytics', requireAdmin, (req, res) => {
 
 app.delete('/api/admin/bookings', requireAdmin, (req, res) => {
   const confirmText = String(req.body?.confirm || '').trim();
+  if (!confirmCurrentAdminPassword(req, res)) return;
   if (confirmText !== 'ALLE BUCHUNGEN') {
     return res.status(400).json({ error: 'Bitte zur Bestaetigung ALLE BUCHUNGEN eingeben.' });
   }
@@ -5536,6 +5771,7 @@ app.delete('/api/admin/bookings', requireAdmin, (req, res) => {
 
 app.delete('/api/admin/pilot-accounts', requireAdmin, requireSuperadmin, async (req, res, next) => {
   const confirmText = String(req.body?.confirm || '').trim();
+  if (!confirmCurrentAdminPassword(req, res)) return;
   if (confirmText !== 'ALLE TESTKONTEN LOESCHEN') {
     return res.status(400).json({
       error: 'Bitte zur Bestaetigung ALLE TESTKONTEN LOESCHEN eingeben.'

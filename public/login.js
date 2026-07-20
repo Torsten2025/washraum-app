@@ -3,6 +3,8 @@ const message = document.querySelector('#message');
 const registerForm = document.querySelector('#registerForm');
 const registerMessage = document.querySelector('#registerMessage');
 const invitationSummary = document.querySelector('#invitationSummary');
+const invitationPasswordLabel = document.querySelector('#invitationPasswordLabel');
+const invitationPasswordConfirmationLabel = document.querySelector('#invitationPasswordConfirmationLabel');
 const showLogin = document.querySelector('#showLogin');
 const showRegister = document.querySelector('#showRegister');
 const showDeviceLogin = document.querySelector('#showDeviceLogin');
@@ -18,6 +20,7 @@ const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const updateAppButton = document.querySelector('#updateAppButton');
 const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || '';
+let invitationUsesExistingAccount = false;
 
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"']/g, (character) => ({
@@ -160,7 +163,7 @@ registerForm.addEventListener('submit', async (event) => {
   registerMessage.textContent = '';
 
   const formData = new FormData(registerForm);
-  if (formData.get('password') !== formData.get('passwordConfirmation')) {
+  if (!invitationUsesExistingAccount && formData.get('password') !== formData.get('passwordConfirmation')) {
     registerMessage.textContent = 'Die beiden Passwoerter stimmen nicht ueberein.';
     return;
   }
@@ -188,10 +191,20 @@ async function loadInvitation(token) {
       return;
     }
     const invitation = data.invitation;
+    invitationUsesExistingAccount = Boolean(invitation.existingAccount);
+    invitationPasswordLabel.firstChild.textContent = invitationUsesExistingAccount
+      ? 'Vorhandenes Passwort '
+      : 'Dein Passwort ';
+    invitationPasswordLabel.querySelector('input').autocomplete = invitationUsesExistingAccount
+      ? 'current-password'
+      : 'new-password';
+    invitationPasswordConfirmationLabel.hidden = invitationUsesExistingAccount;
+    invitationPasswordConfirmationLabel.querySelector('input').required = !invitationUsesExistingAccount;
     invitationSummary.innerHTML = `
       <strong>${escapeHtml(invitation.displayName)}</strong>
       <span>${escapeHtml(invitation.apartmentLabel)} &middot; ${escapeHtml(invitation.houseName)}</span>
       <span>${escapeHtml(invitation.email)}</span>
+      <span>${invitationUsesExistingAccount ? 'Bestehenden Zugang bestätigen' : 'Neuen persönlichen Zugang anlegen'}</span>
     `;
     submitButton.disabled = false;
   } catch {
@@ -204,7 +217,7 @@ if (invitationToken) {
 } else if (devicePairingToken) {
   setMode('device');
   deviceLoginForm.elements.deviceCode.value = devicePairingToken;
-  deviceLoginMessage.textContent = 'QR-Code erkannt. Bitte bestaetige jetzt die Verbindung zum Wohnungskonto.';
+  deviceLoginMessage.textContent = 'QR-Code erkannt. Bitte melde dich mit deiner eigenen E-Mail an oder lege damit deinen persönlichen Zugang an.';
 }
 
 deviceLoginForm.addEventListener('submit', async (event) => {
@@ -212,7 +225,10 @@ deviceLoginForm.addEventListener('submit', async (event) => {
   deviceLoginMessage.textContent = '';
   const formData = new FormData(deviceLoginForm);
   const data = await submitJson(deviceLoginForm, '/api/device-login', {
-    deviceCode: formData.get('deviceCode')
+    deviceCode: formData.get('deviceCode'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    passwordConfirmation: formData.get('passwordConfirmation')
   }, deviceLoginMessage);
   if (!data) return;
   window.location.href = '/index.html';

@@ -9,7 +9,8 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 - Wochenkalender mit Einzelbuchung und persoenlichen Waschpaketen aus Waschrhythmus und aktuell freien Geraeten.
 - Waschpakete reservieren per Schnellwahl eine bis drei Waschmaschinen im gleichen Slot, eine waehlbare Trockenraumdauer und den Tumbler gemeinsam und atomar. Alle Bestandteile koennen gemeinsam verwaltet werden.
 - Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
-- Haus-Admins verwalten ihr Haus. Der Superadmin verwaltet Haeuser, Geraete, Rollen und kontrollierte Umzuege zwischen Hausnummern.
+- Jede Person verwendet genau eine eindeutige E-Mail-Identitaet. Diese kann Bewohner einer Wohnung, Haus-Admin und zusaetzlich Superadmin sein; `Mein Waschplan` und `Verwalten` bleiben dabei klar getrennt.
+- Haus-Admins verwalten ihr Haus. Der Superadmin verwaltet Haeuser, Geraete, additive Rollen und kontrollierte Umzuege zwischen Hausnummern.
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume werden serverseitig in Schweizer Zeit geprueft.
 - Geschuetzte, wiederkehrende Buchungen fuer von Admins betreute Personen.
 - Verifizierte, nach Bereich, Wochentag und Slot filterbare E-Mail-Hinweise bei frueher Freigabe oder Absage.
@@ -47,7 +48,7 @@ Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Di
 
 ## Wohnungseinladung
 
-Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Der Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen, einmaligen QR-Code mit Bestaetigungsseite verbunden; alternativ bleibt der Code lesbar. Dieser Weg gilt nur fuer Bewohnerkonten und uebertraegt keine Adminrechte. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
+Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink. Eine neue E-Mail legt eine persoenliche Identitaet an; eine bereits bekannte E-Mail erweitert nach Bestaetigung des vorhandenen Passworts dieselbe Identitaet um die Wohnungsmitgliedschaft. Weitere Familienmitglieder erhalten per zehn Minuten gueltigem QR-Code einen eigenen persoenlichen Bewohnerzugang zur gemeinsamen Wohnung. Der QR-Code kopiert niemals Adminrechte. Alle Mitglieder sehen dieselben Wohnungsbuchungen und teilen die Vorausbuchungsregeln. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
 
 Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Admin-Konto wird zum Superadmin. Weitere Hausnummern erhalten anfangs drei Waschmaschinen, drei Trockenraeume und zwei Tumbler. Namen, aktive Geraete und Hausstatus koennen danach angepasst werden. Ein Bewohner kann nur ohne kommende Buchungen in ein anderes Haus verschoben werden.
 

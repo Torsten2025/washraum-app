@@ -126,11 +126,11 @@
             <span>&Ouml;ffne den Link aus der E-Mail deiner Hausverwaltung.</span>
           </div>
           <input name="token" type="hidden">
-          <label>
+          <label id="invitationPasswordLabel">
             Dein Passwort
             <input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
-          <label>
+          <label id="invitationPasswordConfirmationLabel">
             Passwort wiederholen
             <input name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
@@ -139,17 +139,29 @@
             <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
           </label>
           <button type="submit" disabled>Einladung annehmen</button>
-          <p class="helper-text">E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
+          <p class="helper-text">E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Besteht die E-Mail schon, wird genau diese pers&ouml;nliche Identit&auml;t um die Wohnungsmitgliedschaft erg&auml;nzt.</p>
           <p id="registerMessage" class="message" role="status"></p>
         </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>
-          <h2>Weiteres Handy verbinden</h2>
-          <p class="helper-text">Auf einem bereits angemeldeten Ger&auml;t unter Einstellungen &gt; App &amp; Ger&auml;t einen Ger&auml;tecode erzeugen.</p>
+          <h2>Partner zur Wohnung hinzuf&uuml;gen</h2>
+          <p class="helper-text">Der QR-Code vergibt ausschliesslich Bewohnerrechte. Dein Partner verwendet eine eigene E-Mail und ein eigenes Passwort; Adminrechte werden nie &uuml;bertragen.</p>
           <label>
             Ger&auml;tecode
             <input name="deviceCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
           </label>
-          <button type="submit">Wohnungskonto verbinden</button>
+          <label>
+            Pers&ouml;nliche E-Mail
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            Eigenes Passwort
+            <input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required>
+          </label>
+          <label>
+            Passwort wiederholen <span class="muted">(nur bei neuem Zugang)</span>
+            <input name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+          </label>
+          <button type="submit">Pers&ouml;nlichen Zugang verbinden</button>
           <p id="deviceLoginMessage" class="message" role="status"></p>
         </form>
       </section>

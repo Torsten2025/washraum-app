@@ -418,9 +418,16 @@ async function run() {
       assert.match(code.body.qrCodeDataUrl, /^data:image\/png;base64,/);
       const paired = await expectStatus(new ApiClient(), '/api/device-login', 200, {
         method: 'POST',
-        body: JSON.stringify({ deviceCode: code.body.code })
+        body: JSON.stringify({
+          deviceCode: code.body.code,
+          email: 'audit-mitglied@example.test',
+          password: 'Audit-Mitglied-2026!',
+          passwordConfirmation: 'Audit-Mitglied-2026!'
+        })
       });
-      assert.equal(paired.body.user.id, residentId);
+      assert.notEqual(paired.body.user.id, residentId);
+      assert.equal(paired.body.user.role, 'user');
+      assert.equal(paired.body.user.apartmentLabel, code.body.apartmentLabel);
       await expectStatus(new ApiClient(), '/api/device-login', 400, {
         method: 'POST',
         body: JSON.stringify({ deviceCode: code.body.code })

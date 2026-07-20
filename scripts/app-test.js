@@ -254,6 +254,14 @@ async function verifySmtpDelivery() {
     });
     assert.equal(resetConfirm.status, 200);
 
+    const smtpResidentLogin = await fetch(`http://127.0.0.1:${appPort}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'smtp-person@example.com', password: 'SMTP-Neu-2026!' })
+    });
+    assert.equal(smtpResidentLogin.status, 200);
+    const smtpResidentCookie = String(smtpResidentLogin.headers.get('set-cookie') || '').split(';')[0];
+
     const smtpAdminLogin = await fetch(`http://127.0.0.1:${appPort}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -289,7 +297,7 @@ async function verifySmtpDelivery() {
     const smtpBookingDate = addDays(nextWeekday(1), 14);
     const smtpBooking = await fetch(`http://127.0.0.1:${appPort}/api/bookings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: smtpAdminCookie },
+      headers: { 'Content-Type': 'application/json', Cookie: smtpResidentCookie },
       body: JSON.stringify({ resourceId: smtpWasher.id, date: smtpBookingDate, slot: '07:00-12:00' })
     });
     assert.equal(smtpBooking.status, 201);
@@ -297,18 +305,14 @@ async function verifySmtpDelivery() {
 
     const releaseMail = await fetch(`http://127.0.0.1:${appPort}/api/bookings/${smtpBookingBody.id}/cancel-notify`, {
       method: 'POST',
-      headers: { Cookie: smtpAdminCookie }
+      headers: { Cookie: smtpResidentCookie }
     });
     assert.equal(releaseMail.status, 200);
     const releaseMailBody = await releaseMail.json();
     assert.equal(releaseMailBody.releaseNoticeCreated, true);
     assert.equal(releaseMailBody.emailNotifications.configured, true);
-    assert.equal(releaseMailBody.emailNotifications.sent, 1);
-    assert.equal(messages.length, 5);
-    assert.ok(messages[4].includes('To: smtp-person@example.com'));
-    assert.ok(messages[4].includes('Subject: WaschZeit: Termin'));
-    assert.ok(messages[4].includes(smtpWasher.name));
-    assert.ok(messages[4].includes('wieder frei'));
+    assert.equal(releaseMailBody.emailNotifications.sent, 0);
+    assert.equal(messages.length, 4);
 
     const invitationResponse = await fetch(`http://127.0.0.1:${appPort}/api/admin/apartments`, {
       method: 'POST',
@@ -323,11 +327,11 @@ async function verifySmtpDelivery() {
     const invitationBody = await invitationResponse.json();
     assert.equal(invitationBody.invitation.emailSent, true);
     assert.equal(Object.hasOwn(invitationBody, 'invitationLink'), false);
-    assert.equal(messages.length, 6);
-    assert.ok(messages[5].includes('To: smtp-einladung@example.com'));
-    assert.ok(messages[5].includes('Subject: WaschZeit: Einladung'));
-    assert.ok(messages[5].includes('/login.html?invite='));
-    const invitationToken = messages[5].match(/login\.html\?invite=([a-f0-9]{64})/)[1];
+    assert.equal(messages.length, 5);
+    assert.ok(messages[4].includes('To: smtp-einladung@example.com'));
+    assert.ok(messages[4].includes('Subject: WaschZeit: Einladung'));
+    assert.ok(messages[4].includes('/login.html?invite='));
+    const invitationToken = messages[4].match(/login\.html\?invite=([a-f0-9]{64})/)[1];
     const acceptedInvitation = await fetch(`http://127.0.0.1:${appPort}/api/invitations/accept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1226,9 +1230,19 @@ async function run() {
     const pairedDevice = new ApiClient();
     const deviceLogin = await expectStatus(pairedDevice, '/api/device-login', 200, {
       method: 'POST',
-      body: JSON.stringify({ deviceCode: deviceCode.body.code })
+      body: JSON.stringify({
+        deviceCode: deviceCode.body.code,
+        email: 'partei-neu-mitglied@example.test',
+        password: 'Partei-Mitglied-2026!',
+        passwordConfirmation: 'Partei-Mitglied-2026!'
+      })
     });
-    assert.equal(deviceLogin.body.user.id, apartmentRegistration.body.user.id);
+    assert.notEqual(deviceLogin.body.user.id, apartmentRegistration.body.user.id);
+    assert.equal(deviceLogin.body.user.apartmentId, apartmentRegistration.body.user.apartmentId);
+    assert.equal(deviceLogin.body.user.bookingUserId, apartmentRegistration.body.user.bookingUserId);
+    assert.deepEqual(deviceLogin.body.user.roles, ['resident']);
+    assert.equal(deviceLogin.body.user.canBook, true);
+    assert.equal(deviceLogin.body.user.canManage, false);
     await expectStatus(new ApiClient(), '/api/device-login', 400, {
       method: 'POST',
       body: JSON.stringify({ deviceCode: deviceCode.body.code })
@@ -1244,14 +1258,21 @@ async function run() {
       })
     });
     assert.equal(duplicateRegistration.body.user.apartmentSetupRequired, true);
-    const mergeCode = await expectStatus(apartmentResident, '/api/me/device-code', 201, { method: 'POST' });
-    const merged = await expectStatus(duplicateApartmentAccount, '/api/me/apartment/join', 200, {
+    const existingAccountCode = await expectStatus(apartmentResident, '/api/me/device-code', 201, { method: 'POST' });
+    const existingAccountMember = await expectStatus(new ApiClient(), '/api/device-login', 200, {
       method: 'POST',
-      body: JSON.stringify({ deviceCode: mergeCode.body.code })
+      body: JSON.stringify({
+        deviceCode: existingAccountCode.body.code,
+        email: 'partei-neu-zweit@example.test',
+        password: 'Partei-Neu-Zweit-2026!'
+      })
     });
-    assert.equal(merged.body.user.id, apartmentRegistration.body.user.id);
-    assert.equal(merged.body.user.secondaryEmail, 'partei-neu-zweit@example.test');
-    await expectStatus(new ApiClient(), '/api/login', 401, {
+    assert.equal(existingAccountMember.body.user.id, duplicateRegistration.body.user.id);
+    assert.notEqual(existingAccountMember.body.user.id, apartmentRegistration.body.user.id);
+    assert.equal(existingAccountMember.body.user.apartmentId, apartmentRegistration.body.user.apartmentId);
+    assert.equal(existingAccountMember.body.user.bookingUserId, apartmentRegistration.body.user.bookingUserId);
+    assert.deepEqual(existingAccountMember.body.user.roles, ['resident']);
+    await expectStatus(new ApiClient(), '/api/login', 200, {
       method: 'POST',
       body: JSON.stringify({ username: 'partei-neu-zweit@example.test', password: 'Partei-Neu-Zweit-2026!' })
     });
@@ -1507,7 +1528,7 @@ async function run() {
     assert.equal(verifiedBackup.body.status.ok, true);
     const maintenanceStarted = await expectStatus(admin, '/api/admin/maintenance', 200, {
       method: 'PUT',
-      body: JSON.stringify({ active: true })
+      body: JSON.stringify({ active: true, currentPassword: 'Admin-Test-2026!' })
     });
     assert.equal(maintenanceStarted.body.maintenance.active, true);
     await expectStatus(user, '/api/bookings', 503, {
@@ -1529,11 +1550,11 @@ async function run() {
     assert.ok(Array.isArray(analytics.body.bySlot));
     await expectStatus(admin, '/api/admin/bookings', 400, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'falsch' })
+      body: JSON.stringify({ confirm: 'falsch', currentPassword: 'Admin-Test-2026!' })
     });
     const resetBookings = await expectStatus(admin, '/api/admin/bookings', 200, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'ALLE BUCHUNGEN' })
+      body: JSON.stringify({ confirm: 'ALLE BUCHUNGEN', currentPassword: 'Admin-Test-2026!' })
     });
     assert.ok(resetBookings.body.deleted >= 1);
 
@@ -1587,6 +1608,14 @@ async function run() {
     assert.ok(indexHtml.includes('settingsSummary'));
     assert.ok(indexHtml.includes('accountMenuButton'));
     assert.ok(indexHtml.includes('openSettingsButton'));
+    assert.ok(indexHtml.includes('id="openDiaperGameButton"'));
+    assert.ok(indexHtml.includes('id="diaperGameOverlay"'));
+    assert.ok(indexHtml.includes('id="diaperPressureBar"'));
+    assert.ok(indexHtml.includes('id="diaperLeaderboardList"'));
+    assert.ok(indexHtml.includes('Globale Bestenliste'));
+    assert.ok(indexHtml.includes('class="diaper-game-hero"'));
+    assert.ok(indexHtml.includes('class="diaper-step-rail"'));
+    assert.ok(indexHtml.includes('entsch&auml;rfe die Windel'));
     assert.ok(indexHtml.includes('data-settings-target="profile"'));
     assert.ok(indexHtml.includes('data-settings-target="notifications"'));
     assert.ok(indexHtml.includes('data-settings-target="device"'));
@@ -1613,6 +1642,8 @@ async function run() {
     assert.ok(indexHtml.includes('calendarDayDetailsContent'));
     assert.ok(indexHtml.includes('calendarDayDetailsBackdrop'));
     assert.ok(indexHtml.includes('calendarDayDetailsActions'));
+    assert.ok(indexHtml.includes('id="bookingPanelTitle"'));
+    assert.ok(indexHtml.includes('id="singleBookingDetails"'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));
     assert.ok(indexHtml.includes('bookingFlowNotice'));
@@ -1674,6 +1705,11 @@ async function run() {
     assert.ok(stylesText.includes('.flow-time-choice'));
     assert.ok(stylesText.includes('.settings-summary'));
     assert.ok(stylesText.includes('.settings-help-video'));
+    assert.ok(stylesText.includes('.diaper-game-stage'));
+    assert.ok(stylesText.includes('@keyframes diaper-pop'));
+    assert.ok(stylesText.includes('.diaper-leaderboard'));
+    assert.ok(stylesText.includes('@keyframes diaper-breathe'));
+    assert.ok(stylesText.includes('@keyframes diaper-tool-in'));
     assert.ok(stylesText.includes('body:not(.admin-view) .side-panel'));
     assert.ok(stylesText.includes('.settings-step'));
     assert.ok(stylesText.includes('.notice-journal'));
@@ -1702,6 +1738,9 @@ async function run() {
     assert.ok(appScriptText.includes('setAdminSection'));
     assert.ok(appScriptText.includes('renderAdminWorkQueue'));
     assert.ok(appScriptText.includes('Normale Waschzeiten werden von Bewohnern selbst gebucht'));
+    assert.ok(appScriptText.includes("bookingViewButton.textContent = isAdmin ? 'Kalender' : 'Mein Waschplan'"));
+    assert.ok(appScriptText.includes('bookingFlow.hidden = isAdmin'));
+    assert.ok(appScriptText.includes('const isAdmin = !currentUser.canBook'));
     assert.ok(appScriptText.includes('Admin-Nachfolge absichern'));
     assert.ok(appScriptText.includes("calendarView === 'month' ? 42 : 7"));
     assert.ok(appScriptText.includes('formatCalendarMonth'));
@@ -1740,6 +1779,10 @@ async function run() {
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
+    assert.ok(appScriptText.includes('const diaperGameSteps'));
+    assert.ok(appScriptText.includes('/api/diaper-game/leaderboard'));
+    assert.ok(appScriptText.includes('/api/diaper-game/complete'));
+    assert.ok(appScriptText.includes('function loseDiaperGame'));
     assert.ok(appScriptText.includes("activeSettingsSection = 'help'"));
     assert.ok(!appScriptText.includes('sidebarKnowledgeButton'));
     assert.ok(appScriptText.includes('/api/admin/analytics?days=30'));
@@ -1813,11 +1856,11 @@ async function run() {
     });
     await expectStatus(pilotAdmin, '/api/admin/pilot-accounts', 400, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'falsch' })
+      body: JSON.stringify({ confirm: 'falsch', currentPassword: 'Admin-Test-2026!' })
     });
     const pilotReset = await expectStatus(pilotAdmin, '/api/admin/pilot-accounts', 200, {
       method: 'DELETE',
-      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN', currentPassword: 'Admin-Test-2026!' })
     });
     assert.ok(pilotReset.body.deleted >= 1);
     assert.ok(pilotReset.body.residents >= 1);
