@@ -1,6 +1,6 @@
 # WaschZeit-Handbuch
 
-Stand: 19. Juli 2026
+Stand: 20. Juli 2026
 
 Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der WaschZeit-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
 
@@ -17,8 +17,8 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 
 ## Schnellstart fuer Bewohner
 
-1. Auf der Anmeldeseite `Wohnung aktivieren` waehlen.
-2. Benutzername, E-Mail, Passwort und den einmaligen Wohnungscode eingeben. Die E-Mail ist Pflicht, weil Passwort-Reset und wichtige Kontohinweise sonst nicht funktionieren. Jede Wohnung erhaelt ihren Code persoenlich von der Verwaltung; nach der ersten Aktivierung ist er verbraucht.
+1. Den sieben Tage gueltigen Einladungslink aus der E-Mail der Hausverwaltung oeffnen.
+2. Wohnung, Klingelschildname und fest zugeordnete E-Mail pruefen und nur noch ein eigenes Passwort festlegen. Erst mit diesem Schritt entsteht das aktive Wohnungskonto; der Link ist danach verbraucht.
 3. Weitere Familienmitglieder waehlen `Geraet verbinden`. Ein bereits angemeldetes Geraet erzeugt unter `Einstellungen` > `App & Geraet` einen zehn Minuten gueltigen Einmalcode. So verwenden alle Geraete dasselbe Wohnungskonto, ohne das Passwort weiterzugeben.
 4. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Ein passender Termin ist mit `Empfohlen` und `Buchen` markiert; ein Tipp oeffnet direkt das vorgeschlagene Zeitfenster und die Waschmaschinenwahl.
 5. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
@@ -33,7 +33,7 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 | Rolle | Geltungsbereich | Verwaltungsrechte |
 | --- | --- | --- |
 | Bewohner | Gemeinsames Wohnungskonto und zugeordnetes Haus | Eigene Wohnungsbuchungen, Hinweise, Kontodaten und sachliche Stoerungsmeldungen |
-| Haus-Admin | Eigenes Haus | Wohnungen und Einmalcodes, Wohnungskonten, Geraete, Tagebuch, Sperren, Reparaturpruefung, Dauertermine und Buchungen des Hauses |
+| Haus-Admin | Eigenes Haus | Wohnungen und Einladungen, Wohnungskonten, Geraete, Tagebuch, Sperren, Reparaturpruefung, Dauertermine und Buchungen des Hauses |
 | Superadmin | Alle Haeuser | Hausuebergreifende Tagebuchsicht, alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege, Backups und globaler Wartungsmodus |
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
@@ -69,9 +69,9 @@ Organisatorischer Notfallprozess:
 | --- | --- | --- |
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Bewohner mit einer hinterlegten E-Mail und Passwort; Admins alternativ mit technischem Kontonamen | Oeffentlich |
-| Wohnung aktivieren | Erstes Wohnungskonto mit Pflicht-E-Mail, Passwort und einmaligem Wohnungscode erstellen | Oeffentlich |
+| Einladung | Sieben Tage gueltige Einladung pruefen und das bereits einer Wohnung zugeordnete Konto durch Setzen des Passworts aktivieren | Oeffentlich mit gueltigem Link |
 | Geraet verbinden | Weiteres Geraet mit einem zehn Minuten gueltigen Einmalcode am bestehenden Wohnungskonto anmelden | Oeffentlich |
-| Freigabe-Hinweise | E-Mail-Hinweise bei der Registrierung ein- oder ausschalten | Oeffentlich |
+| Freigabe-Hinweise | E-Mail-Hinweise bei der Einladungsannahme ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
 | Persoenlicher Wiederherstellungscode | Ein Konto ohne bestaetigte E-Mail mit einem 15 Minuten gueltigen, einmaligen Admin-Code, eigener E-Mail und neuem Passwort wiederherstellen | Oeffentlich mit gueltigem Code |
 | Rueckmeldung | Bestaetigte E-Mail, ungueltiger Link sowie manuelle oder automatische Abmeldung anzeigen | Oeffentlich |
@@ -79,11 +79,11 @@ Organisatorischer Notfallprozess:
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
-Wohnungscodes sind zufaellig, werden serverseitig nur gehasht gespeichert und nach der Aktivierung vernichtet. Der Admin sieht danach nur den Status `aktiviert`, nicht mehr den Code. Ein nicht verwendeter Code kann widerrufen und neu erzeugt werden. Vor der Ausgabe legt der Admin eine stabile interne Wohnungsbezeichnung wie `2. OG links` und getrennt den Namen vom Klingelschild fest. Bewohner koennen bei der Aktivierung keinen eigenen Anzeigenamen waehlen. Bestehende Bewohnerkonten ohne Wohnungszuordnung werden nach dem Login gefragt, ob sie eine Wohnung erstmals aktivieren oder sich per Geraetecode mit einem bereits bestehenden Wohnungskonto zusammenfuehren wollen. Buchungen und Push-Geraete werden bei der Zusammenfuehrung uebernommen; das alte Doppel-Konto wird deaktiviert und bleibt fuer Auditbezuege erhalten.
+Einladungstoken sind zufaellig, werden serverseitig nur als SHA-256-Hash gespeichert, gelten sieben Tage und koennen nur einmal verwendet werden. Der Admin legt vorab eine stabile Wohnungsbezeichnung, den Klingelschildnamen und die Ziel-E-Mail fest. Solange der Link nicht angenommen ist, besteht nur eine offene Einladung und noch kein Bewohnerkonto. Beim Oeffnen setzt die eingeladene Person ihr Passwort; wurde der Link tatsaechlich per SMTP an die Zieladresse gesendet, bestaetigt der erfolgreiche E-Mail-Zugriff zugleich die Adresse. Bei persoenlicher Linkuebergabe wegen noch fehlendem SMTP bleibt die Adresse bis zu einer spaeteren Mailbestaetigung unbestaetigt. Freie Registrierung und Wohnungscodes sind in Produktion abgeschaltet. Bestehende technische Alt-Konten ohne Wohnungszuordnung koennen nur noch per Geraetecode mit einem bereits aktivierten Wohnungskonto zusammengefuehrt werden.
 
 Bewohnerkonten melden sich mit der ersten oder zweiten hinterlegten E-Mail-Adresse an. Ein alter Bewohner-Benutzername ist bei vorhandener E-Mail kein Login mehr. Nur bestehende Bewohnerkonten ohne jede E-Mail duerfen ihren alten Kontonamen uebergangsweise verwenden. Admins duerfen eine fremde Konto-E-Mail nicht eintragen oder ersetzen. Ist auch das Passwort unbekannt und keine bestaetigte Adresse vorhanden, prueft der Admin die Person ausserhalb der App und erzeugt danach einen einmaligen Wiederherstellungscode. Die Person traegt Code, eigene E-Mail und neues Passwort selbst auf der Loginseite ein. Ein alter technischer Bestaetigungsstatus ohne tatsaechlich hinterlegte Adresse gilt immer als `E-Mail fehlt` und berechtigt nie zu einem Reset-Link. Admin- und Superadmin-Konten behalten ihren technischen Kontonamen fuer Betrieb und Notfallzugang.
 
-Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Registrierung wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Registrierungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
+Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Einladungsannahme wird die Sitzungskennung erneuert. Nach 30 Minuten ohne Bedienaktivitaet endet die Sitzung automatisch; zwei Minuten vorher fragt ein Dialog, ob die Person angemeldet bleiben moechte. Maus, Tastatur, Touch und Scrollen gelten als Aktivitaet und werden ueber einen sparsamen Keepalive serverseitig bestaetigt. Anmelde-, Einladungs- und Resetformulare sperren den Senden-Button waehrend der Anfrage und melden einen Verbindungsabbruch verstaendlich.
 
 ## Seite: Neues Passwort (`/reset.html`)
 
@@ -241,7 +241,7 @@ Der Haus-Admin-Auftrag umfasst Wohnungsaktivierung, Kontobetreuung, Geraete und 
 | Neues Haus mit Standardressourcen anlegen | Nein | Ja |
 | Haus anzeigen, umbenennen, aktivieren oder deaktivieren | Nein | Ja |
 
-Ressourcen, Wohnungen und Codes sind immer auf das aktive Haus begrenzt. Die interne Wohnungsbezeichnung bleibt bei einem Bewohnerwechsel bestehen. Der Haus-Admin aendert nur Klingelschildname und E-Mail-Adressen; geaenderte Adressen muessen erneut bestaetigt werden und beenden aus Sicherheitsgruenden bestehende Bewohner-Sitzungen. Eine Sicherheitssperre ist auch bei kommenden Buchungen moeglich, nimmt die Ressource sofort aus der Buchungsauswahl und erzeugt einen Tagebuchfall. Eine direkte Aktivierung ist danach gesperrt; die Freigabe erfolgt ausschliesslich ueber den geprueften Tagebuchablauf. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
+Ressourcen, Wohnungen und Einladungen sind immer auf das aktive Haus begrenzt. Die interne Wohnungsbezeichnung bleibt bei einem Bewohnerwechsel bestehen. Der Haus-Admin verwaltet den Klingelschildnamen; eine Konto-E-Mail wird bei der Einladung festgelegt und danach nur durch das geschuetzte Wohnungskonto selbst geaendert. Eine Sicherheitssperre ist auch bei kommenden Buchungen moeglich, nimmt die Ressource sofort aus der Buchungsauswahl und erzeugt einen Tagebuchfall. Eine direkte Aktivierung ist danach gesperrt; die Freigabe erfolgt ausschliesslich ueber den geprueften Tagebuchablauf. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
 
 ### 3. Maschinen- und Raumtagebuch
 
@@ -275,12 +275,12 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
-| Wohnung mit zufaelligem Einmalcode anlegen | Ja | Ja |
+| Wohnung mit Klingelschildname und Ziel-E-Mail anlegen und einladen | Ja | Ja |
 | Stabile Wohnungsbezeichnung und Klingelschildname getrennt festlegen | Ja | Ja |
 | Klingelschildname eines Wohnungskontos aktualisieren | Ja | Ja |
 | E-Mail-Adressen eines fremden Wohnungskontos ersetzen | Nein | Nein |
 | Namenskorrektur eines Bewohners uebernehmen oder ablehnen | Ja | Ja |
-| Nicht verwendeten Wohnungscode widerrufen und neu erzeugen | Ja | Ja |
+| Offene oder abgelaufene Einladung durch einen neuen Link ersetzen | Ja | Ja |
 | Konten des aktiven Hauses sehen | Ja | Ja |
 | Bewohner aktivieren oder deaktivieren | Ja | Ja |
 | Reset-Link an bestaetigte Bewohner-E-Mail senden | Ja | Ja |
@@ -294,7 +294,7 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 
 Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen und fremde E-Mail-Adressen nicht ersetzen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Fehlt jede bestaetigte Adresse, darf nach persoenlicher Identitaetspruefung ein 15 Minuten gueltiger Einmalcode erzeugt und direkt an die berechtigte Person ausgegeben werden. Das Erzeugen beendet bestehende Sitzungen und wird auditiert. Erst die Person selbst setzt mit dem Code eine neue E-Mail und ein neues Passwort; Wohnung, Buchungen, Push-Geraete und Protokollbezuege bleiben erhalten. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
-Der Pilot-Reset ist ausschliesslich fuer eine kontrollierte Bereinigung vor dem Echtbetrieb vorgesehen. Er verlangt den exakten Bestaetigungstext `ALLE TESTKONTEN LOESCHEN` und erstellt vorab ein geprueftes SQLite-Backup. Er entfernt alle Bewohner- und normalen Haus-Admin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen. Superadmin-Konten, Wohnungen, Ressourcen, Dauertermine und technische Protokolle bleiben erhalten. Freie Wohnungen erhalten anschliessend erst auf bewusste Admin-Aktion einen neuen Aktivierungscode.
+Der Pilot-Reset ist ausschliesslich fuer eine kontrollierte Bereinigung vor dem Echtbetrieb vorgesehen. Er verlangt den exakten Bestaetigungstext `ALLE TESTKONTEN LOESCHEN` und erstellt vorab ein geprueftes SQLite-Backup. Er entfernt alle Bewohner- und normalen Haus-Admin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen. Superadmin-Konten, Wohnungen, Ressourcen, Dauertermine und technische Protokolle bleiben erhalten. Freie Wohnungen werden anschliessend bewusst neu per E-Mail eingeladen.
 
 ### 6. Auswertung
 
@@ -384,7 +384,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 
 ### Automatisch gepruefte Kernablaeufe
 
-- Wohnungscode-Erzeugung, einmalige Aktivierung, Abfrage bestehender Konten, Geraetecode, Zusammenfuehrung, Anmeldung mit Benutzername oder einer der beiden E-Mail-Adressen sowie Sitzungsende.
+- Wohnungseinladung, siebentaegige und einmalige Aktivierung, bestaetigte Ziel-E-Mail, Geraetecode, Zusammenfuehrung, Anmeldung mit einer der beiden E-Mail-Adressen sowie Sitzungsende.
 - E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
 - Admin-ausgeloester Passwort-Reset nur als Link an eine bestaetigte E-Mail; ein Admin kann kein fremdes Passwort festlegen.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
@@ -402,11 +402,11 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | Befehl | Zweck |
 | --- | --- |
 | `npm run verify` | Syntax aller zentralen Dateien pruefen |
-| `npm run test:security` | Sicherheitsheader, Origin-Schutz, Sitzungen, Anmeldewege, Einmalcodes, Passwortregeln und Rate-Limits dynamisch pruefen |
+| `npm run test:security` | Sicherheitsheader, Origin-Schutz, Sitzungen, Einladungen, Anmeldewege, Einmalcodes, Passwortregeln und Rate-Limits dynamisch pruefen |
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
-| `npm run test:e2e` | Optionalen Browser-Smoke-Test fuer Registrierung und persoenliche Einrichtung ausfuehren, wenn Playwright verfuegbar ist |
+| `npm run test:e2e` | Optionalen Browser-Smoke-Test fuer Einladungsannahme und persoenliche Einrichtung ausfuehren, wenn Playwright verfuegbar ist |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
 | `npm run audit` | Den ausfuehrlichen Gesamtaudit Schritt fuer Schritt inklusive optionalem Browsertest ausfuehren |
 | `npm run check` | Verbindliches Abschluss-Gate aus Syntax-, Sicherheits-, Funktions-, Rollen-, Jahres- und Barrierefreiheitstest ausfuehren |
@@ -422,7 +422,7 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 | `server.js` | Express-Server, SQLite-Datenmodell, Sitzungen, Rechte, Buchungsregeln, E-Mail und Backups |
 | `swiss-time.js` | Datums- und Slotberechnung in Schweizer Zeit |
 | `release-window.js` | Zeitfenster fuer Freigaben und Absagen |
-| `public/login.html`, `public/login.js` | Landingpage, Anmeldung und Registrierung |
+| `public/login.html`, `public/login.js` | Landingpage, Anmeldung und Einladungsannahme |
 | `public/index.html`, `public/app.js` | Waschplan, Konto, Einfuehrung und Verwaltung |
 | `public/manifest.webmanifest`, `public/sw.js` | PWA-Installation, Offline-Shell und Push-Anzeige |
 | `public/styles.css` | Gemeinsames responsives Erscheinungsbild |
@@ -445,7 +445,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 - Produktion verwendet SQLite auf dem persistenten Render-Datentraeger unter `/var/data/washraum.sqlite`.
 - Jede Wohnung, jedes Konto, jede Ressource, Buchung und Freigabe ist einem Haus zugeordnet. Oeffentliche Buchungsnamen verwenden ausschliesslich den adminverwalteten Klingelschildnamen.
-- `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. Aktivierungs- und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor; Klartext wird nur einmal an den berechtigten Aufrufer ausgegeben.
+- `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. `apartment_invitations` speichert Ziel-E-Mail, Ablauf, Versand- und Annahmestatus; Einladungstoken und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor. Klartextlinks werden nur beim Versand beziehungsweise einmalig an den Admin ausgegeben.
 - `apartment_name_requests` speichert offene und entschiedene Korrekturwuensche. Ein Bewohnerwunsch aendert den sichtbaren Namen nie direkt; Freigabe oder Ablehnung erfolgt durch einen Admin und wird auditiert.
 - `users.apartment_id` bindet ein gemeinsames Konto an genau eine Wohnung. Zusammengefuehrte Alt-Konten werden deaktiviert, personenbezogene Login-Adressen entfernt und ueber `merged_into_user_id` fuer nachvollziehbare Auditbezuege markiert.
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
@@ -463,6 +463,8 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 20. Juli 2026
 
+- Bewohner-Onboarding von frei verteilten Wohnungscodes auf sieben Tage gueltige E-Mail-Einladungen umgestellt. Das Konto entsteht erst beim Setzen des Passworts, ist bereits fest an Wohnung, Klingelschild und bestaetigte E-Mail gebunden und kann nicht doppelt aktiviert werden.
+- Adminbereich zeigt offene, abgelaufene und angenommene Einladungen; ein neuer Link widerruft automatisch den vorherigen. Ohne eingerichtetes SMTP wird der Link einmalig zum persoenlichen Weitergeben angezeigt.
 - Abgesicherten Pilot-Reset fuer den Superadmin ergaenzt: geprueftes Backup vor Ausfuehrung, exakter Bestaetigungstext und vollstaendige Entfernung aller Nicht-Superadmin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen bei Erhalt technischer Protokolle.
 - Direkte Admin-Aenderung fremder Bewohner-E-Mails gesperrt. Damit kann ein Admin keine eigene Adresse mehr in ein Wohnungskonto eintragen, bestaetigen und anschliessend dessen Passwort uebernehmen.
 - Persoenlich geprueften Kontowiederherstellungsprozess fuer Bewohner ohne bestaetigte E-Mail eingefuehrt: protokollierter Einmalcode, 15 Minuten Laufzeit, einmalige Verwendung, sofortiges Sitzungsende und selbststaendige Eingabe von E-Mail und neuem Passwort durch die betroffene Person.
@@ -527,6 +529,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 - Mindestlaenge neuer Passwoerter und neuer Hauscodes auf 12 Zeichen angehoben; Namen und E-Mail-Kopfzeilen werden gegen Steuerzeichen geprueft.
 - Direkte Admin-Passwortvergabe entfernt: Admins koennen nur noch einen zeitlich begrenzten Reset-Link an eine bestaetigte Adresse senden.
 - Neue oder geaenderte E-Mail-Adressen gelten auch ohne SMTP niemals automatisch als bestaetigt.
+- Eine abgelaufene Sitzung verursacht beim direkten Oeffnen der Loginseite keinen Serverfehler mehr; dieser Ablauf ist als Regressionstest abgesichert.
 - Lokale Backup-Aufbewahrung auf drei neueste sowie je eine Tagessicherung fuer 14 Tage umgestellt; die Verwaltung warnt sichtbar bei fehlender externer Kopie.
 - Abmeldung fehlertolerant gemacht: Das Sitzungs-Cookie wird auch dann entfernt, wenn der SQLite-Sitzungsspeicher kurzzeitig nicht geloescht werden kann.
 - SQLite wartet bei einer kurzen Datenbanksperre bis zu fuenf Sekunden, statt den Abmeldevorgang sofort mit einer Serverfehlermeldung abzubrechen.

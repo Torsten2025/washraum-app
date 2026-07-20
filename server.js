@@ -175,6 +175,21 @@ function createCurrentTables() {
       UNIQUE (house_id, label)
     );
 
+    CREATE TABLE IF NOT EXISTS apartment_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      apartment_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      email_sent_at TEXT,
+      accepted_at TEXT,
+      revoked_at TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS device_pairing_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -391,6 +406,8 @@ function seedCurrentDefaults() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apartment_unique ON users (apartment_id) WHERE apartment_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartments_house ON apartments (house_id, active, label)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_apartment ON apartment_invitations (apartment_id, created_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_email ON apartment_invitations (lower(email), expires_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_cases_house_status ON maintenance_cases (house_id, status, updated_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_cases_resource ON maintenance_cases (resource_id, status)");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_one_open_case_per_resource ON maintenance_cases (resource_id) WHERE status != 'closed' AND resource_id IS NOT NULL");
@@ -856,7 +873,7 @@ function clearSessionCookie(res) {
 }
 
 app.use((req, res, next) => {
-  if (!req.session.user?.id) {
+  if (!req.session?.user?.id) {
     return next();
   }
 
@@ -890,7 +907,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (!req.session.user?.id) {
+  if (!req.session?.user?.id) {
     return next();
   }
   const storedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
@@ -1737,7 +1754,7 @@ function ipRateLimit({ windowMs, maxAttempts, message }) {
 const registrationRateLimit = ipRateLimit({
   windowMs: 60 * 60 * 1000,
   maxAttempts: 30,
-  message: 'Zu viele Registrierungsversuche. Bitte versuche es sp\u00e4ter erneut.'
+  message: 'Zu viele Einladungsversuche. Bitte versuche es spaeter erneut.'
 });
 const recoveryRateLimit = ipRateLimit({
   windowMs: 60 * 60 * 1000,
@@ -1948,6 +1965,94 @@ function apartmentForCode(code) {
     JOIN houses h ON h.id = a.house_id
     WHERE a.activation_code_hash = ? AND a.active = 1 AND h.active = 1
   `).get(tokenHash(normalized));
+}
+
+function apartmentInvitationForToken(token) {
+  const normalized = String(token || '').trim();
+  if (!/^[a-f0-9]{64}$/i.test(normalized)) return null;
+  return db.prepare(`
+    SELECT ai.id AS invitation_id, ai.apartment_id, ai.email, ai.expires_at, ai.email_sent_at,
+           a.house_id, a.label, a.display_name, a.claimed_by,
+           h.name AS house_name
+    FROM apartment_invitations ai
+    JOIN apartments a ON a.id = ai.apartment_id
+    JOIN houses h ON h.id = a.house_id
+    WHERE ai.token_hash = ?
+      AND ai.accepted_at IS NULL
+      AND ai.revoked_at IS NULL
+      AND CAST(ai.expires_at AS INTEGER) > ?
+      AND a.active = 1
+      AND a.claimed_by IS NULL
+      AND h.active = 1
+  `).get(tokenHash(normalized), Date.now());
+}
+
+function pendingInvitationForEmail(email, exceptApartmentId = 0) {
+  return db.prepare(`
+    SELECT ai.id, ai.apartment_id
+    FROM apartment_invitations ai
+    JOIN apartments a ON a.id = ai.apartment_id
+    WHERE lower(ai.email) = lower(?)
+      AND ai.apartment_id != ?
+      AND ai.accepted_at IS NULL
+      AND ai.revoked_at IS NULL
+      AND CAST(ai.expires_at AS INTEGER) > ?
+      AND a.active = 1
+      AND a.claimed_by IS NULL
+    LIMIT 1
+  `).get(email, Number(exceptApartmentId || 0), Date.now());
+}
+
+async function issueApartmentInvitation(req, apartment, email) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const config = smtpConfig();
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE apartment_invitations
+      SET revoked_at = CURRENT_TIMESTAMP
+      WHERE apartment_id = ? AND accepted_at IS NULL AND revoked_at IS NULL
+    `).run(apartment.id);
+    db.prepare(`
+      INSERT INTO apartment_invitations
+        (apartment_id, email, token_hash, expires_at, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(apartment.id, email, tokenHash(token), String(expiresAt), req.session.user.id);
+    db.prepare('UPDATE apartments SET activation_code_hash = NULL WHERE id = ?').run(apartment.id);
+  })();
+
+  const link = `${publicAppUrl(req)}/login.html?invite=${encodeURIComponent(token)}`;
+  let emailSent = false;
+  let deliveryError = '';
+  if (config.host && config.from) {
+    try {
+      await sendMail({
+        config,
+        to: email,
+        subject: `WaschZeit: Einladung fuer ${apartment.label}`,
+        text: [
+          `Hallo ${apartment.display_name}`,
+          '',
+          `du wurdest fuer die Wohnung ${apartment.label} in ${apartment.house_name} zu WaschZeit eingeladen.`,
+          'Oeffne den folgenden Link und lege dein persoenliches Passwort fest:',
+          '',
+          link,
+          '',
+          'Der Link ist sieben Tage gueltig und kann nur einmal verwendet werden.',
+          'Weitere Handys derselben Wohnung werden spaeter mit einem kurz gueltigen Geraetecode verbunden.'
+        ].join('\n')
+      });
+      emailSent = true;
+      db.prepare(`
+        UPDATE apartment_invitations SET email_sent_at = CURRENT_TIMESTAMP
+        WHERE token_hash = ?
+      `).run(tokenHash(token));
+    } catch (error) {
+      deliveryError = error.message;
+      console.error(`Wohnungseinladung konnte nicht gesendet werden: ${error.message}`);
+    }
+  }
+  return { link, expiresAt, emailSent, deliveryError };
 }
 
 function apartmentAccountLabel(userId, fallback = 'Jemand') {
@@ -2718,7 +2823,103 @@ app.post('/api/device-login', authRateLimit, async (req, res, next) => {
   }
 });
 
+app.get('/api/invitations/:token', registrationRateLimit, (req, res) => {
+  const invitation = apartmentInvitationForToken(req.params.token);
+  if (!invitation) {
+    return res.status(404).json({ error: 'Diese Einladung ist ungueltig, abgelaufen oder bereits verwendet.' });
+  }
+  res.json({
+    invitation: {
+      email: invitation.email,
+      apartmentLabel: invitation.label,
+      displayName: invitation.display_name,
+      houseName: invitation.house_name,
+      expiresAt: new Date(Number(invitation.expires_at)).toISOString()
+    }
+  });
+});
+
+app.post('/api/invitations/accept', registrationRateLimit, authRateLimit, async (req, res, next) => {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+  const notifyReleases = req.body?.notifyReleases !== false ? 1 : 0;
+  const invitation = apartmentInvitationForToken(token);
+  if (!invitation) {
+    return res.status(400).json({ error: 'Diese Einladung ist ungueltig, abgelaufen oder bereits verwendet.' });
+  }
+  if (!isValidPassword(password)) {
+    return res.status(400).json({ error: 'Das Passwort muss 12 bis 128 Zeichen haben.' });
+  }
+  if (findEmailOwner(invitation.email)) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einem Konto.' });
+  }
+
+  try {
+    const userId = db.transaction(() => {
+      const current = apartmentInvitationForToken(token);
+      if (!current) {
+        const conflict = new Error('INVITATION_ALREADY_USED');
+        conflict.code = 'INVITATION_ALREADY_USED';
+        throw conflict;
+      }
+      const inserted = db.prepare(`
+        INSERT INTO users
+          (username, email, password_hash, role, house_id, active, notify_releases,
+           email_verified, apartment_id)
+        VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?)
+      `).run(
+        apartmentAccountUsername(current.apartment_id),
+        normalizeEmail(current.email),
+        bcrypt.hashSync(password, 10),
+        current.house_id,
+        notifyReleases,
+        current.email_sent_at ? 1 : 0,
+        current.apartment_id
+      );
+      db.prepare(`
+        UPDATE apartments
+        SET claimed_by = ?, claimed_at = CURRENT_TIMESTAMP, activation_code_hash = NULL
+        WHERE id = ? AND claimed_by IS NULL
+      `).run(inserted.lastInsertRowid, current.apartment_id);
+      db.prepare(`
+        UPDATE apartment_invitations SET accepted_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL
+      `).run(current.invitation_id);
+      db.prepare(`
+        UPDATE apartment_invitations SET revoked_at = CURRENT_TIMESTAMP
+        WHERE apartment_id = ? AND id != ? AND accepted_at IS NULL AND revoked_at IS NULL
+      `).run(current.apartment_id, current.invitation_id);
+      return inserted.lastInsertRowid;
+    })();
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
+    await regenerateSession(req);
+    req.session.user = sessionUserFromRow(user, house);
+    req.session.activeHouseId = user.house_id;
+    req.session.lastActivityAt = Date.now();
+    clearAuthRateLimit(req);
+    writeAuditForHouse(req, user.house_id, 'apartment.invitation_accepted', 'apartment', user.apartment_id, {
+      email: user.email
+    });
+    res.status(201).json({
+      user: req.session.user,
+      message: invitation.email_sent_at
+        ? `${invitation.label} ist aktiviert. Willkommen bei WaschZeit.`
+        : `${invitation.label} ist aktiviert. Die E-Mail wird bestaetigt, sobald der Versand eingerichtet ist.`
+    });
+  } catch (error) {
+    if (error.code === 'INVITATION_ALREADY_USED' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese Einladung wurde gerade bereits verwendet.' });
+    }
+    next(error);
+  }
+});
+
 app.post('/api/register', registrationRateLimit, authRateLimit, async (req, res, next) => {
+  if (!allowLegacyHouseRegistration) {
+    return res.status(410).json({ error: 'Neue Wohnungskonten werden nur noch ueber den Einladungslink der Verwaltung aktiviert.' });
+  }
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
   const apartmentCode = String(req.body?.apartmentCode || '').trim();
@@ -3052,6 +3253,9 @@ app.get('/api/me', (req, res) => {
 });
 
 app.post('/api/me/apartment/claim', requireAuth, (req, res) => {
+  if (!allowLegacyHouseRegistration) {
+    return res.status(410).json({ error: 'Wohnungscodes wurden durch sichere Einladungslinks ersetzt.' });
+  }
   if (req.session.user.role !== 'user') {
     return res.status(400).json({ error: 'Admin-Konten werden keiner Wohnung zugeordnet.' });
   }
@@ -4539,10 +4743,18 @@ app.get('/api/admin/apartments', requireAdmin, (req, res) => {
     SELECT a.id, a.label, a.display_name, a.active, a.claimed_at,
            CASE WHEN a.claimed_by IS NULL THEN 0 ELSE 1 END AS claimed,
            u.email, u.secondary_email, u.email_verified, u.secondary_email_verified,
+           ai.email AS invitation_email, ai.expires_at AS invitation_expires_at,
+           ai.email_sent_at AS invitation_email_sent_at,
+           ai.accepted_at AS invitation_accepted_at, ai.revoked_at AS invitation_revoked_at,
            anr.id AS name_request_id, anr.proposed_name AS requested_display_name,
            anr.note AS name_request_note, anr.created_at AS name_request_created_at
     FROM apartments a
     LEFT JOIN users u ON u.id = a.claimed_by
+    LEFT JOIN apartment_invitations ai ON ai.id = (
+      SELECT id FROM apartment_invitations
+      WHERE apartment_id = a.id
+      ORDER BY id DESC LIMIT 1
+    )
     LEFT JOIN apartment_name_requests anr ON anr.id = (
       SELECT id FROM apartment_name_requests
       WHERE apartment_id = a.id AND status = 'pending'
@@ -4553,37 +4765,128 @@ app.get('/api/admin/apartments', requireAdmin, (req, res) => {
   `).all(currentHouseId(req)).map((apartment) => ({
     ...apartment,
     active: Boolean(apartment.active),
-    claimed: Boolean(apartment.claimed)
+    claimed: Boolean(apartment.claimed),
+    invitationStatus: apartment.claimed
+      ? 'accepted'
+      : !apartment.invitation_email
+        ? 'none'
+        : apartment.invitation_accepted_at
+          ? 'accepted'
+          : apartment.invitation_revoked_at
+            ? 'revoked'
+            : Number(apartment.invitation_expires_at) <= Date.now()
+              ? 'expired'
+              : 'pending'
   }));
   res.json({ apartments });
 });
 
-app.post('/api/admin/apartments', requireAdmin, (req, res) => {
+app.post('/api/admin/apartments', requireAdmin, async (req, res, next) => {
   const label = String(req.body?.label || '').trim();
   const displayName = String(req.body?.displayName || '').trim();
+  const email = normalizeEmail(req.body?.email);
   if (!isValidPlainText(label, 2, 60)) {
     return res.status(400).json({ error: 'Bitte eine Wohnungsbezeichnung mit 2 bis 60 Zeichen eingeben.' });
   }
   if (!isValidPlainText(displayName, 2, 80)) {
     return res.status(400).json({ error: 'Bitte den Namen vom Klingelschild mit 2 bis 80 Zeichen eingeben.' });
   }
-  const code = generateReadableCode('W');
+  if (allowLegacyHouseRegistration && !email) {
+    const code = generateReadableCode('W');
+    try {
+      const result = db.prepare(`
+        INSERT INTO apartments (house_id, label, display_name, activation_code_hash)
+        VALUES (?, ?, ?, ?)
+      `).run(currentHouseId(req), label, displayName, tokenHash(normalizeAccessCode(code)));
+      return res.status(201).json({
+        apartment: { id: result.lastInsertRowid, label, display_name: displayName, claimed: false, active: true },
+        activationCode: code,
+        message: 'Technische Testwohnung angelegt.'
+      });
+    } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return res.status(409).json({ error: 'Diese Wohnungsbezeichnung ist bereits vorhanden.' });
+      }
+      return next(error);
+    }
+  }
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse fuer die Einladung eingeben.' });
+  }
+  if (findEmailOwner(email) || pendingInvitationForEmail(email)) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer offenen Einladung zugeordnet.' });
+  }
   try {
     const result = db.prepare(`
       INSERT INTO apartments (house_id, label, display_name, activation_code_hash)
-      VALUES (?, ?, ?, ?)
-    `).run(currentHouseId(req), label, displayName, tokenHash(normalizeAccessCode(code)));
-    writeAudit(req, 'apartment.create', 'apartment', result.lastInsertRowid, { label, displayName });
+      VALUES (?, ?, ?, NULL)
+    `).run(currentHouseId(req), label, displayName);
+    const apartment = {
+      id: result.lastInsertRowid,
+      house_id: currentHouseId(req),
+      house_name: db.prepare('SELECT name FROM houses WHERE id = ?').get(currentHouseId(req)).name,
+      label,
+      display_name: displayName
+    };
+    const invitation = await issueApartmentInvitation(req, apartment, email);
+    writeAudit(req, 'apartment.invitation_created', 'apartment', result.lastInsertRowid, {
+      label, displayName, email, emailSent: invitation.emailSent
+    });
     res.status(201).json({
       apartment: { id: result.lastInsertRowid, label, display_name: displayName, claimed: false, active: true },
-      activationCode: code,
-      message: 'Wohnung angelegt. Der Code wird aus Sicherheitsgr\u00fcnden nur jetzt angezeigt.'
+      invitation: {
+        email,
+        expiresAt: new Date(invitation.expiresAt).toISOString(),
+        emailSent: invitation.emailSent
+      },
+      invitationLink: invitation.link,
+      message: invitation.emailSent
+        ? `Wohnung angelegt. Die Einladung wurde an ${email} gesendet.`
+        : `Wohnung angelegt. E-Mail-Versand ist noch nicht bereit; der Einladungslink wird einmalig angezeigt.`
     });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Diese Wohnungsbezeichnung ist bereits vorhanden.' });
     }
-    throw error;
+    next(error);
+  }
+});
+
+app.post('/api/admin/apartments/:id/invitation', requireAdmin, async (req, res, next) => {
+  const apartment = db.prepare(`
+    SELECT a.id, a.house_id, a.label, a.display_name, a.claimed_by, h.name AS house_name
+    FROM apartments a JOIN houses h ON h.id = a.house_id
+    WHERE a.id = ? AND a.house_id = ? AND a.active = 1
+  `).get(Number(req.params.id), currentHouseId(req));
+  if (!apartment) return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
+  if (apartment.claimed_by) {
+    return res.status(409).json({ error: 'Diese Wohnung ist bereits aktiviert.' });
+  }
+  const email = normalizeEmail(req.body?.email);
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse fuer die Einladung eingeben.' });
+  }
+  if (findEmailOwner(email) || pendingInvitationForEmail(email, apartment.id)) {
+    return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer anderen Einladung zugeordnet.' });
+  }
+  try {
+    const invitation = await issueApartmentInvitation(req, apartment, email);
+    writeAudit(req, 'apartment.invitation_renewed', 'apartment', apartment.id, {
+      label: apartment.label, email, emailSent: invitation.emailSent
+    });
+    res.json({
+      invitation: {
+        email,
+        expiresAt: new Date(invitation.expiresAt).toISOString(),
+        emailSent: invitation.emailSent
+      },
+      invitationLink: invitation.link,
+      message: invitation.emailSent
+        ? `Neue Einladung wurde an ${email} gesendet.`
+        : 'E-Mail-Versand ist noch nicht bereit; der neue Einladungslink wird einmalig angezeigt.'
+    });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -4666,23 +4969,20 @@ app.post('/api/admin/apartments/:id/name-request/:requestId/reject', requireAdmi
 });
 
 app.post('/api/admin/apartments/:id/new-code', requireAdmin, (req, res) => {
+  if (!allowLegacyHouseRegistration) {
+    return res.status(410).json({ error: 'Wohnungscodes wurden durch sichere E-Mail-Einladungen ersetzt.' });
+  }
   const apartment = db.prepare(`
     SELECT id, label, claimed_by FROM apartments WHERE id = ? AND house_id = ? AND active = 1
   `).get(Number(req.params.id), currentHouseId(req));
-  if (!apartment) {
-    return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
-  }
+  if (!apartment) return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
   if (apartment.claimed_by) {
-    return res.status(409).json({ error: 'Eine bereits aktivierte Wohnung erh\u00e4lt keinen neuen Aktivierungscode.' });
+    return res.status(409).json({ error: 'Eine bereits aktivierte Wohnung erhaelt keinen neuen Aktivierungscode.' });
   }
   const code = generateReadableCode('W');
   db.prepare('UPDATE apartments SET activation_code_hash = ? WHERE id = ?')
     .run(tokenHash(normalizeAccessCode(code)), apartment.id);
-  writeAudit(req, 'apartment.code_regenerated', 'apartment', apartment.id, { label: apartment.label });
-  res.json({
-    activationCode: code,
-    message: 'Neuer Wohnungscode erstellt. Der vorherige Code ist ab sofort ung\u00fcltig.'
-  });
+  res.json({ activationCode: code, message: 'Technischer Testcode wurde erneuert.' });
 });
 
 app.get('/api/admin/users', requireAdmin, (req, res) => {

@@ -2,6 +2,7 @@ const form = document.querySelector('#loginForm');
 const message = document.querySelector('#message');
 const registerForm = document.querySelector('#registerForm');
 const registerMessage = document.querySelector('#registerMessage');
+const invitationSummary = document.querySelector('#invitationSummary');
 const showLogin = document.querySelector('#showLogin');
 const showRegister = document.querySelector('#showRegister');
 const showDeviceLogin = document.querySelector('#showDeviceLogin');
@@ -17,6 +18,12 @@ const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const updateAppButton = document.querySelector('#updateAppButton');
 const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || '';
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -118,9 +125,11 @@ showAccountRecovery.addEventListener('click', () => setMode('account-recovery'))
 cancelRecovery.addEventListener('click', () => setMode('login'));
 cancelAccountRecovery.addEventListener('click', () => setMode('login'));
 
-const verification = new URLSearchParams(window.location.search).get('verification');
-const loggedOut = new URLSearchParams(window.location.search).get('loggedOut');
-const sessionExpired = new URLSearchParams(window.location.search).get('sessionExpired');
+const urlParameters = new URLSearchParams(window.location.search);
+const verification = urlParameters.get('verification');
+const loggedOut = urlParameters.get('loggedOut');
+const sessionExpired = urlParameters.get('sessionExpired');
+const invitationToken = urlParameters.get('invite');
 if (verification === 'ok') {
   message.textContent = 'E-Mail-Adresse best\u00e4tigt. Du kannst dich jetzt anmelden.';
 } else if (verification === 'invalid') {
@@ -150,16 +159,46 @@ registerForm.addEventListener('submit', async (event) => {
   registerMessage.textContent = '';
 
   const formData = new FormData(registerForm);
-  const data = await submitJson(registerForm, '/api/register', {
-    email: formData.get('email'),
+  if (formData.get('password') !== formData.get('passwordConfirmation')) {
+    registerMessage.textContent = 'Die beiden Passwoerter stimmen nicht ueberein.';
+    return;
+  }
+  const data = await submitJson(registerForm, '/api/invitations/accept', {
+    token: formData.get('token'),
     password: formData.get('password'),
-    apartmentCode: formData.get('apartmentCode'),
     notifyReleases: formData.get('notifyReleases') === 'on'
   }, registerMessage);
   if (!data) return;
 
   window.location.href = '/index.html?welcome=1';
 });
+
+async function loadInvitation(token) {
+  setMode('register');
+  const submitButton = registerForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  registerForm.elements.token.value = token || '';
+  if (!token) return;
+  try {
+    const response = await fetch(`/api/invitations/${encodeURIComponent(token)}`, { cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      invitationSummary.innerHTML = `<strong>Einladung nicht verf&uuml;gbar</strong><span>${escapeHtml(data.error || 'Bitte fordere eine neue Einladung an.')}</span>`;
+      return;
+    }
+    const invitation = data.invitation;
+    invitationSummary.innerHTML = `
+      <strong>${escapeHtml(invitation.displayName)}</strong>
+      <span>${escapeHtml(invitation.apartmentLabel)} &middot; ${escapeHtml(invitation.houseName)}</span>
+      <span>${escapeHtml(invitation.email)}</span>
+    `;
+    submitButton.disabled = false;
+  } catch {
+    invitationSummary.innerHTML = '<strong>Einladung konnte nicht geladen werden</strong><span>Bitte versuche es erneut.</span>';
+  }
+}
+
+if (invitationToken) loadInvitation(invitationToken);
 
 deviceLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();

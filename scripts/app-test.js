@@ -309,6 +309,31 @@ async function verifySmtpDelivery() {
     assert.ok(messages[4].includes('Subject: WaschZeit: Termin'));
     assert.ok(messages[4].includes(smtpWasher.name));
     assert.ok(messages[4].includes('wieder frei'));
+
+    const invitationResponse = await fetch(`http://127.0.0.1:${appPort}/api/admin/apartments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: smtpAdminCookie },
+      body: JSON.stringify({
+        label: 'SMTP 2. OG links',
+        displayName: 'SMTP Einladung',
+        email: 'smtp-einladung@example.com'
+      })
+    });
+    assert.equal(invitationResponse.status, 201);
+    const invitationBody = await invitationResponse.json();
+    assert.equal(invitationBody.invitation.emailSent, true);
+    assert.equal(messages.length, 6);
+    assert.ok(messages[5].includes('To: smtp-einladung@example.com'));
+    assert.ok(messages[5].includes('Subject: WaschZeit: Einladung'));
+    assert.ok(messages[5].includes('/login.html?invite='));
+    const invitationToken = messages[5].match(/login\.html\?invite=([a-f0-9]{64})/)[1];
+    const acceptedInvitation = await fetch(`http://127.0.0.1:${appPort}/api/invitations/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: invitationToken, password: 'SMTP-Einladung-2026!' })
+    });
+    assert.equal(acceptedInvitation.status, 201);
+    assert.equal((await acceptedInvitation.json()).user.emailVerified, true);
   } finally {
     if (smtpApp.exitCode === null) {
       smtpApp.kill();
@@ -480,6 +505,25 @@ async function run() {
     assert.match(expiredSession.response.headers.get('set-cookie') || '', /connect\.sid=;/);
     const expiredGuest = await expectStatus(idleClient, '/api/me', 200);
     assert.equal(expiredGuest.body.user, null);
+
+    const stalePageClient = new ApiClient();
+    await expectStatus(stalePageClient, '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'bewohner-test@example.com', password: 'Bewohner-2026!' })
+    });
+    const staleSignedSession = decodeURIComponent(stalePageClient.cookie.split('=', 2)[1] || '');
+    const staleSessionId = staleSignedSession.replace(/^s:/, '').split('.')[0];
+    const staleSessionDatabase = new Database(databasePath);
+    const staleSession = staleSessionDatabase.prepare('SELECT sess FROM sessions WHERE sid = ?').get(staleSessionId);
+    assert.ok(staleSession, 'Sitzung fuer den Loginseiten-Regressionstest fehlt.');
+    const staleSessionData = JSON.parse(staleSession.sess);
+    staleSessionData.lastActivityAt = Date.now() - (31 * 60 * 1000);
+    staleSessionDatabase.prepare('UPDATE sessions SET sess = ? WHERE sid = ?')
+      .run(JSON.stringify(staleSessionData), staleSessionId);
+    staleSessionDatabase.close();
+    const staleLoginPage = await expectStatus(stalePageClient, '/login.html', 200);
+    assert.match(staleLoginPage.body.toString('utf8'), /WaschZeit/);
+
     const bookingMode = await expectStatus(user, '/api/me/booking-mode', 200, {
       method: 'PUT',
       body: JSON.stringify({ bookingMode: 'machine' })
@@ -1580,6 +1624,10 @@ async function run() {
     assert.ok(indexHtml.includes('adminHouseCount'));
     assert.ok(indexHtml.includes('adminSystemCount'));
     assert.ok(indexHtml.includes('adminAccountRecoveryResult'));
+    assert.ok(indexHtml.includes('apartmentInviteEmailInput'));
+    assert.ok(indexHtml.includes('apartmentInvitationResult'));
+    assert.ok(!indexHtml.includes('apartmentCodeResult'));
+    assert.ok(!indexHtml.includes('claimApartmentForm'));
     assert.ok(indexHtml.includes('data-admin-target="overview"'));
     assert.ok(indexHtml.includes('data-admin-target="house"'));
     assert.ok(indexHtml.includes('data-admin-target="fixed"'));
@@ -1627,6 +1675,8 @@ async function run() {
     assert.ok(stylesText.includes('.admin-responsibility-list'));
     assert.ok(stylesText.includes('.admin-tab-count'));
     assert.ok(stylesText.includes('.admin-account-recovery-result'));
+    assert.ok(stylesText.includes('.invitation-summary'));
+    assert.ok(stylesText.includes('.apartment-invite-form'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
     assert.ok(stylesText.includes('.session-warning-modal'));
@@ -1671,6 +1721,8 @@ async function run() {
     assert.ok(appScriptText.includes('Reset-Link senden'));
     assert.ok(appScriptText.includes('Wiederherstellungscode'));
     assert.ok(appScriptText.includes('/recovery-code'));
+    assert.ok(appScriptText.includes('/invitation'));
+    assert.ok(!appScriptText.includes('/new-code'));
     assert.ok(!appScriptText.includes('input name="secondaryEmail" type="email"'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
     assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
@@ -1731,8 +1783,11 @@ async function run() {
     assert.ok(!loginPage.body.toString().includes('/assets/gbmz-logo.svg'));
     assert.ok(loginPage.body.toString().includes('accountRecoveryForm'));
     assert.ok(loginPage.body.toString().includes('Wiederherstellungscode'));
+    assert.ok(loginPage.body.toString().includes('invitationSummary'));
+    assert.ok(!loginPage.body.toString().includes('name="apartmentCode"'));
     const loginScript = await expectStatus(guest, '/login.js', 200);
     assert.ok(loginScript.body.toString().includes('/api/account-recovery/confirm'));
+    assert.ok(loginScript.body.toString().includes('/api/invitations/accept'));
     await expectStatus(guest, '/reset.html?token=test', 200);
 
     await verifySmtpDelivery();
@@ -1774,6 +1829,7 @@ async function run() {
         passwordRecovery: true,
         emailPreferences: true,
         apartmentAccounts: true,
+        invitationOnboarding: true,
         devicePairing: true,
         originProtection: true,
         privacyControls: true,

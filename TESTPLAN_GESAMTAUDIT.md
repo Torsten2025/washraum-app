@@ -24,7 +24,7 @@ npm run check
 | SEC-05 | Abhaengigkeiten | Keine bekannte kritische produktive Schwachstelle | `npm audit --omit=dev` |
 | SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `test:roles` |
 
-## B. Anmeldung, Registrierung und Sitzungen
+## B. Anmeldung, Einladung und Sitzungen
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
@@ -41,15 +41,15 @@ npm run check
 | AUTH-11 | Inaktivitaet | Warnung vor Ablauf, Keepalive und serverseitige Abmeldung | `npm test`, `test:a11y` |
 | RATE-01 | 21 falsche Logins derselben Identitaet | 429 mit `Retry-After` | `test:security` |
 | RATE-02 | Wiederherstellungsversuche | Eigenes IP-Limit greift | `test:security` |
-| RATE-03 | Registrierungsversuche | Eigenes IP-Limit greift | `test:security` |
+| RATE-03 | Einladungsannahme | Eigenes IP-Limit greift | `test:security` |
 
 ## C. Wohnungskonto und Identitaet
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| REG-01 | Wohnung anlegen | Stabile Wohnungsbezeichnung, Klingelschildname und zufaelliger Code | `test:security`, `npm test` |
-| REG-02 | Falsche E-Mail, schwaches Passwort, falscher Code | Klare 400/403-Antwort | `test:security` |
-| REG-03 | Aktivierung | Code erzeugt genau ein gemeinsames Wohnungskonto und ist danach verbraucht | `test:security`, `npm test` |
+| REG-01 | Wohnung einladen | Stabile Wohnungsbezeichnung, Klingelschildname, feste Ziel-E-Mail und gehashter Sieben-Tage-Link | `test:security`, `npm test` |
+| REG-02 | Freie Registrierung, schwaches Passwort oder falscher Link | Klare 400/404/410-Antwort | `test:security` |
+| REG-03 | Einladungsannahme | Link erzeugt genau ein gemeinsames, fest zugeordnetes Wohnungskonto und ist danach verbraucht; SMTP-Versand bestaetigt zusaetzlich die E-Mail | `test:security`, `npm test` |
 | REG-04 | Klingelschildkorrektur | Bewohner beantragt; Admin entscheidet; sichtbarer Name aendert sich nicht direkt | `npm test`, `test:roles` |
 | REG-05 | Doppelkonten zusammenfuehren | Buchungen, Push und zweite E-Mail gehen kontrolliert an das Zielkonto | `npm test` |
 | REG-06 | Umzug | Nur Superadmin; keine kommenden Buchungen; Rolle wird Bewohner | `npm test`, `test:roles` |

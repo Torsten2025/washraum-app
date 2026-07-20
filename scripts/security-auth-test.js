@@ -242,69 +242,78 @@ async function run() {
       await expectStatus(admin, '/api/admin/backup/run', 200, { method: 'POST' });
     });
 
-    await check('REG-01', 'Wohnung wird mit getrenntem Klingelschildnamen und Einmalcode angelegt', async () => {
+    await check('REG-01', 'Wohnung wird mit fester E-Mail und einmaligem Einladungslink angelegt', async () => {
       const created = await expectStatus(admin, '/api/admin/apartments', 201, {
         method: 'POST',
-        body: JSON.stringify({ label: 'Audit 2. OG links', displayName: 'Audit Familie' })
+        body: JSON.stringify({
+          label: 'Audit 2. OG links',
+          displayName: 'Audit Familie',
+          email: 'audit-familie@example.test'
+        })
       });
-      assert.match(created.body.activationCode, /^W-/);
+      assert.equal(created.body.invitation.email, 'audit-familie@example.test');
+      assert.equal(created.body.invitation.emailSent, false);
+      const invitationLifetime = new Date(created.body.invitation.expiresAt).getTime() - Date.now();
+      assert.ok(invitationLifetime > 6.9 * 24 * 60 * 60 * 1000);
+      assert.ok(invitationLifetime <= (7 * 24 * 60 * 60 * 1000) + 1000);
+      assert.match(created.body.invitationLink, /\/login\.html\?invite=[a-f0-9]{64}$/);
       assert.equal(created.body.apartment.label, 'Audit 2. OG links');
       apartment = created.body;
       await expectStatus(admin, '/api/admin/apartments', 400, {
         method: 'POST',
-        body: JSON.stringify({ label: 'Audit ungueltig', displayName: 'Bad\r\nHeader' })
-      });
-    });
-
-    await check('REG-02', 'Registrierung weist ungueltige E-Mail, schwaches Passwort und falschen Code ab', async () => {
-      await expectStatus(new ApiClient(), '/api/register', 400, {
-        method: 'POST',
         body: JSON.stringify({
-          email: '<script>@example.test',
-          password: 'Audit-Passwort-2026!',
-          apartmentCode: apartment.activationCode
-        })
-      });
-      for (const invalidEmail of [
-        'punkte..doppelt@example.test',
-        'adresse@-example.test',
-        'adresse@example.test\r\nBcc:angriff@example.test'
-      ]) {
-        await expectStatus(new ApiClient(), '/api/register', 400, {
-          method: 'POST',
-          body: JSON.stringify({
-            email: invalidEmail,
-            password: 'Audit-Passwort-2026!',
-            apartmentCode: apartment.activationCode
-          })
-        });
-      }
-      await expectStatus(new ApiClient(), '/api/register', 400, {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'audit-familie@example.test',
-          password: 'kurz',
-          apartmentCode: apartment.activationCode
-        })
-      });
-      await expectStatus(new ApiClient(), '/api/register', 403, {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'audit-familie@example.test',
-          password: 'Audit-Passwort-2026!',
-          apartmentCode: 'W-FALSCH-CODE'
+          label: 'Audit ungueltig',
+          displayName: 'Bad\r\nHeader',
+          email: 'audit-bad@example.test'
         })
       });
     });
 
-    await check('REG-03', 'Wohnungscode aktiviert genau ein gemeinsames Wohnungskonto', async () => {
-      const registration = await expectStatus(resident, '/api/register', 201, {
+    await check('REG-02', 'Einladung weist freie Registrierung, schwaches Passwort und falsche Links ab', async () => {
+      await expectStatus(new ApiClient(), '/api/register', 410, {
         method: 'POST',
         body: JSON.stringify({
-          username: 'frei-gewaehlter-name-wird-ignoriert',
-          email: 'audit-familie@example.test',
+          email: 'frei@example.test',
           password: 'Audit-Passwort-2026!',
-          apartmentCode: apartment.activationCode,
+          apartmentCode: 'W-ALT-CODE'
+        })
+      });
+      await expectStatus(admin, '/api/admin/apartments', 400, {
+        method: 'POST',
+        body: JSON.stringify({
+          label: 'Audit falsche Mail',
+          displayName: 'Audit Falsch',
+          email: 'adresse@example.test\r\nBcc:angriff@example.test'
+        })
+      });
+      const invitationToken = new URL(apartment.invitationLink).searchParams.get('invite');
+      await expectStatus(new ApiClient(), '/api/invitations/ungueltig', 404);
+      await expectStatus(new ApiClient(), '/api/invitations/accept', 400, {
+        method: 'POST',
+        body: JSON.stringify({
+          token: invitationToken,
+          password: 'kurz'
+        })
+      });
+      await expectStatus(new ApiClient(), '/api/invitations/accept', 400, {
+        method: 'POST',
+        body: JSON.stringify({
+          token: 'f'.repeat(64),
+          password: 'Audit-Passwort-2026!'
+        })
+      });
+    });
+
+    await check('REG-03', 'Einladungslink erzeugt genau ein fest gebundenes Wohnungskonto', async () => {
+      const invitationToken = new URL(apartment.invitationLink).searchParams.get('invite');
+      const preview = await expectStatus(new ApiClient(), `/api/invitations/${invitationToken}`, 200);
+      assert.equal(preview.body.invitation.email, 'audit-familie@example.test');
+      assert.equal(preview.body.invitation.apartmentLabel, 'Audit 2. OG links');
+      const registration = await expectStatus(resident, '/api/invitations/accept', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          token: invitationToken,
+          password: 'Audit-Passwort-2026!',
           notifyReleases: true
         })
       });
@@ -312,13 +321,12 @@ async function run() {
       assert.equal(registration.body.user.role, 'user');
       assert.equal(registration.body.user.apartmentLabel, 'Audit 2. OG links');
       assert.equal(registration.body.user.displayName, 'Audit Familie');
-      assert.notEqual(registration.body.user.username, 'frei-gewaehlter-name-wird-ignoriert');
-      await expectStatus(new ApiClient(), '/api/register', 403, {
+      assert.equal(registration.body.user.emailVerified, false);
+      await expectStatus(new ApiClient(), '/api/invitations/accept', 400, {
         method: 'POST',
         body: JSON.stringify({
-          email: 'zweites-konto@example.test',
-          password: 'Zweites-Passwort-2026!',
-          apartmentCode: apartment.activationCode
+          token: invitationToken,
+          password: 'Zweites-Passwort-2026!'
         })
       });
     });
@@ -513,22 +521,21 @@ async function run() {
       assert.ok(Number(limited.response.headers.get('retry-after')) > 0);
     });
 
-    await check('RATE-03', 'Wohnungsregistrierung besitzt ein separates IP-Limit', async () => {
+    await check('RATE-03', 'Einladungsannahme besitzt ein separates IP-Limit', async () => {
       let limited = null;
       for (let attempt = 0; attempt < 35; attempt += 1) {
-        const response = await new ApiClient().request('/api/register', {
+        const response = await new ApiClient().request('/api/invitations/accept', {
           method: 'POST',
           body: JSON.stringify({
-            email: `registration-${attempt}@example.test`,
-            password: 'Registrierung-Audit-2026!',
-            apartmentCode: 'W-NICHT-VORHANDEN'
+            token: attempt.toString(16).padStart(64, '0'),
+            password: 'Registrierung-Audit-2026!'
           })
         });
         if (response.response.status === 429) {
           limited = response;
           break;
         }
-        assert.equal(response.response.status, 403);
+        assert.equal(response.response.status, 400);
       }
       assert.ok(limited, 'Das Registrierungslimit wurde nicht erreicht.');
       assert.ok(Number(limited.response.headers.get('retry-after')) > 0);
@@ -543,7 +550,7 @@ async function run() {
       passed: results.filter((result) => result.status === 'PASS').length,
       failed: results.filter((result) => result.status === 'FAIL').length,
       durationMs: results.reduce((sum, result) => sum + result.durationMs, 0),
-      areas: ['security-headers', 'origin-protection', 'sessions', 'login', 'registration', 'device-code', 'roles', 'passwords', 'rate-limits']
+      areas: ['security-headers', 'origin-protection', 'sessions', 'login', 'invitations', 'device-code', 'roles', 'passwords', 'rate-limits']
     };
     console.log(JSON.stringify(summary));
   } finally {

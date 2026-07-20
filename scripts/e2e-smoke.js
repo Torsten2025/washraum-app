@@ -82,7 +82,11 @@ async function run() {
     const apartmentResponse = await fetch(`${baseUrl}/api/admin/apartments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
-      body: JSON.stringify({ label: 'E2E 2. OG links', displayName: 'E2E Familie' })
+      body: JSON.stringify({
+        label: 'E2E 2. OG links',
+        displayName: 'E2E Familie',
+        email: 'e2e@example.test'
+      })
     });
     assert.equal(apartmentResponse.status, 201);
     const apartment = await apartmentResponse.json();
@@ -92,11 +96,9 @@ async function run() {
       ...(executablePath ? { executablePath } : {})
     });
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await page.goto(`${baseUrl}/login.html`, { waitUntil: 'domcontentloaded' });
-    await page.click('#showRegister');
-    await page.fill('#registerForm input[name="email"]', 'e2e@example.test');
+    await page.goto(apartment.invitationLink, { waitUntil: 'domcontentloaded' });
     await page.fill('#registerForm input[name="password"]', 'E2E-Bewohner-2026!');
-    await page.fill('#registerForm input[name="apartmentCode"]', apartment.activationCode);
+    await page.fill('#registerForm input[name="passwordConfirmation"]', 'E2E-Bewohner-2026!');
     await page.click('#registerForm button[type="submit"]');
     await page.waitForURL('**/index.html?welcome=1', { timeout: 10000 });
     await page.waitForSelector('#settingsOverlay:not([hidden])');

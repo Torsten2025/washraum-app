@@ -91,7 +91,8 @@ const toggleMaintenanceButton = document.querySelector('#toggleMaintenanceButton
 const apartmentForm = document.querySelector('#apartmentForm');
 const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
 const apartmentDisplayNameInput = document.querySelector('#apartmentDisplayNameInput');
-const apartmentCodeResult = document.querySelector('#apartmentCodeResult');
+const apartmentInviteEmailInput = document.querySelector('#apartmentInviteEmailInput');
+const apartmentInvitationResult = document.querySelector('#apartmentInvitationResult');
 const apartmentList = document.querySelector('#apartmentList');
 const superadminBox = document.querySelector('#superadminBox');
 const houseForm = document.querySelector('#houseForm');
@@ -169,9 +170,7 @@ const fixedBookingList = document.querySelector('#fixedBookingList');
 const userList = document.querySelector('#userList');
 const adminAccountRecoveryResult = document.querySelector('#adminAccountRecoveryResult');
 const apartmentSetupOverlay = document.querySelector('#apartmentSetupOverlay');
-const claimApartmentForm = document.querySelector('#claimApartmentForm');
 const joinApartmentForm = document.querySelector('#joinApartmentForm');
-const existingApartmentCode = document.querySelector('#existingApartmentCode');
 const existingDeviceCode = document.querySelector('#existingDeviceCode');
 const apartmentSetupMessage = document.querySelector('#apartmentSetupMessage');
 const closeApartmentSetupButton = document.querySelector('#closeApartmentSetupButton');
@@ -3677,24 +3676,56 @@ async function finishApartmentSetup(path, body) {
 }
 
 async function createApartment() {
-  apartmentCodeResult.hidden = true;
+  apartmentInvitationResult.hidden = true;
   try {
     const data = await api('/api/admin/apartments', {
       method: 'POST',
       body: JSON.stringify({
         label: apartmentLabelInput.value,
-        displayName: apartmentDisplayNameInput.value
+        displayName: apartmentDisplayNameInput.value,
+        email: apartmentInviteEmailInput.value
       })
     });
     apartmentLabelInput.value = '';
     apartmentDisplayNameInput.value = '';
-    apartmentCodeResult.innerHTML = `<strong>${escapeHtml(data.apartment.label)} - ${escapeHtml(data.apartment.display_name)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Diesen Code jetzt sicher weitergeben. Er wird nicht erneut angezeigt.</span>`;
-    apartmentCodeResult.hidden = false;
+    apartmentInviteEmailInput.value = '';
+    showApartmentInvitationResult(data, data.apartment);
     showStatus(data.message);
     await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
   }
+}
+
+function showApartmentInvitationResult(data, apartment) {
+  const invitation = data.invitation || {};
+  apartmentInvitationResult.replaceChildren();
+  const title = document.createElement('strong');
+  title.textContent = `${apartment.label} - ${apartment.display_name}`;
+  const status = document.createElement('span');
+  status.textContent = invitation.emailSent
+    ? `Einladung an ${invitation.email} gesendet.`
+    : `E-Mail-Versand noch nicht bereit. Link fuer ${invitation.email} persoenlich weitergeben.`;
+  apartmentInvitationResult.append(title, status);
+  if (!invitation.emailSent && data.invitationLink) {
+    const link = document.createElement('code');
+    link.className = 'invitation-link';
+    link.textContent = data.invitationLink;
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'secondary';
+    copyButton.textContent = 'Link kopieren';
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(data.invitationLink);
+        copyButton.textContent = 'Kopiert';
+      } catch {
+        showStatus('Der Einladungslink konnte nicht automatisch kopiert werden.', 'error');
+      }
+    });
+    apartmentInvitationResult.append(link, copyButton);
+  }
+  apartmentInvitationResult.hidden = false;
 }
 
 async function sendDisplayNameRequest() {
@@ -3728,7 +3759,14 @@ function renderApartments(apartments) {
     item.className = 'user-admin-item';
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
-    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} · ${apartment.claimed ? 'aktiviert' : 'noch nicht aktiviert'}</span>${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
+    const invitationState = apartment.claimed
+      ? 'aktiviert'
+      : apartment.invitationStatus === 'pending'
+        ? `Einladung offen fuer ${escapeHtml(apartment.invitation_email)}`
+        : apartment.invitationStatus === 'expired'
+          ? 'Einladung abgelaufen'
+          : 'noch nicht eingeladen';
+    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${invitationState}</span>${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
     const editButton = document.createElement('button');
@@ -3740,19 +3778,53 @@ function renderApartments(apartments) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'secondary';
-      button.textContent = 'Neuen Code';
-      button.addEventListener('click', async () => {
-        try {
-          const data = await api(`/api/admin/apartments/${apartment.id}/new-code`, { method: 'POST' });
-          apartmentCodeResult.innerHTML = `<strong>${escapeHtml(apartment.label)} - ${escapeHtml(apartment.display_name)}:</strong> <code>${escapeHtml(data.activationCode)}</code><br><span>Der alte Code ist ung&uuml;ltig.</span>`;
-          apartmentCodeResult.hidden = false;
-          showStatus(data.message);
-        } catch (error) {
-          showStatus(error.message, 'error');
-        }
+      button.textContent = apartment.invitationStatus === 'pending' ? 'Einladung erneuern' : 'Einladen';
+      button.addEventListener('click', () => {
+        const inviteForm = item.querySelector('.apartment-invite-form');
+        inviteForm.hidden = false;
+        button.disabled = true;
+        inviteForm.querySelector('input')?.focus();
       });
       actions.append(button);
     }
+
+    const inviteForm = document.createElement('form');
+    inviteForm.className = 'apartment-invite-form compact-form';
+    inviteForm.hidden = true;
+    inviteForm.innerHTML = `
+      <label>
+        E-Mail fuer die Einladung
+        <input name="email" type="email" value="${escapeHtml(apartment.invitation_email || '')}" required>
+      </label>
+      <div class="inline-actions">
+        <button type="submit">Einladung senden</button>
+        <button class="secondary" type="button" data-cancel>Abbrechen</button>
+      </div>
+    `;
+    inviteForm.querySelector('[data-cancel]').addEventListener('click', () => {
+      inviteForm.hidden = true;
+      const inviteButton = [...actions.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent.includes('Einlad') || candidate.textContent === 'Einladen');
+      if (inviteButton) inviteButton.disabled = false;
+    });
+    inviteForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submitButton = inviteForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      try {
+        const data = await api(`/api/admin/apartments/${apartment.id}/invitation`, {
+          method: 'POST',
+          body: JSON.stringify({ email: new FormData(inviteForm).get('email') })
+        });
+        showApartmentInvitationResult(data, apartment);
+        showStatus(data.message);
+        await loadAdmin();
+      } catch (error) {
+        showStatus(error.message, 'error');
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
 
     const editForm = document.createElement('form');
     editForm.className = 'apartment-edit-form compact-form';
@@ -3805,7 +3877,7 @@ function renderApartments(apartments) {
         showStatus(error.message, 'error');
       }
     });
-    item.append(identity, actions, editForm);
+    item.append(identity, actions, inviteForm, editForm);
     apartmentList.append(item);
   }
 }
@@ -4601,6 +4673,9 @@ function renderAuditLog(entries) {
     'fixed_booking.create': 'Feste Buchung angelegt',
     'fixed_booking.delete': 'Feste Buchung entfernt',
     'bookings.reset': 'Buchungen zurueckgesetzt',
+    'apartment.invitation_created': 'Wohnungseinladung erstellt',
+    'apartment.invitation_renewed': 'Wohnungseinladung erneuert',
+    'apartment.invitation_accepted': 'Wohnungseinladung angenommen',
     'push.test': 'Push-Test gesendet',
     'superadmin.transfer': 'Superadmin uebergeben',
     'backup.download': 'Backup heruntergeladen',
@@ -5043,10 +5118,6 @@ passwordForm.addEventListener('submit', async (event) => {
 deleteAccountForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await deleteOwnAccount();
-});
-claimApartmentForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  await finishApartmentSetup('/api/me/apartment/claim', { apartmentCode: existingApartmentCode.value });
 });
 joinApartmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();

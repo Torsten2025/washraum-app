@@ -67,7 +67,7 @@
         <p class="auth-panel-kicker">Anmelden und direkt zum Wochenplan</p>
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
-          <button id="showRegister" class="auth-tab" type="button">Wohnung aktivieren</button>
+          <button id="showRegister" class="auth-tab" type="button">Einladung</button>
           <button id="showDeviceLogin" class="auth-tab" type="button">Ger&auml;t verbinden</button>
         </div>
         <form id="loginForm" class="stack auth-form">
@@ -120,24 +120,26 @@
           <p id="accountRecoveryMessage" class="message" role="status"></p>
         </form>
         <form id="registerForm" class="stack auth-form" hidden>
+          <h2>Wohnung aktivieren</h2>
+          <div id="invitationSummary" class="invitation-summary" role="status">
+            <strong>Einladungslink erforderlich</strong>
+            <span>&Ouml;ffne den Link aus der E-Mail deiner Hausverwaltung.</span>
+          </div>
+          <input name="token" type="hidden">
           <label>
-            E-Mail f&uuml;r Passwort-Reset und Hinweise
-            <input name="email" type="email" autocomplete="email" required>
-          </label>
-          <label>
-            Passwort
+            Dein Passwort
             <input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
           <label>
-            Einmaliger Wohnungscode
-            <input name="apartmentCode" autocomplete="one-time-code" required>
+            Passwort wiederholen
+            <input name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
           <label class="checkbox-label">
             <input name="notifyReleases" type="checkbox" checked>
             <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
           </label>
-          <button type="submit">Konto erstellen</button>
-          <p class="helper-text">Wohnung und Klingelschildname sind bereits durch die Verwaltung festgelegt. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
+          <button type="submit" disabled>Einladung annehmen</button>
+          <p class="helper-text">E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Weitere Handys werden danach mit einem kurz g&uuml;ltigen Ger&auml;tecode verbunden.</p>
           <p id="registerMessage" class="message" role="status"></p>
         </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>

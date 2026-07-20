@@ -1280,6 +1280,35 @@ aside.panel {
   color: var(--accent-dark);
 }
 
+#apartmentInvitationResult,
+.invitation-summary {
+  display: grid;
+  gap: 6px;
+}
+
+#apartmentInvitationResult[hidden] {
+  display: none;
+}
+
+.invitation-link {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  color: var(--night);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  padding: 8px;
+}
+
+.invitation-summary {
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  padding: 8px 0 8px 12px;
+}
+
+.invitation-summary strong {
+  color: var(--night);
+}
+
 .admin-account-recovery-result {
   display: grid;
   gap: 6px;
@@ -1653,17 +1682,20 @@ aside.panel {
   gap: 8px;
 }
 
-.apartment-edit-form {
+.apartment-edit-form,
+.apartment-invite-form {
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   grid-column: 1 / -1;
   padding-top: 12px;
 }
 
-.apartment-edit-form[hidden] {
+.apartment-edit-form[hidden],
+.apartment-invite-form[hidden] {
   display: none;
 }
 
-.admin-view .apartment-edit-form {
+.admin-view .apartment-edit-form,
+.admin-view .apartment-invite-form {
   border-top-color: var(--line);
 }
 

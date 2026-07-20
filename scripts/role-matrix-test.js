@@ -323,6 +323,34 @@ async function run() {
         email: 'hausadmin-uebernahme@example.test'
       })
     });
+    const invitedApartment = await expectStatus(houseAdmin, '/api/admin/apartments', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Rollen 3. OG rechts',
+        displayName: 'Rollenfamilie Einladung',
+        email: 'rollen-einladung@example.test'
+      })
+    });
+    assert.match(invitedApartment.body.invitationLink, /invite=[a-f0-9]{64}$/);
+    assert.equal(invitedApartment.body.invitation.email, 'rollen-einladung@example.test');
+    const renewedInvitation = await expectStatus(
+      houseAdmin,
+      `/api/admin/apartments/${invitedApartment.body.apartment.id}/invitation`,
+      200,
+      {
+        method: 'POST',
+        body: JSON.stringify({ email: 'rollen-einladung@example.test' })
+      }
+    );
+    assert.notEqual(renewedInvitation.body.invitationLink, invitedApartment.body.invitationLink);
+    const firstInvitationToken = new URL(invitedApartment.body.invitationLink).searchParams.get('invite');
+    const renewedInvitationToken = new URL(renewedInvitation.body.invitationLink).searchParams.get('invite');
+    await expectStatus(new ApiClient(), `/api/invitations/${firstInvitationToken}`, 404);
+    await expectStatus(new ApiClient(), `/api/invitations/${renewedInvitationToken}`, 200);
+    await expectStatus(resident, `/api/admin/apartments/${invitedApartment.body.apartment.id}/invitation`, 403, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'angriff@example.test' })
+    });
 
     await expectStatus(houseAdmin, '/api/admin/settings/house-code', 200, {
       method: 'PUT',
@@ -626,6 +654,7 @@ async function run() {
         configuredAdminRecovery: true,
         crossHouseIsolation: true,
         maintenanceWorkflow: true,
+        invitationOnboarding: true,
         pilotReset: true,
         roleSpecificLogout: true
       },

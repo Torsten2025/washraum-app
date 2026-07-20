@@ -324,8 +324,8 @@
 
           <section id="adminSectionPeople" class="admin-section" data-admin-section="people" hidden>
             <div class="admin-section-heading">
-              <h3>Wohnungen &amp; Aktivierung</h3>
-              <span>Wohnungen vorbereiten und Einmalcodes sicher ausgeben</span>
+              <h3>Wohnungen &amp; Einladungen</h3>
+              <span>Wohnung fest zuordnen und Bewohner sicher per E-Mail einladen</span>
             </div>
             <form id="apartmentForm" class="stack compact-form admin-narrow-form">
               <label>
@@ -336,9 +336,13 @@
                 Name am Klingelschild
                 <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
               </label>
-              <button type="submit">Wohnungscode erzeugen</button>
+              <label>
+                E-Mail f&uuml;r die Einladung
+                <input id="apartmentInviteEmailInput" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch" required>
+              </label>
+              <button type="submit">Einladung senden</button>
             </form>
-            <div id="apartmentCodeResult" class="verification-status" role="status" hidden></div>
+            <div id="apartmentInvitationResult" class="verification-status" role="status" hidden></div>
             <div id="apartmentList" class="user-admin-list"></div>
 
             <div class="admin-section-heading admin-subsection-heading">
@@ -768,16 +772,10 @@
         <button id="closeApartmentSetupButton" class="icon-close" type="button" aria-label="Wohnungszuordnung spaeter fortsetzen">x</button>
         <div class="intro-copy">
           <p class="eyebrow">Bestehendes Konto</p>
-          <h2 id="apartmentSetupTitle">Zu welcher Wohnung geh&ouml;rt dieses Konto?</h2>
-          <p>Wir stellen auf ein gemeinsames Konto pro Wohnung um. Deine bisherigen Buchungen bleiben erhalten.</p>
+          <h2 id="apartmentSetupTitle">Dieses alte Konto braucht eine Wohnung.</h2>
+          <p>Bitte aktiviere zuerst das eingeladene Wohnungskonto. Danach lassen sich bisherige Buchungen und Ger&auml;te sicher dorthin &uuml;bernehmen.</p>
         </div>
         <div class="apartment-setup-grid">
-          <form id="claimApartmentForm" class="stack compact-form">
-            <h3>Wohnung erstmals aktivieren</h3>
-            <p class="muted">Nutze den einmaligen Wohnungscode der Verwaltung.</p>
-            <label>Wohnungscode<input id="existingApartmentCode" autocomplete="one-time-code" required></label>
-            <button type="submit">Wohnung zuordnen</button>
-          </form>
           <form id="joinApartmentForm" class="stack compact-form">
             <h3>Mit bestehendem Wohnungskonto verbinden</h3>
             <p class="muted">Auf einem bereits angemeldeten Handy einen Ger&auml;tecode erzeugen.</p>

@@ -45,9 +45,9 @@ npm run check
 
 Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, eine eigene Rollenmatrix, Mehrhaus-Isolation, feste Buchungen, Datenschutzfunktionen, Audit, gepruefte Backups, Videoassets, Sicherheitsheader und statische Barrierefreiheit. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
 
-## Registrierung und Hauscode
+## Wohnungseinladung
 
-Neue Bewohner registrieren sich mit Benutzername, E-Mail, Passwort und Hauscode. Der Code ordnet das Konto der richtigen Hausnummer zu. Er ist nur fuer den Haus-Admin und den Superadmin sichtbar und kann dort geaendert werden. Lokal lautet der Startwert `GBMZ Maneggplatz 18`. In einer neuen Produktion wird ohne `HOUSE_CODE` ein zufaelliger Wert erzeugt.
+Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App erzeugt einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Ein per SMTP zugestellter Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen Geraetecode mit demselben Konto verbunden.
 
 Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Admin-Konto wird zum Superadmin. Weitere Hausnummern erhalten anfangs drei Waschmaschinen, drei Trockenraeume und zwei Tumbler. Namen, aktive Geraete und Hausstatus koennen danach angepasst werden. Ein Bewohner kann nur ohne kommende Buchungen in ein anderes Haus verschoben werden.
 
@@ -58,7 +58,6 @@ Fuer eine neue Datenbank muessen in Render mindestens gesetzt sein:
 - `SEED_ADMIN_PASSWORD`: sicheres erstes Admin-Passwort
 - `SEED_ADMIN_FORCE_PASSWORD_RESET`: nur temporaer im Notfall auf `true` setzen, wenn das Seed-Superadmin-Passwort neu gesetzt werden muss
 - `SESSION_SECRET`: wird durch `render.yaml` erzeugt
-- `HOUSE_CODE`: optional; sonst wird ein zufaelliger Wert erzeugt
 - `HOUSE_NAME`: optionaler Name der ersten Hausnummer
 - `PUBLIC_APP_URL`: zum Beispiel `https://washraum-app.onrender.com`
 
