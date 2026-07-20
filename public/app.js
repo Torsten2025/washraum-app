@@ -130,6 +130,10 @@ const enablePushButton = document.querySelector('#enablePushButton');
 const disablePushButton = document.querySelector('#disablePushButton');
 const createDeviceCodeButton = document.querySelector('#createDeviceCodeButton');
 const devicePairingCode = document.querySelector('#devicePairingCode');
+const devicePairingPanel = document.querySelector('#devicePairingPanel');
+const devicePairingQr = document.querySelector('#devicePairingQr');
+const devicePairingApartment = document.querySelector('#devicePairingApartment');
+const devicePairingExpires = document.querySelector('#devicePairingExpires');
 const notificationResourceType = document.querySelector('#notificationResourceType');
 const notificationWeekday = document.querySelector('#notificationWeekday');
 const notificationSlot = document.querySelector('#notificationSlot');
@@ -275,6 +279,7 @@ let introReturnFocus = null;
 let settingsReturnFocus = null;
 let messageCenterReturnFocus = null;
 let activeSettingsSection = 'profile';
+let devicePairingCountdownTimer = null;
 let activeAdminSection = 'overview';
 let logoutInProgress = false;
 let sessionIdleTimeoutMs = 0;
@@ -3646,10 +3651,33 @@ async function resendSecondaryEmailVerification() {
 
 async function createDevicePairingCode() {
   createDeviceCodeButton.disabled = true;
+  if (devicePairingCountdownTimer) window.clearInterval(devicePairingCountdownTimer);
   try {
     const data = await api('/api/me/device-code', { method: 'POST' });
     devicePairingCode.textContent = data.code;
-    devicePairingCode.hidden = false;
+    devicePairingQr.src = data.qrCodeDataUrl;
+    devicePairingQr.hidden = false;
+    devicePairingApartment.textContent = data.apartmentLabel
+      ? `Wohnungskonto: ${data.apartmentLabel}`
+      : 'Gemeinsames Wohnungskonto';
+    devicePairingPanel.hidden = false;
+    createDeviceCodeButton.textContent = 'Neuen QR-Code erzeugen';
+    const updateCountdown = () => {
+      const remainingSeconds = Math.max(0, Math.ceil((Number(data.expiresAt) - Date.now()) / 1000));
+      if (!remainingSeconds) {
+        window.clearInterval(devicePairingCountdownTimer);
+        devicePairingCountdownTimer = null;
+        devicePairingExpires.textContent = 'Dieser QR-Code ist abgelaufen.';
+        devicePairingQr.hidden = true;
+        devicePairingCode.textContent = 'Abgelaufen';
+        return;
+      }
+      const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+      const seconds = String(remainingSeconds % 60).padStart(2, '0');
+      devicePairingExpires.textContent = `Noch ${minutes}:${seconds} gueltig`;
+    };
+    updateCountdown();
+    devicePairingCountdownTimer = window.setInterval(updateCountdown, 1000);
     showStatus(data.message);
   } catch (error) {
     showStatus(error.message, 'error');

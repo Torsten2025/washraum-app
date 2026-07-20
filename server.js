@@ -8,6 +8,7 @@ const express = require('express');
 const session = require('express-session');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
+const QRCode = require('qrcode');
 const webPush = require('web-push');
 const packageInfo = require('./package.json');
 const { releaseWindowStatus } = require('./release-window');
@@ -2821,6 +2822,8 @@ app.post('/api/device-login', authRateLimit, async (req, res, next) => {
       AND dpc.used_at IS NULL
       AND CAST(dpc.expires_at AS INTEGER) > ?
       AND u.active = 1
+      AND u.role = 'user'
+      AND u.apartment_id IS NOT NULL
   `).get(tokenHash(code), Date.now()) : null;
   if (!record) {
     return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig oder abgelaufen.' });
@@ -3342,7 +3345,10 @@ app.post('/api/me/apartment-name-request', requireAuth, requireApartmentAccount,
   });
 });
 
-app.post('/api/me/device-code', requireAuth, requireApartmentAccount, (req, res) => {
+app.post('/api/me/device-code', requireAuth, requireApartmentAccount, async (req, res, next) => {
+  if (req.session.user.role !== 'user') {
+    return res.status(403).json({ error: 'QR-Geraeteverbindungen sind nur fuer Bewohnerkonten verfuegbar.' });
+  }
   if (!req.session.user.apartmentId) {
     return res.status(409).json({ error: 'Zuerst muss eine Wohnung mit dem Konto verbunden sein.' });
   }
@@ -3356,12 +3362,25 @@ app.post('/api/me/device-code', requireAuth, requireApartmentAccount, (req, res)
       VALUES (?, ?, ?)
     `).run(req.session.user.id, tokenHash(normalizeAccessCode(code)), String(expiresAt));
   })();
-  res.status(201).json({
-    code,
-    expiresAt,
-    apartmentLabel: req.session.user.apartmentLabel,
-    message: 'Der Ger\u00e4tecode ist zehn Minuten g\u00fcltig und kann einmal verwendet werden.'
-  });
+  try {
+    const loginUrl = `${publicAppUrl(req)}/login.html?device=${encodeURIComponent(code)}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(loginUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 256,
+      color: { dark: '#0d241cff', light: '#ffffffff' }
+    });
+    res.status(201).json({
+      code,
+      expiresAt,
+      apartmentLabel: req.session.user.apartmentLabel,
+      loginUrl,
+      qrCodeDataUrl,
+      message: 'Der QR-Code ist zehn Minuten gueltig und kann einmal verwendet werden.'
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/me/apartment/join', requireAuth, async (req, res, next) => {

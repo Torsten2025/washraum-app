@@ -4073,11 +4073,63 @@ aside.panel > * {
   border-radius: 6px;
   color: #fff;
   display: inline-block;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   margin-top: 12px;
+  max-width: 100%;
   padding: 10px 14px;
+  width: fit-content;
+}
+
+.pairing-panel {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.pairing-panel[hidden] {
+  display: none;
+}
+
+.pairing-qr {
+  aspect-ratio: 1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: block;
+  height: auto;
+  max-width: 100%;
+  padding: 8px;
+  width: 180px;
+}
+
+.pairing-details {
+  align-items: start;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pairing-expiry {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .pairing-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .pairing-qr {
+    justify-self: center;
+    width: min(240px, 100%);
+  }
 }
 
 .apartment-setup-modal {

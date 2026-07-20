@@ -34,7 +34,7 @@ npm run check
 | AUTH-04 | Adminlogin | Technischer Kontoname bleibt fuer Notfallzugang nutzbar | `test:security` |
 | AUTH-05 | Bewohnerlogin | Primaere E-Mail funktioniert ohne Beachtung der Grossschreibung; freier Name nicht | `test:security` |
 | AUTH-06 | Zweite E-Mail | Beide Adressen melden dasselbe Wohnungskonto an | `test:security`, `npm test` |
-| AUTH-07 | Geraetecode | Zehn Minuten gueltig, kontogebunden und nur einmal verwendbar | `test:security`, `npm test` |
+| AUTH-07 | Partnergeraet per QR | QR enthaelt die vorausgefuellte Loginadresse; Token ist zehn Minuten gueltig, kontogebunden und nur einmal verwendbar; Adminrechte werden nicht uebertragen | `test:security`, `npm test`, `test:roles`, `test:e2e` |
 | AUTH-08 | Passwortwechsel | Altes Passwort erforderlich; anderes Passwort; weitere Sitzungen enden | `test:security`, `npm test` |
 | AUTH-09 | Passwort-Reset-Anfrage | Bekannte und unbekannte E-Mail erhalten dieselbe Antwort | `test:security` |
 | AUTH-10 | Deaktiviertes Konto | Aktive Sitzungen verlieren Zugriff; erneuter Login liefert 403 | `test:security`, `npm test` |

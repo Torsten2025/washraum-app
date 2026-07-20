@@ -1219,6 +1219,10 @@ async function run() {
       })
     });
     const deviceCode = await expectStatus(apartmentResident, '/api/me/device-code', 201, { method: 'POST' });
+    assert.match(deviceCode.body.loginUrl, /\/login\.html\?device=/);
+    assert.equal(new URL(deviceCode.body.loginUrl).searchParams.get('device'), deviceCode.body.code);
+    assert.match(deviceCode.body.qrCodeDataUrl, /^data:image\/png;base64,/);
+    assert.ok(Buffer.from(deviceCode.body.qrCodeDataUrl.split(',', 2)[1], 'base64').length > 500);
     const pairedDevice = new ApiClient();
     const deviceLogin = await expectStatus(pairedDevice, '/api/device-login', 200, {
       method: 'POST',
@@ -1643,6 +1647,9 @@ async function run() {
     assert.ok(indexHtml.includes('sessionWarningOverlay'));
     assert.ok(indexHtml.includes('sessionStayButton'));
     assert.ok(indexHtml.includes('sessionLogoutButton'));
+    assert.ok(indexHtml.includes('devicePairingPanel'));
+    assert.ok(indexHtml.includes('devicePairingQr'));
+    assert.ok(indexHtml.includes('devicePairingExpires'));
     assert.ok(indexHtml.includes('action="/logout"'));
     assert.ok(indexHtml.includes('class="app-wordmark"'));
     assert.ok(indexHtml.includes('id="brandHouseName"'));
@@ -1678,6 +1685,8 @@ async function run() {
     assert.ok(stylesText.includes('.admin-account-recovery-result'));
     assert.ok(stylesText.includes('.invitation-summary'));
     assert.ok(stylesText.includes('.apartment-invite-form'));
+    assert.ok(stylesText.includes('.pairing-panel'));
+    assert.ok(stylesText.includes('.pairing-qr'));
     assert.ok(stylesText.includes('.release-notice-modal'));
     assert.ok(stylesText.includes('.release-notice-facts'));
     assert.ok(stylesText.includes('.session-warning-modal'));
@@ -1717,6 +1726,8 @@ async function run() {
     assert.ok(appScriptText.includes('visibleRooms = selectedRoom'));
     assert.ok(appScriptText.includes('logoutInProgress'));
     assert.ok(appScriptText.includes('/api/session/keepalive'));
+    assert.ok(appScriptText.includes('qrCodeDataUrl'));
+    assert.ok(appScriptText.includes('devicePairingCountdownTimer'));
     assert.ok(appScriptText.includes('configureSessionTimeout'));
     assert.ok(appScriptText.includes('SESSION_IDLE_TIMEOUT'));
     assert.ok(appScriptText.includes('Reset-Link senden'));
@@ -1789,6 +1800,7 @@ async function run() {
     const loginScript = await expectStatus(guest, '/login.js', 200);
     assert.ok(loginScript.body.toString().includes('/api/account-recovery/confirm'));
     assert.ok(loginScript.body.toString().includes('/api/invitations/accept'));
+    assert.ok(loginScript.body.toString().includes("urlParameters.get('device')"));
     await expectStatus(guest, '/reset.html?token=test', 200);
 
     await verifySmtpDelivery();

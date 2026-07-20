@@ -352,6 +352,7 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ email: 'angriff@example.test' })
     });
+    await expectStatus(houseAdmin, '/api/me/device-code', 403, { method: 'POST' });
 
     await expectStatus(houseAdmin, '/api/admin/settings/house-code', 200, {
       method: 'PUT',
@@ -656,6 +657,7 @@ async function run() {
         crossHouseIsolation: true,
         maintenanceWorkflow: true,
         invitationOnboarding: true,
+        residentOnlyQrPairing: true,
         pilotReset: true,
         roleSpecificLogout: true
       },

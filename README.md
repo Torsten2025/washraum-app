@@ -47,7 +47,7 @@ Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Di
 
 ## Wohnungseinladung
 
-Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Der Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen Geraetecode mit demselben Konto verbunden. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
+Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Der Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen, einmaligen QR-Code mit Bestaetigungsseite verbunden; alternativ bleibt der Code lesbar. Dieser Weg gilt nur fuer Bewohnerkonten und uebertraegt keine Adminrechte. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
 
 Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Admin-Konto wird zum Superadmin. Weitere Hausnummern erhalten anfangs drei Waschmaschinen, drei Trockenraeume und zwei Tumbler. Namen, aktive Geraete und Hausstatus koennen danach angepasst werden. Ein Bewohner kann nur ohne kommende Buchungen in ein anderes Haus verschoben werden.
 

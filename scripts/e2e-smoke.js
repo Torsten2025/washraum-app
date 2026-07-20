@@ -114,6 +114,19 @@ async function run() {
     assert.ok(await page.locator('#notifyReleases').isVisible());
     await page.click('[data-settings-target="device"]');
     assert.ok(await page.locator('#installAppButton').isVisible());
+    await page.click('#createDeviceCodeButton');
+    await page.waitForSelector('#devicePairingPanel:not([hidden])');
+    await page.waitForFunction(() => {
+      const image = document.querySelector('#devicePairingQr');
+      return image?.complete && image.naturalWidth > 0;
+    });
+    assert.match(await page.locator('#devicePairingQr').getAttribute('src'), /^data:image\/png;base64,/);
+    const pairingCode = (await page.locator('#devicePairingCode').innerText()).trim();
+    const partnerPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await partnerPage.goto(`${baseUrl}/login.html?device=${encodeURIComponent(pairingCode)}`, { waitUntil: 'domcontentloaded' });
+    assert.equal(await partnerPage.locator('#deviceLoginForm input[name="deviceCode"]').inputValue(), pairingCode);
+    await partnerPage.click('#deviceLoginForm button[type="submit"]');
+    await partnerPage.waitForURL('**/index.html', { timeout: 10000 });
     await page.click('[data-settings-target="security"]');
     assert.ok(await page.locator('#passwordForm').isVisible());
     await page.click('#closeSettingsButton');

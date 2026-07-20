@@ -19,7 +19,7 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 
 1. Den sieben Tage gueltigen Einladungslink aus der E-Mail der Hausverwaltung oeffnen.
 2. Wohnung, Klingelschildname und fest zugeordnete E-Mail pruefen und nur noch ein eigenes Passwort festlegen. Erst mit diesem Schritt entsteht das aktive Wohnungskonto; der Link ist danach verbraucht.
-3. Weitere Familienmitglieder waehlen `Geraet verbinden`. Ein bereits angemeldetes Geraet erzeugt unter `Einstellungen` > `App & Geraet` einen zehn Minuten gueltigen Einmalcode. So verwenden alle Geraete dasselbe Wohnungskonto, ohne das Passwort weiterzugeben.
+3. Weitere Familienmitglieder waehlen `Geraet verbinden`. Ein bereits angemeldetes Bewohnergeraet erzeugt unter `Einstellungen` > `App & Geraet` einen zehn Minuten gueltigen QR-Code. Der Partner scannt ihn, prueft die vorausgefuellte Verbindung und bestaetigt sie einmal. Der lesbare Einmalcode bleibt als manuelle Reserve sichtbar.
 4. Nach der Anmeldung unter `Buchen` zuerst im Wochen- oder Monatskalender einen freien Waschtag waehlen. Ein passender Termin ist mit `Empfohlen` und `Buchen` markiert; ein Tipp oeffnet direkt das vorgeschlagene Zeitfenster und die Waschmaschinenwahl.
 5. Im Standardweg `Zeit zuerst` ein passendes Zeitfenster mit sichtbarer Verfuegbarkeit waehlen, danach eine bis drei freie Waschmaschinen im gleichen Slot auswaehlen. Wer gezielt nach einer Maschine sucht, kann dauerhaft auf `Maschine zuerst` umstellen.
 6. Unter `Meine Buchungen` Termine pruefen, vor Beginn absagen oder waehrend des laufenden Slots frueher freigeben.
@@ -37,6 +37,8 @@ Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einz
 | Superadmin | Alle Haeuser | Hausuebergreifende Tagebuchsicht, alle Haus-Admin-Rechte plus Haeuser, Rollen, Umzuege, Backups und globaler Wartungsmodus |
 
 Ein Superadmin arbeitet immer im aktuell ausgewaehlten Haus. Der Hausumschalter in der Kopfzeile legt fest, auf welches Haus sich Kalender und Verwaltung beziehen.
+
+Die QR-Geraeteverbindung ist ausschliesslich fuer aktive Bewohner-Wohnungskonten freigegeben. Sie uebertraegt keine Haus-Admin- oder Superadminrechte. Ein Admin ohne Bewohnerkontext kann keinen solchen QR-Code erzeugen; Verwaltungszugriffe werden nie ueber einen Partnercode weitergegeben.
 
 Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die App sicher, dass dieses Konto aktiv ist und die Adminrolle besitzt. In einer aelteren Datenbank ohne Superadmin wird der erste vorhandene Admin einmalig zum Superadmin hochgestuft.
 
@@ -70,7 +72,7 @@ Organisatorischer Notfallprozess:
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Bewohner mit einer hinterlegten E-Mail und Passwort; Admins alternativ mit technischem Kontonamen | Oeffentlich |
 | Einladung | Sieben Tage gueltige Einladung pruefen und das bereits einer Wohnung zugeordnete Konto durch Setzen des Passworts aktivieren | Oeffentlich mit gueltigem Link |
-| Geraet verbinden | Weiteres Geraet mit einem zehn Minuten gueltigen Einmalcode am bestehenden Wohnungskonto anmelden | Oeffentlich |
+| Geraet verbinden | QR-Code scannen oder lesbaren Einmalcode eingeben, Verbindung pruefen und das weitere Geraet am bestehenden Wohnungskonto anmelden | Oeffentlich mit zehn Minuten gueltigem Token |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Einladungsannahme ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
 | Persoenlicher Wiederherstellungscode | Ein Konto ohne bestaetigte E-Mail mit einem 15 Minuten gueltigen, einmaligen Admin-Code, eigener E-Mail und neuem Passwort wiederherstellen | Oeffentlich mit gueltigem Code |
@@ -465,6 +467,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 - Bewohner-Onboarding von frei verteilten Wohnungscodes auf sieben Tage gueltige E-Mail-Einladungen umgestellt. Das Konto entsteht erst beim Setzen des Passworts, ist bereits fest an Wohnung, Klingelschild und bestaetigte E-Mail gebunden und kann nicht doppelt aktiviert werden.
 - Adminbereich zeigt offene, abgelaufene und angenommene Einladungen; ein erfolgreich versendeter neuer Link widerruft automatisch den vorherigen. Im Produktivbetrieb ist E-Mail der einzige Einladungsweg: Ohne SMTP wird keine Einladung angelegt und kein Link angezeigt.
+- Partnergeraete lassen sich per lokal erzeugtem QR-Code mit vorausgefuellter Bestaetigungsseite verbinden. QR-Code und lesbarer Ersatzcode gelten zehn Minuten und einmal; Admin- und Superadminrechte sind von diesem Weg serverseitig ausgeschlossen.
 - Abgesicherten Pilot-Reset fuer den Superadmin ergaenzt: geprueftes Backup vor Ausfuehrung, exakter Bestaetigungstext und vollstaendige Entfernung aller Nicht-Superadmin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen bei Erhalt technischer Protokolle.
 - Direkte Admin-Aenderung fremder Bewohner-E-Mails gesperrt. Damit kann ein Admin keine eigene Adresse mehr in ein Wohnungskonto eintragen, bestaetigen und anschliessend dessen Passwort uebernehmen.
 - Persoenlich geprueften Kontowiederherstellungsprozess fuer Bewohner ohne bestaetigte E-Mail eingefuehrt: protokollierter Einmalcode, 15 Minuten Laufzeit, einmalige Verwendung, sofortiges Sitzungsende und selbststaendige Eingabe von E-Mail und neuem Passwort durch die betroffene Person.

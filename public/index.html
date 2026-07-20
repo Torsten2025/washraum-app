@@ -664,10 +664,19 @@
             <section class="push-card" aria-labelledby="pairingTitle">
               <div>
                 <h4 id="pairingTitle">Weiteres Handy verbinden</h4>
-                <p class="muted">Erzeuge einen einmaligen Code. Er ist zehn Minuten g&uuml;ltig und meldet das zweite Ger&auml;t am selben Wohnungskonto an.</p>
-                <output id="devicePairingCode" class="pairing-code" hidden></output>
+                <p class="muted">Erzeuge einen einmaligen QR-Code. Dein Partner scannt ihn mit der Handykamera und best&auml;tigt die Verbindung zum gemeinsamen Wohnungskonto.</p>
+                <div id="devicePairingPanel" class="pairing-panel" hidden>
+                  <img id="devicePairingQr" class="pairing-qr" alt="QR-Code zum Verbinden eines weiteren Handys" width="256" height="256">
+                  <div class="pairing-details">
+                    <strong>Mit der Handykamera scannen</strong>
+                    <span id="devicePairingApartment" class="muted"></span>
+                    <span id="devicePairingExpires" class="pairing-expiry" role="status"></span>
+                    <span class="muted">Code zum manuellen Eingeben:</span>
+                    <output id="devicePairingCode" class="pairing-code"></output>
+                  </div>
+                </div>
               </div>
-              <button id="createDeviceCodeButton" class="secondary" type="button">Ger&auml;tecode erzeugen</button>
+              <button id="createDeviceCodeButton" class="secondary" type="button">QR-Code erzeugen</button>
             </section>
             <section class="app-version-card" aria-labelledby="appVersionTitle">
               <div>

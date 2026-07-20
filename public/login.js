@@ -130,6 +130,7 @@ const verification = urlParameters.get('verification');
 const loggedOut = urlParameters.get('loggedOut');
 const sessionExpired = urlParameters.get('sessionExpired');
 const invitationToken = urlParameters.get('invite');
+const devicePairingToken = urlParameters.get('device');
 if (verification === 'ok') {
   message.textContent = 'E-Mail-Adresse best\u00e4tigt. Du kannst dich jetzt anmelden.';
 } else if (verification === 'invalid') {
@@ -198,7 +199,13 @@ async function loadInvitation(token) {
   }
 }
 
-if (invitationToken) loadInvitation(invitationToken);
+if (invitationToken) {
+  loadInvitation(invitationToken);
+} else if (devicePairingToken) {
+  setMode('device');
+  deviceLoginForm.elements.deviceCode.value = devicePairingToken;
+  deviceLoginMessage.textContent = 'QR-Code erkannt. Bitte bestaetige jetzt die Verbindung zum Wohnungskonto.';
+}
 
 deviceLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();

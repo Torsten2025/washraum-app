@@ -414,6 +414,8 @@ async function run() {
     await check('AUTH-07', 'Geraetecode ist kurzlebig, kontogebunden und nur einmal verwendbar', async () => {
       const code = await expectStatus(resident, '/api/me/device-code', 201, { method: 'POST' });
       assert.match(code.body.code, /^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+      assert.equal(new URL(code.body.loginUrl).searchParams.get('device'), code.body.code);
+      assert.match(code.body.qrCodeDataUrl, /^data:image\/png;base64,/);
       const paired = await expectStatus(new ApiClient(), '/api/device-login', 200, {
         method: 'POST',
         body: JSON.stringify({ deviceCode: code.body.code })
