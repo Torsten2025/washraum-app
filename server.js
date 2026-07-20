@@ -5174,6 +5174,69 @@ app.delete('/api/admin/bookings', requireAdmin, (req, res) => {
   res.json({ ok: true, deleted: count, message: `${count} Buchungen wurden geloescht. Dauertermine bleiben erhalten.` });
 });
 
+app.delete('/api/admin/pilot-accounts', requireAdmin, requireSuperadmin, async (req, res, next) => {
+  const confirmText = String(req.body?.confirm || '').trim();
+  if (confirmText !== 'ALLE TESTKONTEN LOESCHEN') {
+    return res.status(400).json({
+      error: 'Bitte zur Bestaetigung ALLE TESTKONTEN LOESCHEN eingeben.'
+    });
+  }
+
+  try {
+    const backup = await createVerifiedBackup();
+    const accounts = db.prepare(`
+      SELECT id, role, apartment_id
+      FROM users
+      WHERE is_superadmin = 0
+    `).all();
+    const accountIds = accounts.map((account) => account.id);
+    const apartmentLinks = accounts.filter((account) => account.apartment_id).length;
+    const residents = accounts.filter((account) => account.role === 'user').length;
+    const houseAdmins = accounts.filter((account) => account.role === 'admin').length;
+
+    db.transaction(() => {
+      if (accountIds.length) {
+        const placeholders = accountIds.map(() => '?').join(', ');
+        db.prepare(`
+          DELETE FROM release_notices
+          WHERE created_by IN (${placeholders})
+        `).run(...accountIds);
+        db.prepare(`
+          UPDATE apartments
+          SET claimed_by = NULL, claimed_at = NULL
+          WHERE claimed_by IN (${placeholders})
+        `).run(...accountIds);
+        db.prepare(`
+          UPDATE resources
+          SET blocked_by = NULL
+          WHERE blocked_by IN (${placeholders})
+        `).run(...accountIds);
+        db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...accountIds);
+      }
+    })();
+
+    for (const accountId of accountIds) destroyUserSessions(accountId);
+    writeAudit(req, 'users.pilot_reset', 'user', '', {
+      deleted: accounts.length,
+      residents,
+      houseAdmins,
+      apartmentLinks,
+      backup: backup.filename
+    });
+    res.json({
+      ok: true,
+      deleted: accounts.length,
+      residents,
+      houseAdmins,
+      apartmentLinks,
+      backup,
+      message: `${accounts.length} Testkonten wurden geloescht. Das Superadmin-Konto und technische Protokolle bleiben erhalten.`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
   const config = smtpConfig();
   const user = db.prepare('SELECT id, username, email FROM users WHERE id = ?').get(req.session.user.id);

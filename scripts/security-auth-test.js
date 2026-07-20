@@ -401,6 +401,10 @@ async function run() {
       await expectStatus(resident, '/api/admin/resources', 403);
       await expectStatus(resident, '/api/admin/houses', 403);
       await expectStatus(resident, '/api/admin/backup', 403);
+      await expectStatus(resident, '/api/admin/pilot-accounts', 403, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+      });
       await expectStatus(resident, `/api/admin/users/${residentId}/recovery-code`, 403, {
         method: 'POST',
         body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })

@@ -290,8 +290,11 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 | Konto in ein anderes Haus verschieben | Nein | Ja |
 | Superadmin-Konto veraendern oder verschieben | Nein | Nein |
 | Eigenes Passwort ohne bisheriges Passwort zuruecksetzen | Nein | Nein |
+| Pilotbestand nach geprueftem Backup vollstaendig bereinigen | Nein | Ja |
 
 Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen und fremde E-Mail-Adressen nicht ersetzen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Fehlt jede bestaetigte Adresse, darf nach persoenlicher Identitaetspruefung ein 15 Minuten gueltiger Einmalcode erzeugt und direkt an die berechtigte Person ausgegeben werden. Das Erzeugen beendet bestehende Sitzungen und wird auditiert. Erst die Person selbst setzt mit dem Code eine neue E-Mail und ein neues Passwort; Wohnung, Buchungen, Push-Geraete und Protokollbezuege bleiben erhalten. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
+
+Der Pilot-Reset ist ausschliesslich fuer eine kontrollierte Bereinigung vor dem Echtbetrieb vorgesehen. Er verlangt den exakten Bestaetigungstext `ALLE TESTKONTEN LOESCHEN` und erstellt vorab ein geprueftes SQLite-Backup. Er entfernt alle Bewohner- und normalen Haus-Admin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen. Superadmin-Konten, Wohnungen, Ressourcen, Dauertermine und technische Protokolle bleiben erhalten. Freie Wohnungen erhalten anschliessend erst auf bewusste Admin-Aktion einen neuen Aktivierungscode.
 
 ### 6. Auswertung
 
@@ -460,6 +463,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 
 ### 20. Juli 2026
 
+- Abgesicherten Pilot-Reset fuer den Superadmin ergaenzt: geprueftes Backup vor Ausfuehrung, exakter Bestaetigungstext und vollstaendige Entfernung aller Nicht-Superadmin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen bei Erhalt technischer Protokolle.
 - Direkte Admin-Aenderung fremder Bewohner-E-Mails gesperrt. Damit kann ein Admin keine eigene Adresse mehr in ein Wohnungskonto eintragen, bestaetigen und anschliessend dessen Passwort uebernehmen.
 - Persoenlich geprueften Kontowiederherstellungsprozess fuer Bewohner ohne bestaetigte E-Mail eingefuehrt: protokollierter Einmalcode, 15 Minuten Laufzeit, einmalige Verwendung, sofortiges Sitzungsende und selbststaendige Eingabe von E-Mail und neuem Passwort durch die betroffene Person.
 - Widerspruechliche Altdaten mit gesetztem Bestaetigungsstatus, aber ohne hinterlegte E-Mail werden bereinigt und koennen keinen Reset-Link mehr vortaeuschen.

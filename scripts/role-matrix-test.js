@@ -493,6 +493,7 @@ async function run() {
       ['/api/admin/recovery-status', 'GET'],
       ['/api/admin/superadmin-transfer', 'POST'],
       ['/api/admin/bookings', 'DELETE'],
+      ['/api/admin/pilot-accounts', 'DELETE'],
       ['/api/admin/backup/run', 'POST'],
       ['/api/admin/maintenance', 'GET'],
       ['/api/admin/maintenance', 'PUT'],
@@ -574,6 +575,25 @@ async function run() {
     assert.equal(newSuperLogin.body.user.isSuperadmin, true);
     await expectStatus(newSuperadmin, '/api/admin/houses', 200);
 
+    await expectStatus(houseAdmin, '/api/admin/pilot-accounts', 403, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+    });
+    await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 400, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'falsch' })
+    });
+    const pilotReset = await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+    });
+    assert.ok(pilotReset.body.deleted >= 4);
+    assert.ok(pilotReset.body.residents >= 2);
+    assert.ok(pilotReset.body.houseAdmins >= 2);
+    assert.equal(pilotReset.body.backup.ok, true);
+    const remainingAccounts = await expectStatus(newSuperadmin, '/api/admin/users', 200);
+    assert.deepEqual(remainingAccounts.body.users.map((account) => account.id), [newSuperLogin.body.user.id]);
+
     const residentLogout = await expectStatus(residentAfterReset, '/api/logout', 200, { method: 'POST' });
     assert.match(residentLogout.response.headers.get('set-cookie') || '', /connect\.sid=;/);
     const residentSession = await expectStatus(residentAfterReset, '/api/me', 200);
@@ -606,6 +626,7 @@ async function run() {
         configuredAdminRecovery: true,
         crossHouseIsolation: true,
         maintenanceWorkflow: true,
+        pilotReset: true,
         roleSpecificLogout: true
       },
       users: {

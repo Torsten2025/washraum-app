@@ -1738,6 +1738,32 @@ async function run() {
     await verifySmtpDelivery();
     await verifyProductionRecoveryStartup();
 
+    const pilotAdmin = new ApiClient();
+    await expectStatus(pilotAdmin, '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'admin', password: 'Admin-Test-2026!' })
+    });
+    await expectStatus(pilotAdmin, '/api/admin/pilot-accounts', 400, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'falsch' })
+    });
+    const pilotReset = await expectStatus(pilotAdmin, '/api/admin/pilot-accounts', 200, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
+    });
+    assert.ok(pilotReset.body.deleted >= 1);
+    assert.ok(pilotReset.body.residents >= 1);
+    assert.equal(pilotReset.body.backup.ok, true);
+    const accountsAfterPilotReset = await expectStatus(pilotAdmin, '/api/admin/users', 200);
+    assert.equal(accountsAfterPilotReset.body.users.length, 1);
+    assert.equal(accountsAfterPilotReset.body.users[0].is_superadmin, 1);
+    await expectStatus(new ApiClient(), '/api/login', 401, {
+      method: 'POST',
+      body: JSON.stringify({ email: 'bewohner-test@example.com', password: 'Bewohner-2026!' })
+    });
+    const apartmentsAfterPilotReset = await expectStatus(pilotAdmin, '/api/admin/apartments', 200);
+    assert.ok(apartmentsAfterPilotReset.body.apartments.every((apartment) => !apartment.claimed));
+
     console.log(JSON.stringify({
       ok: true,
       checks: {
@@ -1760,6 +1786,7 @@ async function run() {
         adminAnalytics: true,
         bookingReset: true,
         accountManagement: true,
+        pilotReset: true,
         backup: true,
         verifiedBackup: true,
         adminAudit: true,
