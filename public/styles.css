@@ -1290,15 +1290,6 @@ aside.panel {
   display: none;
 }
 
-.invitation-link {
-  background: var(--soft);
-  border: 1px solid var(--line);
-  color: var(--night);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-  padding: 8px;
-}
-
 .invitation-summary {
   border-left: 3px solid var(--accent);
   color: var(--muted);

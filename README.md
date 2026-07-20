@@ -47,7 +47,7 @@ Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Di
 
 ## Wohnungseinladung
 
-Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App erzeugt einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Ein per SMTP zugestellter Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen Geraetecode mit demselben Konto verbunden.
+Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink; erst beim Oeffnen und Setzen des Passworts entsteht das bereits fest zugeordnete Wohnungskonto. Der Link bestaetigt zugleich die E-Mail und ist danach verbraucht. Weitere Handys werden ueber einen zehn Minuten gueltigen Geraetecode mit demselben Konto verbunden. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
 
 Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Admin-Konto wird zum Superadmin. Weitere Hausnummern erhalten anfangs drei Waschmaschinen, drei Trockenraeume und zwei Tumbler. Namen, aktive Geraete und Hausstatus koennen danach angepasst werden. Ein Bewohner kann nur ohne kommende Buchungen in ein anderes Haus verschoben werden.
 
@@ -67,7 +67,7 @@ Der Workflow `.github/workflows/deploy-render.yml` fuehrt `npm run check` aus un
 
 ## E-Mail-Hinweise
 
-Ohne SMTP-Konfiguration bleibt die App nutzbar; es werden lediglich keine E-Mails versendet. Mit SMTP muss jede neue oder geaenderte Adresse ueber einen 24 Stunden gueltigen Link bestaetigt werden. Passwort-Links gelten eine Stunde.
+Ohne SMTP-Konfiguration bleibt die bestehende Buchungsapp nutzbar, neue Wohnungskonten koennen jedoch nicht eingeladen werden. Mit SMTP muss jede neue oder geaenderte Adresse ueber einen 24 Stunden gueltigen Link bestaetigt werden. Passwort-Links gelten eine Stunde.
 
 Im laufenden Zeitfenster meldet `Frueher frei`, dass ein Raum oder Geraet wieder frei ist. Vor Slotbeginn bietet `Absagen & informieren` den Termin wieder an. Benachrichtigt werden nur Personen im selben Haus, deren Filter zu Bereich, Wochentag und Slot passen. Loeschen bleibt die stille Variante. Nach Slotende wird keine Nachricht mehr ausgeloest.
 

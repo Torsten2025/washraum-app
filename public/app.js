@@ -3694,6 +3694,7 @@ async function createApartment() {
     await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
+    await loadAdmin();
   }
 }
 
@@ -3705,26 +3706,8 @@ function showApartmentInvitationResult(data, apartment) {
   const status = document.createElement('span');
   status.textContent = invitation.emailSent
     ? `Einladung an ${invitation.email} gesendet.`
-    : `E-Mail-Versand noch nicht bereit. Link fuer ${invitation.email} persoenlich weitergeben.`;
+    : `Technische Testeinladung fuer ${invitation.email} angelegt.`;
   apartmentInvitationResult.append(title, status);
-  if (!invitation.emailSent && data.invitationLink) {
-    const link = document.createElement('code');
-    link.className = 'invitation-link';
-    link.textContent = data.invitationLink;
-    const copyButton = document.createElement('button');
-    copyButton.type = 'button';
-    copyButton.className = 'secondary';
-    copyButton.textContent = 'Link kopieren';
-    copyButton.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(data.invitationLink);
-        copyButton.textContent = 'Kopiert';
-      } catch {
-        showStatus('Der Einladungslink konnte nicht automatisch kopiert werden.', 'error');
-      }
-    });
-    apartmentInvitationResult.append(link, copyButton);
-  }
   apartmentInvitationResult.hidden = false;
 }
 
@@ -3765,7 +3748,9 @@ function renderApartments(apartments) {
         ? `Einladung offen fuer ${escapeHtml(apartment.invitation_email)}`
         : apartment.invitationStatus === 'expired'
           ? 'Einladung abgelaufen'
-          : 'noch nicht eingeladen';
+          : apartment.invitationStatus === 'not_sent'
+            ? 'Einladung nicht versendet'
+            : 'noch nicht eingeladen';
     identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${invitationState}</span>${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';

@@ -79,7 +79,7 @@ Organisatorischer Notfallprozess:
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
 
-Einladungstoken sind zufaellig, werden serverseitig nur als SHA-256-Hash gespeichert, gelten sieben Tage und koennen nur einmal verwendet werden. Der Admin legt vorab eine stabile Wohnungsbezeichnung, den Klingelschildnamen und die Ziel-E-Mail fest. Solange der Link nicht angenommen ist, besteht nur eine offene Einladung und noch kein Bewohnerkonto. Beim Oeffnen setzt die eingeladene Person ihr Passwort; wurde der Link tatsaechlich per SMTP an die Zieladresse gesendet, bestaetigt der erfolgreiche E-Mail-Zugriff zugleich die Adresse. Bei persoenlicher Linkuebergabe wegen noch fehlendem SMTP bleibt die Adresse bis zu einer spaeteren Mailbestaetigung unbestaetigt. Freie Registrierung und Wohnungscodes sind in Produktion abgeschaltet. Bestehende technische Alt-Konten ohne Wohnungszuordnung koennen nur noch per Geraetecode mit einem bereits aktivierten Wohnungskonto zusammengefuehrt werden.
+Einladungstoken sind zufaellig, werden serverseitig nur als SHA-256-Hash gespeichert, gelten sieben Tage und koennen nur einmal verwendet werden. Der Admin legt vorab eine stabile Wohnungsbezeichnung, den Klingelschildnamen und die beim Einzug erhaltene Ziel-E-Mail fest. Die App versendet den Link ausschliesslich an diese Adresse und zeigt ihn im Produktivbetrieb niemals dem Admin an. Solange der Link nicht angenommen ist, besteht nur eine offene Einladung und noch kein Bewohnerkonto. Beim Oeffnen setzt die eingeladene Person ihr Passwort; der erfolgreiche E-Mail-Zugriff bestaetigt zugleich die Adresse. Ohne funktionierenden SMTP-Versand wird keine Einladung erstellt und kein unsicherer Ersatzlink angeboten. Freie Registrierung und Wohnungscodes sind in Produktion abgeschaltet. Bestehende technische Alt-Konten ohne Wohnungszuordnung koennen nur noch per Geraetecode mit einem bereits aktivierten Wohnungskonto zusammengefuehrt werden.
 
 Bewohnerkonten melden sich mit der ersten oder zweiten hinterlegten E-Mail-Adresse an. Ein alter Bewohner-Benutzername ist bei vorhandener E-Mail kein Login mehr. Nur bestehende Bewohnerkonten ohne jede E-Mail duerfen ihren alten Kontonamen uebergangsweise verwenden. Admins duerfen eine fremde Konto-E-Mail nicht eintragen oder ersetzen. Ist auch das Passwort unbekannt und keine bestaetigte Adresse vorhanden, prueft der Admin die Person ausserhalb der App und erzeugt danach einen einmaligen Wiederherstellungscode. Die Person traegt Code, eigene E-Mail und neues Passwort selbst auf der Loginseite ein. Ein alter technischer Bestaetigungsstatus ohne tatsaechlich hinterlegte Adresse gilt immer als `E-Mail fehlt` und berechtigt nie zu einem Reset-Link. Admin- und Superadmin-Konten behalten ihren technischen Kontonamen fuer Betrieb und Notfallzugang.
 
@@ -351,7 +351,7 @@ Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro 
 - Nach Slotende wird keine Freigabemail mehr ausgeloest.
 - Empfaenger muessen im selben Haus sein und passende Filter fuer Bereich, Wochentag und Slot aktiviert haben.
 - `Loeschen` entfernt eine Buchung ohne Rundmail.
-- Ohne eingerichteten SMTP-Zugang funktioniert die Buchungsapp weiter, versendet aber keine E-Mails.
+- Ohne eingerichteten SMTP-Zugang funktioniert die bestehende Buchungsapp weiter, versendet aber keine E-Mails und kann keine neuen Wohnungskonten einladen.
 
 ## Push-Hinweise und PWA
 
@@ -445,7 +445,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 - Produktion verwendet SQLite auf dem persistenten Render-Datentraeger unter `/var/data/washraum.sqlite`.
 - Jede Wohnung, jedes Konto, jede Ressource, Buchung und Freigabe ist einem Haus zugeordnet. Oeffentliche Buchungsnamen verwenden ausschliesslich den adminverwalteten Klingelschildnamen.
-- `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. `apartment_invitations` speichert Ziel-E-Mail, Ablauf, Versand- und Annahmestatus; Einladungstoken und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor. Klartextlinks werden nur beim Versand beziehungsweise einmalig an den Admin ausgegeben.
+- `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. `apartment_invitations` speichert Ziel-E-Mail, Ablauf, Versand- und Annahmestatus; Einladungstoken und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor. Der Klartextlink wird im Produktivbetrieb nur fuer die E-Mail erzeugt und nie ueber die Admin-API ausgegeben. Isolierte Entwicklungstests duerfen ihn mit `ALLOW_TEST_INVITATION_LINK=true` erhalten; der Schalter wird im Produktionsmodus immer ignoriert und aktiviert die alte Registrierung nicht.
 - `apartment_name_requests` speichert offene und entschiedene Korrekturwuensche. Ein Bewohnerwunsch aendert den sichtbaren Namen nie direkt; Freigabe oder Ablehnung erfolgt durch einen Admin und wird auditiert.
 - `users.apartment_id` bindet ein gemeinsames Konto an genau eine Wohnung. Zusammengefuehrte Alt-Konten werden deaktiviert, personenbezogene Login-Adressen entfernt und ueber `merged_into_user_id` fuer nachvollziehbare Auditbezuege markiert.
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
@@ -464,7 +464,7 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` fuehrt zuerst `npm run
 ### 20. Juli 2026
 
 - Bewohner-Onboarding von frei verteilten Wohnungscodes auf sieben Tage gueltige E-Mail-Einladungen umgestellt. Das Konto entsteht erst beim Setzen des Passworts, ist bereits fest an Wohnung, Klingelschild und bestaetigte E-Mail gebunden und kann nicht doppelt aktiviert werden.
-- Adminbereich zeigt offene, abgelaufene und angenommene Einladungen; ein neuer Link widerruft automatisch den vorherigen. Ohne eingerichtetes SMTP wird der Link einmalig zum persoenlichen Weitergeben angezeigt.
+- Adminbereich zeigt offene, abgelaufene und angenommene Einladungen; ein erfolgreich versendeter neuer Link widerruft automatisch den vorherigen. Im Produktivbetrieb ist E-Mail der einzige Einladungsweg: Ohne SMTP wird keine Einladung angelegt und kein Link angezeigt.
 - Abgesicherten Pilot-Reset fuer den Superadmin ergaenzt: geprueftes Backup vor Ausfuehrung, exakter Bestaetigungstext und vollstaendige Entfernung aller Nicht-Superadmin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen bei Erhalt technischer Protokolle.
 - Direkte Admin-Aenderung fremder Bewohner-E-Mails gesperrt. Damit kann ein Admin keine eigene Adresse mehr in ein Wohnungskonto eintragen, bestaetigen und anschliessend dessen Passwort uebernehmen.
 - Persoenlich geprueften Kontowiederherstellungsprozess fuer Bewohner ohne bestaetigte E-Mail eingefuehrt: protokollierter Einmalcode, 15 Minuten Laufzeit, einmalige Verwendung, sofortiges Sitzungsende und selbststaendige Eingabe von E-Mail und neuem Passwort durch die betroffene Person.

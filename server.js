@@ -32,6 +32,7 @@ const appRelease = String(
 ).trim();
 const appReleasedAt = String(process.env.APP_RELEASE_DATE || serverStartedAt).trim();
 const allowLegacyHouseRegistration = process.env.ALLOW_LEGACY_HOUSE_REGISTRATION === 'true';
+const allowTestInvitationLink = !isProduction && process.env.ALLOW_TEST_INVITATION_LINK === 'true';
 const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
 const renderDbPath = '/var/data/washraum.sqlite';
 const dbPath = path.resolve(
@@ -1981,10 +1982,11 @@ function apartmentInvitationForToken(token) {
       AND ai.accepted_at IS NULL
       AND ai.revoked_at IS NULL
       AND CAST(ai.expires_at AS INTEGER) > ?
+      AND (ai.email_sent_at IS NOT NULL OR ? = 1)
       AND a.active = 1
       AND a.claimed_by IS NULL
       AND h.active = 1
-  `).get(tokenHash(normalized), Date.now());
+  `).get(tokenHash(normalized), Date.now(), allowTestInvitationLink ? 1 : 0);
 }
 
 function pendingInvitationForEmail(email, exceptApartmentId = 0) {
@@ -1997,34 +1999,33 @@ function pendingInvitationForEmail(email, exceptApartmentId = 0) {
       AND ai.accepted_at IS NULL
       AND ai.revoked_at IS NULL
       AND CAST(ai.expires_at AS INTEGER) > ?
+      AND (ai.email_sent_at IS NOT NULL OR ? = 1)
       AND a.active = 1
       AND a.claimed_by IS NULL
     LIMIT 1
-  `).get(email, Number(exceptApartmentId || 0), Date.now());
+  `).get(email, Number(exceptApartmentId || 0), Date.now(), allowTestInvitationLink ? 1 : 0);
 }
 
 async function issueApartmentInvitation(req, apartment, email) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const config = smtpConfig();
-  db.transaction(() => {
-    db.prepare(`
-      UPDATE apartment_invitations
-      SET revoked_at = CURRENT_TIMESTAMP
-      WHERE apartment_id = ? AND accepted_at IS NULL AND revoked_at IS NULL
-    `).run(apartment.id);
-    db.prepare(`
-      INSERT INTO apartment_invitations
-        (apartment_id, email, token_hash, expires_at, created_by)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(apartment.id, email, tokenHash(token), String(expiresAt), req.session.user.id);
-    db.prepare('UPDATE apartments SET activation_code_hash = NULL WHERE id = ?').run(apartment.id);
-  })();
+  const emailConfigured = Boolean(config.host && config.from);
+  if (!emailConfigured && !allowTestInvitationLink) {
+    const error = new Error('INVITATION_EMAIL_NOT_CONFIGURED');
+    error.code = 'INVITATION_EMAIL_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const hashedToken = tokenHash(token);
+  db.prepare(`
+    INSERT INTO apartment_invitations
+      (apartment_id, email, token_hash, expires_at, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(apartment.id, email, hashedToken, String(expiresAt), req.session.user.id);
 
   const link = `${publicAppUrl(req)}/login.html?invite=${encodeURIComponent(token)}`;
-  let emailSent = false;
-  let deliveryError = '';
-  if (config.host && config.from) {
+  if (emailConfigured) {
     try {
       await sendMail({
         config,
@@ -2042,17 +2043,31 @@ async function issueApartmentInvitation(req, apartment, email) {
           'Weitere Handys derselben Wohnung werden spaeter mit einem kurz gueltigen Geraetecode verbunden.'
         ].join('\n')
       });
-      emailSent = true;
+    } catch (error) {
+      db.prepare('DELETE FROM apartment_invitations WHERE token_hash = ?').run(hashedToken);
+      console.error(`Wohnungseinladung konnte nicht gesendet werden: ${error.message}`);
+      const deliveryError = new Error('INVITATION_EMAIL_FAILED');
+      deliveryError.code = 'INVITATION_EMAIL_FAILED';
+      throw deliveryError;
+    }
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE apartment_invitations
+      SET revoked_at = CURRENT_TIMESTAMP
+      WHERE apartment_id = ? AND token_hash != ?
+        AND accepted_at IS NULL AND revoked_at IS NULL
+    `).run(apartment.id, hashedToken);
+    if (emailConfigured) {
       db.prepare(`
         UPDATE apartment_invitations SET email_sent_at = CURRENT_TIMESTAMP
         WHERE token_hash = ?
-      `).run(tokenHash(token));
-    } catch (error) {
-      deliveryError = error.message;
-      console.error(`Wohnungseinladung konnte nicht gesendet werden: ${error.message}`);
+      `).run(hashedToken);
     }
-  }
-  return { link, expiresAt, emailSent, deliveryError };
+    db.prepare('UPDATE apartments SET activation_code_hash = NULL WHERE id = ?').run(apartment.id);
+  })();
+  return { link, expiresAt, emailSent: emailConfigured };
 }
 
 function apartmentAccountLabel(userId, fallback = 'Jemand') {
@@ -4774,9 +4789,11 @@ app.get('/api/admin/apartments', requireAdmin, (req, res) => {
           ? 'accepted'
           : apartment.invitation_revoked_at
             ? 'revoked'
-            : Number(apartment.invitation_expires_at) <= Date.now()
-              ? 'expired'
-              : 'pending'
+            : !apartment.invitation_email_sent_at && !allowTestInvitationLink
+              ? 'not_sent'
+              : Number(apartment.invitation_expires_at) <= Date.now()
+                ? 'expired'
+                : 'pending'
   }));
   res.json({ apartments });
 });
@@ -4816,6 +4833,12 @@ app.post('/api/admin/apartments', requireAdmin, async (req, res, next) => {
   if (findEmailOwner(email) || pendingInvitationForEmail(email)) {
     return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer offenen Einladung zugeordnet.' });
   }
+  const invitationConfig = smtpConfig();
+  if (!allowTestInvitationLink && (!invitationConfig.host || !invitationConfig.from)) {
+    return res.status(503).json({
+      error: 'Der E-Mail-Versand ist noch nicht eingerichtet. Es wurde keine Wohnung und keine Einladung angelegt.'
+    });
+  }
   try {
     const result = db.prepare(`
       INSERT INTO apartments (house_id, label, display_name, activation_code_hash)
@@ -4832,21 +4855,27 @@ app.post('/api/admin/apartments', requireAdmin, async (req, res, next) => {
     writeAudit(req, 'apartment.invitation_created', 'apartment', result.lastInsertRowid, {
       label, displayName, email, emailSent: invitation.emailSent
     });
-    res.status(201).json({
+    const response = {
       apartment: { id: result.lastInsertRowid, label, display_name: displayName, claimed: false, active: true },
       invitation: {
         email,
         expiresAt: new Date(invitation.expiresAt).toISOString(),
         emailSent: invitation.emailSent
       },
-      invitationLink: invitation.link,
       message: invitation.emailSent
         ? `Wohnung angelegt. Die Einladung wurde an ${email} gesendet.`
-        : `Wohnung angelegt. E-Mail-Versand ist noch nicht bereit; der Einladungslink wird einmalig angezeigt.`
-    });
+        : 'Technische Testeinladung angelegt.'
+    };
+    if (allowTestInvitationLink && !invitation.emailSent) response.invitationLink = invitation.link;
+    res.status(201).json(response);
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Diese Wohnungsbezeichnung ist bereits vorhanden.' });
+    }
+    if (error.code === 'INVITATION_EMAIL_FAILED') {
+      return res.status(502).json({
+        error: 'Die Wohnung wurde angelegt, aber die Einladungsmail konnte nicht gesendet werden. Bitte bei der Wohnung erneut auf Einladen klicken.'
+      });
     }
     next(error);
   }
@@ -4869,23 +4898,35 @@ app.post('/api/admin/apartments/:id/invitation', requireAdmin, async (req, res, 
   if (findEmailOwner(email) || pendingInvitationForEmail(email, apartment.id)) {
     return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits einem Konto oder einer anderen Einladung zugeordnet.' });
   }
+  const invitationConfig = smtpConfig();
+  if (!allowTestInvitationLink && (!invitationConfig.host || !invitationConfig.from)) {
+    return res.status(503).json({
+      error: 'Der E-Mail-Versand ist noch nicht eingerichtet. Es wurde keine Einladung erstellt.'
+    });
+  }
   try {
     const invitation = await issueApartmentInvitation(req, apartment, email);
     writeAudit(req, 'apartment.invitation_renewed', 'apartment', apartment.id, {
       label: apartment.label, email, emailSent: invitation.emailSent
     });
-    res.json({
+    const response = {
       invitation: {
         email,
         expiresAt: new Date(invitation.expiresAt).toISOString(),
         emailSent: invitation.emailSent
       },
-      invitationLink: invitation.link,
       message: invitation.emailSent
         ? `Neue Einladung wurde an ${email} gesendet.`
-        : 'E-Mail-Versand ist noch nicht bereit; der neue Einladungslink wird einmalig angezeigt.'
-    });
+        : 'Technische Testeinladung erneuert.'
+    };
+    if (allowTestInvitationLink && !invitation.emailSent) response.invitationLink = invitation.link;
+    res.json(response);
   } catch (error) {
+    if (error.code === 'INVITATION_EMAIL_FAILED') {
+      return res.status(502).json({
+        error: 'Die Einladungsmail konnte nicht gesendet werden. Die bisherige Einladung bleibt gueltig.'
+      });
+    }
     next(error);
   }
 });

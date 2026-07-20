@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+process.env.ALLOW_TEST_INVITATION_LINK = 'true';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -89,7 +90,9 @@ async function verifyProductionHeaders() {
       DB_PATH: productionDatabase,
       SEED_ADMIN_NAME: 'security-prod-admin',
       SEED_ADMIN_PASSWORD: 'Security-Prod-Admin-2026!',
-      SESSION_SECRET: 'security-production-session-secret-at-least-32-characters'
+      SESSION_SECRET: 'security-production-session-secret-at-least-32-characters',
+      ALLOW_LEGACY_HOUSE_REGISTRATION: 'false',
+      ALLOW_TEST_INVITATION_LINK: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -111,6 +114,28 @@ async function verifyProductionHeaders() {
     assert.match(cookie, /HttpOnly/i);
     assert.match(cookie, /SameSite=Lax/i);
     assert.match(cookie, /Secure/i);
+    const invitationWithoutEmail = await fetch(`${productionUrl}/api/admin/apartments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookie.split(';', 1)[0],
+        'X-Forwarded-Proto': 'https'
+      },
+      body: JSON.stringify({
+        label: 'Produktiv 2. OG links',
+        displayName: 'Produktiv Familie',
+        email: 'produktiv@example.test'
+      })
+    });
+    assert.equal(invitationWithoutEmail.status, 503);
+    const invitationError = await invitationWithoutEmail.json();
+    assert.match(invitationError.error, /E-Mail-Versand ist noch nicht eingerichtet/);
+    const apartmentsAfterFailure = await fetch(`${productionUrl}/api/admin/apartments`, {
+      headers: { Cookie: cookie.split(';', 1)[0], 'X-Forwarded-Proto': 'https' }
+    });
+    assert.equal(apartmentsAfterFailure.status, 200);
+    const apartmentList = await apartmentsAfterFailure.json();
+    assert.ok(!apartmentList.apartments.some((entry) => entry.label === 'Produktiv 2. OG links'));
   } finally {
     if (productionServer.exitCode === null) {
       productionServer.kill();

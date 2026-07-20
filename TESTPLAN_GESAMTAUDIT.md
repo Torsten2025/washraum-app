@@ -1,6 +1,6 @@
 # WaschZeit Gesamtaudit
 
-Stand: 19. Juli 2026
+Stand: 20. Juli 2026
 
 Dieser Testplan prueft die App in einer isolierten lokalen Umgebung. Jeder Lauf verwendet eine eigene SQLite-Datei und veraendert keine Produktionsdaten. Externe Live-Dienste wie Render, echtes SMTP, Betriebssystem-Push und App-Installation werden zusaetzlich manuell abgenommen.
 
@@ -47,7 +47,7 @@ npm run check
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| REG-01 | Wohnung einladen | Stabile Wohnungsbezeichnung, Klingelschildname, feste Ziel-E-Mail und gehashter Sieben-Tage-Link | `test:security`, `npm test` |
+| REG-01 | Wohnung einladen | Stabile Wohnungsbezeichnung, Klingelschildname, feste Ziel-E-Mail und gehashter Sieben-Tage-Link; produktiv ausschliesslich nach erfolgreichem SMTP-Versand | `test:security`, `npm test` |
 | REG-02 | Freie Registrierung, schwaches Passwort oder falscher Link | Klare 400/404/410-Antwort | `test:security` |
 | REG-03 | Einladungsannahme | Link erzeugt genau ein gemeinsames, fest zugeordnetes Wohnungskonto und ist danach verbraucht; SMTP-Versand bestaetigt zusaetzlich die E-Mail | `test:security`, `npm test` |
 | REG-04 | Klingelschildkorrektur | Bewohner beantragt; Admin entscheidet; sichtbarer Name aendert sich nicht direkt | `npm test`, `test:roles` |
@@ -98,7 +98,7 @@ npm run check
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| NOT-01 | Lokales SMTP | Bestaetigung, Reset, Admin-Reset und Freigabe-Mail werden zugestellt | `npm test` |
+| NOT-01 | Lokales SMTP | Wohnungseinladung, Bestaetigung, Reset, Admin-Reset und Freigabe-Mail werden zugestellt | `npm test` |
 | NOT-02 | Push-Abo | Anlegen, gezielter Test, Deaktivierung und ungueltiges Geraet | `npm test` |
 | NOT-03 | Freigabe-Mitteilung | Person, Ressource, Datum, Slot und direkte Buchungsfrage | `npm test` |
 | PWA-01 | Manifest und Service Worker | Installierbar, Update erst nach Zustimmung, Push-Klick oeffnet Ziel | `test:a11y`, `npm test` |

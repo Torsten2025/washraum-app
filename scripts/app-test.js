@@ -322,6 +322,7 @@ async function verifySmtpDelivery() {
     assert.equal(invitationResponse.status, 201);
     const invitationBody = await invitationResponse.json();
     assert.equal(invitationBody.invitation.emailSent, true);
+    assert.equal(Object.hasOwn(invitationBody, 'invitationLink'), false);
     assert.equal(messages.length, 6);
     assert.ok(messages[5].includes('To: smtp-einladung@example.com'));
     assert.ok(messages[5].includes('Subject: WaschZeit: Einladung'));
