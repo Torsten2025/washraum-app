@@ -192,7 +192,7 @@ Bewohner waehlen in der Kopfzeile `Stoerung melden`, das betroffene Geraet oder 
 
 | Bereich | Funktion |
 | --- | --- |
-| Mitteilungen | Wieder freie Termine und eigene lokale Aktionsbestaetigungen gemeinsam und chronologisch anzeigen |
+| Mitteilungen | Nur fremde, noch buchbare Freigaben anzeigen, die zu den persoenlichen Bereichs-, Wochentag- und Zeitfensterfiltern passen |
 | Ungelesen-Anzeige | Neue Eintraege am Kopfzeilenbutton zaehlen und beim Oeffnen als gelesen markieren |
 | Neu frei | Den aktuellsten wieder freien Termin kompakt zwischen eigenen Buchungen und Kalender hervorheben |
 | Freien Termin buchen | Mitteilung mit Person, Geraet, Datum und Slot oeffnen und bei Verfuegbarkeit direkt buchen |
@@ -439,9 +439,23 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 
 | Pfad | Verantwortung |
 | --- | --- |
-| `server.js` | Express-Server, SQLite-Datenmodell, Sitzungen, Rechte, Buchungsregeln, E-Mail und Backups |
+| `server.js` | Composition Root, SQLite-Datenmodell, globale Sitzungs- und Rechtepruefung sowie Einhaengen der Fachmodule |
+| `src/routes/accounts.js` | Gekapselte Anmeldung, Einladung, QR-Zugang, Verifikation, Wiederherstellung und persoenliche Kontorouten |
+| `src/routes/bookings.js` | Gekapselte Kalender-, Buchungs-, Waschpaket-, Freigabe- und Dauerterminrouten |
 | `src/routes/diaper-game.js` | Gekapselte API-Routen, serverseitige Rundenwertung und Bestenliste des Windel-Alarms |
+| `src/routes/equipment-logbook.js` | Gekapselte Bewohner- und Verwaltungsrouten fuer Geraete, Stoerungsmeldungen und das Maschinentagebuch |
+| `src/routes/houses-roles.js` | Gekapselte Haus-, Wohnungs-, Benutzer-, Rollen-, Recovery- und Superadmin-Uebergaberouten |
+| `src/routes/notifications.js` | Gekapselte Push-, Hinweis-, Freigabe- und Admin-Testrouten fuer Benachrichtigungen |
+| `src/routes/operations.js` | Gekapselte Health-, Versions-, Audit-, Backup-, Wartungs-, Uebersichts-, Analyse- und Pilot-Reset-Routen |
+| `src/services/account-security.js` | Passwortpruefung, Authentifizierungs-Rate-Limits sowie E-Mail-, Passwort- und Zugangscode-Validierung |
+| `src/services/account-service.js` | Wohnungs- und Einladungszuordnung, Kontonamen sowie Regeneration und Invalidierung von Sitzungen |
 | `src/services/backup.js` | Gekapselte Erstellung, Integritaetspruefung, Aufbewahrung und externe Kopie von SQLite-Backups |
+| `src/services/booking-rules.js` | Buchungsregeln, Kalenderkapazitaeten, Waschpaketoptionen und Terminempfehlungen |
+| `src/services/mail-transport.js` | SMTP-Konfiguration und Transport fuer ausgehende E-Mails |
+| `src/services/notifications.js` | E-Mail-Bestaetigung, Passwortreset und gemeinsame Freigabe-Benachrichtigungen |
+| `src/services/operations.js` | Wartungsstatus, Freigabestand, Selbstpruefung, zeitgesteuerte Backups und betriebliche Datenbereinigung |
+| `src/services/push.js` | VAPID-Konfiguration, Push-Payloads, Geraetezustand und Push-Versand |
+| `src/services/role-context.js` | Kumulativer Rollen-, Haus-, Wohnungs- und Sitzungskontext sowie Admin-Wiederherstellungsstatus |
 | `swiss-time.js` | Datums- und Slotberechnung in Schweizer Zeit |
 | `release-window.js` | Zeitfenster fuer Freigaben und Absagen |
 | `public/login.html`, `public/login.js` | Landingpage, Anmeldung und Einladungsannahme |
@@ -487,6 +501,13 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ### 20. Juli 2026
 
+- Mitteilungszentrum auf relevante Freigaben reduziert: eigene Aktionsbestaetigungen bleiben kurz eingeblendete Statusmeldungen, eigene Freigaben sowie bereits belegte oder abgelaufene Termine werden ausgeblendet, und die In-App-Liste verwendet dieselben persoenlichen Filter wie Push und E-Mail.
+- Health, Version, Audit, Betriebsuebersicht, Analyse, Backup, Wartung und Pilot-Reset samt Selbstpruefung, geplantem Backup und Datenbereinigung als achte Backend-Modularisierungsstufe getrennt; Timer, Serverstart und globale Fehlerbehandlung bleiben im Composition Root, waehrend API, SQL, Bestaetigungen und Statuscodes unveraendert bleiben.
+- Haus-, Wohnungs- und Benutzerverwaltung, kumulativer Rollen- und Sitzungskontext, Hauswechsel, Recovery-Status und Superadmin-Uebergabe als siebte Backend-Modularisierungsstufe getrennt; API, SQL, Middleware-Reihenfolge, Sitzungsdaten, QR-Rechtegrenzen und Statuscodes bleiben unveraendert.
+- Anmeldung, persoenliche Konten, Einladungsannahme, Partner-QR, E-Mail-Bestaetigung, Passwortwiederherstellung und Datenschutzaktionen als sechste Backend-Modularisierungsstufe getrennt; Routenreihenfolge, SQL, Sitzungsregeneration, Cookies, Rate-Limits, Statuscodes und Sicherheitsverhalten bleiben unveraendert.
+- Kalender, Buchungsregeln, Empfehlungen, Waschpakete, Absagen, Freigaben, Dauertermine und Admin-Buchungsreset als fuenfte Backend-Modularisierungsstufe getrennt; API, SQL, Regeln, Transaktionen, Statuscodes und Benachrichtigungsanbindung bleiben unveraendert.
+- Mailtransport, Push-Infrastruktur, fachliche Benachrichtigungen und zugehoerige API-Routen als vierte Backend-Modularisierungsstufe getrennt; bestehende Mailtexte, Push-Payloads, Filter, Statuscodes und Berechtigungen bleiben unveraendert.
+- Geraete, Bewohner-Stoerungsmeldungen und das administrative Maschinentagebuch als dritte Backend-Modularisierungsstufe in eine injizierbare Router-Fabrik ausgelagert; API, SQL, Rollen- und Hausgrenzen bleiben unveraendert.
 - Abschluss-Gate und Gesamtaudit um die praktische Backup-Wiederherstellung sowie den verpflichtenden Browser- und visuellen Regressionstest erweitert; CI installiert Chromium, prueft drei feste Viewports und bewahrt Screenshots 14 Tage auf.
 - Backup-Erstellung als zweite risikoarme Backend-Modularisierung in einen injizierbaren Service ausgelagert; lokale Aufbewahrung, SQLite-Integritaetspruefung, optionale externe Kopie und Statusspeicherung bleiben unveraendert.
 - Erste risikoarme Backend-Modularisierung umgesetzt: Windel-Alarm-Routen, serverseitige Rundenwertung und globale Bestenliste aus `server.js` in eine injizierbare Router-Fabrik ausgelagert; API und Rollenverhalten bleiben unveraendert.

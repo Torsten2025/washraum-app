@@ -525,35 +525,12 @@ function showStatus(message, tone = 'ok') {
   window.clearTimeout(statusTimer);
   statusText.textContent = message;
   statusText.className = `notice ${tone}`;
-  if (message && tone !== 'error') {
-    rememberNotice(message);
-  }
   if (message) {
     statusTimer = window.setTimeout(() => {
       statusText.textContent = '';
       statusText.className = 'notice muted';
     }, tone === 'error' ? 10000 : 7000);
   }
-}
-
-function noticeJournalKey() {
-  return currentUser ? `waschzeit-notices-${currentUser.id}` : 'waschzeit-notices';
-}
-
-function readNoticeJournal() {
-  try {
-    return JSON.parse(window.localStorage.getItem(noticeJournalKey()) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function rememberNotice(message) {
-  if (!currentUser) return;
-  const notices = readNoticeJournal();
-  notices.unshift({ message, createdAt: new Date().toISOString() });
-  window.localStorage.setItem(noticeJournalKey(), JSON.stringify(notices.slice(0, 8)));
-  renderMessageCenter();
 }
 
 function messageReadKey() {
@@ -566,17 +543,11 @@ function messageTimestamp(value) {
 }
 
 function messageCenterEntries() {
-  const releases = releaseNoticeItems.map((notice) => ({
+  return releaseNoticeItems.map((notice) => ({
     type: 'release',
     createdAt: notice.created_at,
     notice
-  }));
-  const activity = readNoticeJournal().map((notice) => ({
-    type: 'activity',
-    createdAt: notice.createdAt,
-    message: notice.message
-  }));
-  return [...releases, ...activity]
+  }))
     .sort((left, right) => messageTimestamp(right.createdAt) - messageTimestamp(left.createdAt));
 }
 
@@ -621,42 +592,32 @@ function renderMessageCenter() {
   const entries = messageCenterEntries();
   messageCenterList.innerHTML = '';
   if (!entries.length) {
-    messageCenterList.innerHTML = '<div class="message-center-empty"><strong>Alles ruhig.</strong><p>Neue Freigaben und deine letzten Aktionen erscheinen hier.</p></div>';
+    messageCenterList.innerHTML = '<div class="message-center-empty"><strong>Alles ruhig.</strong><p>Passende freie Termine erscheinen hier, solange sie noch buchbar sind.</p></div>';
   }
 
   for (const entry of entries) {
     const item = document.createElement('article');
     item.className = `message-item is-${entry.type}`;
     const createdAt = new Date(messageTimestamp(entry.createdAt));
-    if (entry.type === 'release') {
-      const notice = entry.notice;
-      const actor = notice.created_by_name || 'Jemand';
-      item.innerHTML = `
-        <div class="message-item-copy">
-          <span class="message-kind">Neu frei</span>
-          <strong>${escapeHtml(notice.resource_name)} ist wieder frei</strong>
-          <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - von ${escapeHtml(actor)}</p>
-          <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
-        </div>
-      `;
-      const action = document.createElement('button');
-      action.type = 'button';
-      action.className = 'secondary';
-      action.textContent = notice.bookable ? 'Buchen' : 'Ansehen';
-      action.addEventListener('click', () => {
-        closeMessageCenter();
-        openReleaseNotice(notice);
-      });
-      item.append(action);
-    } else {
-      item.innerHTML = `
-        <div class="message-item-copy">
-          <span class="message-kind">Deine Aktivit&auml;t</span>
-          <strong>${escapeHtml(entry.message)}</strong>
-          <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
-        </div>
-      `;
-    }
+    const notice = entry.notice;
+    const actor = notice.created_by_name || 'Jemand';
+    item.innerHTML = `
+      <div class="message-item-copy">
+        <span class="message-kind">Neu frei</span>
+        <strong>${escapeHtml(notice.resource_name)} ist wieder frei</strong>
+        <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - von ${escapeHtml(actor)}</p>
+        <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
+      </div>
+    `;
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'secondary';
+    action.textContent = 'Buchen';
+    action.addEventListener('click', () => {
+      closeMessageCenter();
+      openReleaseNotice(notice);
+    });
+    item.append(action);
     messageCenterList.append(item);
   }
   updateMessageCount(entries);
@@ -768,7 +729,6 @@ async function submitIssueReport() {
     reportIssueForm.reset();
     closeReportIssue();
     showStatus(data.message);
-    rememberNotice(data.message);
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {

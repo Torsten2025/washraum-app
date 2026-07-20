@@ -984,7 +984,44 @@ async function run() {
     assert.equal(cancellation.body.releaseNoticeCreated, true);
     assert.ok(cancellation.body.message.includes('abgesagt'));
     assert.ok(cancellation.body.message.includes('Bewohner Test'));
-    const cancellationNotices = await expectStatus(user, '/api/release-notices', 200);
+    const ownCancellationNotices = await expectStatus(user, '/api/release-notices', 200);
+    assert.ok(!ownCancellationNotices.body.notices.some((notice) => (
+      notice.resource_name === 'Tumbler 1'
+      && notice.kind === 'cancellation'
+      && notice.created_by_name === 'Bewohner Test'
+    )));
+
+    const disabledCancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
+    assert.deepEqual(disabledCancellationNotices.body.notices, []);
+    await expectStatus(packageUser, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'paket-test@example.com',
+        secondaryEmail: '',
+        notifyReleases: true,
+        resourceType: 'washer',
+        weekday: '',
+        slot: ''
+      })
+    });
+    const mismatchedCancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
+    assert.ok(!mismatchedCancellationNotices.body.notices.some((notice) => (
+      notice.resource_name === 'Tumbler 1'
+      && notice.kind === 'cancellation'
+      && notice.created_by_name === 'Bewohner Test'
+    )));
+    await expectStatus(packageUser, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'paket-test@example.com',
+        secondaryEmail: '',
+        notifyReleases: true,
+        resourceType: 'tumbler',
+        weekday: new Date(`${bookingDate}T12:00:00Z`).getUTCDay(),
+        slot: '07:00-12:00'
+      })
+    });
+    const cancellationNotices = await expectStatus(packageUser, '/api/release-notices', 200);
     const cancellationNotice = cancellationNotices.body.notices.find((notice) => (
       notice.resource_name === 'Tumbler 1'
       && notice.kind === 'cancellation'
@@ -1022,7 +1059,18 @@ async function run() {
       );
       assert.equal(timelyRelease.body.releaseNoticeCreated, true);
       assert.ok(timelyRelease.body.message.includes('Bewohner Test'));
-      const timelyNotices = await expectStatus(user, '/api/release-notices', 200);
+      await expectStatus(packageUser, '/api/me/notifications', 200, {
+        method: 'PUT',
+        body: JSON.stringify({
+          email: 'paket-test@example.com',
+          secondaryEmail: '',
+          notifyReleases: true,
+          resourceType: 'tumbler',
+          weekday: new Date(`${nearTerm.date}T12:00:00Z`).getUTCDay(),
+          slot: nearTerm.slot
+        })
+      });
+      const timelyNotices = await expectStatus(packageUser, '/api/release-notices', 200);
       const timelyNotice = timelyNotices.body.notices.find((notice) => notice.resource_name === 'Tumbler 2');
       assert.ok(timelyNotice);
       assert.equal(timelyNotice.created_by_name, 'Bewohner Test');
@@ -1629,7 +1677,6 @@ async function run() {
     assert.ok(indexHtml.includes('messageCenterOverlay'));
     assert.ok(indexHtml.includes('messageCenterList'));
     assert.ok(indexHtml.includes('etwa f&uuml;nfeinhalbmin&uuml;tige Video'));
-    assert.ok(indexHtml.includes('Freie Termine und deine letzten Aktionen'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
@@ -1675,6 +1722,7 @@ async function run() {
     assert.ok(indexHtml.includes('resetBookingsButton'));
     assert.ok(indexHtml.includes('releaseNoticeOverlay'));
     assert.ok(indexHtml.includes('bookReleaseNoticeButton'));
+    assert.ok(indexHtml.includes('Aktuell buchbare Freigaben passend zu deinen Benachrichtigungseinstellungen'));
     assert.ok(indexHtml.includes('sessionWarningOverlay'));
     assert.ok(indexHtml.includes('sessionStayButton'));
     assert.ok(indexHtml.includes('sessionLogoutButton'));
@@ -1790,6 +1838,9 @@ async function run() {
     assert.ok(appScriptText.includes('openReleaseNoticeFromUrl'));
     assert.ok(appScriptText.includes('/api/release-notices/${noticeId}'));
     assert.ok(appScriptText.includes('bookActiveReleaseNotice'));
+    assert.ok(!appScriptText.includes('rememberNotice'));
+    assert.ok(!appScriptText.includes('readNoticeJournal'));
+    assert.ok(appScriptText.includes('Passende freie Termine erscheinen hier, solange sie noch buchbar sind.'));
     assert.ok(appScriptText.includes('Freigeben, Push antippen, buchen'));
     assert.ok(appScriptText.includes('Push-Nachricht'));
     assert.ok(appScriptText.includes("introSceneImage('booking-time-focused.png')"));
@@ -1905,6 +1956,7 @@ async function run() {
         narratedVideo: true,
         releaseWindow: true,
         cancellationNotifications: true,
+        filteredInAppNotifications: true,
         concurrentBookingProtection: true,
         smtpDelivery: true,
         productionRecovery: true,

@@ -182,6 +182,7 @@ async function run() {
     assert.ok(await page.locator('#messageCenterList').isVisible());
     await page.click('#closeMessageCenterButton');
     await page.waitForFunction(() => document.querySelector('#messageCenterOverlay')?.hidden === true);
+    await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
     await captureVisualChecks(page, screenshotDirectory);
     console.log(JSON.stringify({
       ok: true,
