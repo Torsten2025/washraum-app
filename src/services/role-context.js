@@ -100,7 +100,7 @@ function createRoleContext({ db, env }) {
       warnings.push({
         level: 'warning',
         code: 'single_superadmin',
-        message: 'Nur ein aktiver Superadmin. Fuer geplante Ausfaelle die Verantwortung rechtzeitig uebergeben.'
+        message: 'Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.'
       });
     }
     if (!seedRecoveryConfigured) {
@@ -141,4 +141,3 @@ function createRoleContext({ db, env }) {
 }
 
 module.exports = { createRoleContext };
-

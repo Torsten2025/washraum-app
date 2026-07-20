@@ -182,14 +182,14 @@
             <p id="adminScopeText" class="muted"></p>
           </header>
 
-          <nav id="adminSectionNav" class="admin-section-nav" aria-label="Verwaltungsbereiche">
-            <button class="admin-section-tab active" type="button" data-admin-target="overview" aria-controls="adminSectionOverview"><span>Start</span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="logbook" aria-controls="adminSectionLogbook"><span>Tagebuch</span><span id="adminLogbookCount" class="admin-tab-count" hidden></span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="people" aria-controls="adminSectionPeople"><span>Wohnungen</span><span id="adminPeopleCount" class="admin-tab-count" hidden></span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="house" aria-controls="adminSectionHouse"><span>Ger&auml;te &amp; H&auml;user</span><span id="adminHouseCount" class="admin-tab-count" hidden></span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="fixed" aria-controls="adminSectionFixed"><span>Dauertermine</span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="analytics" aria-controls="adminSectionAnalytics"><span>Auswertung</span></button>
-            <button class="admin-section-tab" type="button" data-admin-target="system" aria-controls="adminSectionSystem"><span>System</span><span id="adminSystemCount" class="admin-tab-count" hidden></span></button>
+          <nav id="adminSectionNav" class="admin-section-nav" aria-label="Verwaltungsbereiche" role="tablist">
+            <button class="admin-section-tab active" type="button" role="tab" aria-selected="true" data-admin-target="overview" aria-controls="adminSectionOverview"><span>Start</span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="logbook" aria-controls="adminSectionLogbook"><span>Tagebuch</span><span id="adminLogbookCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="people" aria-controls="adminSectionPeople"><span>Wohnungen</span><span id="adminPeopleCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="house" aria-controls="adminSectionHouse"><span>Haus &amp; Ger&auml;te</span><span id="adminHouseCount" class="admin-tab-count" hidden></span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="fixed" aria-controls="adminSectionFixed"><span>Dauertermine</span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="analytics" aria-controls="adminSectionAnalytics"><span>Auswertung</span></button>
+            <button class="admin-section-tab" type="button" role="tab" aria-selected="false" data-admin-target="system" aria-controls="adminSectionSystem"><span>System</span><span id="adminSystemCount" class="admin-tab-count" hidden></span></button>
           </nav>
 
           <section id="adminSectionOverview" class="admin-section" data-admin-section="overview">
@@ -227,38 +227,51 @@
 
           <section id="adminSectionHouse" class="admin-section" data-admin-section="house" hidden>
             <div class="admin-section-heading">
-              <h3>Ger&auml;te &amp; R&auml;ume</h3>
-              <span>Anlegen, umbenennen oder bei einer St&ouml;rung sperren</span>
+              <h3>Haus &amp; Ger&auml;te</h3>
+              <span>Bestand pr&uuml;fen, Ger&auml;te verwalten und St&ouml;rungen weiterbearbeiten</span>
             </div>
-            <form id="resourceForm" class="stack compact-form admin-inline-form">
-              <label>
-                Name
-                <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
-              </label>
-              <label>
-                Bereich
-                <select id="resourceTypeInput" name="type" required>
-                  <option value="washer">Waschmaschine</option>
-                  <option value="drying_room">Trockenraum</option>
-                  <option value="tumbler">Tumbler</option>
-                </select>
-              </label>
-              <button type="submit">Hinzuf&uuml;gen</button>
-            </form>
+            <div id="resourceOverview" class="admin-inventory-summary" aria-live="polite"></div>
+            <details class="admin-create-panel">
+              <summary>
+                <span>Ger&auml;t oder Raum hinzuf&uuml;gen</span>
+                <small>Neue Waschmaschine, neuen Trockenraum oder Tumbler anlegen</small>
+              </summary>
+              <form id="resourceForm" class="stack compact-form admin-inline-form">
+                <label>
+                  Name
+                  <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
+                </label>
+                <label>
+                  Bereich
+                  <select id="resourceTypeInput" name="type" required>
+                    <option value="washer">Waschmaschine</option>
+                    <option value="drying_room">Trockenraum</option>
+                    <option value="tumbler">Tumbler</option>
+                  </select>
+                </label>
+                <button type="submit">Hinzuf&uuml;gen</button>
+              </form>
+            </details>
             <div id="resourceAdminList" class="resource-admin-list"></div>
 
             <section id="superadminBox" class="superadmin-box" hidden>
               <div class="admin-section-heading">
                 <h3>H&auml;user</h3>
-                <span>Nur Superadmin: getrennte Standorte verwalten</span>
+                <span>Haus&uuml;bergreifende Standortverwaltung f&uuml;r Superadmins</span>
               </div>
-              <form id="houseForm" class="stack compact-form admin-inline-form">
-                <label>
-                  Neue Hausnummer
-                  <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
-                </label>
-                <button type="submit">Haus anlegen</button>
-              </form>
+              <details class="admin-create-panel">
+                <summary>
+                  <span>Weiteres Haus anlegen</span>
+                  <small>Erzeugt einen neuen Standort mit Standardressourcen</small>
+                </summary>
+                <form id="houseForm" class="stack compact-form admin-inline-form">
+                  <label>
+                    Neue Hausnummer
+                    <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
+                  </label>
+                  <button type="submit">Haus anlegen</button>
+                </form>
+              </details>
               <div id="houseList" class="house-admin-list"></div>
             </section>
           </section>
@@ -294,32 +307,38 @@
               <h3>Gesch&uuml;tzte Dauertermine</h3>
               <span>Wiederkehrende Buchungen k&ouml;nnen nicht &uuml;berschrieben werden</span>
             </div>
-            <form id="fixedBookingForm" class="stack compact-form admin-inline-form">
-              <label>
-                Name / Hinweis
-                <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
-              </label>
-              <label>
-                Ger&auml;t
-                <select id="fixedBookingResource" name="resourceId" required></select>
-              </label>
-              <label>
-                Wochentag
-                <select id="fixedBookingWeekday" name="weekday" required>
-                  <option value="1">Montag</option>
-                  <option value="2">Dienstag</option>
-                  <option value="3">Mittwoch</option>
-                  <option value="4">Donnerstag</option>
-                  <option value="5">Freitag</option>
-                  <option value="6">Samstag</option>
-                </select>
-              </label>
-              <label>
-                Slot
-                <select id="fixedBookingSlot" name="slot" required></select>
-              </label>
-              <button type="submit">Fest speichern</button>
-            </form>
+            <details class="admin-create-panel">
+              <summary>
+                <span>Dauertermin anlegen</span>
+                <small>Nur f&uuml;r begr&uuml;ndete, regelm&auml;ssig gesch&uuml;tzte Zeiten</small>
+              </summary>
+              <form id="fixedBookingForm" class="stack compact-form admin-inline-form">
+                <label>
+                  Name / Hinweis
+                  <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
+                </label>
+                <label>
+                  Ger&auml;t
+                  <select id="fixedBookingResource" name="resourceId" required></select>
+                </label>
+                <label>
+                  Wochentag
+                  <select id="fixedBookingWeekday" name="weekday" required>
+                    <option value="1">Montag</option>
+                    <option value="2">Dienstag</option>
+                    <option value="3">Mittwoch</option>
+                    <option value="4">Donnerstag</option>
+                    <option value="5">Freitag</option>
+                    <option value="6">Samstag</option>
+                  </select>
+                </label>
+                <label>
+                  Slot
+                  <select id="fixedBookingSlot" name="slot" required></select>
+                </label>
+                <button type="submit">Fest speichern</button>
+              </form>
+            </details>
             <div id="fixedBookingList" class="fixed-booking-list"></div>
           </section>
 
@@ -328,22 +347,32 @@
               <h3>Wohnungen &amp; Einladungen</h3>
               <span>Wohnung fest zuordnen und Bewohner sicher per E-Mail einladen</span>
             </div>
-            <form id="apartmentForm" class="stack compact-form admin-narrow-form">
-              <label>
-                Wohnungsbezeichnung
-                <input id="apartmentLabelInput" name="label" placeholder="z.B. 2. OG links" maxlength="60" required>
-              </label>
-              <label>
-                Name am Klingelschild
-                <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
-              </label>
-              <label>
-                E-Mail f&uuml;r die Einladung
-                <input id="apartmentInviteEmailInput" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch" required>
-              </label>
-              <button type="submit">Einladung senden</button>
-            </form>
+            <details class="admin-create-panel admin-narrow-panel">
+              <summary>
+                <span>Wohnung anlegen und einladen</span>
+                <small>Wohnung, Klingelschildname und erste Kontaktadresse erfassen</small>
+              </summary>
+              <form id="apartmentForm" class="stack compact-form admin-narrow-form">
+                <label>
+                  Wohnungsbezeichnung
+                  <input id="apartmentLabelInput" name="label" placeholder="z.B. 2. OG links" maxlength="60" required>
+                </label>
+                <label>
+                  Name am Klingelschild
+                  <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
+                </label>
+                <label>
+                  E-Mail f&uuml;r die Einladung
+                  <input id="apartmentInviteEmailInput" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch" required>
+                </label>
+                <button type="submit">Einladung senden</button>
+              </form>
+            </details>
             <div id="apartmentInvitationResult" class="verification-status" role="status" hidden></div>
+            <label class="admin-list-search">
+              <span>Wohnungen und Konten durchsuchen</span>
+              <input id="adminPeopleSearch" type="search" placeholder="Klingelschild, Wohnung oder E-Mail">
+            </label>
             <div id="apartmentList" class="user-admin-list"></div>
 
             <div class="admin-section-heading admin-subsection-heading">
@@ -367,88 +396,113 @@
               <h3>Systemstatus</h3>
               <span>E-Mail, Sicherungen und Protokoll</span>
             </div>
-            <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
-            <div id="backupOperation" class="admin-operation">
-              <div>
-                <strong>Daten sichern</strong>
-                <span>Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
+            <section class="admin-system-group" aria-labelledby="adminSystemOperationTitle">
+              <div class="admin-list-heading">
+                <h4 id="adminSystemOperationTitle">Betrieb</h4>
+                <span>Verf&uuml;gbarkeit, Sicherungen und Wartung</span>
               </div>
-              <div class="inline-actions">
-                <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
-                <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+              <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
+              <div id="backupOperation" class="admin-operation">
+                <div>
+                  <strong>Daten sichern</strong>
+                  <span>Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
+                </div>
+                <div class="inline-actions">
+                  <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
+                  <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+                </div>
               </div>
-            </div>
-            <div class="admin-operation">
-              <div>
-                <strong>E-Mail pr&uuml;fen</strong>
-                <span>Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.</span>
+              <div id="maintenanceOperation" class="admin-operation" hidden>
+                <div>
+                  <strong>Wartungsmodus</strong>
+                  <span id="maintenanceAdminStatus">Status wird gepr&uuml;ft.</span>
+                </div>
+                <div class="inline-actions">
+                  <label id="maintenancePasswordLabel">
+                    Aktuelles Passwort
+                    <input id="maintenanceCurrentPassword" type="password" autocomplete="current-password">
+                  </label>
+                  <button id="toggleMaintenanceButton" class="secondary" type="button">Wartung starten</button>
+                </div>
               </div>
-              <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
-            </div>
-            <div class="admin-operation">
-              <div>
-                <strong>Push pr&uuml;fen</strong>
-                <span>Eine Testbenachrichtigung an aktive Ger&auml;te im Haus senden.</span>
+            </section>
+            <section class="admin-system-group" aria-labelledby="adminSystemNotificationTitle">
+              <div class="admin-list-heading">
+                <h4 id="adminSystemNotificationTitle">Benachrichtigungen</h4>
+                <span>Versandwege gezielt pr&uuml;fen</span>
               </div>
-              <div class="inline-actions admin-push-actions">
-                <label>
-                  Empfaenger
-                  <select id="adminPushTarget"></select>
-                </label>
-                <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
+              <div class="admin-operation">
+                <div>
+                  <strong>E-Mail pr&uuml;fen</strong>
+                  <span>Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.</span>
+                </div>
+                <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
               </div>
-            </div>
-            <div id="maintenanceOperation" class="admin-operation" hidden>
-              <div>
-                <strong>Wartungsmodus</strong>
-                <span id="maintenanceAdminStatus">Status wird gepr&uuml;ft.</span>
+              <div class="admin-operation">
+                <div>
+                  <strong>Push pr&uuml;fen</strong>
+                  <span>Eine Testbenachrichtigung an aktive Ger&auml;te im Haus senden.</span>
+                </div>
+                <div class="inline-actions admin-push-actions">
+                  <label>
+                    Empfaenger
+                    <select id="adminPushTarget"></select>
+                  </label>
+                  <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
+                </div>
               </div>
-              <div class="inline-actions">
-                <label id="maintenancePasswordLabel">
-                  Aktuelles Passwort
-                  <input id="maintenanceCurrentPassword" type="password" autocomplete="current-password">
-                </label>
-                <button id="toggleMaintenanceButton" class="secondary" type="button">Wartung starten</button>
+            </section>
+            <section class="admin-system-group" aria-labelledby="adminSystemResponsibilityTitle">
+              <div class="admin-list-heading">
+                <h4 id="adminSystemResponsibilityTitle">Verantwortung &amp; Protokoll</h4>
+                <span>Nachfolge, Bereinigung und nachvollziehbare Admin-Aktionen</span>
               </div>
-            </div>
-            <div id="superadminTransferOperation" class="admin-operation" hidden>
-              <div>
-                <strong>Superadmin &uuml;bergeben</strong>
-                <span>Geplante Stellvertretung oder Nachfolge an ein aktives Haus-Admin-Konto &uuml;bergeben.</span>
+              <div id="superadminPermissionOperation" class="admin-operation" hidden>
+                <div>
+                  <strong>Superadminrechte verwalten</strong>
+                  <span>Einem aktiven Haus-Admin globale Rechte geben oder wieder entziehen. Deine eigenen Rechte bleiben erhalten.</span>
+                </div>
+                <div class="inline-actions admin-transfer-actions">
+                  <label>
+                    Aktion
+                    <select id="superadminPermissionAction">
+                      <option value="grant">Recht geben</option>
+                      <option value="revoke">Recht entziehen</option>
+                    </select>
+                  </label>
+                  <label>
+                    Haus-Admin
+                    <select id="superadminPermissionTarget"></select>
+                  </label>
+                  <label>
+                    Best&auml;tigung
+                    <input id="superadminPermissionConfirm" autocomplete="off" placeholder="SUPERADMINRECHT GEBEN">
+                  </label>
+                  <label>
+                    Aktuelles Passwort
+                    <input id="superadminPermissionCurrentPassword" type="password" autocomplete="current-password">
+                  </label>
+                  <button id="superadminPermissionButton" class="secondary" type="button">Recht geben</button>
+                </div>
               </div>
-              <div class="inline-actions admin-transfer-actions">
-                <label>
-                  Neues Superadmin-Konto
-                  <select id="superadminTransferTarget"></select>
-                </label>
+              <details class="admin-operation danger-zone">
+                <summary>Buchungen zur&uuml;cksetzen</summary>
+                <p class="muted">L&ouml;scht alle normalen Buchungen im aktuellen Haus. Dauertermine und Konten bleiben erhalten.</p>
                 <label>
                   Best&auml;tigung
-                  <input id="superadminTransferConfirm" autocomplete="off" placeholder="SUPERADMIN UEBERGEBEN">
+                  <input id="resetBookingsConfirm" autocomplete="off" placeholder="ALLE BUCHUNGEN">
                 </label>
                 <label>
                   Aktuelles Passwort
-                  <input id="superadminTransferCurrentPassword" type="password" autocomplete="current-password">
+                  <input id="resetBookingsCurrentPassword" type="password" autocomplete="current-password">
                 </label>
-                <button id="superadminTransferButton" class="secondary danger" type="button">&Uuml;bergeben</button>
-              </div>
-            </div>
-            <details class="admin-operation danger-zone">
-              <summary>Buchungen zur&uuml;cksetzen</summary>
-              <p class="muted">L&ouml;scht alle normalen Buchungen im aktuellen Haus. Dauertermine und Konten bleiben erhalten.</p>
-              <label>
-                Best&auml;tigung
-                <input id="resetBookingsConfirm" autocomplete="off" placeholder="ALLE BUCHUNGEN">
-              </label>
-              <label>
-                Aktuelles Passwort
-                <input id="resetBookingsCurrentPassword" type="password" autocomplete="current-password">
-              </label>
-              <button id="resetBookingsButton" class="secondary danger" type="button">Alle Buchungen l&ouml;schen</button>
-            </details>
-            <details class="audit-panel">
-              <summary>Letzte Admin-Aktionen</summary>
-              <div id="auditLog" class="audit-list"></div>
-            </details>
+                <button id="resetBookingsButton" class="secondary danger" type="button">Alle Buchungen l&ouml;schen</button>
+              </details>
+              <details class="audit-panel">
+                <summary>Letzte Admin-Aktionen</summary>
+                <div id="auditLog" class="audit-list"></div>
+              </details>
+            </section>
           </section>
         </div>
       </aside>
@@ -461,13 +515,19 @@
           <div>
             <p class="diaper-game-kicker"><span></span> WaschZeit Arcade</p>
             <h2 id="diaperGameTitle">Windel-Alarm<span>!</span></h2>
-            <p id="diaperGameIntro">F&uuml;nf Handgriffe. Eine steigende Spannung. Bleib ruhig und entsch&auml;rfe die Windel, bevor es ploppt.</p>
+            <p id="diaperGameIntro">Drei Module aus sechs Systemen. Drei Fehlerleben. Entsch&auml;rfe die Tagesmission und halte den Z&uuml;ndkreis im richtigen Zeitfenster.</p>
           </div>
           <div class="diaper-game-badges" aria-label="Spielmerkmale">
-            <span><b>5</b> Griffe</span>
-            <span><b>LIVE</b> Global</span>
+            <span><b>6</b> Systeme</span>
+            <span><b>45</b> Sekunden</span>
+            <button id="diaperSoundButton" class="diaper-sound-toggle" type="button" aria-pressed="false"><b aria-hidden="true">&#9834;</b> Ton aus</button>
           </div>
         </header>
+        <div class="diaper-defusal-strip diaper-defusal-strip-sticky">
+          <span class="diaper-armed-light"><i aria-hidden="true"></i> Windel scharf</span>
+          <strong id="diaperCountdown" role="timer" aria-label="Verbleibende Zeit">00:45.0</strong>
+          <span id="diaperSerial" class="diaper-serial">WZ-0000</span>
+        </div>
         <div id="diaperGameStage" class="diaper-game-stage" data-mood="calm">
           <div class="diaper-stage-glow diaper-stage-glow-one" aria-hidden="true"></div>
           <div class="diaper-stage-glow diaper-stage-glow-two" aria-hidden="true"></div>
@@ -489,7 +549,7 @@
                 <span class="baby-arm baby-arm-left"></span>
                 <span class="baby-arm baby-arm-right"></span>
                 <span class="baby-suit">WZ</span>
-                <span class="baby-diaper"></span>
+                <span class="baby-diaper"><span class="diaper-detonator"><i></i><b>45</b></span></span>
               </div>
             </div>
             <div class="diaper-burst">
@@ -497,20 +557,24 @@
             </div>
           </div>
           <div class="diaper-game-console">
+            <div class="diaper-strike-row">
+              <span><small>Fehlerlimit</small><strong>Drei Chancen</strong></span>
+              <span id="diaperStrikeLights" class="diaper-strike-lights" aria-label="Noch drei Fehler erlaubt"><i></i><i></i><i></i></span>
+            </div>
             <div class="pups-meter-head">
-              <span><small>Live-Sensor</small><strong>Pups-O-Meter</strong></span>
+              <span><small>Detonationssensor</small><strong>Z&uuml;nddruck</strong></span>
               <span id="diaperPressureText" class="pressure-chip">Bereit</span>
             </div>
-            <div class="pups-meter" role="progressbar" aria-label="Pupsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="pups-meter" role="progressbar" aria-label="Z&uuml;nddruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
               <span id="diaperPressureBar"><i></i></span>
             </div>
             <div class="diaper-step-rail" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
             </div>
             <div class="diaper-status-card">
               <span class="diaper-status-pulse" aria-hidden="true"></span>
-              <p id="diaperGameStatus" class="diaper-game-status" role="status" aria-live="polite">Dr&uuml;cke auf Start, wenn du bereit bist.</p>
-              <p id="diaperGameProgress" class="diaper-game-progress">0 von 5 Handgriffen &middot; Bestwert: &ndash;</p>
+              <p id="diaperGameStatus" class="diaper-game-status" role="status" aria-live="polite">Einsatz bereit. Starte, sobald deine Nerven ruhig sind.</p>
+              <p id="diaperGameProgress" class="diaper-game-progress">0 von 3 Modulen &middot; Tagesbestwert: &ndash;</p>
             </div>
           </div>
         </div>
@@ -518,20 +582,21 @@
           <section class="diaper-tool-panel" aria-labelledby="diaperToolTitle">
             <div class="diaper-panel-head">
               <div>
-                <p>Dein Zug</p>
-                <h3 id="diaperToolTitle">Was kommt als N&auml;chstes?</h3>
+                <p id="diaperMissionLabel">Tagesmission</p>
+                <h3 id="diaperToolTitle">Windel noch nicht aktiviert</h3>
               </div>
-              <span>Tempo + Reihenfolge</span>
+              <span id="diaperModuleCounter">3 + Finale</span>
             </div>
-            <div id="diaperGameActions" class="diaper-game-actions" aria-label="Wickelutensilien">
-              <p class="diaper-actions-empty">Starte eine Runde, um die Wickelutensilien zu mischen.</p>
+            <p id="diaperMissionBrief" class="diaper-mission-brief">Die Ranglistenmission ist heute in allen H&auml;usern identisch. Im &Uuml;bungsmodus werden die Systeme neu gemischt.</p>
+            <div id="diaperGameActions" class="diaper-game-actions" aria-label="Entsch&auml;rfungsmodule">
+              <p class="diaper-actions-empty">Dr&uuml;cke auf Spiel starten, um den Einsatzcode zu laden.</p>
             </div>
           </section>
           <section class="diaper-leaderboard" aria-labelledby="diaperLeaderboardTitle">
             <div class="diaper-leaderboard-head">
               <div>
                 <p>Alle H&auml;user</p>
-                <h3 id="diaperLeaderboardTitle">Globale Bestenliste</h3>
+                <h3 id="diaperLeaderboardTitle">Globale Tageswertung</h3>
               </div>
               <span class="diaper-trophy" aria-hidden="true">&#9733;</span>
             </div>
@@ -543,6 +608,10 @@
         </div>
         <footer class="diaper-game-footer">
           <p class="diaper-game-note"><span aria-hidden="true">&#10003;</span> Sicheres Minispiel ohne echte Buchungen oder Waschladungen</p>
+          <div class="diaper-mode-switch" role="group" aria-label="Spielmodus">
+            <button id="rankedDiaperModeButton" class="active" type="button" aria-pressed="true">Tagesmission</button>
+            <button id="practiceDiaperModeButton" type="button" aria-pressed="false">&Uuml;ben</button>
+          </div>
           <div class="settings-actions">
             <button id="resetDiaperBestButton" class="secondary" type="button">Bestwert l&ouml;schen</button>
             <button id="startDiaperGameButton" type="button"><span aria-hidden="true">&#9654;</span> Spiel starten</button>
@@ -865,7 +934,7 @@
               <h4>Meine Daten</h4>
               <p class="muted">Kontodaten und Buchungen als JSON-Datei herunterladen.</p>
               <a class="button-link secondary" href="/api/me/export" download>Daten exportieren</a>
-              <a class="text-link" href="/privacy.html">Datenschutzhinweise</a>
+              <a class="text-link" href="/privacy.html">Betreiber &amp; Datenschutz</a>
               <details class="delete-account-panel">
                 <summary>Konto l&ouml;schen</summary>
                 <form id="deleteAccountForm" class="stack compact-form">

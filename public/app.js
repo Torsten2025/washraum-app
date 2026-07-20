@@ -65,11 +65,12 @@ const adminRecoveryPanel = document.querySelector('#adminRecoveryPanel');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
 const adminPushTestButton = document.querySelector('#adminPushTestButton');
 const adminPushTarget = document.querySelector('#adminPushTarget');
-const superadminTransferOperation = document.querySelector('#superadminTransferOperation');
-const superadminTransferTarget = document.querySelector('#superadminTransferTarget');
-const superadminTransferConfirm = document.querySelector('#superadminTransferConfirm');
-const superadminTransferCurrentPassword = document.querySelector('#superadminTransferCurrentPassword');
-const superadminTransferButton = document.querySelector('#superadminTransferButton');
+const superadminPermissionOperation = document.querySelector('#superadminPermissionOperation');
+const superadminPermissionAction = document.querySelector('#superadminPermissionAction');
+const superadminPermissionTarget = document.querySelector('#superadminPermissionTarget');
+const superadminPermissionConfirm = document.querySelector('#superadminPermissionConfirm');
+const superadminPermissionCurrentPassword = document.querySelector('#superadminPermissionCurrentPassword');
+const superadminPermissionButton = document.querySelector('#superadminPermissionButton');
 const adminAnalytics = document.querySelector('#adminAnalytics');
 const resetBookingsConfirm = document.querySelector('#resetBookingsConfirm');
 const resetBookingsCurrentPassword = document.querySelector('#resetBookingsCurrentPassword');
@@ -100,6 +101,7 @@ const apartmentLabelInput = document.querySelector('#apartmentLabelInput');
 const apartmentDisplayNameInput = document.querySelector('#apartmentDisplayNameInput');
 const apartmentInviteEmailInput = document.querySelector('#apartmentInviteEmailInput');
 const apartmentInvitationResult = document.querySelector('#apartmentInvitationResult');
+const adminPeopleSearch = document.querySelector('#adminPeopleSearch');
 const apartmentList = document.querySelector('#apartmentList');
 const superadminBox = document.querySelector('#superadminBox');
 const houseForm = document.querySelector('#houseForm');
@@ -109,6 +111,7 @@ const resourceForm = document.querySelector('#resourceForm');
 const resourceNameInput = document.querySelector('#resourceNameInput');
 const resourceTypeInput = document.querySelector('#resourceTypeInput');
 const resourceAdminList = document.querySelector('#resourceAdminList');
+const resourceOverview = document.querySelector('#resourceOverview');
 const maintenanceSearch = document.querySelector('#maintenanceSearch');
 const maintenanceStatusFilter = document.querySelector('#maintenanceStatusFilter');
 const maintenanceCaseList = document.querySelector('#maintenanceCaseList');
@@ -153,6 +156,14 @@ const diaperGameStage = document.querySelector('#diaperGameStage');
 const diaperGameActions = document.querySelector('#diaperGameActions');
 const diaperGameStatus = document.querySelector('#diaperGameStatus');
 const diaperGameProgress = document.querySelector('#diaperGameProgress');
+const diaperCountdown = document.querySelector('#diaperCountdown');
+const diaperSerial = document.querySelector('#diaperSerial');
+const diaperMissionLabel = document.querySelector('#diaperMissionLabel');
+const diaperToolTitle = document.querySelector('#diaperToolTitle');
+const diaperModuleCounter = document.querySelector('#diaperModuleCounter');
+const diaperMissionBrief = document.querySelector('#diaperMissionBrief');
+const diaperStrikeLights = document.querySelector('#diaperStrikeLights');
+const diaperSoundButton = document.querySelector('#diaperSoundButton');
 const diaperLeaderboardList = document.querySelector('#diaperLeaderboardList');
 const diaperOwnRank = document.querySelector('#diaperOwnRank');
 const diaperStepRailSegments = [...document.querySelectorAll('.diaper-step-rail span')];
@@ -160,6 +171,8 @@ const diaperPressureText = document.querySelector('#diaperPressureText');
 const diaperPressureBar = document.querySelector('#diaperPressureBar');
 const startDiaperGameButton = document.querySelector('#startDiaperGameButton');
 const resetDiaperBestButton = document.querySelector('#resetDiaperBestButton');
+const rankedDiaperModeButton = document.querySelector('#rankedDiaperModeButton');
+const practiceDiaperModeButton = document.querySelector('#practiceDiaperModeButton');
 const settingsSummary = document.querySelector('#settingsSummary');
 const settingsProgressText = document.querySelector('#settingsProgressText');
 const settingsOverlay = document.querySelector('#settingsOverlay');
@@ -301,6 +314,7 @@ let messageCenterReturnFocus = null;
 let activeSettingsSection = 'profile';
 let devicePairingCountdownTimer = null;
 let activeAdminSection = 'overview';
+let adminUserDirectory = [];
 let logoutInProgress = false;
 let sessionIdleTimeoutMs = 0;
 let sessionWarningMs = 0;
@@ -1371,7 +1385,8 @@ function applyMaintenanceStatus(maintenance = {}) {
 function renderReleaseStatus(status = latestReleaseStatus) {
   const version = status?.version || loadedAppVersion;
   const releasedAt = status?.releasedAt || loadedAppReleasedAt;
-  appVersionText.textContent = `Version ${version} - Stand ${formatReleaseDate(releasedAt)}`;
+  const versionLabel = version.includes('-test.') ? 'Testversion' : 'Version';
+  appVersionText.textContent = `${versionLabel} ${version} - Stand ${formatReleaseDate(releasedAt)}`;
   const updateAvailable = Boolean(status?.release && status.release !== loadedAppRelease);
   appUpdateNotice.hidden = !updateAvailable;
   if (updateAvailable) {
@@ -1547,6 +1562,8 @@ function setAdminSection(sectionName) {
     const active = button.dataset.adminTarget === sectionName;
     button.classList.toggle('active', active);
     button.setAttribute('aria-current', active ? 'page' : 'false');
+    button.setAttribute('aria-selected', String(active));
+    button.setAttribute('tabindex', active ? '0' : '-1');
   }
   for (const section of adminSections) {
     section.hidden = section.dataset.adminSection !== sectionName;
@@ -3750,6 +3767,12 @@ function renderApartments(apartments) {
   for (const apartment of apartments) {
     const item = document.createElement('article');
     item.className = 'user-admin-item';
+    item.dataset.adminSearch = [
+      apartment.display_name,
+      apartment.label,
+      apartment.invitation_email,
+      apartment.member_emails
+    ].filter(Boolean).join(' ').toLocaleLowerCase('de-CH');
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
     const invitationState = apartment.invitationStatus === 'pending'
@@ -3874,6 +3897,15 @@ function renderApartments(apartments) {
     });
     item.append(identity, actions, inviteForm, editForm);
     apartmentList.append(item);
+  }
+  filterAdminPeople();
+}
+
+function filterAdminPeople() {
+  const search = adminPeopleSearch.value.trim().toLocaleLowerCase('de-CH');
+  for (const item of [...apartmentList.children, ...userList.children]) {
+    if (!item.matches('[data-admin-search]')) continue;
+    item.hidden = Boolean(search) && !item.dataset.adminSearch.includes(search);
   }
 }
 
@@ -4087,62 +4119,77 @@ function renderAdminRecovery(data, users) {
     </section>
   `;
 
-  superadminTransferOperation.hidden = !currentUser.isSuperadmin;
+  superadminPermissionOperation.hidden = !currentUser.isSuperadmin;
   if (!currentUser.isSuperadmin) return;
 
-  const candidates = users.filter((user) => (
+  adminUserDirectory = users;
+  renderSuperadminPermissionTargets();
+}
+
+function renderSuperadminPermissionTargets() {
+  const grant = superadminPermissionAction.value === 'grant';
+  const candidates = adminUserDirectory.filter((user) => (
     user.active
       && user.is_house_admin
-      && !user.is_superadmin
+      && Boolean(user.is_superadmin) !== grant
       && Number(user.id) !== Number(currentUser.id)
+      && !user.merged_into_user_id
   ));
-  superadminTransferTarget.innerHTML = '';
+  superadminPermissionTarget.innerHTML = '';
   if (!candidates.length) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = 'Kein aktiver Haus-Admin verfuegbar';
-    superadminTransferTarget.append(option);
+    option.textContent = grant
+      ? 'Kein weiterer Haus-Admin verfuegbar'
+      : 'Kein anderer Superadmin in diesem Haus';
+    superadminPermissionTarget.append(option);
   }
   for (const user of candidates) {
     const option = document.createElement('option');
     option.value = String(user.id);
     option.textContent = user.email ? `${user.username} (${user.email})` : user.username;
-    superadminTransferTarget.append(option);
+    superadminPermissionTarget.append(option);
   }
-  superadminTransferTarget.disabled = !candidates.length;
-  superadminTransferConfirm.disabled = !candidates.length;
-  superadminTransferCurrentPassword.disabled = !candidates.length;
-  if (!candidates.length) superadminTransferCurrentPassword.value = '';
-  superadminTransferButton.disabled = !candidates.length;
+  const confirmation = grant ? 'SUPERADMINRECHT GEBEN' : 'SUPERADMINRECHT ENTZIEHEN';
+  superadminPermissionConfirm.placeholder = confirmation;
+  superadminPermissionConfirm.value = '';
+  superadminPermissionButton.textContent = grant ? 'Recht geben' : 'Recht entziehen';
+  superadminPermissionButton.classList.toggle('danger', !grant);
+  superadminPermissionTarget.disabled = !candidates.length;
+  superadminPermissionConfirm.disabled = !candidates.length;
+  superadminPermissionCurrentPassword.disabled = !candidates.length;
+  if (!candidates.length) superadminPermissionCurrentPassword.value = '';
+  superadminPermissionButton.disabled = !candidates.length;
 }
 
-async function transferSuperadmin() {
-  if (!superadminTransferCurrentPassword.value) {
+async function updateSuperadminPermission() {
+  if (!superadminPermissionCurrentPassword.value) {
     showStatus('Bitte dein aktuelles Passwort eingeben.', 'error');
-    superadminTransferCurrentPassword.focus();
+    superadminPermissionCurrentPassword.focus();
     return;
   }
-  if (!window.confirm('Superadmin-Verantwortung wirklich an dieses Konto uebergeben? Deine hausuebergreifenden Rechte enden danach.')) return;
-  const currentPassword = superadminTransferCurrentPassword.value;
-  superadminTransferCurrentPassword.value = '';
-  superadminTransferButton.disabled = true;
+  const enabled = superadminPermissionAction.value === 'grant';
+  const actionText = enabled ? 'Superadminrecht wirklich geben?' : 'Superadminrecht wirklich entziehen?';
+  if (!window.confirm(actionText)) return;
+  const currentPassword = superadminPermissionCurrentPassword.value;
+  superadminPermissionCurrentPassword.value = '';
+  superadminPermissionButton.disabled = true;
   try {
-    const data = await api('/api/admin/superadmin-transfer', {
-      method: 'POST',
+    const data = await api(`/api/admin/users/${Number(superadminPermissionTarget.value)}/superadmin`, {
+      method: 'PUT',
       body: JSON.stringify({
-        targetUserId: Number(superadminTransferTarget.value),
-        confirm: superadminTransferConfirm.value.trim(),
+        enabled,
+        confirm: superadminPermissionConfirm.value.trim(),
         currentPassword
       })
     });
-    superadminTransferConfirm.value = '';
+    superadminPermissionConfirm.value = '';
     showStatus(data.message);
-    await refreshCurrentUser();
     await loadAdmin();
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {
-    superadminTransferButton.disabled = false;
+    superadminPermissionButton.disabled = !superadminPermissionTarget.value;
   }
 }
 
@@ -4283,6 +4330,13 @@ function renderAdminUsers(users) {
   for (const user of users) {
     const item = document.createElement('article');
     item.className = 'user-admin-item';
+    item.dataset.adminSearch = [
+      user.apartment_display_name,
+      user.apartment_label,
+      user.username,
+      user.email,
+      user.secondary_email
+    ].filter(Boolean).join(' ').toLocaleLowerCase('de-CH');
 
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
@@ -4384,6 +4438,7 @@ function renderAdminUsers(users) {
     item.append(identity, actions);
     userList.append(item);
   }
+  filterAdminPeople();
 }
 
 async function moveUserToHouse(userId, houseId) {
@@ -4406,8 +4461,15 @@ function renderHouses(houses) {
     const item = document.createElement('article');
     item.className = 'house-admin-item';
     const copy = document.createElement('div');
+    copy.className = 'admin-list-identity';
+    const title = document.createElement('strong');
+    title.textContent = house.name;
+    const status = document.createElement('span');
+    status.className = `admin-state-chip ${house.active ? 'is-active' : 'is-blocked'}`;
+    status.textContent = house.active ? 'Aktiv' : 'Inaktiv';
     const nameForm = document.createElement('form');
-    nameForm.className = 'house-name-form';
+    nameForm.className = 'house-name-form admin-row-edit-form';
+    nameForm.hidden = true;
     const name = document.createElement('input');
     name.value = house.name;
     name.maxLength = 80;
@@ -4416,16 +4478,35 @@ function renderHouses(houses) {
     saveName.type = 'submit';
     saveName.className = 'secondary';
     saveName.textContent = 'Speichern';
-    nameForm.append(name, saveName);
+    const cancelName = document.createElement('button');
+    cancelName.type = 'button';
+    cancelName.className = 'secondary';
+    cancelName.textContent = 'Abbrechen';
+    nameForm.append(name, saveName, cancelName);
     nameForm.addEventListener('submit', (event) => {
       event.preventDefault();
       updateHouse(house.id, { name: name.value });
     });
     const meta = document.createElement('span');
-    meta.textContent = `${house.users} Personen - ${house.resources} Ger\u00e4te - ${house.active ? 'aktiv' : 'inaktiv'}`;
-    copy.append(nameForm, meta);
+    meta.textContent = `${house.users} Personen / ${house.resources} Ger\u00e4te`;
+    copy.append(title, meta, status);
     const actions = document.createElement('div');
     actions.className = 'house-admin-actions';
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'secondary';
+    editButton.textContent = 'Umbenennen';
+    editButton.addEventListener('click', () => {
+      nameForm.hidden = false;
+      editButton.disabled = true;
+      name.focus();
+      name.select();
+    });
+    cancelName.addEventListener('click', () => {
+      name.value = house.name;
+      nameForm.hidden = true;
+      editButton.disabled = false;
+    });
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary';
@@ -4438,8 +4519,8 @@ function renderHouses(houses) {
     activeButton.textContent = house.active ? 'Deaktivieren' : 'Aktivieren';
     activeButton.disabled = Number(house.id) === Number(currentUser.activeHouseId);
     activeButton.addEventListener('click', () => updateHouse(house.id, { active: !Boolean(house.active) }));
-    actions.append(button, activeButton);
-    item.append(copy, actions);
+    actions.append(button, editButton, activeButton);
+    item.append(copy, actions, nameForm);
     houseList.append(item);
   }
 }
@@ -4493,7 +4574,13 @@ function renderMaintenanceCases() {
     return;
   }
 
-  for (const maintenanceCase of filtered) {
+  const statusPriority = { reported: 0, blocked: 1, repairing: 2, tested: 3, closed: 4 };
+  const orderedCases = [...filtered].sort((left, right) => (
+    (statusPriority[left.status] ?? 9) - (statusPriority[right.status] ?? 9)
+    || new Date(right.created_at) - new Date(left.created_at)
+  ));
+
+  for (const maintenanceCase of orderedCases) {
     const article = document.createElement('article');
     article.className = `maintenance-case status-${maintenanceCase.status}`;
     const heading = document.createElement('header');
@@ -4516,7 +4603,6 @@ function renderMaintenanceCases() {
 
     const history = document.createElement('details');
     history.className = 'maintenance-history';
-    history.open = maintenanceCase.status !== 'closed';
     const summary = document.createElement('summary');
     summary.textContent = `Chronik (${maintenanceCase.entries.length})`;
     const timeline = document.createElement('ol');
@@ -4605,46 +4691,119 @@ function renderMaintenanceCases() {
 
 function renderAdminResources(items) {
   resourceAdminList.innerHTML = '';
-  for (const resource of items) {
-    const item = document.createElement('article');
-    item.className = 'resource-admin-item';
-    const form = document.createElement('form');
-    form.className = 'resource-name-form';
-    const input = document.createElement('input');
-    input.value = resource.name;
-    input.maxLength = 80;
-    input.setAttribute('aria-label', `Name von ${resource.name}`);
-    const save = document.createElement('button');
-    save.type = 'submit';
-    save.className = 'secondary';
-    save.textContent = 'Speichern';
-    form.append(input, save);
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      updateResource(resource.id, { name: input.value });
-    });
-    const meta = document.createElement('span');
-    meta.textContent = `${typeLabel(resource.type)} - ${resource.active ? 'aktiv' : `gesperrt: ${resource.blocked_reason || 'ohne Grund'}`}`;
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = resource.active ? 'secondary danger' : 'secondary';
-    toggle.textContent = resource.active ? 'Sperren' : 'Im Tagebuch';
-    toggle.addEventListener('click', () => {
-      if (resource.active) {
-        const reason = window.prompt('Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.');
-        if (!reason) return;
-        updateResource(resource.id, { active: false, blockReason: reason });
-        return;
+  const activeCount = items.filter((resource) => resource.active).length;
+  const blockedCount = items.length - activeCount;
+  resourceOverview.innerHTML = `
+    <div><strong>${items.length}</strong><span>Ger&auml;te &amp; R&auml;ume</span></div>
+    <div><strong>${activeCount}</strong><span>einsatzbereit</span></div>
+    <div class="${blockedCount ? 'is-warning' : ''}"><strong>${blockedCount}</strong><span>gesperrt</span></div>
+  `;
+
+  const groups = [
+    { type: 'washer', label: 'Waschmaschinen' },
+    { type: 'drying_room', label: 'Trockenr&auml;ume' },
+    { type: 'tumbler', label: 'Tumbler' }
+  ];
+
+  for (const groupData of groups) {
+    const groupItems = items.filter((resource) => resource.type === groupData.type);
+    const group = document.createElement('section');
+    group.className = 'resource-admin-group';
+    const heading = document.createElement('div');
+    heading.className = 'admin-list-heading';
+    const headingTitle = document.createElement('h4');
+    headingTitle.innerHTML = groupData.label;
+    const headingMeta = document.createElement('span');
+    const readyCount = groupItems.filter((resource) => resource.active).length;
+    headingMeta.textContent = `${readyCount} von ${groupItems.length} einsatzbereit`;
+    heading.append(headingTitle, headingMeta);
+    group.append(heading);
+
+    if (!groupItems.length) {
+      const empty = document.createElement('p');
+      empty.className = 'admin-empty-row';
+      empty.textContent = 'Noch kein Eintrag in diesem Bereich.';
+      group.append(empty);
+    }
+
+    for (const resource of groupItems) {
+      const item = document.createElement('article');
+      item.className = 'resource-admin-item';
+      const copy = document.createElement('div');
+      copy.className = 'admin-list-identity';
+      const title = document.createElement('strong');
+      title.textContent = resource.name;
+      const status = document.createElement('span');
+      status.className = `admin-state-chip ${resource.active ? 'is-active' : 'is-blocked'}`;
+      status.textContent = resource.active ? 'Einsatzbereit' : 'Gesperrt';
+      copy.append(title, status);
+      if (!resource.active) {
+        const reason = document.createElement('span');
+        reason.className = 'admin-block-reason';
+        reason.textContent = resource.blocked_reason || 'Kein Sperrgrund hinterlegt';
+        copy.append(reason);
       }
-      maintenanceSearch.value = resource.name;
-      maintenanceStatusFilter.value = 'open';
-      setAdminSection('logbook');
-      renderMaintenanceCases();
-    });
-    const copy = document.createElement('div');
-    copy.append(form, meta);
-    item.append(copy, toggle);
-    resourceAdminList.append(item);
+
+      const actions = document.createElement('div');
+      actions.className = 'resource-admin-actions';
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'secondary';
+      editButton.textContent = 'Umbenennen';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = resource.active ? 'secondary danger' : 'secondary';
+      toggle.textContent = resource.active ? 'Sperren' : 'Tagebuch öffnen';
+      toggle.addEventListener('click', () => {
+        if (resource.active) {
+          const reason = window.prompt('Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.');
+          if (!reason) return;
+          updateResource(resource.id, { active: false, blockReason: reason });
+          return;
+        }
+        maintenanceSearch.value = resource.name;
+        maintenanceStatusFilter.value = 'open';
+        setAdminSection('logbook');
+        renderMaintenanceCases();
+      });
+      actions.append(editButton, toggle);
+
+      const form = document.createElement('form');
+      form.className = 'resource-name-form admin-row-edit-form';
+      form.hidden = true;
+      const input = document.createElement('input');
+      input.value = resource.name;
+      input.maxLength = 80;
+      input.setAttribute('aria-label', `Name von ${resource.name}`);
+      const save = document.createElement('button');
+      save.type = 'submit';
+      save.className = 'secondary';
+      save.textContent = 'Speichern';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'secondary';
+      cancel.textContent = 'Abbrechen';
+      form.append(input, save, cancel);
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        updateResource(resource.id, { name: input.value });
+      });
+      editButton.addEventListener('click', () => {
+        form.hidden = false;
+        editButton.disabled = true;
+        input.focus();
+        input.select();
+      });
+      cancel.addEventListener('click', () => {
+        input.value = resource.name;
+        form.hidden = true;
+        editButton.disabled = false;
+      });
+
+      item.append(copy, actions, form);
+      group.append(item);
+    }
+    resourceAdminList.append(group);
   }
 }
 
@@ -4707,6 +4866,8 @@ function renderAuditLog(entries) {
     'apartment.invitation_renewed': 'Wohnungseinladung erneuert',
     'apartment.invitation_accepted': 'Wohnungseinladung angenommen',
     'push.test': 'Push-Test gesendet',
+    'superadmin.grant': 'Superadminrecht gegeben',
+    'superadmin.revoke': 'Superadminrecht entzogen',
     'superadmin.transfer': 'Superadmin uebergeben',
     'backup.download': 'Backup heruntergeladen',
     'backup.create': 'Backup erstellt',
@@ -4804,7 +4965,13 @@ function renderFixedBookings(items) {
     return;
   }
 
-  for (const booking of items) {
+  const sortedItems = [...items].sort((left, right) => (
+    Number(left.weekday) - Number(right.weekday)
+    || String(left.slot).localeCompare(String(right.slot), 'de-CH')
+    || String(left.resource_name).localeCompare(String(right.resource_name), 'de-CH')
+  ));
+
+  for (const booking of sortedItems) {
     const item = document.createElement('article');
     item.className = 'fixed-booking-item';
     item.innerHTML = `
@@ -4965,40 +5132,91 @@ sessionLogoutButton.addEventListener('click', async () => {
   } catch {}
   window.location.replace('/login.html?loggedOut=1');
 });
-const diaperGameSteps = [
-  { id: 'calm', label: 'Baby beruhigen' },
-  { id: 'mat', label: 'Unterlage auslegen' },
-  { id: 'open', label: 'Windel vorsichtig \u00f6ffnen' },
-  { id: 'clean', label: 'Sanft sauber machen' },
-  { id: 'fresh', label: 'Frische Windel schlie\u00dfen' }
+let diaperGameRoundMs = 45000;
+let diaperGamePenaltyMs = 4500;
+let diaperGameMaxMistakes = 3;
+const diaperSignalOptions = [
+  { id: 'coral', label: 'Rot', symbol: '\u25b2' },
+  { id: 'mint', label: 'Gr\u00fcn', symbol: '\u25cf' },
+  { id: 'amber', label: 'Gelb', symbol: '\u25c6' },
+  { id: 'blue', label: 'Blau', symbol: '\u25a0' }
 ];
-const diaperGameIcons = {
-  calm: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg>',
-  mat: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h10M7 13h6"/></svg>',
-  open: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 5.5 9 3h6l3 2.5-1 14-5 1.5-5-1.5-1-14Z"/><path d="m7 8 5 2 5-2M9 15h6"/></svg>',
-  clean: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3s5 5.4 5 10a5 5 0 0 1-10 0c0-4.6 5-10 5-10Z"/><path d="M9.5 14.5c.6 1.2 1.4 1.7 2.5 1.7"/></svg>',
-  fresh: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg>'
-};
 let diaperGameTimer = null;
 let diaperGamePressure = 0;
-let diaperGameStep = 0;
+let diaperGameModuleIndex = 0;
+let diaperGameModules = [];
 let diaperGameStartedAt = 0;
+let diaperGameDeadline = 0;
+let diaperGameModuleStartedAt = 0;
+let diaperValvePosition = 0;
 let diaperGameRunning = false;
 let diaperGameReturnFocus = null;
 let diaperGameRoundToken = null;
 let diaperLeaderboardState = { leaderboard: [], own: null };
 let diaperGameStartRequest = 0;
+let diaperGameTasks = [];
+let diaperGameMode = 'ranked';
+let diaperGameMistakes = 0;
+let diaperGameSubmitting = false;
+let diaperGameSoundEnabled = false;
+let diaperGameAudioContext = null;
+let diaperFinalHoldStartedAt = 0;
+let diaperTemperatureValue = 0;
+let diaperCodeEntry = '';
 
 function diaperGameBest() {
   return diaperLeaderboardState.own ? diaperLeaderboardState.own.timeMs / 1000 : null;
 }
 
+function playDiaperTone(frequency, duration = 90, type = 'sine') {
+  if (!diaperGameSoundEnabled) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  diaperGameAudioContext ||= new AudioContext();
+  const oscillator = diaperGameAudioContext.createOscillator();
+  const gain = diaperGameAudioContext.createGain();
+  oscillator.type = type;
+  oscillator.frequency.value = frequency;
+  gain.gain.setValueAtTime(0.045, diaperGameAudioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, diaperGameAudioContext.currentTime + duration / 1000);
+  oscillator.connect(gain).connect(diaperGameAudioContext.destination);
+  oscillator.start();
+  oscillator.stop(diaperGameAudioContext.currentTime + duration / 1000);
+}
+
+function vibrateDiaperGame(pattern) {
+  if ('vibrate' in navigator) navigator.vibrate(pattern);
+}
+
+function renderDiaperStrikes() {
+  const lights = [...diaperStrikeLights.querySelectorAll('i')];
+  lights.forEach((light, index) => light.classList.toggle('is-used', index < diaperGameMistakes));
+  const remaining = Math.max(0, diaperGameMaxMistakes - diaperGameMistakes);
+  diaperStrikeLights.setAttribute('aria-label', `Noch ${remaining} von ${diaperGameMaxMistakes} Fehlern erlaubt`);
+}
+
+function setDiaperGameMode(mode) {
+  if (diaperGameRunning || diaperGameSubmitting) return;
+  diaperGameMode = mode === 'practice' ? 'practice' : 'ranked';
+  const ranked = diaperGameMode === 'ranked';
+  rankedDiaperModeButton.classList.toggle('active', ranked);
+  rankedDiaperModeButton.setAttribute('aria-pressed', String(ranked));
+  practiceDiaperModeButton.classList.toggle('active', !ranked);
+  practiceDiaperModeButton.setAttribute('aria-pressed', String(!ranked));
+  diaperMissionLabel.textContent = ranked ? 'Tagesmission' : '\u00dcbungsmodus';
+  diaperMissionBrief.textContent = ranked
+    ? 'Heute l\u00f6sen alle H\u00e4user dieselbe Mission. Fehler werden auf die Ranglistenzeit gerechnet.'
+    : 'Ungewertete Trainingsrunde mit neu gemischten Systemen und denselben drei Fehlerleben.';
+}
+
 function renderDiaperGameProgress() {
   const best = diaperGameBest();
-  diaperGameProgress.textContent = `${diaperGameStep} von ${diaperGameSteps.length} Handgriffen \u00b7 Bestwert: ${best ? `${best.toFixed(1)} s` : '\u2013'}`;
+  const progress = Math.min(diaperGameModuleIndex, 3);
+  const phase = diaperGameModuleIndex === 3 ? ' \u00b7 Finale' : diaperGameModuleIndex >= 4 ? ' \u00b7 Entsch\u00e4rft' : '';
+  diaperGameProgress.textContent = `${progress} von 3 Modulen${phase} \u00b7 Tagesbestwert: ${best ? `${best.toFixed(1)} s` : '\u2013'}`;
   diaperStepRailSegments.forEach((segment, index) => {
-    segment.classList.toggle('is-complete', index < diaperGameStep);
-    segment.classList.toggle('is-current', diaperGameRunning && index === diaperGameStep);
+    segment.classList.toggle('is-complete', index < diaperGameModuleIndex);
+    segment.classList.toggle('is-current', diaperGameRunning && index === diaperGameModuleIndex);
   });
 }
 
@@ -5013,8 +5231,8 @@ function renderDiaperLeaderboard(data) {
     </li>
   `).join('') : '<li class="muted">Noch keine gewertete Runde. Hol dir Platz 1!</li>';
   diaperOwnRank.textContent = diaperLeaderboardState.own
-    ? `Dein Platz: ${diaperLeaderboardState.own.position} \u00b7 ${(diaperLeaderboardState.own.timeMs / 1000).toFixed(1)} s`
-    : 'Noch keine eigene Zeit';
+    ? `Heute Platz ${diaperLeaderboardState.own.position} \u00b7 ${(diaperLeaderboardState.own.timeMs / 1000).toFixed(1)} s \u00b7 ${diaperLeaderboardState.own.mistakes} Fehler`
+    : 'Heute noch keine eigene Zeit';
   renderDiaperGameProgress();
 }
 
@@ -5031,14 +5249,51 @@ function setDiaperPressure(value) {
   diaperGameStage.style.setProperty('--pressure', String(diaperGamePressure));
   diaperPressureBar.style.width = `${diaperGamePressure}%`;
   diaperPressureBar.parentElement.setAttribute('aria-valuenow', String(Math.round(diaperGamePressure)));
-  diaperPressureText.textContent = diaperGamePressure >= 75 ? 'Alarm!' : diaperGamePressure >= 45 ? 'Achtung' : 'Alles ruhig';
+  diaperPressureText.textContent = diaperGamePressure >= 82 ? 'Kritisch!' : diaperGamePressure >= 52 ? 'Instabil' : diaperGameRunning ? 'Scharf' : 'Bereit';
   diaperGameStage.dataset.mood = diaperGamePressure >= 75 ? 'danger' : diaperGamePressure >= 45 ? 'nervous' : 'calm';
+}
+
+function clearDiaperGameTasks() {
+  diaperGameTasks.forEach((task) => window.clearTimeout(task));
+  diaperGameTasks = [];
+}
+
+function scheduleDiaperGameTask(callback, delay) {
+  const task = window.setTimeout(() => {
+    diaperGameTasks = diaperGameTasks.filter((entry) => entry !== task);
+    callback();
+  }, delay);
+  diaperGameTasks.push(task);
+  return task;
+}
+
+function shuffleDiaperGameItems(items) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function formatDiaperCountdown(remainingMs) {
+  const safeRemaining = Math.max(0, remainingMs);
+  const seconds = Math.floor(safeRemaining / 1000);
+  const tenths = Math.floor((safeRemaining % 1000) / 100);
+  return `00:${String(seconds).padStart(2, '0')}.${tenths}`;
 }
 
 function stopDiaperGame() {
   window.clearInterval(diaperGameTimer);
   diaperGameTimer = null;
+  clearDiaperGameTasks();
   diaperGameRunning = false;
+  diaperGameSubmitting = false;
+  diaperFinalHoldStartedAt = 0;
+  const gameModal = diaperGameOverlay.querySelector('.diaper-game-modal');
+  if (gameModal) gameModal.dataset.gameRunning = 'false';
+  rankedDiaperModeButton.disabled = false;
+  practiceDiaperModeButton.disabled = false;
   for (const button of diaperGameActions.querySelectorAll('button')) button.disabled = true;
 }
 
@@ -5048,91 +5303,488 @@ function setDiaperStartButton(label, icon = '\u21bb') {
 
 function loseDiaperGame() {
   stopDiaperGame();
+  diaperCountdown.textContent = '00:00.0';
   setDiaperPressure(100);
   diaperGameStage.dataset.mood = 'burst';
-  diaperGameStatus.textContent = 'Windel-Plopp! Zwei Bodys und ein Handtuch wandern in die virtuelle W\u00e4sche.';
-  setDiaperStartButton('Noch einmal');
+  diaperMissionLabel.textContent = 'Einsatz gescheitert';
+  diaperToolTitle.textContent = 'Die Windel ist geploppt';
+  diaperModuleCounter.textContent = diaperGameMistakes >= diaperGameMaxMistakes ? 'Drei Fehler' : 'Zeit abgelaufen';
+  diaperMissionBrief.textContent = 'Die Sicherungskette hat ausgel\u00f6st. Das Baby ist sicher, aber zwei Bodys und ein Handtuch gehen in die virtuelle W\u00e4sche.';
+  diaperGameStatus.textContent = 'PLOPP! Die Windel war schneller. Das Baby ist sicher, die Windel nicht.';
+  playDiaperTone(110, 420, 'sawtooth');
+  vibrateDiaperGame([100, 60, 180]);
+  setDiaperStartButton('Neuer Einsatz');
 }
 
-async function winDiaperGame() {
-  stopDiaperGame();
-  const seconds = (performance.now() - diaperGameStartedAt) / 1000;
-  diaperGameStage.dataset.mood = 'happy';
-  diaperGameStatus.textContent = `Geschafft in ${seconds.toFixed(1)} Sekunden \u2013 Zeit wird gewertet.`;
-  setDiaperStartButton('Noch einmal');
+async function winDiaperGame(holdMs) {
+  if (!diaperGameRunning || diaperGameSubmitting) return;
+  diaperGameSubmitting = true;
+  const finalButton = diaperGameActions.querySelector('.diaper-final-cut');
+  if (finalButton) finalButton.disabled = true;
+  diaperGameStatus.textContent = 'Z\u00fcndkreis wird serverseitig gepr\u00fcft.';
   try {
     const leaderboard = await api('/api/diaper-game/complete', {
       method: 'POST',
-      body: JSON.stringify({ token: diaperGameRoundToken })
+      body: JSON.stringify({ token: diaperGameRoundToken, holdMs })
     });
+    diaperGameModuleIndex = 4;
+    stopDiaperGame();
+    diaperGameStage.dataset.mood = 'happy';
+    diaperGameStage.classList.add('is-defused');
+    diaperMissionLabel.textContent = leaderboard.result.practice ? '\u00dcbung geschafft' : 'Tagesmission geschafft';
+    diaperToolTitle.textContent = 'Z\u00fcndkreis getrennt';
+    diaperModuleCounter.textContent = 'Windel sicher';
+    diaperMissionBrief.textContent = leaderboard.result.practice
+      ? 'Trainingsrunde abgeschlossen. Der Lauf wurde nicht in die Tageswertung eingetragen.'
+      : 'Alle Sicherungen sind gr\u00fcn. Deine gewertete Zeit enth\u00e4lt jede Fehlerstrafe.';
+    diaperGameActions.innerHTML = '<div class="diaper-defused-seal" aria-hidden="true"><span>ENTSCH\u00c4RFT</span><i></i></div>';
     renderDiaperLeaderboard(leaderboard);
-    diaperGameStatus.textContent = `Fleckenfrei gewickelt! Deine globale Zeit: ${(leaderboard.own.timeMs / 1000).toFixed(1)} Sekunden.`;
+    diaperGameStatus.textContent = leaderboard.result.practice
+      ? `Training geschafft in ${(leaderboard.result.elapsedTimeMs / 1000).toFixed(1)} Sekunden.`
+      : `Tagesmission: ${(leaderboard.result.scoreTimeMs / 1000).toFixed(1)} Sekunden inklusive ${leaderboard.result.mistakes} Fehler.`;
+    playDiaperTone(660, 120);
+    scheduleDiaperGameTask(() => playDiaperTone(880, 220), 100);
+    vibrateDiaperGame([40, 40, 80]);
+    setDiaperStartButton('Neuer Einsatz');
   } catch (error) {
-    diaperGameStatus.textContent = `Geschafft, aber nicht gewertet: ${error.message}`;
+    diaperGameSubmitting = false;
+    diaperGameMistakes += 1;
+    diaperGameDeadline -= diaperGamePenaltyMs;
+    renderDiaperStrikes();
+    diaperGameStage.classList.remove('is-shaking');
+    window.requestAnimationFrame(() => diaperGameStage.classList.add('is-shaking'));
+    if (diaperGameMistakes >= diaperGameMaxMistakes || diaperGameDeadline <= performance.now()) {
+      loseDiaperGame();
+      return;
+    }
+    diaperGameStatus.textContent = `${error.message} Fehler ${diaperGameMistakes} von ${diaperGameMaxMistakes}.`;
+    if (finalButton) finalButton.disabled = false;
+    playDiaperTone(150, 180, 'square');
   }
 }
 
-function chooseDiaperGameStep(stepId) {
+function diaperGameMistake(result, message) {
   if (!diaperGameRunning) return;
-  const expected = diaperGameSteps[diaperGameStep];
-  if (stepId !== expected.id) {
-    setDiaperPressure(diaperGamePressure + 24);
-    diaperGameStatus.textContent = `Falscher Kniff! Als N\u00e4chstes: ${expected.label}.`;
-    diaperGameStage.classList.remove('is-shaking');
-    window.requestAnimationFrame(() => diaperGameStage.classList.add('is-shaking'));
-    if (diaperGamePressure >= 100) loseDiaperGame();
+  diaperGameMistakes = Number(result.mistakes ?? diaperGameMistakes + 1);
+  diaperGameDeadline -= Number(result.penaltyMs || diaperGamePenaltyMs);
+  renderDiaperStrikes();
+  diaperGameStatus.textContent = `${message} Fehler ${diaperGameMistakes} von ${diaperGameMaxMistakes}.`;
+  diaperGameStage.classList.remove('is-shaking');
+  window.requestAnimationFrame(() => diaperGameStage.classList.add('is-shaking'));
+  diaperGameActions.classList.remove('is-error');
+  window.requestAnimationFrame(() => diaperGameActions.classList.add('is-error'));
+  playDiaperTone(145, 180, 'square');
+  vibrateDiaperGame([70, 35, 70]);
+  if (result.failed || diaperGameMistakes >= diaperGameMaxMistakes || diaperGameDeadline <= performance.now()) loseDiaperGame();
+}
+
+async function submitDiaperGameModule(answer) {
+  if (!diaperGameRunning || diaperGameSubmitting) return null;
+  diaperGameSubmitting = true;
+  diaperGameActions.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+  try {
+    return await api('/api/diaper-game/action', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: diaperGameRoundToken,
+        moduleIndex: diaperGameModuleIndex,
+        answer
+      })
+    });
+  } finally {
+    diaperGameSubmitting = false;
+  }
+}
+
+function completeDiaperGameModule(message) {
+  if (!diaperGameRunning) return;
+  diaperGameModuleIndex += 1;
+  diaperGameStatus.textContent = message;
+  diaperGameStage.classList.remove('module-cleared');
+  window.requestAnimationFrame(() => diaperGameStage.classList.add('module-cleared'));
+  renderDiaperGameProgress();
+  for (const button of diaperGameActions.querySelectorAll('button')) button.disabled = true;
+  scheduleDiaperGameTask(renderCurrentDiaperGameModule, 420);
+}
+
+async function chooseDiaperWire(wireId) {
+  if (!diaperGameRunning) return;
+  const module = diaperGameModules[diaperGameModuleIndex];
+  if (!module || module.type !== 'wire') return;
+  const result = await submitDiaperGameModule({ choice: wireId });
+  if (!result) return;
+  if (!result.correct) {
+    diaperGameMistake(result, 'Falsches Kabel! Der Z\u00fcndkreis springt auf Rot.');
+    if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
     return;
   }
-  diaperGameStep += 1;
-  setDiaperPressure(diaperGamePressure - 7);
-  const usedButton = diaperGameActions.querySelector(`[data-diaper-step="${stepId}"]`);
-  usedButton.disabled = true;
-  usedButton.classList.add('is-done');
-  if (diaperGameStep === diaperGameSteps.length) {
-    winDiaperGame();
-  } else {
-    diaperGameStatus.textContent = `Gut! Jetzt: ${diaperGameSteps[diaperGameStep].label}.`;
-    renderDiaperGameProgress();
+  const button = diaperGameActions.querySelector(`[data-wire-id="${wireId}"]`);
+  button?.classList.add('is-cut');
+  playDiaperTone(520, 100);
+  completeDiaperGameModule('Kabel getrennt. Sicherung 1 ist gr\u00fcn.');
+}
+
+function playDiaperSignalSequence() {
+  const moduleNumber = diaperGameModuleIndex;
+  const module = diaperGameModules[moduleNumber];
+  if (!diaperGameRunning || !module || module.type !== 'signal') return;
+  module.inputIndex = 0;
+  module.entered = [];
+  module.accepting = false;
+  diaperGameStatus.textContent = 'Beobachte die vier Impulse. Noch nichts dr\u00fccken.';
+  diaperGameActions.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+  module.sequence.forEach((signalId, index) => {
+    scheduleDiaperGameTask(() => {
+      if (!diaperGameRunning || diaperGameModuleIndex !== moduleNumber) return;
+      const lamp = diaperGameActions.querySelector(`[data-signal-lamp="${signalId}"]`);
+      lamp?.classList.add('is-active');
+      scheduleDiaperGameTask(() => lamp?.classList.remove('is-active'), 260);
+    }, 380 + index * 520);
+  });
+  scheduleDiaperGameTask(() => {
+    if (!diaperGameRunning || diaperGameModuleIndex !== moduleNumber) return;
+    module.accepting = true;
+    diaperGameActions.querySelectorAll('button').forEach((button) => { button.disabled = false; });
+    diaperGameStatus.textContent = 'Jetzt: Wiederhole die Impulsfolge.';
+    diaperGameActions.querySelector('button')?.focus({ preventScroll: true });
+  }, 380 + module.sequence.length * 520);
+}
+
+async function chooseDiaperSignal(signalId) {
+  if (!diaperGameRunning) return;
+  const module = diaperGameModules[diaperGameModuleIndex];
+  if (!module || module.type !== 'signal' || !module.accepting) return;
+  const button = diaperGameActions.querySelector(`[data-signal-id="${signalId}"]`);
+  button?.classList.add('is-pressed');
+  scheduleDiaperGameTask(() => button?.classList.remove('is-pressed'), 150);
+  module.entered ||= [];
+  module.entered.push(signalId);
+  playDiaperTone(280 + diaperSignalOptions.findIndex((signal) => signal.id === signalId) * 90, 70);
+  if (signalId !== module.sequence[module.inputIndex]) {
+    module.accepting = false;
+    diaperGameActions.querySelectorAll('[data-signal-id]').forEach((signalButton) => { signalButton.disabled = true; });
+    const result = await submitDiaperGameModule({ sequence: module.entered });
+    if (!result) return;
+    diaperGameMistake(result, 'Impulsfolge falsch! Das Muster wird neu gesendet.');
+    if (diaperGameRunning) scheduleDiaperGameTask(playDiaperSignalSequence, 650);
+    return;
   }
+  module.inputIndex += 1;
+  if (module.inputIndex === module.sequence.length) {
+    module.accepting = false;
+    const result = await submitDiaperGameModule({ sequence: module.entered });
+    if (!result) return;
+    if (result.correct) completeDiaperGameModule('Impulsfolge best\u00e4tigt. Speicher verriegelt.');
+    else {
+      diaperGameMistake(result, 'Impulsfolge vom Server abgewiesen.');
+      if (diaperGameRunning) scheduleDiaperGameTask(playDiaperSignalSequence, 650);
+    }
+  } else {
+    diaperGameStatus.textContent = `${module.inputIndex} von ${module.sequence.length} Impulsen korrekt.`;
+  }
+}
+
+async function lockDiaperPressureValve() {
+  if (!diaperGameRunning) return;
+  const module = diaperGameModules[diaperGameModuleIndex];
+  if (!module || module.type !== 'valve') return;
+  const result = await submitDiaperGameModule({ position: diaperValvePosition });
+  if (!result) return;
+  if (result.correct) {
+    completeDiaperGameModule('Ventil im gr\u00fcnen Bereich verriegelt. Druck stabil.');
+    return;
+  }
+  const direction = diaperValvePosition < module.safeStart ? 'zu fr\u00fch' : 'zu sp\u00e4t';
+  diaperGameMistake(result, `Ventil ${direction} verriegelt!`);
+  diaperGameModuleStartedAt = performance.now();
+  if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
+}
+
+function updateDiaperCodeDisplay() {
+  const display = diaperGameActions.querySelector('[data-code-display]');
+  if (display) display.textContent = diaperCodeEntry.padEnd(3, '\u00b7');
+}
+
+async function submitDiaperCode() {
+  if (diaperCodeEntry.length !== 3) {
+    diaperGameStatus.textContent = 'Der Entsch\u00e4rfungscode braucht genau drei Ziffern.';
+    return;
+  }
+  const result = await submitDiaperGameModule({ code: diaperCodeEntry });
+  if (!result) return;
+  if (result.correct) {
+    playDiaperTone(610, 110);
+    completeDiaperGameModule('Code akzeptiert. Der Symboldecoder ist verriegelt.');
+    return;
+  }
+  diaperGameMistake(result, 'Code falsch! Der Decoder setzt sich zur\u00fcck.');
+  diaperCodeEntry = '';
+  if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
+}
+
+function changeDiaperTemperature(step) {
+  if (!diaperGameRunning || diaperGameSubmitting) return;
+  diaperTemperatureValue = Math.max(-20, Math.min(99, diaperTemperatureValue + Number(step)));
+  const value = diaperGameActions.querySelector('[data-temperature-value]');
+  if (value) value.textContent = `${diaperTemperatureValue}\u00b0`;
+  playDiaperTone(step > 0 ? 410 : 250, 55);
+}
+
+async function submitDiaperTemperature() {
+  const result = await submitDiaperGameModule({ value: diaperTemperatureValue });
+  if (!result) return;
+  if (result.correct) {
+    completeDiaperGameModule('Thermokern stabil. Temperaturfenster gesichert.');
+    return;
+  }
+  diaperGameMistake(result, 'Temperatur falsch kalibriert!');
+  if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
+}
+
+async function chooseDiaperLeakZone(zone) {
+  const result = await submitDiaperGameModule({ zone });
+  if (!result) return;
+  if (result.correct) {
+    completeDiaperGameModule('Leck lokalisiert und versiegelt.');
+    return;
+  }
+  diaperGameMistake(result, 'Falscher Sektor! Das Leck wandert zur\u00fcck in den Scan.');
+  if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
+}
+
+function beginDiaperFinalHold(event) {
+  if (!diaperGameRunning || diaperGameSubmitting || diaperFinalHoldStartedAt) return;
+  if (event.type === 'keydown' && ![' ', 'Enter'].includes(event.key)) return;
+  event.preventDefault();
+  diaperFinalHoldStartedAt = performance.now();
+  const button = diaperGameActions.querySelector('.diaper-final-cut');
+  button?.classList.add('is-holding');
+  diaperGameStatus.textContent = 'Halten ... der gr\u00fcne Bereich beginnt bei 0,9 Sekunden.';
+  playDiaperTone(185, 120, 'square');
+}
+
+function endDiaperFinalHold(event) {
+  if (!diaperFinalHoldStartedAt) return;
+  if (event.type === 'keyup' && ![' ', 'Enter'].includes(event.key)) return;
+  event.preventDefault();
+  const holdMs = Math.round(performance.now() - diaperFinalHoldStartedAt);
+  diaperFinalHoldStartedAt = 0;
+  const button = diaperGameActions.querySelector('.diaper-final-cut');
+  button?.classList.remove('is-holding', 'is-ready', 'is-over');
+  button?.style.removeProperty('--hold-progress');
+  winDiaperGame(holdMs);
+}
+
+function renderCurrentDiaperGameModule() {
+  if (!diaperGameRunning) return;
+  clearDiaperGameTasks();
+  const module = diaperGameModules[diaperGameModuleIndex] || (
+    diaperGameModuleIndex === diaperGameModules.length
+      ? { type: 'final', title: 'Z\u00fcndkreis' }
+      : null
+  );
+  if (!module) return;
+  diaperGameActions.className = `diaper-game-actions module-${module.type}`;
+  diaperMissionLabel.textContent = module.type === 'final'
+    ? 'Finale Entsch\u00e4rfung'
+    : `Modul ${diaperGameModuleIndex + 1} von ${diaperGameModules.length}`;
+  diaperToolTitle.textContent = module.title;
+  diaperModuleCounter.textContent = module.type === 'final'
+    ? 'Z\u00fcndkreis offen'
+    : `${diaperGameModules.length - diaperGameModuleIndex} aktiv`;
+  diaperGameModuleStartedAt = performance.now();
+  renderDiaperGameProgress();
+
+  if (module.type === 'wire') {
+    diaperMissionBrief.textContent = `Scannerhinweis: Trenne nur das Kabel mit dem Symbol ${module.targetSymbol}. Die Farben sind Ablenkung.`;
+    diaperGameActions.innerHTML = `<div class="diaper-wire-rack" data-game-module="wire">${shuffleDiaperGameItems(module.options).map((wire, index) => `
+      <button class="diaper-wire wire-${wire.id}" type="button" data-wire-id="${wire.id}" style="--order:${index}">
+        <span class="wire-terminal" aria-hidden="true"></span><i aria-hidden="true"></i><strong>${wire.symbol}</strong><span>${wire.label}</span>
+      </button>
+    `).join('')}</div>`;
+    diaperGameActions.querySelectorAll('[data-wire-id]').forEach((button) => {
+      button.addEventListener('click', () => chooseDiaperWire(button.dataset.wireId));
+    });
+    diaperGameStatus.textContent = 'Lies den Scannerhinweis. Ein falsches Kabel kostet Zeit.';
+  } else if (module.type === 'signal') {
+    diaperMissionBrief.textContent = 'Merke dir die aufblinkende Viererfolge und wiederhole sie danach exakt auf dem Tastenfeld.';
+    diaperGameActions.innerHTML = `
+      <div class="diaper-signal-bank" data-game-module="signal" data-signal-sequence="${module.sequence.join(',')}" aria-label="Impulsspeicher">
+        <div class="signal-lamps" aria-hidden="true">${diaperSignalOptions.map((signal) => `<span class="signal-lamp signal-${signal.id}" data-signal-lamp="${signal.id}">${signal.symbol}</span>`).join('')}</div>
+        <div class="signal-keys">${diaperSignalOptions.map((signal, index) => `
+          <button class="signal-key signal-${signal.id}" type="button" data-signal-id="${signal.id}" style="--order:${index}"><strong>${signal.symbol}</strong><span>${signal.label}</span></button>
+        `).join('')}</div>
+      </div>`;
+    diaperGameActions.querySelectorAll('[data-signal-id]').forEach((button) => {
+      button.addEventListener('click', () => chooseDiaperSignal(button.dataset.signalId));
+    });
+    playDiaperSignalSequence();
+  } else if (module.type === 'valve') {
+    diaperMissionBrief.textContent = 'Der Zeiger pendelt. Verriegle das Ventil genau im gr\u00fcnen Korridor.';
+    diaperGameActions.innerHTML = `
+      <div class="diaper-valve-module" data-game-module="valve">
+        <div class="diaper-valve-track" aria-label="Pendeldruckanzeige">
+          <span class="valve-danger left"></span>
+          <span class="valve-safe" style="left:${module.safeStart}%;width:${module.safeEnd - module.safeStart}%"></span>
+          <span id="diaperValveNeedle" class="valve-needle"></span>
+        </div>
+        <div class="valve-scale" aria-hidden="true"><span>0</span><span class="valve-safe-label" style="left:${(module.safeStart + module.safeEnd) / 2}%">SAFE ZONE</span><span>100</span></div>
+        <button class="diaper-valve-lock" type="button"><span aria-hidden="true">\u25c9</span> Ventil jetzt verriegeln</button>
+      </div>`;
+    diaperGameActions.querySelector('.diaper-valve-lock').addEventListener('click', lockDiaperPressureValve);
+    diaperGameStatus.textContent = 'Warte auf den gr\u00fcnen Korridor \u2013 dann verriegeln!';
+  } else if (module.type === 'code') {
+    diaperCodeEntry = '';
+    diaperMissionBrief.textContent = 'Entschl\u00fcssle die drei Symbole mit der Zuordnung und gib den Code ein.';
+    diaperGameActions.innerHTML = `
+      <div class="diaper-code-module" data-game-module="code" data-code-answer="${module.codeSymbols.map((symbol) => module.decoder[symbol]).join('')}">
+        <div class="decoder-map" aria-label="Symbol-Ziffer-Zuordnung">${Object.entries(module.decoder).map(([symbol, digit]) => `<span><strong>${symbol}</strong><i>=</i><b>${digit}</b></span>`).join('')}</div>
+        <div class="decoder-target" aria-label="Zu entschl\u00fcsselnder Code">${module.codeSymbols.map((symbol) => `<strong>${symbol}</strong>`).join('')}</div>
+        <output class="decoder-display" data-code-display aria-live="polite">\u00b7\u00b7\u00b7</output>
+        <div class="decoder-keypad">${[1,2,3,4,5,6,7,8,9].map((digit) => `<button type="button" data-code-digit="${digit}">${digit}</button>`).join('')}
+          <button type="button" data-code-delete aria-label="Letzte Ziffer l\u00f6schen">\u232b</button>
+          <button class="decoder-confirm" type="button" data-code-confirm>Code pr\u00fcfen</button>
+        </div>
+      </div>`;
+    diaperGameActions.querySelectorAll('[data-code-digit]').forEach((button) => button.addEventListener('click', () => {
+      if (diaperCodeEntry.length < 3) diaperCodeEntry += button.dataset.codeDigit;
+      updateDiaperCodeDisplay();
+    }));
+    diaperGameActions.querySelector('[data-code-delete]').addEventListener('click', () => {
+      diaperCodeEntry = diaperCodeEntry.slice(0, -1);
+      updateDiaperCodeDisplay();
+    });
+    diaperGameActions.querySelector('[data-code-confirm]').addEventListener('click', submitDiaperCode);
+    diaperGameStatus.textContent = 'Jedes Symbol steht f\u00fcr genau eine Ziffer.';
+  } else if (module.type === 'temperature') {
+    diaperTemperatureValue = module.start;
+    diaperMissionBrief.textContent = `Bringe den Thermokern von ${module.start}\u00b0 exakt auf ${module.target}\u00b0.`;
+    diaperGameActions.innerHTML = `
+      <div class="diaper-temperature-module" data-game-module="temperature" data-temperature-target="${module.target}">
+        <div class="temperature-readout"><span>IST <strong data-temperature-value>${module.start}\u00b0</strong></span><i aria-hidden="true">\u2192</i><span>ZIEL <strong>${module.target}\u00b0</strong></span></div>
+        <div class="temperature-controls">${module.steps.map((step) => `<button type="button" data-temperature-step="${step}">${step > 0 ? '+' : ''}${step}\u00b0</button>`).join('')}</div>
+        <button class="temperature-confirm" type="button" data-temperature-confirm>Temperatur verriegeln</button>
+      </div>`;
+    diaperGameActions.querySelectorAll('[data-temperature-step]').forEach((button) => button.addEventListener('click', () => changeDiaperTemperature(button.dataset.temperatureStep)));
+    diaperGameActions.querySelector('[data-temperature-confirm]').addEventListener('click', submitDiaperTemperature);
+    diaperGameStatus.textContent = 'Kombiniere die Kalibrierimpulse. Du darfst Tasten mehrfach nutzen.';
+  } else if (module.type === 'leak') {
+    diaperMissionBrief.textContent = 'Der Scanner markiert das Leck nur kurz. Merke dir den Sektor und versiegle ihn danach.';
+    diaperGameActions.innerHTML = `
+      <div class="diaper-leak-module is-revealing" data-game-module="leak" data-reveal-zone="${module.revealZone}">
+        <div class="leak-grid">${Array.from({ length: module.zones }, (_, zone) => `<button type="button" data-leak-zone="${zone}" ${zone === module.revealZone ? 'class="is-leak"' : ''} disabled><span>${zone + 1}</span><i aria-hidden="true"></i></button>`).join('')}</div>
+        <p>SCAN L\u00c4UFT</p>
+      </div>`;
+    diaperGameStatus.textContent = 'Beobachte den Scan. Gleich wird die Anzeige verdeckt.';
+    scheduleDiaperGameTask(() => {
+      if (!diaperGameRunning || diaperGameModules[diaperGameModuleIndex]?.type !== 'leak') return;
+      const wrapper = diaperGameActions.querySelector('.diaper-leak-module');
+      wrapper?.classList.remove('is-revealing');
+      wrapper?.querySelector('.is-leak')?.classList.remove('is-leak');
+      wrapper?.querySelectorAll('[data-leak-zone]').forEach((button) => { button.disabled = false; });
+      if (wrapper?.querySelector('p')) wrapper.querySelector('p').textContent = 'SEKTOR W\u00c4HLEN';
+      diaperGameStatus.textContent = 'Welcher Sektor hat pulsiert?';
+      wrapper?.querySelector('button')?.focus({ preventScroll: true });
+    }, 1200);
+    diaperGameActions.querySelectorAll('[data-leak-zone]').forEach((button) => button.addEventListener('click', () => chooseDiaperLeakZone(Number(button.dataset.leakZone))));
+  } else {
+    diaperMissionBrief.textContent = 'Alle drei Sicherungen sind gr\u00fcn. Halte den Z\u00fcndkreis mindestens 0,9 und h\u00f6chstens 1,8 Sekunden.';
+    diaperGameActions.innerHTML = `
+      <div class="diaper-final-module" data-game-module="final">
+        <div class="final-locks" aria-hidden="true"><span></span><span></span><span></span></div>
+        <button class="diaper-final-cut" type="button"><i aria-hidden="true"></i><strong>GEDR\u00dcCKT HALTEN</strong><span>0,9 \u2013 1,8 Sekunden</span></button>
+      </div>`;
+    const finalButton = diaperGameActions.querySelector('.diaper-final-cut');
+    finalButton.addEventListener('pointerdown', beginDiaperFinalHold);
+    finalButton.addEventListener('pointerup', endDiaperFinalHold);
+    finalButton.addEventListener('keydown', beginDiaperFinalHold);
+    finalButton.addEventListener('keyup', endDiaperFinalHold);
+    diaperGameStatus.textContent = 'Finale! Nicht tippen \u2013 kontrolliert gedr\u00fcckt halten.';
+    diaperGameActions.querySelector('button')?.focus({ preventScroll: true });
+  }
+  if (window.matchMedia('(max-width: 620px)').matches) {
+    window.requestAnimationFrame(() => {
+      const modal = diaperGameOverlay.querySelector('.diaper-game-modal');
+      const panel = diaperGameActions.closest('.diaper-tool-panel');
+      if (modal && panel) modal.scrollTo({ top: Math.max(0, panel.offsetTop - 58), behavior: 'auto' });
+    });
+  }
+}
+
+function updateDiaperGameClock() {
+  if (!diaperGameRunning) return;
+  const now = performance.now();
+  const remaining = Math.max(0, diaperGameDeadline - now);
+  diaperCountdown.textContent = formatDiaperCountdown(remaining);
+  diaperCountdown.classList.toggle('is-critical', remaining <= 10000);
+  setDiaperPressure(100 - (remaining / diaperGameRoundMs) * 100);
+  const module = diaperGameModules[diaperGameModuleIndex];
+  if (module?.type === 'valve') {
+    const phase = ((now - diaperGameModuleStartedAt) % 1800) / 1800;
+    diaperValvePosition = phase <= 0.5 ? phase * 200 : (1 - phase) * 200;
+    const needle = diaperGameActions.querySelector('#diaperValveNeedle');
+    if (needle) needle.style.left = `${diaperValvePosition}%`;
+  }
+  if (module?.type === 'final' && diaperFinalHoldStartedAt) {
+    const holdMs = now - diaperFinalHoldStartedAt;
+    const button = diaperGameActions.querySelector('.diaper-final-cut');
+    if (button) {
+      button.style.setProperty('--hold-progress', String(Math.min(1, holdMs / 1800)));
+      button.classList.toggle('is-ready', holdMs >= 900 && holdMs <= 1800);
+      button.classList.toggle('is-over', holdMs > 1800);
+    }
+    if (holdMs > 1850) endDiaperFinalHold({ type: 'pointerup', preventDefault() {} });
+  }
+  if (remaining <= 0) loseDiaperGame();
 }
 
 async function startDiaperGame() {
-  window.clearInterval(diaperGameTimer);
+  stopDiaperGame();
   const requestId = ++diaperGameStartRequest;
+  let round;
   startDiaperGameButton.disabled = true;
   diaperGameStatus.textContent = 'Sichere Spielrunde wird vorbereitet.';
   try {
-    const round = await api('/api/diaper-game/start', { method: 'POST' });
+    round = await api('/api/diaper-game/start', {
+      method: 'POST',
+      body: JSON.stringify({ mode: diaperGameMode })
+    });
     if (requestId !== diaperGameStartRequest || diaperGameOverlay.hidden) {
       startDiaperGameButton.disabled = false;
       return;
     }
     diaperGameRoundToken = round.token;
+    diaperGameMode = round.mode;
+    diaperGameModules = round.modules;
+    diaperGameRoundMs = round.roundMs;
+    diaperGamePenaltyMs = round.penaltyMs;
+    diaperGameMaxMistakes = round.maxMistakes;
   } catch (error) {
     diaperGameStatus.textContent = error.message;
     startDiaperGameButton.disabled = false;
     return;
   }
-  diaperGameStep = 0;
+  diaperGameModuleIndex = 0;
+  diaperGameMistakes = 0;
   diaperGameRunning = true;
   diaperGameStartedAt = performance.now();
-  diaperGameStage.classList.remove('is-shaking');
-  setDiaperPressure(12);
-  const shuffledSteps = [...diaperGameSteps].sort(() => Math.random() - 0.5);
-  diaperGameActions.innerHTML = shuffledSteps.map((step, index) => (
-    `<button type="button" data-diaper-step="${step.id}" style="--order:${index}"><span class="tool-icon" aria-hidden="true">${diaperGameIcons[step.id]}</span><span class="tool-label">${step.label}</span></button>`
-  )).join('');
-  diaperGameActions.querySelectorAll('button').forEach((button) => {
-    button.addEventListener('click', () => chooseDiaperGameStep(button.dataset.diaperStep));
-  });
-  diaperGameStatus.textContent = `Los geht's: ${diaperGameSteps[0].label}.`;
-  setDiaperStartButton('Neu starten');
+  diaperGameDeadline = diaperGameStartedAt + diaperGameRoundMs;
+  diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared');
+  diaperGameOverlay.querySelector('.diaper-game-modal').dataset.gameRunning = 'true';
+  diaperCountdown.classList.remove('is-critical');
+  diaperCountdown.textContent = formatDiaperCountdown(diaperGameRoundMs);
+  diaperSerial.textContent = diaperGameMode === 'ranked'
+    ? `WZ-${round.challengeKey.slice(5).replace('-', '')}`
+    : `P-${diaperGameRoundToken.slice(0, 4).toUpperCase()}`;
+  setDiaperPressure(0);
+  setDiaperStartButton('Einsatz neu starten');
+  rankedDiaperModeButton.disabled = true;
+  practiceDiaperModeButton.disabled = true;
+  renderDiaperStrikes();
   startDiaperGameButton.disabled = false;
   renderDiaperGameProgress();
-  diaperGameTimer = window.setInterval(() => {
-    setDiaperPressure(diaperGamePressure + 2.5);
-    if (diaperGamePressure >= 100) loseDiaperGame();
-  }, 700);
+  renderCurrentDiaperGameModule();
+  diaperGameTimer = window.setInterval(updateDiaperGameClock, 50);
 }
 
 function openDiaperGame() {
@@ -5140,6 +5792,27 @@ function openDiaperGame() {
   diaperGameReturnFocus = document.activeElement;
   diaperGameOverlay.hidden = false;
   document.body.classList.add('modal-open');
+  if (!diaperGameRunning) {
+    diaperGameModuleIndex = 0;
+    diaperGameMistakes = 0;
+    diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared');
+    diaperGameStage.dataset.mood = 'calm';
+    diaperCountdown.textContent = formatDiaperCountdown(diaperGameRoundMs);
+    diaperSerial.textContent = 'WZ-0000';
+    setDiaperPressure(0);
+    diaperMissionLabel.textContent = 'Einsatzbriefing';
+    diaperToolTitle.textContent = 'Windel noch nicht aktiviert';
+    diaperModuleCounter.textContent = '3 aus 6 Modulen';
+    diaperMissionBrief.textContent = diaperGameMode === 'ranked'
+      ? 'Heute spielen alle H\u00e4user dieselben drei Module. Drei Fehler l\u00f6sen den Alarm aus.'
+      : 'Im Training wechseln drei Module zuf\u00e4llig. Das Ergebnis wird nicht gewertet.';
+    diaperGameActions.className = 'diaper-game-actions';
+    diaperGameActions.innerHTML = '<p class="diaper-actions-empty">Dr\u00fccke auf Spiel starten, um den Einsatzcode zu laden.</p>';
+    diaperGameStatus.textContent = 'Einsatz bereit. Starte, sobald deine Nerven ruhig sind.';
+    setDiaperStartButton('Spiel starten', '\u25b6');
+    renderDiaperStrikes();
+    setDiaperGameMode(diaperGameMode);
+  }
   renderDiaperGameProgress();
   loadDiaperLeaderboard();
   diaperGameOverlay.querySelector('.diaper-game-modal').scrollTop = 0;
@@ -5184,13 +5857,32 @@ bookingViewButton.addEventListener('click', () => setAppView('booking'));
 adminViewButton.addEventListener('click', () => setAppView('admin'));
 adminSectionButtons.forEach((button) => {
   button.addEventListener('click', () => setAdminSection(button.dataset.adminTarget));
+  button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = adminSectionButtons.indexOf(button);
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? adminSectionButtons.length - 1
+        : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + adminSectionButtons.length)
+          % adminSectionButtons.length;
+    const nextButton = adminSectionButtons[nextIndex];
+    setAdminSection(nextButton.dataset.adminTarget);
+    nextButton.focus();
+  });
 });
 adminTaskList.addEventListener('click', (event) => {
   const target = event.target.closest('[data-admin-jump]');
   if (!target) return;
   setAdminSection(target.dataset.adminJump);
-  document.querySelector(`[data-admin-section="${target.dataset.adminJump}"]`)
-    ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const section = document.querySelector(`[data-admin-section="${target.dataset.adminJump}"]`);
+  section?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const heading = section?.querySelector('h3');
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
 });
 
 previousWeekButton.addEventListener('click', async () => {
@@ -5305,13 +5997,15 @@ resourceForm.addEventListener('submit', async (event) => {
 });
 maintenanceSearch.addEventListener('input', renderMaintenanceCases);
 maintenanceStatusFilter.addEventListener('change', renderMaintenanceCases);
+adminPeopleSearch.addEventListener('input', filterAdminPeople);
 
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
 toggleMaintenanceButton.addEventListener('click', toggleMaintenanceMode);
 resetBookingsButton.addEventListener('click', resetAllBookings);
-superadminTransferButton.addEventListener('click', transferSuperadmin);
+superadminPermissionAction.addEventListener('change', renderSuperadminPermissionTargets);
+superadminPermissionButton.addEventListener('click', updateSuperadminPermission);
 updateAppButton.addEventListener('click', requestAppUpdate);
 checkAppUpdateButton.addEventListener('click', () => checkAppVersion({ manual: true }));
 checkMaintenanceButton.addEventListener('click', async () => {
@@ -5354,11 +6048,22 @@ resetDiaperBestButton.addEventListener('click', async () => {
   resetDiaperBestButton.disabled = true;
   try {
     renderDiaperLeaderboard(await api('/api/diaper-game/score', { method: 'DELETE' }));
-    diaperGameStatus.textContent = 'Dein globaler Bestwert wurde gel\u00f6scht.';
+    diaperGameStatus.textContent = 'Dein heutiger globaler Bestwert wurde gel\u00f6scht.';
   } catch (error) {
     diaperGameStatus.textContent = error.message;
   } finally {
     resetDiaperBestButton.disabled = false;
+  }
+});
+rankedDiaperModeButton.addEventListener('click', () => setDiaperGameMode('ranked'));
+practiceDiaperModeButton.addEventListener('click', () => setDiaperGameMode('practice'));
+diaperSoundButton.addEventListener('click', async () => {
+  diaperGameSoundEnabled = !diaperGameSoundEnabled;
+  diaperSoundButton.setAttribute('aria-pressed', String(diaperGameSoundEnabled));
+  diaperSoundButton.textContent = diaperGameSoundEnabled ? 'Ton an' : 'Ton aus';
+  if (diaperGameSoundEnabled) {
+    if (diaperGameAudioContext?.state === 'suspended') await diaperGameAudioContext.resume();
+    playDiaperTone(520, 100);
   }
 });
 diaperGameOverlay.addEventListener('click', (event) => {

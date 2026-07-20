@@ -402,15 +402,23 @@ function createCurrentTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
+      game_version INTEGER NOT NULL DEFAULT 1,
+      mode TEXT NOT NULL DEFAULT 'ranked',
+      challenge_key TEXT,
+      puzzle_json TEXT,
+      progress INTEGER NOT NULL DEFAULT 0,
+      mistakes INTEGER NOT NULL DEFAULT 0,
       started_at_ms INTEGER NOT NULL,
       expires_at_ms INTEGER NOT NULL,
       completed_at_ms INTEGER,
+      failed_at_ms INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS diaper_game_scores (
       user_id INTEGER PRIMARY KEY,
       house_id INTEGER,
+      game_version INTEGER NOT NULL DEFAULT 1,
       best_time_ms INTEGER NOT NULL CHECK (best_time_ms BETWEEN 600 AND 120000),
       achieved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -419,6 +427,23 @@ function createCurrentTables() {
 
     CREATE INDEX IF NOT EXISTS idx_diaper_game_scores_best
       ON diaper_game_scores(best_time_ms, achieved_at);
+
+    CREATE TABLE IF NOT EXISTS diaper_game_challenge_scores (
+      user_id INTEGER NOT NULL,
+      house_id INTEGER,
+      game_version INTEGER NOT NULL,
+      challenge_key TEXT NOT NULL,
+      score_time_ms INTEGER NOT NULL,
+      elapsed_time_ms INTEGER NOT NULL,
+      mistakes INTEGER NOT NULL DEFAULT 0,
+      achieved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, game_version, challenge_key),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_diaper_game_challenge_scores_rank
+      ON diaper_game_challenge_scores(game_version, challenge_key, score_time_ms, achieved_at);
   `);
 }
 
@@ -448,6 +473,14 @@ function seedCurrentDefaults() {
   ensureColumn('push_subscriptions', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('email_verification_tokens', 'email_kind', "TEXT NOT NULL DEFAULT 'primary'");
   ensureColumn('email_verification_tokens', 'email_value', 'TEXT');
+  ensureColumn('diaper_game_rounds', 'game_version', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn('diaper_game_rounds', 'mode', "TEXT NOT NULL DEFAULT 'ranked'");
+  ensureColumn('diaper_game_rounds', 'challenge_key', 'TEXT');
+  ensureColumn('diaper_game_rounds', 'puzzle_json', 'TEXT');
+  ensureColumn('diaper_game_rounds', 'progress', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('diaper_game_rounds', 'mistakes', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('diaper_game_rounds', 'failed_at_ms', 'INTEGER');
+  ensureColumn('diaper_game_scores', 'game_version', 'INTEGER NOT NULL DEFAULT 1');
   db.exec(`
     UPDATE users SET email_verified = 0
     WHERE email IS NULL OR trim(email) = '';
@@ -458,6 +491,7 @@ function seedCurrentDefaults() {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
+  db.exec('CREATE INDEX IF NOT EXISTS idx_diaper_game_scores_version_best ON diaper_game_scores (game_version, best_time_ms, achieved_at)');
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
   db.exec('DROP INDEX IF EXISTS idx_users_apartment_unique');
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartments_house ON apartments (house_id, active, label)");
@@ -1068,7 +1102,10 @@ function requireAdmin(req, res, next) {
 }
 
 function requireSuperadmin(req, res, next) {
-  if (!req.session.user || !isSuperadmin(req)) {
+  const account = req.session.user
+    ? db.prepare('SELECT active, is_superadmin FROM users WHERE id = ?').get(req.session.user.id)
+    : null;
+  if (!req.session.user || !isSuperadmin(req) || !account?.active || !account.is_superadmin) {
     return res.status(403).json({ error: 'Nur f\u00fcr den Superadmin erlaubt' });
   }
   next();

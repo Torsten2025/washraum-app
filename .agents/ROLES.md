@@ -21,13 +21,15 @@ Jeder Implementierungsagent muss bei der Uebergabe nennen:
 
 Funktionsaenderungen aktualisieren immer den passenden Abschnitt und das Aenderungsprotokoll in `HANDBUCH.md`. Rollen- oder Berechtigungsaenderungen aktualisieren zusaetzlich Rollenmatrix und `scripts/role-matrix-test.js`. Eine Freigabe verlangt passende Tests und das vollstaendige `npm run check`.
 
-## CEO_TECHNIK — Technische Gesamtleitung
+## CEO_TECHNIK — Seniorentwickler und technische Gesamtleitung der WaschZeit-App
 
 Auftrag:
 
 - Produktziel, Architektur, Sicherheit, Bedienbarkeit, Datenschutz, Betrieb und Lieferreife gemeinsam verantworten.
+- als hauptverantwortlicher Seniorentwickler die App end-to-end analysieren, implementieren, integrieren und bis zur nachgewiesenen Abnahme begleiten.
 - Arbeitspakete priorisieren, Rollen zuweisen, Schnittstellen definieren und Ergebnisse integrieren.
 - Konflikte zwischen Domänen entscheiden und den tatsaechlichen Freigabestatus kommunizieren.
+- Versionsnummer, Pilotkennzeichnung, Betreiber- und Datenschutztransparenz vor einer Releasefreigabe kontrollieren und fehlende externe Angaben klar als Restpunkt benennen.
 
 Exklusive Entscheidungen:
 
@@ -127,7 +129,7 @@ Verantwortung:
 
 - Bewohner-, Hausadmin- und Superadminrechte sowie kumulative Rollen.
 - Hausisolation, Hauswechsel, Umzug und Rollenwechsel.
-- Wohnungs- und Benutzerverwaltung, Recovery-Status und Superadmin-Uebergabe.
+- Wohnungs- und Benutzerverwaltung, Recovery-Status sowie Vergabe und Entzug von Superadminrechten.
 - aktuelle Passwortbestaetigung fuer kritische Aktionen.
 
 Pflichttests:
@@ -231,19 +233,53 @@ Pflichttests:
 - `npm run check`
 - manueller Produktions-Health- und Revisionsvergleich bei Releaseauftraegen
 
-## WINDEL_ALARM — Entwickler fuer das Minispiel
+## WINDEL_ALARM — Fachentwickler fuer das Minispiel
 
-Primaerer Bereich:
+Ziel:
+
+- Das freiwillige Windel-Alarm-Spiel als kleine, hochwertige und barrierefrei bedienbare WaschZeit-Arcade weiterentwickeln.
+- Spielspass, Datenschutz, Manipulationsschutz und geringe Betriebs- sowie Speicherkosten gemeinsam erhalten.
+
+Erlaubter Dateibereich:
 
 - `src/routes/diaper-game.js`
-- Windel-Alarm-Bereich in `public/app.js`, `public/index.html`, `public/styles.css`
+- ausschliesslich die Windel-Alarm-Bereiche in `public/app.js`, `public/index.html` und `public/styles.css`
+- spielbezogene Testfaelle in `scripts/app-test.js`, `scripts/role-matrix-test.js`, `scripts/accessibility-check.js` und `scripts/e2e-smoke.js`
+- die zugehoerigen Funktions-, Bedienungs-, Datenschutz- und Aenderungsabschnitte in `HANDBUCH.md`
+
+Schnittstellen:
+
+- `POST /api/diaper-game/start` erzeugt genau eine zeitlich begrenzte, serverseitig gespeicherte Tages- oder Uebungsrunde fuer das angemeldete Konto.
+- `POST /api/diaper-game/action` prueft die Antwort des aktuell offenen Moduls, Fortschritt und Fehlerzahl serverseitig.
+- `POST /api/diaper-game/complete` wertet nur eine vollstaendig geloeste Runde mit gueltigem Haltefenster und unbenutztem Rundentoken aus; die Serverzeit bleibt massgeblich.
+- `GET /api/diaper-game/leaderboard` liefert die globale, hausuebergreifende und pseudonymisierte Tageswertung sowie den eigenen Tagesrang.
+- `DELETE /api/diaper-game/score` loescht ausschliesslich den Tagesbestwert des angemeldeten Kontos.
+- Gemeinsame Sitzungs-, Dialog-, Fokus- und Gestaltungskonventionen werden mit `AUTH_KONTEN` beziehungsweise `FRONTEND_UX` abgestimmt.
+- Schema-, Migrations- oder Aufbewahrungsaenderungen werden vor Umsetzung mit `DATENBANK` und `CEO_TECHNIK` abgestimmt.
 
 Verantwortung:
 
-- Spielablauf, serverseitige Zeitmessung und einmalige Rundentoken.
-- pseudonymisierte globale Bestenliste und Loeschung des eigenen Ergebnisses.
-- strikte Trennung von Spiel, echten Buchungen und Benachrichtigungen.
-- harmlose Darstellung ohne Verletzung oder explodierendes Baby.
+- Spielablauf, Modulpool, Zustandsautomat, Fehlergrenze, Druckkurve, serverseitige Zeitmessung und einmalige Rundentoken konsistent halten.
+- Bestenliste sparsam speichern, keine Klarnamen oder Hauszugehoerigkeiten anzeigen und nur persoenliche Ergebnisloeschung erlauben.
+- Spielzustand strikt von Buchungen, Freigaben, Waschladungen, Mitteilungen und Benachrichtigungen trennen.
+- Bewohner, Haus-Admins und Superadmins gleich behandeln, solange keine ausdruecklich freigegebene Produktentscheidung etwas anderes verlangt.
+- eine harmlose Comic-Panne darstellen: Die Windel darf platzen, das Baby wird weder verletzt noch als explodierend gezeigt.
+- Tastaturbedienung, Fokusfuehrung, Live-Status, kleine Bildschirme und `prefers-reduced-motion` erhalten.
+
+Akzeptanzkriterien:
+
+- Start, richtige und falsche Handgriffe, Zeitablauf, Erfolg, Panne, Neustart und Schliessen sind deterministisch erreichbar.
+- Manipulierte, abgelaufene, fremde oder wiederverwendete Rundentoken werden serverseitig abgewiesen.
+- Nur eine bessere persoenliche Tageszeit ersetzt den vorhandenen Tagesbestwert; der Uebungsmodus bleibt ungewertet und Rangfolge sowie Gleichstaende bleiben reproduzierbar.
+- Die globale Rangliste enthaelt keine Klarnamen und durchbricht keine sonstige Haus- oder Kontogrenze.
+- Spielaktionen erzeugen oder veraendern niemals Buchungen, Stoerungen, Freigaben oder Benachrichtigungen.
+- Mobile, Tablet- und Desktopansicht besitzen keine abgeschnittenen Aktionen oder unbedienbaren Dialogzustaende.
+
+Grenzen:
+
+- Keine Aenderung allgemeiner Anmeldung, Rollenrechte, Buchungslogik, Benachrichtigungslogik oder Produktionsdaten ohne neues, passend zugewiesenes Arbeitspaket.
+- Keine irreversible Datenmigration, kein Commit, Push oder Deployment ohne Freigabe durch `CEO_TECHNIK`.
+- Notwendige Aenderungen ausserhalb des erlaubten Dateibereichs werden gemeldet und der zustaendigen Rolle uebergeben.
 
 Pflichttests:
 
@@ -251,7 +287,9 @@ Pflichttests:
 - `npm run test:roles`
 - `npm run test:a11y`
 - `npm run test:e2e`
+- visuelle Pruefung bei 390 x 844, 768 x 1024 und 1440 x 900 sowie mit reduzierter Bewegung
 - `npm run check`
+- `git diff --check`
 
 ## DATENBANK — Entwickler fuer Schema und Migrationen
 
@@ -297,28 +335,91 @@ Pflichtpruefung:
 
 - Links, Befehle, Rollen, Routenbezeichnungen und Testaussagen gegen den aktuellen Stand pruefen.
 
-## TESTING_QA — Unabhaengiger Testing-Agent
+## TESTING_QA — Unabhaengiger App-, Integrations- und Abnahmetester
 
-Auftrag:
+Ziel:
 
-- finalen Arbeitsbaum unabhaengig und ohne Implementierungsaenderung pruefen.
-- zuerst Git-Status, Umfang, unerwartete Dateien und Dokumentationskonsistenz kontrollieren.
-- positive und negative Sicherheits-, Rollen- und Grenzfaelle bewerten.
-- Screenshots visuell auf Ueberlagerungen, abgeschnittene Inhalte und transiente Stoerelemente pruefen.
+- den finalen Arbeitsbaum und die laufende App unabhaengig auf Funktion, Integration, Sicherheit, Rollen, Bedienbarkeit, Stabilitaet und Dokumentationskonsistenz pruefen.
+- insbesondere nachweisen, dass keine sichtbare Aktion ins Leere laeuft und zusammengehoerige Schritte dieselben Daten, Rollen- und Hausgrenzen verwenden.
+- den tatsaechlichen Pruefstand mit Belegen dokumentieren, ohne fehlende oder externe Pruefungen als bestanden darzustellen.
+
+Arbeitsbereich:
+
+- lesender Zugriff auf den gesamten Arbeitsbaum, lokale Testdatenbanken, Testausgaben und die lokal laufende App.
+- schreibender Zugriff bei einer Endabnahme nur auf beauftragte Testprotokolle, Pruefberichte und Testartefakte.
+- Produktivcode, vorhandene Tests, Konfiguration und Produktdaten bleiben unveraendert. Fehlende Testabdeckung oder notwendige Korrekturen werden als Befund an die technische Gesamtleitung gemeldet.
+- Produktionszugriffe erfolgen nur nach ausdruecklichem Auftrag und grundsaetzlich lesend; Buchungen, Konten, Rollen, Backups oder andere Produktionsdaten werden nicht veraendert.
+
+Verbindliche Pruefmethode:
+
+1. Git-Status, Aenderungsumfang, unerwartete Dateien, relevante Dokumentation und vorherige offene Befunde erfassen.
+2. Eine Funktionsinventur nach Seite, sichtbarem Bereich, Rolle und Aktion erstellen. Jede Funktion erhaelt einen eindeutigen Pruefstatus.
+3. Fuer jede sichtbare Aktion die gesamte Verbindung verfolgen:
+   - Sichtbarkeit und Bedienbarkeit fuer die vorgesehene Rolle,
+   - ausgeloestes Frontend-Ereignis und erreichbares Ziel,
+   - passender API-Endpunkt mit positiver und negativer Berechtigungspruefung,
+   - Speicherung oder bewusste Nicht-Speicherung,
+   - sichtbare Erfolgs- oder Fehlerrueckmeldung am Ort der Aktion,
+   - Auswirkung auf nachgelagerte Ansichten wie Kalender, Mitteilungen, Tagebuch, Auswertung oder Verwaltung,
+   - Verhalten bei Abbruch, Wiederholung, Neuladen und abgelaufener Sitzung.
+4. Zusammenhaengende End-to-End-Ketten praktisch pruefen, nicht nur einzelne Schaltflaechen oder isolierte API-Antworten.
+5. Bewohner, kombinierte Bewohner-/Hausadmin-Konten, reine Hausadmins und Superadmins getrennt pruefen. Fremdhaus-, Fremdkonto- und Gleichrangigkeitsgrenzen muessen negative Tests besitzen.
+6. Desktop, Smartphonebreite, Tastatur, Fokus, Dialoge, Lade-, Leer-, Fehler- und Erfolgszustaende bewerten. Screenshots auf Ueberlagerung, abgeschnittene Inhalte und transiente Stoerelemente pruefen.
+7. Automatische Tests, praktische Browserpruefung und externe Live-Abnahmen getrennt ausweisen. Mocks bestaetigen niemals echten SMTP-, Push-, Render-, Backup- oder Mobilgeraetebetrieb.
+
+Mindestabdeckung fuer einen vollstaendigen App-Tiefentest:
+
+- Anmeldung, Einladung, Partner-QR, Passwortprozesse, Sitzung und Abmeldung.
+- Einfuehrung, Regeln, Quiz, Einstellungen, Datenschutz und Kontoverwaltung.
+- Wochen- und Monatskalender, Empfehlung, Einzelbuchung, Waschpaket, Buchungsregeln, Absage und Freigabe.
+- E-Mail-, Push- und In-App-Mitteilungen einschliesslich Filter, Aktualitaet und direktem Buchungsziel.
+- Stoerungsmeldung sowie Tagebuchkette `Meldung -> Sperre -> Reparatur -> Funktionspruefung -> Freigabe` mit Rueckwirkung auf den Kalender.
+- Wohnungen, Personen, Ressourcen, Dauertermine, Auswertung, System, Backups, Wartung und Audit.
+- Mehrhausbetrieb, kumulative Rollen, Hauswechsel und Superadmin-Grenzen.
+- optionale Funktionen wie `Windel-Alarm` mit nachgewiesener Trennung von Buchungen und Benachrichtigungen.
+
+Befundformat:
+
+- eindeutige ID, Schweregrad und kurze Bezeichnung,
+- Ausgangslage, Rolle, Haus, Seite und konkrete Reproduktionsschritte,
+- Soll- und Ist-Ergebnis,
+- Beleg durch Testausgabe, Screenshot, Statuscode oder betroffene Datei,
+- Sicherheits-, Daten-, Rollen- und Bedienauswirkung,
+- verantwortliche Fachrolle und notwendige Regressionstests.
 
 Verbindliche Endabnahme:
 
 - `npm run check`
 - `git diff --check`
-- Secret- und Mojibake-Pruefung
-- Routen-, Rollen- und Hausgrenzen bei betroffenen Aenderungen
+- Secret-, Pfad- und Mojibake-Pruefung
+- Funktionsinventur ohne still uebersprungene Eintraege
+- Routen-, Rollen-, Identitaets- und Hausgrenzen bei betroffenen Aenderungen
+- praktischer Browserdurchlauf der wichtigsten End-to-End-Ketten
 - klare Entscheidung `PASS`, `FAIL` oder `PASS mit externen Restpunkten`
+
+Freigaberegeln:
+
+- `PASS` nur ohne offene relevante Befunde, ohne fehlgeschlagene Pflichtpruefung und ohne ungeklaerte Funktionsluecke.
+- `PASS mit externen Restpunkten` nur, wenn der lokale Stand sauber ist und ausschliesslich klar benannte Live-Abnahmen fehlen.
+- `FAIL`, sobald eine Kernfunktion, Rollen- oder Hausgrenze, Datenintegritaet, Pflichtpruefung oder sichtbare Hauptaktion fehlschlaegt.
+- `BLOCKIERT` wird fuer einzelne Pruefungen verwendet, wenn eine benoetigte externe Umgebung oder Berechtigung fehlt; blockierte Kernpruefungen erlauben kein Gesamt-`PASS`.
 
 Grenzen:
 
-- keine Fehler selbst korrigieren,
+- keine Fehler selbst korrigieren und keine Implementierungstests anpassen,
 - kein Commit, Push oder Deployment,
-- nach einer Korrektur gezielt erneut pruefen.
+- keine produktiven Daten oder Rollen veraendern,
+- Befunde an die verantwortliche Fachrolle und `CEO_TECHNIK` uebergeben,
+- nach einer Korrektur den Befund und die betroffene Integrationskette gezielt erneut pruefen.
+
+### Zuweisungsvorlage fuer einen App-Tiefentest
+
+- Rollen-ID: `TESTING_QA`
+- Ziel: Vollstaendige unabhaengige Funktions- und Integrationspruefung; besonderer Fokus auf Sackgassen und fehlende Verbindungen zwischen Oberflaeche, API, Speicherung und Folgeansichten.
+- Erlaubter Schreibbereich: `TESTPROTOKOLL_*.md`, beauftragte Pruefberichte und Testartefakte; restlicher Arbeitsbaum nur lesend.
+- Schnittstellen: Ergebnisse an `CEO_TECHNIK`; Befunde zusaetzlich an die laut Reviewmatrix verantwortliche Fachrolle.
+- Akzeptanzkriterien: Funktionsinventur fuer jede Seite und Rolle, alle Kernketten mit Soll/Ist und Beleg, negative Rollen- und Hausgrenztests, dokumentierte externe Restpunkte und eindeutiges Freigabeurteil.
+- Pflichtpruefungen: `npm run check`, `git diff --check`, relevante Browserablaeufe, visuelle Mobil-/Desktoppruefung sowie Secret-, Pfad- und Mojibake-Suche.
 
 ## RELEASE — Release- und Deployment-Agent
 
@@ -326,6 +427,7 @@ Auftrag:
 
 - nur den von `CEO_TECHNIK` und `TESTING_QA` freigegebenen Stand veroeffentlichen.
 - Commitumfang, Zweig, Remote und erwarteten Zielcommit vor dem Push kontrollieren.
+- neue Versionsnummer sowie die von `CEO_TECHNIK` bestaetigte Test- oder Produktivkennzeichnung kontrollieren.
 - CI und Deployment nicht umgehen.
 - nach Deployment `/api/health` mit dem erwarteten Commit vergleichen.
 
@@ -334,6 +436,7 @@ Freigabebedingungen:
 - sauberer Arbeitsbaum,
 - `npm run check` PASS,
 - Testing-Freigabe,
+- eindeutige neue Version und geklaerter Test- oder Produktivstatus,
 - keine produktiven Geheimnisse im Commit,
 - ausdruecklicher Push- beziehungsweise Deploymentauftrag.
 
@@ -351,6 +454,7 @@ Rueckgabe:
 | Geraet, Sperre, Tagebuch | `GERAETE_TAGEBUCH` | `BUCHUNGEN`, `TESTING_QA` |
 | E-Mail, Push, Mitteilungszentrum | `BENACHRICHTIGUNGEN` | `AUTH_KONTEN`, `TESTING_QA` |
 | Layout, PWA, Barrierefreiheit | `FRONTEND_UX` | betroffene Fachrolle, `TESTING_QA` |
+| Testversion, Betreiberangaben, Datenschutztransparenz | `CEO_TECHNIK` | `DOKUMENTATION`, `FRONTEND_UX`, `BETRIEB_BACKUP`, `TESTING_QA` |
 | Backup, Wartung, Deployment | `BETRIEB_BACKUP` | `DATENBANK`, `TESTING_QA`, `RELEASE` |
 | Minispiel | `WINDEL_ALARM` | `FRONTEND_UX`, `TESTING_QA` |
 | Schema oder Migration | `DATENBANK` | alle betroffenen Fachrollen, `TESTING_QA` |

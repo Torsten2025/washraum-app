@@ -40,6 +40,20 @@ function createHouseRoleRouters({
   const housesRouter = express.Router();
   const houseCodeRouter = express.Router();
 
+  function writeRequiredAudit(req, action, targetType, targetId = '', details = {}) {
+    db.prepare(`
+      INSERT INTO audit_log (house_id, user_id, action, target_type, target_id, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      currentHouseId(req) || null,
+      req.session.user.id,
+      action,
+      targetType,
+      String(targetId || ''),
+      JSON.stringify(details).slice(0, 2000)
+    );
+  }
+
 activeHouseRouter.put('/api/me/active-house', requireAuth, requireSuperadmin, (req, res) => {
   const houseId = Number(req.body?.houseId);
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1').get(houseId);
@@ -549,59 +563,70 @@ recoveryRouter.get('/api/admin/recovery-status', requireAdmin, (req, res) => {
   res.json(adminRecoveryStatus(currentHouseId(req)));
 });
 
-recoveryRouter.post('/api/admin/superadmin-transfer', requireAdmin, requireSuperadmin, (req, res) => {
-  const targetUserId = Number(req.body?.targetUserId);
+recoveryRouter.put('/api/admin/users/:id/superadmin', requireAdmin, requireSuperadmin, adminRecoveryRateLimit, (req, res) => {
+  const targetUserId = Number(req.params.id);
+  const enabled = req.body?.enabled;
   const confirm = String(req.body?.confirm || '').trim();
+  if (!Number.isInteger(targetUserId) || targetUserId <= 0 || typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'Bitte Zielkonto und Aktion vollstaendig angeben.' });
+  }
   if (!confirmCurrentAdminPassword(req, res)) return;
-  if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-    return res.status(400).json({ error: 'Bitte ein gueltiges Zielkonto waehlen.' });
-  }
-  if (confirm !== 'SUPERADMIN UEBERGEBEN') {
-    return res.status(400).json({ error: 'Bitte SUPERADMIN UEBERGEBEN als Bestaetigung eingeben.' });
-  }
   if (targetUserId === req.session.user.id) {
-    return res.status(400).json({ error: 'Du bist bereits Superadmin.' });
+    return res.status(400).json({
+      error: enabled
+        ? 'Du bist bereits Superadmin.'
+        : 'Du kannst dir das eigene Superadminrecht nicht entziehen.'
+    });
+  }
+
+  const expectedConfirm = enabled ? 'SUPERADMINRECHT GEBEN' : 'SUPERADMINRECHT ENTZIEHEN';
+  if (confirm !== expectedConfirm) {
+    return res.status(400).json({ error: `Bitte ${expectedConfirm} als Bestaetigung eingeben.` });
   }
 
   const target = db.prepare(`
-    SELECT id, username, role, active, house_id, is_superadmin
+    SELECT id, username, role, active, house_id, is_superadmin, merged_into_user_id
     FROM users
     WHERE id = ? AND house_id = ?
   `).get(targetUserId, currentHouseId(req));
   if (!target) {
     return res.status(404).json({ error: 'Zielkonto im aktuellen Haus nicht gefunden.' });
   }
-  if (!target.active || !hasHouseRole(target.id, currentHouseId(req))) {
-    return res.status(409).json({ error: 'Die Uebergabe ist nur an ein aktives Haus-Admin-Konto moeglich.' });
+  if (!target.active || target.merged_into_user_id || !hasHouseRole(target.id, currentHouseId(req))) {
+    return res.status(409).json({ error: 'Superadminrechte koennen nur fuer ein aktives Haus-Admin-Konto verwaltet werden.' });
   }
-  if (target.is_superadmin) {
-    return res.status(400).json({ error: 'Dieses Konto ist bereits Superadmin.' });
+  if (Boolean(target.is_superadmin) === enabled) {
+    return res.status(400).json({
+      error: enabled
+        ? 'Dieses Konto ist bereits Superadmin.'
+        : 'Dieses Konto besitzt kein Superadminrecht.'
+    });
   }
 
-  const previousSuperadminId = req.session.user.id;
+  if (!enabled) {
+    const activeSuperadmins = db.prepare(`
+      SELECT COUNT(*) AS count FROM users WHERE active = 1 AND is_superadmin = 1
+    `).get().count;
+    if (activeSuperadmins <= 1) {
+      return res.status(409).json({ error: 'Mindestens ein aktiver Superadmin muss erhalten bleiben.' });
+    }
+  }
+
   db.transaction(() => {
-    db.prepare('UPDATE users SET is_superadmin = 1, role = ?, active = 1 WHERE id = ?').run('admin', target.id);
-    db.prepare(`
-      INSERT OR IGNORE INTO user_house_roles (user_id, house_id, role, granted_by)
-      VALUES (?, ?, 'house_admin', ?)
-    `).run(target.id, target.house_id, previousSuperadminId);
-    db.prepare('UPDATE users SET is_superadmin = 0 WHERE id = ?').run(previousSuperadminId);
+    db.prepare('UPDATE users SET is_superadmin = ?, role = ? WHERE id = ?')
+      .run(enabled ? 1 : 0, 'admin', target.id);
+    writeRequiredAudit(req, enabled ? 'superadmin.grant' : 'superadmin.revoke', 'user', target.id, {
+      target: target.username,
+      enabled
+    });
   })();
-
-  writeAudit(req, 'superadmin.transfer', 'user', target.id, {
-    previousSuperadminId,
-    newSuperadmin: target.username
-  });
   destroyUserSessions(target.id);
-  destroyUserSessions(previousSuperadminId, req.sessionID);
-
-  const ownUser = db.prepare('SELECT * FROM users WHERE id = ?').get(previousSuperadminId);
-  req.session.activeHouseId = ownUser.house_id;
-  req.session.user = sessionUserFromRow(ownUser);
 
   res.json({
     ok: true,
-    message: `${target.username} ist jetzt Superadmin. Alte Sitzungen wurden erneuert.`
+    message: enabled
+      ? `${target.username} besitzt jetzt zusaetzlich Superadminrechte und muss sich neu anmelden.`
+      : `${target.username} besitzt keine Superadminrechte mehr und muss sich neu anmelden.`
   });
 });
 
@@ -717,4 +742,3 @@ houseCodeRouter.put('/api/admin/settings/house-code', requireAdmin, (req, res) =
 }
 
 module.exports = { createHouseRoleRouters };
-

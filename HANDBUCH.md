@@ -44,16 +44,16 @@ Die QR-Partnerverbindung ist ausschliesslich fuer eine aktive Wohnungsmitgliedsc
 
 Das konfigurierte Start-Admin-Konto ist der Superadmin. Beim Start stellt die App sicher, dass dieses Konto aktiv ist und die Adminrolle besitzt. In einer aelteren Datenbank ohne Superadmin wird der erste vorhandene Admin einmalig zum Superadmin hochgestuft.
 
-### Notfallzugang und Verantwortungsuebergabe
+### Notfallzugang und Superadminrechte
 
-Der Superadmin kann sich nicht selbst loeschen. Er kann die Superadmin-Verantwortung unter `Verwalten` > `System` an ein anderes aktives Haus-Admin-Konto uebergeben. Die Uebergabe verlangt das aktuelle Passwort und den Bestaetigungstext `SUPERADMIN UEBERGEBEN`, setzt die alte Superadmin-Sitzung auf das eigene Haus zurueck und beendet alte Sitzungen beider beteiligten Konten.
+Der Superadmin kann sich nicht selbst loeschen oder das eigene Superadminrecht entziehen. Unter `Verwalten` > `System` kann er einem anderen aktiven Haus-Admin zusaetzlich Superadminrechte geben. Der bisherige Superadmin behaelt seine Rechte. Ein Superadmin kann die Zusatzberechtigung eines anderen Superadmins spaeter wieder entziehen; dessen Haus-Adminrecht bleibt bestehen. Beide Aktionen verlangen das aktuelle Passwort und den exakten Bestaetigungstext `SUPERADMINRECHT GEBEN` beziehungsweise `SUPERADMINRECHT ENTZIEHEN`. Alle Sitzungen des Zielkontos werden beendet, damit die neue Berechtigung erst nach einer sicheren Neuanmeldung gilt.
 
 Im Ueberblick zeigt die App den Notfallstatus:
 
 | Pruefung | Bedeutung |
 | --- | --- |
 | Hausadmins | Mindestens zwei aktive Admin-Konten pro Haus vermeiden Single-Person-Abhaengigkeit |
-| Superadmins | Mindestens ein aktiver Superadmin muss vorhanden sein; fuer geplante Ausfaelle rechtzeitig uebergeben |
+| Superadmins | Mindestens ein aktiver Superadmin muss vorhanden sein; fuer Stellvertretung werden zwei aktive Superadmins empfohlen |
 | Seed-Admin | Name des technischen Start-Admin-Kontos |
 | Render-Recovery | Zeigt, ob `SEED_ADMIN_PASSWORD` als technischer Notfallanker gesetzt ist |
 
@@ -101,6 +101,7 @@ Passwoerter muessen 12 bis 128 Zeichen lang sein. Nach Anmeldung und Einladungsa
 
 | Bereich | Funktion | Zugang |
 | --- | --- | --- |
+| Betreiber und Kontakt | Torsten Letsch und `torstenletsch@freenet.de` als App-Betreiber nennen; GBMZ ausdruecklich davon abgrenzen | Oeffentlich |
 | Gespeicherte Daten | Kontodaten, Buchungen und technische Daten benennen | Oeffentlich |
 | Verwendungszweck | Buchung, Hauszuordnung und Benachrichtigungen erklaeren | Oeffentlich |
 | Aufbewahrung | Fristen und Schutzmassnahmen nennen | Oeffentlich |
@@ -208,13 +209,13 @@ Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere recht
 
 ### Minispiel Windel-Alarm
 
-`Windel-Alarm spielen` im Kontomenue oeffnet ein freiwilliges Geschicklichkeitsspiel. Das Pups-O-Meter steigt mit der Zeit. Die fuenf zufaellig angeordneten Schaltflaechen muessen in der angezeigten richtigen Reihenfolge bedient werden: Baby beruhigen, Unterlage auslegen, Windel vorsichtig oeffnen, sauber machen und die frische Windel schliessen. Ein falscher Handgriff erhoeht den Druck. Bei 100 Prozent platzt ausschliesslich die gezeichnete Comic-Windel; das Baby wird weder verletzt noch als explodierend dargestellt.
+`Windel-Alarm spielen` im Kontomenue oeffnet ein freiwilliges Entschaerfungsspiel. Nach dem Start bleiben 45 Sekunden fuer drei zufaellig ausgewaehlte Module aus sechs Systemen: `Kabelmatrix`, `Impulsspeicher`, `Druckventil`, `Symboldecoder`, `Thermokern` und `Leckscanner`. Die Aufgaben verlangen je nach Modul Symbolerkennung, Merkfaehigkeit, Timing, Decodieren, Kopfrechnen oder raeumliches Erinnern. Danach wird der finale rote Zuendkreis freigelegt. Er muss kontrolliert zwischen 0,9 und 1,8 Sekunden gehalten werden; ein einfacher Klick reicht nicht mehr. Ein Fehler zieht 4,5 Sekunden vom Countdown ab und verbraucht eine von drei sichtbaren Chancen. Beim dritten Fehler oder bei null Sekunden platzt ausschliesslich die gezeichnete Comic-Windel; das Baby wird weder verletzt noch als explodierend dargestellt.
 
-Vor jeder Runde erzeugt der Server einen einmaligen, zwei Minuten gueltigen Rundennachweis und misst die Laufzeit selbst. Eine erfolgreiche Runde aktualisiert den persoenlichen Bestwert nur bei einer Verbesserung. Die zehn schnellsten Konten aller Haeuser erscheinen in einer gemeinsamen Bestenliste; zusaetzlich sieht jede Person den eigenen globalen Rang. Andere Konten werden aus Datenschutzgruenden ausschliesslich als `Wickelprofi #Nummer` gezeigt, nicht mit Klingelschild-, Wohnungs- oder Hausnamen. `Bestwert loeschen` entfernt nur den eigenen Eintrag. Bewohner, Haus-Admins und Superadmins haben dieselben Spielrechte. Das Spiel erzeugt keine echten Waschladungen, Buchungen oder Mitteilungen.
+Vor jeder Runde erzeugt der Server einen einmaligen, zwei Minuten gueltigen Rundennachweis, speichert die konkrete Modulfolge und prueft jeden Modulabschluss sowie das finale Haltefenster. Die Serverzeit bleibt massgeblich. In der `Tagesmission` erhalten alle Haeuser am selben Schweizer Kalendertag dieselbe Aufgabe; die Wertungszeit besteht aus Laufzeit plus 4,5 Sekunden je Fehler. Nur die beste persoenliche Tageszeit wird gespeichert. Die zehn schnellsten Konten aller Haeuser erscheinen in der gemeinsamen Tageswertung; zusaetzlich sieht jede Person den eigenen globalen Tagesrang. Andere Konten werden ausschliesslich als `Wickelprofi #Nummer` gezeigt, nicht mit Klingelschild-, Wohnungs- oder Hausnamen. `Bestwert loeschen` entfernt nur den eigenen heutigen Eintrag. Der Modus `Ueben` mischt eine neue Aufgabe, verwendet dieselben Regeln und schreibt keinen Highscore. Bewohner, Haus-Admins und Superadmins haben dieselben Spielrechte. Das Spiel erzeugt keine echten Waschladungen, Buchungen oder Mitteilungen. Die Tagesmission verwendet Spielversion 3; nicht vergleichbare Ergebnisse frueherer Spielversionen bleiben technisch erhalten, werden aber nicht in der neuen Tageswertung angezeigt.
 
 Es kann jederzeit mit `Escape`, der Schliessen-Schaltflaeche oder einem Klick ausserhalb beendet werden; die Tastaturbedienung bleibt im geoeffneten Dialog.
 
-Die Spieloberflaeche besitzt eine eigenstaendige responsive Arcade-Gestaltung mit animierter Babyfigur, Druckring und Sensorleiste, fuenfteiligem Fortschritt, einfahrenden Werkzeugkarten sowie eigenen Gewinn-, Warn- und Comic-Pannen-Zustaenden. Die globale Rangliste bleibt platzsparend neben den Werkzeugen sichtbar. Bei einer Betriebssystemeinstellung fuer reduzierte Bewegung werden Animationen und Uebergaenge automatisch auf ein Minimum gesetzt.
+Die Spieloberflaeche besitzt eine eigenstaendige responsive Arcade-Gestaltung mit animierter Babyfigur, Zuenddruckring, bewaffneter Windelanzeige, digitalem Countdown, drei Fehlerleuchten, sechs eigenstaendig gestalteten Modultypen, vierteiligem Fortschritt und einem animierten Haltefenster im Finale. Der Countdown wechselt in den letzten zehn Sekunden sichtbar in den kritischen Zustand. Optionaler, standardmaessig ausgeschalteter Synthesizer-Ton und kurze Geraetevibrationen verstaerken Treffer und Alarm ohne zusaetzliche Mediendateien oder nennenswerten Speicherbedarf. Die globale Tageswertung bleibt platzsparend neben den Modulen sichtbar. Bei einer Betriebssystemeinstellung fuer reduzierte Bewegung werden Animationen und Uebergaenge automatisch auf ein Minimum gesetzt; alle Module bleiben per Tastatur bedienbar und Statuswechsel werden als Text ausgegeben.
 
 ### Einfuehrung und Quiz
 
@@ -228,7 +229,7 @@ Die Spieloberflaeche besitzt eine eigenstaendige responsive Arcade-Gestaltung mi
 
 ## Verwaltungsansicht
 
-Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag und ihrem Geltungsbereich. Der Startbereich ordnet konkrete Aufgaben nach Dringlichkeit, fuehrt mit `Oeffnen` direkt zum passenden Arbeitsbereich und zeigt getrennt davon die dauerhaften Verantwortungen der Rolle. Warnzaehler an `Tagebuch`, `Wohnungen`, `Geraete & Haeuser` und `System` machen offene Arbeit sichtbar. Haus-Admins sehen dabei nur Aufgaben, die sie selbst erledigen duerfen; technische Superadmin-Aufgaben werden ihnen nicht zugewiesen. Auf kleinen Bildschirmen wird die Aufgabenansicht einspaltig und die Navigation bricht in gut erreichbare Zeilen um.
+Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag und ihrem Geltungsbereich. Der Startbereich ordnet konkrete Aufgaben nach Dringlichkeit, fuehrt mit `Oeffnen` direkt zum passenden Arbeitsbereich und zeigt getrennt davon die dauerhaften Verantwortungen der Rolle. Warnzaehler an `Tagebuch`, `Wohnungen`, `Haus & Geraete` und `System` machen offene Arbeit sichtbar. Haus-Admins sehen dabei nur Aufgaben, die sie selbst erledigen duerfen; technische Superadmin-Aufgaben werden ihnen nicht zugewiesen. Auf Tablets verteilt sich die Navigation auf zwei vollstaendig sichtbare Zeilen, auf kleinen Bildschirmen wird auch die Aufgabenansicht einspaltig. Die Reiter lassen sich zusaetzlich mit den Pfeiltasten wechseln.
 
 ### 1. Ueberblick
 
@@ -247,7 +248,7 @@ Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag u
 
 Der Haus-Admin-Auftrag umfasst Wohnungsaktivierung, Kontobetreuung, Geraete und Raeume, den vollstaendigen Stoerungsablauf, begruendete Dauertermine sowie die Betriebskontrolle des eigenen Hauses. Normale Bewohnerbuchungen gehoeren ausdruecklich nicht zu seinen Aufgaben. Der Superadmin verantwortet zusaetzlich Haeuser, Rollen, Nachfolge, Backups, Wartung und den hausuebergreifenden Tagebuchblick; Alltagsaktionen gelten weiterhin fuer das oben ausgewaehlte Haus.
 
-### 2. Geraete und Haeuser
+### 2. Haus und Geraete
 
 | Funktion | Haus-Admin | Superadmin |
 | --- | :---: | :---: |
@@ -256,6 +257,8 @@ Der Haus-Admin-Auftrag umfasst Wohnungsaktivierung, Kontobetreuung, Geraete und 
 | Ressource mit Grund sperren und automatisch im Tagebuch erfassen | Ja | Ja |
 | Neues Haus mit Standardressourcen anlegen | Nein | Ja |
 | Haus anzeigen, umbenennen, aktivieren oder deaktivieren | Nein | Ja |
+
+Die Oberflaeche zeigt zuerst Gesamtbestand, einsatzbereite und gesperrte Ressourcen und ordnet den Bestand danach in Waschmaschinen, Trockenraeume und Tumbler. Anlage- und Umbenennungsformulare bleiben geschlossen, bis sie bewusst geoeffnet werden. Gesperrte Ressourcen zeigen Grund und direkten Sprung in das Tagebuch. Die Hausliste ist davon getrennt und nur fuer Superadmins sichtbar.
 
 Ressourcen, Wohnungen und Einladungen sind immer auf das aktive Haus begrenzt. Die interne Wohnungsbezeichnung bleibt bei einem Bewohnerwechsel bestehen. Der Haus-Admin verwaltet den Klingelschildnamen; eine Konto-E-Mail wird bei der Einladung festgelegt und danach nur durch das geschuetzte Wohnungskonto selbst geaendert. Eine Sicherheitssperre ist auch bei kommenden Buchungen moeglich, nimmt die Ressource sofort aus der Buchungsauswahl und erzeugt einen Tagebuchfall. Eine direkte Aktivierung ist danach gesperrt; die Freigabe erfolgt ausschliesslich ueber den geprueften Tagebuchablauf. Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.
 
@@ -276,6 +279,8 @@ Ressourcen, Wohnungen und Einladungen sind immer auf das aktive Haus begrenzt. D
 
 Der technische Ablauf ist verbindlich: `Meldung -> Sperre -> Reparatur -> Funktionspruefung -> Freigabe`. Weitere Bewohnermeldungen zur gleichen Ressource werden in den bereits offenen Fall aufgenommen, statt konkurrierende Faelle zu erzeugen; jede meldende Wohnung sieht diesen Fall bei den eigenen Meldungen. Eine nicht erfolgreiche Funktionspruefung setzt den Fall nicht weiter und die Ressource bleibt gesperrt. Erst eine erfolgreiche Pruefung schaltet die Aktion `Freigeben und abschliessen` frei. Jede Aktion verlangt eine sachliche Notiz; bei der Freigabe dient sie als Abschlussnotiz, zum Beispiel `Ablaufpumpe ersetzt, Probelauf erfolgreich`. Faelle und Chronikzeilen besitzen absichtlich keine Loeschschnittstelle. Der Haus-Admin arbeitet nur im eigenen Haus. Der Superadmin sieht alle Haeuser und darf bei Bedarf eingreifen; sein Eingriff wird dem betroffenen Haus zugeordnet und auditiert.
 
+In der Verwaltung stehen neu gemeldete Faelle vor Reparatur- und Prueffaellen. Die Chronik bleibt zunaechst geschlossen, damit auch viele Eintraege scanbar bleiben, und kann pro Fall geoeffnet werden. Suche und Statusfilter bleiben gleichzeitig nutzbar.
+
 ### 4. Dauertermine
 
 | Funktion | Haus-Admin | Superadmin |
@@ -286,6 +291,8 @@ Der technische Ablauf ist verbindlich: `Meldung -> Sperre -> Reparatur -> Funkti
 | Ueberschreiben durch normale Buchung verhindern | Automatisch | Automatisch |
 
 Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauertermin wird abgelehnt, wenn bereits eine normale zukuenftige Buchung im gleichen wiederkehrenden Termin liegt.
+
+Das Anlageformular ist im Alltag eingeklappt. Bestehende Dauertermine werden nach Wochentag, Uhrzeit und Ressource sortiert.
 
 ### 5. Wohnungen und Konten
 
@@ -304,14 +311,17 @@ Auch bei festen Tumbler-Terminen bleibt mindestens ein Tumbler frei. Ein Dauerte
 | Nach persoenlicher Identitaetspruefung einen Einmalcode fuer Bewohner ohne bestaetigte E-Mail erzeugen | Ja | Ja |
 | Anderen Haus-Admin verwalten | Nein | Ja |
 | Einer Identitaet das zusaetzliche Haus-Adminrecht geben oder entziehen | Nein | Ja |
+| Aktivem Haus-Admin zusaetzliche Superadminrechte geben oder wieder entziehen | Nein | Ja |
 | Konto in ein anderes Haus verschieben | Nein | Ja |
-| Superadmin-Konto veraendern oder verschieben | Nein | Nein |
+| Superadmin-Konto deaktivieren, verschieben oder fremde E-Mail aendern | Nein | Nein |
 | Eigenes Passwort ohne bisheriges Passwort zuruecksetzen | Nein | Nein |
 | Pilotbestand nach geprueftem Backup, Bestaetigungstext und aktuellem Passwort vollstaendig bereinigen | Nein | Ja |
 
 Beim Verschieben muessen kommende Buchungen des Kontos vorher entfernt werden. Nach einem Umzug wird das Konto aus Sicherheitsgruenden wieder Bewohner. Admins koennen fremde Passwoerter weder sehen noch selbst festlegen und fremde E-Mail-Adressen nicht ersetzen. Sie senden nur einen zeitlich begrenzten Link an eine bestaetigte E-Mail-Adresse. Fehlt jede bestaetigte Adresse, darf nach persoenlicher Identitaetspruefung ein 15 Minuten gueltiger Einmalcode erzeugt und direkt an die berechtigte Person ausgegeben werden. Das Erzeugen beendet bestehende Sitzungen und wird auditiert. Erst die Person selbst setzt mit dem Code eine neue E-Mail und ein neues Passwort; Wohnung, Buchungen, Push-Geraete und Protokollbezuege bleiben erhalten. Das eigene Passwort wird im Buchungsbereich mit dem bisherigen Passwort geaendert.
 
 Der Pilot-Reset ist ausschliesslich fuer eine kontrollierte Bereinigung vor dem Echtbetrieb vorgesehen. Er verlangt das aktuelle Passwort des handelnden Superadmins und den exakten Bestaetigungstext `ALLE TESTKONTEN LOESCHEN` und erstellt vorab ein geprueftes SQLite-Backup. Er entfernt alle Bewohner- und normalen Haus-Admin-Konten samt Sitzungen, Buchungen, Push-Geraeten und Wohnungszuordnungen. Superadmin-Konten, Wohnungen, Ressourcen, Dauertermine und technische Protokolle bleiben erhalten. Freie Wohnungen werden anschliessend bewusst neu per E-Mail eingeladen.
+
+Das Formular fuer eine neue Wohnung ist eingeklappt. Eine gemeinsame Suche filtert Wohnungs- und Kontenlisten nach Klingelschildname, Wohnungsbezeichnung oder E-Mail-Adresse.
 
 ### 6. Auswertung
 
@@ -333,7 +343,7 @@ Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranki
 | Letzte Admin-Aktionen des Hauses sehen | Ja | Ja |
 | Alle normalen Buchungen des aktiven Hauses mit Bestaetigungstext und aktuellem Passwort loeschen | Ja | Ja |
 | Notfallstatus fuer Admins, Superadmin und Seed-Recovery sehen | Ja | Ja |
-| Superadmin-Verantwortung mit aktuellem Passwort an aktiven Haus-Admin uebergeben | Nein | Ja |
+| Superadminrecht mit aktuellem Passwort einem aktiven Haus-Admin geben oder entziehen | Nein | Ja |
 | Hausuebergreifendes Admin-Protokoll sehen | Nein | Ja |
 | Geprueftes Backup sofort erstellen | Nein | Ja |
 | SQLite-Backup herunterladen | Nein | Ja |
@@ -341,12 +351,15 @@ Die Auswertung dient der Betriebsuebersicht im Haus. Sie ist kein Bewohner-Ranki
 | Wartung nach Datenbank- und Buchungspruefung beenden | Nein | Ja |
 | Warnung bei fehlender externer Backup-Kopie sehen | Ja | Ja |
 
-Der Buchungsreset loescht keine Konten und keine Dauertermine. Er verlangt das aktuelle Passwort des handelnden Admins sowie den Text `ALLE BUCHUNGEN` und wird im Admin-Audit protokolliert. Auch Superadmin-Uebergabe, Pilot-Reset und Start des globalen Wartungsmodus pruefen das aktuelle Passwort serverseitig unmittelbar vor der Aktion. Die Oberflaeche speichert diese Passwoerter nicht und leert das jeweilige Eingabefeld beim Ausloesen der Aktion. Das Beenden einer bereits laufenden Wartung bleibt nach erfolgreicher System- und Buchungspruefung ohne erneute Passworteingabe moeglich.
+Der Buchungsreset loescht keine Konten und keine Dauertermine. Er verlangt das aktuelle Passwort des handelnden Admins sowie den Text `ALLE BUCHUNGEN` und wird im Admin-Audit protokolliert. Auch Vergabe oder Entzug von Superadminrechten, Pilot-Reset und Start des globalen Wartungsmodus pruefen das aktuelle Passwort serverseitig unmittelbar vor der Aktion. Die Oberflaeche speichert diese Passwoerter nicht und leert das jeweilige Eingabefeld beim Ausloesen der Aktion. Das Beenden einer bereits laufenden Wartung bleibt nach erfolgreicher System- und Buchungspruefung ohne erneute Passworteingabe moeglich.
 
 Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro Tag fuer bis zu 14 Tage. Liegt die externe Kopie auf demselben Render-Datentraeger nicht vor, zeigt der Ueberblick eine Warnung. Fuer einen Ausfall des Render-Datentraegers muss `BACKUP_UPLOAD_URL` auf einen unabhaengigen Speicher zeigen.
 
+Der Systemreiter gliedert die vorhandenen Funktionen in `Betrieb`, `Benachrichtigungen` sowie `Verantwortung & Protokoll`. Gefaehrliche Aktionen bleiben geschlossen und optisch von Testmail und Testpush getrennt.
+
 ### App-Updates und Wartung
 
+- Jeder Push erhoeht die sichtbare Versionsnummer. Waehrend des Piloten verwendet die App Vorabversionen nach dem Schema `0.3.0-test.1`, `0.3.0-test.2` und so weiter und zeigt den Status `Testversion`. Erst eine ausdrueckliche Produktfreigabe erlaubt den Wechsel auf `1.0.0`.
 - Jede ausgelieferte Seite kennt ihre geladene Releasekennung. Die App fragt den aktuellen Serverstand beim Start, beim Zurueckkehren in die App und danach alle zwei Minuten ab.
 - HTML, JavaScript und CSS tragen dieselbe Releasekennung in ihren Asset-URLs. Dadurch kann kein neuer Seitenaufbau versehentlich mit einer alten zwischengespeicherten Programmlogik kombiniert werden.
 - Ist ein neuer Stand verfuegbar, erscheint der sichtbare Hinweis `Eine neue Version ist verfuegbar` mit `Jetzt aktualisieren`. Erst nach dieser Zustimmung aktiviert der Service Worker den neuen Stand und laedt die Seite neu.
@@ -435,6 +448,10 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 
 ## Entwicklerreferenz
 
+### Agentenrollen
+
+Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fachentwicklung, unabhaengige Endabnahme und Release steht in `.agents/ROLES.md`. Der Hauptagent arbeitet als `CEO_TECHNIK` und damit als Seniorentwickler der gesamten WaschZeit-App. Zu seiner Gesamtverantwortung gehoeren auch Testversionsnummer, sichtbarer Pilotstatus, Betreiberangaben und Datenschutztransparenz; er darf keine ungeprueften Rechtsaussagen oder Kontaktdaten erfinden und gibt keinen Release mit unklarem Pflichtstand frei. Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID. Ihr Auftrag begrenzt Aenderungen auf die Spiel-API, die gekennzeichneten Frontendbereiche, spielbezogene Tests und Dokumentation. Aenderungen an Schema, allgemeinen Rollenrechten, Buchungen oder Produktion erfordern eine zusaetzliche Zuweisung und Freigabe durch die technische Gesamtleitung.
+
 ### Aufbau
 
 | Pfad | Verantwortung |
@@ -444,7 +461,7 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 | `src/routes/bookings.js` | Gekapselte Kalender-, Buchungs-, Waschpaket-, Freigabe- und Dauerterminrouten |
 | `src/routes/diaper-game.js` | Gekapselte API-Routen, serverseitige Rundenwertung und Bestenliste des Windel-Alarms |
 | `src/routes/equipment-logbook.js` | Gekapselte Bewohner- und Verwaltungsrouten fuer Geraete, Stoerungsmeldungen und das Maschinentagebuch |
-| `src/routes/houses-roles.js` | Gekapselte Haus-, Wohnungs-, Benutzer-, Rollen-, Recovery- und Superadmin-Uebergaberouten |
+| `src/routes/houses-roles.js` | Gekapselte Haus-, Wohnungs-, Benutzer-, Rollen-, Recovery- und Superadmin-Berechtigungsrouten |
 | `src/routes/notifications.js` | Gekapselte Push-, Hinweis-, Freigabe- und Admin-Testrouten fuer Benachrichtigungen |
 | `src/routes/operations.js` | Gekapselte Health-, Versions-, Audit-, Backup-, Wartungs-, Uebersichts-, Analyse- und Pilot-Reset-Routen |
 | `src/services/account-security.js` | Passwortpruefung, Authentifizierungs-Rate-Limits sowie E-Mail-, Passwort- und Zugangscode-Validierung |
@@ -463,6 +480,7 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 | `public/manifest.webmanifest`, `public/sw.js` | PWA-Installation, Offline-Shell und Push-Anzeige |
 | `public/styles.css` | Gemeinsames responsives Erscheinungsbild |
 | `scripts/` | Funktions-, Rollen-, Jahres- und Barrierefreiheitstests |
+| `.agents/ROLES.md` | Verbindliche Rollen, Dateibereiche, Schnittstellen, Akzeptanzkriterien und Pflichtpruefungen fuer technische Arbeitspakete |
 | `TESTPLAN_GESAMTAUDIT.md` | Vollstaendiger Pruefkatalog fuer Sicherheit, Konten, Rollen, Regeln, Betrieb und Live-Abnahme |
 | `TESTPROTOKOLL_2026-07-20.md` | Ausgefuehrter Tiefentest mit automatischen Ergebnissen, praktischen Funktionsketten, Befunden und Restgrenzen |
 | `PRUEFBERICHT_GESAMTAUDIT_2026-07-19.md` | Ausgefuehrte Ergebnisse, behobene Fehler, Restrisiken und priorisierte Anpassungsvorschlaege |
@@ -501,6 +519,16 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ### 20. Juli 2026
 
+- Sichtbare Pilotversion fuer diesen Push auf `0.3.0-test.1` angehoben; App, Health-Endpunkt und Cache-Kennungen verwenden dieselbe Testversionsnummer.
+- Windel-Alarm als Tagesmission der Spielversion 3 vertieft: drei aus sechs serverseitig vorgegebenen Modulen, drei Fehlerchancen, Tages- und Uebungsmodus, servergepruefte Modulfortschritte, Fehleraufschlaege in der Wertungszeit und ein praezises Haltefinale ersetzen den wiederholbaren Drei-Modul-Ablauf. Neue Decoder-, Temperatur- und Leckmodule, Fehlerleuchten, optionaler Synthesizer-Ton und responsive Animationen steigern Abwechslung und Spannung; alte Spielwerte bleiben getrennt erhalten.
+- Betreibertransparenz ergaenzt: Torsten Letsch und `torstenletsch@freenet.de` stehen oeffentlich als Betreiber- und Datenschutzkontakt; die GBMZ wird ausdruecklich nur von der App-Betreiberschaft abgegrenzt, waehrend ihr offizieller Hausaushang als Regelquelle bestehen bleibt.
+- Kumulative Superadminrechte eingefuehrt: Ein Superadmin kann einem aktiven Haus-Admin die globale Zusatzberechtigung geben, ohne die eigenen Rechte zu verlieren, und sie einem anderen Superadmin wieder entziehen. Aktuelles Passwort, exakter Bestaetigungstext, Ziel-Sitzungsende, Auditspur und negative Rollenpruefungen sichern beide Aktionen ab.
+- Superadmin-Schutz gegen veraltete Sitzungen gehaertet: Globale Routen gleichen den Sitzungswert bei jedem Zugriff mit dem aktiven Datenbankkonto ab; Rollenwechsel und Pflicht-Audit werden atomar gespeichert und Passwortversuche der kritischen Aktion begrenzt.
+- Die fruehere exklusive Superadmin-Uebergabe entfernt. Superadminrechte werden nur noch additiv vergeben oder einem anderen Superadmin entzogen; das handelnde Konto behaelt seine globale Berechtigung.
+- Windel-Alarm vom wiederholten Reihenfolge-Klicken zu einer variablen Entschaerfungsmission ausgebaut: 35-Sekunden-Countdown, zufaellig angeordnete Kabel-, Impuls- und Druckmodule, wechselnde Zielwerte, Fehlerstrafen, kritische Endphase und animierter finaler Zuendkreis erzeugen echten Zeitdruck. Die neue Spielversion besitzt eine faire eigene globale Wertung; serverseitige Rundentoken, Rollenrechte und die Trennung von Waschbuchungen bleiben unveraendert.
+- Hauptrolle `CEO_TECHNIK` als Seniorentwickler der gesamten WaschZeit-App geschaerft: Jeder Push benoetigt eine neue sichtbare `-test.N`-Version; Pilotstatus sowie Betreiber- und Datenschutztransparenz gehoeren zur Gesamtverantwortung und werden vor einer Pilotveroeffentlichung zusammen mit QA und Release geprueft.
+- Technische Fachrolle `WINDEL_ALARM` verbindlich ausformuliert: erlaubter Dateibereich, API- und Team-Schnittstellen, Datenschutz- und Sicherheitsgrenzen, Akzeptanzkriterien sowie Pflichtpruefungen fuer Spielaenderungen sind jetzt in `.agents/ROLES.md` festgelegt.
+- Verwaltung visuell und responsiv geordnet: Ressourcen nach Typ und Status gruppiert, seltene Anlage- und Bearbeitungsformulare eingeklappt, Haeuser klar getrennt, Wohnungen und Konten durchsuchbar, Tagebuchfaelle verdichtet, Dauertermine sortiert und Systemfunktionen nach Aufgabe gegliedert; Rollen und APIs bleiben unveraendert.
 - Mitteilungszentrum auf relevante Freigaben reduziert: eigene Aktionsbestaetigungen bleiben kurz eingeblendete Statusmeldungen, eigene Freigaben sowie bereits belegte oder abgelaufene Termine werden ausgeblendet, und die In-App-Liste verwendet dieselben persoenlichen Filter wie Push und E-Mail.
 - Health, Version, Audit, Betriebsuebersicht, Analyse, Backup, Wartung und Pilot-Reset samt Selbstpruefung, geplantem Backup und Datenbereinigung als achte Backend-Modularisierungsstufe getrennt; Timer, Serverstart und globale Fehlerbehandlung bleiben im Composition Root, waehrend API, SQL, Bestaetigungen und Statuscodes unveraendert bleiben.
 - Haus-, Wohnungs- und Benutzerverwaltung, kumulativer Rollen- und Sitzungskontext, Hauswechsel, Recovery-Status und Superadmin-Uebergabe als siebte Backend-Modularisierungsstufe getrennt; API, SQL, Middleware-Reihenfolge, Sitzungsdaten, QR-Rechtegrenzen und Statuscodes bleiben unveraendert.

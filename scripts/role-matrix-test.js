@@ -607,7 +607,7 @@ async function run() {
       ['/api/admin/email-test', 'POST'],
       ['/api/admin/push-test', 'POST'],
       ['/api/admin/recovery-status', 'GET'],
-      ['/api/admin/superadmin-transfer', 'POST'],
+      [`/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 'PUT'],
       ['/api/admin/bookings', 'DELETE'],
       ['/api/admin/pilot-accounts', 'DELETE'],
       ['/api/admin/backup/run', 'POST'],
@@ -631,24 +631,75 @@ async function run() {
     const peerAdmin = new ApiClient();
     await login(peerAdmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
 
+    const moduleAnswer = (module) => {
+      if (module.type === 'wire') return { choice: module.options.find((option) => option.symbol === module.targetSymbol).id };
+      if (module.type === 'signal') return { sequence: module.sequence };
+      if (module.type === 'valve') return { position: (module.safeStart + module.safeEnd) / 2 };
+      if (module.type === 'code') return { code: module.codeSymbols.map((symbol) => module.decoder[symbol]).join('') };
+      if (module.type === 'temperature') return { value: module.target };
+      if (module.type === 'leak') return { zone: module.revealZone };
+      throw new Error(`Unbekanntes Windel-Alarm-Modul: ${module.type}`);
+    };
+    const solveModules = async (client, round) => {
+      for (const [moduleIndex, module] of round.body.modules.entries()) {
+        const action = await expectStatus(client, '/api/diaper-game/action', 200, {
+          method: 'POST',
+          body: JSON.stringify({ token: round.body.token, moduleIndex, answer: moduleAnswer(module) })
+        });
+        assert.equal(action.body.correct, true);
+        assert.equal(action.body.progress, moduleIndex + 1);
+      }
+    };
     const playScoredRound = async (client, delayMs) => {
-      const round = await expectStatus(client, '/api/diaper-game/start', 201, { method: 'POST' });
+      const round = await expectStatus(client, '/api/diaper-game/start', 201, {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'ranked' })
+      });
       assert.match(round.body.token, /^[a-f0-9]{64}$/);
+      assert.equal(round.body.gameVersion, 3);
+      assert.equal(round.body.modules.length, 3);
+      assert.equal(new Set(round.body.modules.map((module) => module.type)).size, 3);
+      await solveModules(client, round);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       return expectStatus(client, '/api/diaper-game/complete', 200, {
         method: 'POST',
-        body: JSON.stringify({ token: round.body.token })
+        body: JSON.stringify({ token: round.body.token, holdMs: 1100 })
       });
     };
     await expectStatus(new ApiClient(), '/api/diaper-game/leaderboard', 401);
-    await playScoredRound(firstResident, 650);
-    const globalGameScores = await playScoredRound(residentAfterReset, 720);
+    await playScoredRound(firstResident, 2600);
+    const globalGameScores = await playScoredRound(residentAfterReset, 2650);
+    assert.equal(globalGameScores.body.gameVersion, 3);
     assert.equal(globalGameScores.body.leaderboard.length, 2);
     assert.ok(globalGameScores.body.leaderboard.every((entry) => /^Wickelprofi #\d+$/.test(entry.player)));
     assert.equal(globalGameScores.body.own.isOwn, true);
     assert.ok(globalGameScores.body.own.position >= 1);
     assert.equal((await expectStatus(houseAdmin, '/api/diaper-game/leaderboard', 200)).body.leaderboard.length, 2);
     assert.equal((await expectStatus(superadmin, '/api/diaper-game/leaderboard', 200)).body.leaderboard.length, 2);
+    const practiceRound = await expectStatus(houseAdmin, '/api/diaper-game/start', 201, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'practice' })
+    });
+    assert.equal(practiceRound.body.mode, 'practice');
+    const practiceModule = practiceRound.body.modules[0];
+    for (let mistake = 1; mistake <= 3; mistake += 1) {
+      const failedAction = await expectStatus(houseAdmin, '/api/diaper-game/action', 200, {
+        method: 'POST',
+        body: JSON.stringify({
+          token: practiceRound.body.token,
+          moduleIndex: 0,
+          answer: practiceModule.type === 'temperature' ? { value: 9999 } : { invalid: true }
+        })
+      });
+      assert.equal(failedAction.body.correct, false);
+      assert.equal(failedAction.body.mistakes, mistake);
+      assert.equal(failedAction.body.failed, mistake === 3);
+    }
+    await expectStatus(houseAdmin, '/api/diaper-game/action', 409, {
+      method: 'POST',
+      body: JSON.stringify({ token: practiceRound.body.token, moduleIndex: 0, answer: moduleAnswer(practiceModule) })
+    });
+    assert.equal((await expectStatus(houseAdmin, '/api/diaper-game/leaderboard', 200)).body.own, null);
     await expectStatus(residentAfterReset, '/api/diaper-game/complete', 409, {
       method: 'POST',
       body: JSON.stringify({ token: globalGameScores.body.token || '0'.repeat(64) })
@@ -709,30 +760,103 @@ async function run() {
     assert.equal(recoveryStatus.body.houseAdminCount, 2);
     assert.equal(recoveryStatus.body.superadminCount, 1);
     assert.equal(recoveryStatus.body.seedRecoveryConfigured, true);
-    await expectStatus(houseAdmin, '/api/admin/superadmin-transfer', 403, {
-      method: 'POST',
+    await expectStatus(houseAdmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 403, {
+      method: 'PUT',
       body: JSON.stringify({
-        targetUserId: peerAdminRegistration.body.user.id,
-        confirm: 'SUPERADMIN UEBERGEBEN'
+        enabled: true,
+        confirm: 'SUPERADMINRECHT GEBEN',
+        currentPassword: 'Rollen-Admin-2026!'
       })
     });
-    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 400, {
-      method: 'POST',
+    await expectStatus(superadmin, `/api/admin/users/${residentRegistration.body.user.id}/superadmin`, 409, {
+      method: 'PUT',
       body: JSON.stringify({
-        targetUserId: superLogin.body.user.id,
-        confirm: 'SUPERADMIN UEBERGEBEN',
+        enabled: true,
+        confirm: 'SUPERADMINRECHT GEBEN',
         currentPassword: 'Rollen-Superadmin-2026!'
       })
     });
-    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 403, {
-      method: 'POST',
+    await expectStatus(superadmin, `/api/admin/users/${firstResidentRegistration.body.user.id}/superadmin`, 404, {
+      method: 'PUT',
       body: JSON.stringify({
-        targetUserId: peerAdminRegistration.body.user.id,
-        confirm: 'SUPERADMIN UEBERGEBEN',
+        enabled: true,
+        confirm: 'SUPERADMINRECHT GEBEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 400, {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: true,
+        confirm: 'SUPERADMINRECHT FALSCH',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: true,
+        confirm: 'SUPERADMINRECHT GEBEN',
         currentPassword: 'falsches-passwort'
       })
     });
-    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 200, {
+    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: true,
+        confirm: 'SUPERADMINRECHT GEBEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    assert.equal((await expectStatus(superadmin, '/api/me', 200)).body.user.isSuperadmin, true);
+    assert.equal((await expectStatus(peerAdmin, '/api/me', 200)).body.user, null);
+    const grantedSuperadmin = new ApiClient();
+    const grantedLogin = await login(grantedSuperadmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
+    assert.equal(grantedLogin.body.user.isSuperadmin, true);
+    await expectStatus(grantedSuperadmin, '/api/admin/houses', 200);
+    const revokedBehindSession = new Database(databasePath);
+    revokedBehindSession.prepare('UPDATE users SET is_superadmin = 0 WHERE id = ?')
+      .run(peerAdminRegistration.body.user.id);
+    revokedBehindSession.close();
+    await expectStatus(grantedSuperadmin, '/api/admin/houses', 403);
+    const restoredBehindSession = new Database(databasePath);
+    restoredBehindSession.prepare('UPDATE users SET is_superadmin = 1 WHERE id = ?')
+      .run(peerAdminRegistration.body.user.id);
+    restoredBehindSession.close();
+    await expectStatus(grantedSuperadmin, '/api/admin/houses', 200);
+    const grantAudit = await expectStatus(superadmin, '/api/admin/audit-log', 200);
+    assert.ok(grantAudit.body.entries.some((entry) => (
+      entry.action === 'superadmin.grant'
+        && Number(entry.target_id) === Number(peerAdminRegistration.body.user.id)
+    )));
+    assert.equal((await expectStatus(superadmin, '/api/admin/recovery-status', 200)).body.superadminCount, 2);
+    await expectStatus(superadmin, `/api/admin/users/${superLogin.body.user.id}/superadmin`, 400, {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: false,
+        confirm: 'SUPERADMINRECHT ENTZIEHEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    await expectStatus(superadmin, `/api/admin/users/${peerAdminRegistration.body.user.id}/superadmin`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: false,
+        confirm: 'SUPERADMINRECHT ENTZIEHEN',
+        currentPassword: 'Rollen-Superadmin-2026!'
+      })
+    });
+    assert.equal((await expectStatus(grantedSuperadmin, '/api/me', 200)).body.user, null);
+    const revokeAudit = await expectStatus(superadmin, '/api/admin/audit-log', 200);
+    assert.ok(revokeAudit.body.entries.some((entry) => (
+      entry.action === 'superadmin.revoke'
+        && Number(entry.target_id) === Number(peerAdminRegistration.body.user.id)
+    )));
+    const peerAfterRevoke = await login(peerAdmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
+    assert.equal(peerAfterRevoke.body.user.isSuperadmin, false);
+    await expectStatus(peerAdmin, '/api/admin/houses', 403);
+    assert.equal((await expectStatus(superadmin, '/api/admin/recovery-status', 200)).body.superadminCount, 1);
+    await expectStatus(superadmin, '/api/admin/superadmin-transfer', 404, {
       method: 'POST',
       body: JSON.stringify({
         targetUserId: peerAdminRegistration.body.user.id,
@@ -740,48 +864,39 @@ async function run() {
         currentPassword: 'Rollen-Superadmin-2026!'
       })
     });
-    const oldSuperSession = await expectStatus(superadmin, '/api/me', 200);
-    assert.equal(oldSuperSession.body.user.isSuperadmin, false);
-    assert.equal(oldSuperSession.body.user.activeHouseId, firstHouseId);
-    await expectStatus(superadmin, '/api/admin/houses', 403);
-    const stalePeerSession = await expectStatus(peerAdmin, '/api/me', 200);
-    assert.equal(stalePeerSession.body.user, null);
-    const newSuperadmin = new ApiClient();
-    const newSuperLogin = await login(newSuperadmin, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
-    assert.equal(newSuperLogin.body.user.isSuperadmin, true);
-    await expectStatus(newSuperadmin, '/api/admin/houses', 200);
 
     await expectStatus(houseAdmin, '/api/admin/pilot-accounts', 403, {
       method: 'DELETE',
       body: JSON.stringify({ confirm: 'ALLE TESTKONTEN LOESCHEN' })
     });
-    await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 400, {
+    await expectStatus(superadmin, '/api/admin/pilot-accounts', 400, {
       method: 'DELETE',
       body: JSON.stringify({
         confirm: 'falsch',
-        currentPassword: 'Rollen-Zweitadmin-2026!'
+        currentPassword: 'Rollen-Superadmin-2026!'
       })
     });
-    await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 403, {
+    await expectStatus(superadmin, '/api/admin/pilot-accounts', 403, {
       method: 'DELETE',
       body: JSON.stringify({
         confirm: 'ALLE TESTKONTEN LOESCHEN',
         currentPassword: 'falsches-passwort'
       })
     });
-    const pilotReset = await expectStatus(newSuperadmin, '/api/admin/pilot-accounts', 200, {
+    const pilotReset = await expectStatus(superadmin, '/api/admin/pilot-accounts', 200, {
       method: 'DELETE',
       body: JSON.stringify({
         confirm: 'ALLE TESTKONTEN LOESCHEN',
-        currentPassword: 'Rollen-Zweitadmin-2026!'
+        currentPassword: 'Rollen-Superadmin-2026!'
       })
     });
     assert.ok(pilotReset.body.deleted >= 4);
     assert.ok(pilotReset.body.residents >= 2);
     assert.ok(pilotReset.body.houseAdmins >= 2);
     assert.equal(pilotReset.body.backup.ok, true);
-    const remainingAccounts = await expectStatus(newSuperadmin, '/api/admin/users', 200);
-    assert.deepEqual(remainingAccounts.body.users.map((account) => account.id), [newSuperLogin.body.user.id]);
+    const remainingAccounts = await expectStatus(superadmin, '/api/admin/users', 200);
+    assert.deepEqual(remainingAccounts.body.users, []);
+    assert.equal((await expectStatus(superadmin, '/api/me', 200)).body.user.isSuperadmin, true);
 
     const residentLogout = await expectStatus(residentAfterReset, '/api/logout', 200, { method: 'POST' });
     assert.match(residentLogout.response.headers.get('set-cookie') || '', /connect\.sid=;/);
@@ -801,7 +916,6 @@ async function run() {
     });
     assert.equal(superLogout.response.headers.get('location'), '/login.html?loggedOut=1');
     assert.equal((await expectStatus(superadmin, '/api/me', 200)).body.user, null);
-    await expectStatus(newSuperadmin, '/api/logout', 200, { method: 'POST' });
 
     console.log(JSON.stringify({
       ok: true,
@@ -813,7 +927,8 @@ async function run() {
         houseAdminOwnHouse: true,
         houseAdminPeerAdminProtection: true,
         superadminGlobalActions: true,
-        superadminTransfer: true,
+        additiveSuperadminPermission: true,
+        legacySuperadminTransferRemoved: true,
         configuredAdminRecovery: true,
         crossHouseIsolation: true,
         maintenanceWorkflow: true,
