@@ -1,3 +1,5 @@
+const { translateReleaseSubject, translateReleaseText } = require('./localization');
+
 function createPushService({
   db,
   webPush,
@@ -102,7 +104,7 @@ function createPushService({
     }
 
     const recipients = db.prepare(`
-      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.language
       FROM push_subscriptions ps
       JOIN users u ON u.id = ps.user_id
       LEFT JOIN notification_preferences np ON np.user_id = u.id
@@ -131,19 +133,20 @@ function createPushService({
 
     let sent = 0;
     let failed = 0;
-    const payload = pushPayload({
-      title,
-      body: message,
-      url: releaseNoticeUrl(booking)
-    });
     const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
     for (const recipient of recipients) {
       try {
+        const payload = pushPayload({
+          title: translateReleaseSubject(title, recipient.language),
+          body: translateReleaseText(message, recipient.language),
+          url: releaseNoticeUrl(booking)
+        });
         await sendPushNotification(subscriptionForRow(recipient), payload);
         sent += 1;
       } catch (error) {
         failed += 1;
-        if ([404, 410].includes(error.statusCode)) {
+        const invalidSubscription = /public key|p256dh|auth secret|specified curve/i.test(String(error.message || ''));
+        if ([404, 410].includes(error.statusCode) || invalidSubscription) {
           deactivate.run(recipient.id);
         } else {
           console.error(`Push-Hinweis fehlgeschlagen: ${error.message}`);

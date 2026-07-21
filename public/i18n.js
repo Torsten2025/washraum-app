@@ -1,0 +1,873 @@
+(function initWaschZeitI18n(global) {
+  'use strict';
+
+  const SUPPORTED = ['de', 'en'];
+  const STORAGE_KEY = 'waschzeit-language';
+  const PENDING_KEY = 'waschzeit-language-pending';
+  const listeners = new Set();
+  let currentLanguage = readStoredLanguage();
+  let observer = null;
+  let applying = false;
+
+  const messages = {
+    'language.label': { de: 'Sprache', en: 'Language' },
+    'language.german': { de: 'Deutsch', en: 'German' },
+    'language.english': { de: 'Englisch', en: 'English' },
+    'common.open': { de: 'Oeffnen', en: 'Open' },
+    'common.close': { de: 'Schliessen', en: 'Close' },
+    'common.cancel': { de: 'Abbrechen', en: 'Cancel' },
+    'common.save': { de: 'Speichern', en: 'Save' },
+    'common.done': { de: 'Fertig', en: 'Done' },
+    'common.today': { de: 'Heute', en: 'Today' },
+    'common.tomorrow': { de: 'Morgen', en: 'Tomorrow' },
+    'common.back': { de: 'Zurueck', en: 'Back' },
+    'common.yes': { de: 'Ja', en: 'Yes' },
+    'common.no': { de: 'Nein', en: 'No' },
+    'common.all': { de: 'Alle', en: 'All' },
+    'common.system': { de: 'System', en: 'System' },
+    'common.account': { de: 'Konto', en: 'Account' },
+    'common.settings': { de: 'Einstellungen', en: 'Settings' },
+    'common.notifications': { de: 'Mitteilungen', en: 'Notifications' },
+    'common.help': { de: 'Hilfe & Einfuehrung', en: 'Help & introduction' },
+    'common.logout': { de: 'Abmelden', en: 'Sign out' },
+    'common.testVersion': { de: 'Testversion', en: 'Test version' },
+    'role.resident': { de: 'Bewohner', en: 'Resident' },
+    'role.houseAdmin': { de: 'Haus-Admin', en: 'House admin' },
+    'role.superadmin': { de: 'Superadmin', en: 'Superadmin' },
+    'auth.title': { de: 'Anmelden', en: 'Sign in' },
+    'auth.invitation': { de: 'Einladung', en: 'Invitation' },
+    'auth.connectDevice': { de: 'Geraet verbinden', en: 'Connect device' },
+    'auth.email': { de: 'E-Mail', en: 'Email' },
+    'auth.password': { de: 'Passwort', en: 'Password' },
+    'auth.enter': { de: 'Einsteigen', en: 'Continue' },
+    'auth.forgot': { de: 'Passwort vergessen?', en: 'Forgot password?' },
+    'auth.requestPassword': { de: 'Neues Passwort anfordern', en: 'Request a new password' },
+    'auth.requestLink': { de: 'Link anfordern', en: 'Request link' },
+    'auth.backToLogin': { de: 'Zurueck zur Anmeldung', en: 'Back to sign in' },
+    'auth.newPassword': { de: 'Neues Passwort', en: 'New password' },
+    'auth.repeatPassword': { de: 'Passwort wiederholen', en: 'Repeat password' },
+    'auth.savePassword': { de: 'Passwort speichern', en: 'Save password' },
+    'auth.acceptInvitation': { de: 'Einladung annehmen', en: 'Accept invitation' },
+    'auth.activateApartment': { de: 'Wohnung aktivieren', en: 'Activate apartment' },
+    'auth.requestFailed': { de: 'Die Anfrage konnte nicht abgeschlossen werden.', en: 'The request could not be completed.' },
+    'auth.passwordMismatch': { de: 'Die beiden Passwoerter stimmen nicht ueberein.', en: 'The two passwords do not match.' },
+    'auth.newPasswordMismatch': { de: 'Die beiden neuen Passwoerter stimmen nicht ueberein.', en: 'The two new passwords do not match.' },
+    'auth.existingPassword': { de: 'Vorhandenes Passwort', en: 'Existing password' },
+    'auth.yourPassword': { de: 'Dein Passwort', en: 'Your password' },
+    'auth.invitationUnavailable': { de: 'Einladung nicht verfuegbar', en: 'Invitation unavailable' },
+    'auth.requestInvitation': { de: 'Bitte fordere eine neue Einladung an.', en: 'Please request a new invitation.' },
+    'auth.existingAccess': { de: 'Bestehenden Zugang bestaetigen', en: 'Confirm existing access' },
+    'auth.newAccess': { de: 'Neuen persoenlichen Zugang anlegen', en: 'Create personal access' },
+    'auth.invitationLoadFailed': { de: 'Einladung konnte nicht geladen werden', en: 'Invitation could not be loaded' },
+    'auth.tryAgain': { de: 'Bitte versuche es erneut.', en: 'Please try again.' },
+    'auth.qrRecognized': { de: 'QR-Code erkannt. Bitte melde dich mit deiner eigenen E-Mail an oder lege damit deinen persoenlichen Zugang an.', en: 'QR code recognised. Sign in with your own email or use it to create your personal access.' },
+    'auth.invalidInvitation': { de: 'Diese Einladung ist ungueltig, abgelaufen oder bereits verwendet.', en: 'This invitation is invalid, expired or has already been used.' },
+    'auth.invitationRequired': { de: 'Einladungslink erforderlich', en: 'Invitation link required' },
+    'auth.recoveryCode': { de: 'Wiederherstellungscode', en: 'Recovery code' },
+    'auth.recoverAccount': { de: 'Konto wiederherstellen', en: 'Recover account' },
+    'auth.safeRecovery': { de: 'Konto sicher wiederherstellen', en: 'Recover account securely' },
+    'auth.personalEmail': { de: 'Persoenliche E-Mail', en: 'Personal email' },
+    'auth.ownEmail': { de: 'Eigene E-Mail-Adresse', en: 'Your email address' },
+    'auth.ownPassword': { de: 'Eigenes Passwort', en: 'Your password' },
+    'auth.addPartner': { de: 'Partner zur Wohnung hinzufuegen', en: 'Add a partner to the apartment' },
+    'auth.personalAccess': { de: 'Persoenlichen Zugang verbinden', en: 'Connect personal access' },
+    'auth.deviceCode': { de: 'Geraetecode', en: 'Device code' },
+    'auth.maintenance': { de: 'Wartung laeuft.', en: 'Maintenance is in progress.' },
+    'auth.loggedOut': { de: 'Du bist abgemeldet.', en: 'You are signed out.' },
+    'auth.emailVerified': { de: 'E-Mail-Adresse bestaetigt. Du kannst dich jetzt anmelden.', en: 'Email address confirmed. You can now sign in.' },
+    'auth.invalidVerification': { de: 'Der Bestaetigungslink ist ungueltig oder abgelaufen.', en: 'The confirmation link is invalid or has expired.' },
+    'landing.tagline': { de: 'Der Waschplan fuer dein Haus', en: 'The laundry schedule for your building' },
+    'landing.live': { de: 'Heute sehen, was frei ist', en: 'See what is available today' },
+    'landing.community': { de: 'Gemeinsam waschen', en: 'Shared laundry, made simple' },
+    'landing.heading': { de: 'Waschen. Einfach. Fair.', en: 'Laundry. Simple. Fair.' },
+    'landing.headingLineOne': { de: 'Waschen.', en: 'Laundry.' },
+    'landing.headingLineTwo': { de: 'Einfach. Fair.', en: 'Simple. Fair.' },
+    'landing.description': { de: 'Freie Zeiten sehen, direkt buchen und frueher freigeben, wenn du fertig bist.', en: 'See free times, book directly and release early when you are finished.' },
+    'landing.week': { de: 'Wochenplan', en: 'Weekly schedule' },
+    'landing.protected': { de: 'Geschuetzte Buchungen', en: 'Protected bookings' },
+    'landing.washing': { de: 'Waschen', en: 'Washing' },
+    'landing.drying': { de: 'Trocknen', en: 'Drying' },
+    'landing.release': { de: 'Freigeben', en: 'Release' },
+    'landing.threeSlots': { de: '3 Zeitfenster', en: '3 time slots' },
+    'landing.twoFree': { de: '2 frei', en: '2 available' },
+    'landing.dryingOpen': { de: 'TR 2 offen', en: 'DR 2 available' },
+    'landing.mailSent': { de: 'Mail geht raus', en: 'Email is sent' },
+    'auth.region': { de: 'Anmeldung', en: 'Sign in' },
+    'landing.loginDirect': { de: 'Anmelden und direkt zum Wochenplan', en: 'Sign in and go straight to the weekly schedule' },
+    'landing.adminLoginHint': { de: 'Admin-Konten koennen hier ihren technischen Kontonamen verwenden.', en: 'Admin accounts may use their technical account name here.' },
+    'landing.maintenanceHint': { de: 'Bestehende Buchungen bleiben erhalten. Die Anmeldung fuer die Verwaltung bleibt moeglich.', en: 'Existing bookings remain intact. Administrators can still sign in.' },
+    'landing.updateHint': { de: 'Mit einem Klick laedst du den aktuellen Stand.', en: 'Load the latest version with one click.' },
+    'auth.resetMailHint': { de: 'Wir senden einen sicheren Link an deine bestaetigte E-Mail-Adresse.', en: 'We will send a secure link to your confirmed email address.' },
+    'auth.personalRecovery': { de: 'Persoenlichen Wiederherstellungscode verwenden', en: 'Use a personal recovery code' },
+    'auth.recoveryHint': { de: 'Dieser Einmalcode wird nach persoenlicher Pruefung durch die Hausverwaltung ausgegeben und ist 15 Minuten gueltig.', en: 'This one-time code is issued by building management after a personal identity check and is valid for 15 minutes.' },
+    'auth.inviteOpenMail': { de: 'Oeffne den Link aus der E-Mail deiner Hausverwaltung.', en: 'Open the link in the email from your building management.' },
+    'auth.releaseMail': { de: 'Mail senden, wenn ein Zeitfenster frueher frei wird', en: 'Send an email when a time slot becomes available early' },
+    'auth.inviteIdentityHint': { de: 'E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Besteht die E-Mail schon, wird genau diese persoenliche Identitaet um die Wohnungsmitgliedschaft ergaenzt.', en: 'Email, apartment and doorbell name are already fixed. If the email already exists, the apartment membership is added to that exact personal identity.' },
+    'auth.partnerTitle': { de: 'Partner zur Wohnung hinzufuegen', en: 'Add a partner to the apartment' },
+    'auth.partnerHint': { de: 'Der QR-Code vergibt ausschliesslich Bewohnerrechte. Dein Partner verwendet eine eigene E-Mail und ein eigenes Passwort; Adminrechte werden nie uebertragen.', en: 'The QR code grants resident access only. Your partner uses a separate email and password; admin rights are never transferred.' },
+    'auth.passwordNewOnly': { de: '(nur bei neuem Zugang)', en: '(new account only)' },
+    'privacy.summary': { de: 'Der Waschplan speichert nur Daten, die fuer Konten, Buchungen, Hauszuordnung, Stoerungsbearbeitung und gewaehlte Benachrichtigungen benoetigt werden.', en: 'The laundry schedule stores only the data needed for accounts, bookings, building assignment, issue handling and selected notifications.' },
+    'privacy.operatorText': { de: 'WaschZeit wird von Torsten Letsch betrieben. Kontakt fuer Fragen zum Betrieb und zum Datenschutz:', en: 'WaschZeit is operated by Torsten Letsch. Contact for operational and privacy questions:' },
+    'privacy.gbmz': { de: 'Die GBMZ ist nicht Betreiberin dieser App. Ihre Waschordnung beziehungsweise der offizielle Aushang im Haus bleibt unabhaengig von der App fuer die Nutzung der Waschkueche massgebend.', en: 'GBMZ is not the operator of this app. Its laundry rules and the official notice in the building remain authoritative for use of the laundry room, independently of the app.' },
+    'privacy.use': { de: 'Die Daten werden fuer den gemeinsamen Waschplan, die Durchsetzung der Hausregeln, Kontoverwaltung und angeforderte Freigabe-Mails oder Push-Hinweise verwendet. Es gibt keine Werbung und keinen Verkauf von Daten.', en: 'The data is used for the shared laundry schedule, enforcement of building rules, account administration and requested release emails or push notifications. There is no advertising and no sale of data.' },
+    'privacy.retentionText': { de: 'Passwoerter, Wohnungs- und Geraetecodes werden nicht im Klartext gespeichert. Einmalcodes werden nach Verwendung oder Ablauf ungueltig. Abgelaufene Sitzungen und Sicherheitslinks werden regelmaessig entfernt. Freigabe-Hinweise bleiben hoechstens 30 Tage, alte Buchungen und Admin-Protokolle hoechstens ein Jahr im laufenden System. Maschinen- und Raumtagebuecher bleiben als technische Nachweise erhalten; bei geloeschten Konten entfaellt die direkte Kontozuordnung, die sachliche Historie bleibt bestehen. Die App prueft lokale Backups automatisch. Eine unabhaengige externe Kopie muss der Betreiber zusaetzlich einrichten; der Superadmin sieht in der Verwaltung, ob sie konfiguriert ist.', en: 'Passwords, apartment codes and device codes are not stored in plain text. One-time codes become invalid after use or expiry. Expired sessions and security links are removed regularly. Release notices remain for no more than 30 days, and old bookings and admin audit entries for no more than one year in the active system. Equipment and room logbooks remain as technical evidence; when an account is deleted, the direct account link is removed while the factual history remains. The app checks local backups automatically. The operator must also configure an independent external copy; the superadmin can see in administration whether it is configured.' },
+    'privacy.rights': { de: 'In der App kannst du deine Daten exportieren, Benachrichtigungen ausschalten, eine Korrektur des Klingelschildnamens anfragen und dein Konto loeschen. Sichtbare Namen und Wohnungszuordnungen aendert nur der zustaendige Haus-Admin.', en: 'In the app, you can export your data, turn off notifications, request a correction to the doorbell name and delete your account. Only the responsible building admin can change visible names and apartment assignments.' },
+    'privacy.stableApartment': { de: 'Stabile Wohnungsbezeichnung, Name vom Klingelschild, bis zu zwei E-Mail-Adressen, nicht rueckrechenbarer Passwort-Hash und zugeordnetes Haus', en: 'Stable apartment label, doorbell name, up to two email addresses, a non-reversible password hash and assigned building' },
+    'privacy.nameRequest': { de: 'Freiwillige Korrekturwuensche zum Klingelschildnamen und deren Bearbeitungsstatus', en: 'Optional correction requests for the doorbell name and their processing status' },
+    'privacy.bookings': { de: 'Buchungen, feste Buchungen und freiwillige Benachrichtigungswuensche', en: 'Bookings, recurring bookings and optional notification preferences' },
+    'privacy.logbook': { de: 'Stoerungsmeldungen sowie unveraenderbare Eintraege zu Sperre, Reparatur, Funktionspruefung und Freigabe', en: 'Issue reports and immutable entries for blocking, repair, functional testing and release' },
+    'privacy.push': { de: 'Bei aktivierten Push-Hinweisen technische Push-Abos des jeweiligen Browsers', en: 'Technical push subscriptions for the relevant browser when push notifications are enabled' },
+    'privacy.sessions': { de: 'Technische Sitzungen und ein Admin-Protokoll fuer Sicherheit und Nachvollziehbarkeit', en: 'Technical sessions and an admin audit log for security and traceability' },
+    'app.myPlan': { de: 'Mein Waschplan', en: 'My laundry schedule' },
+    'app.yourPlan': { de: 'Dein Waschplan', en: 'Your laundry schedule' },
+    'app.view': { de: 'Ansicht', en: 'View' },
+    'app.calendar': { de: 'Kalender', en: 'Calendar' },
+    'app.houseNumber': { de: 'Hausnummer', en: 'Building' },
+    'app.switchHouse': { de: 'Hausnummer wechseln', en: 'Switch building' },
+    'app.manage': { de: 'Verwalten', en: 'Manage' },
+    'app.reportIssue': { de: 'Stoerung melden', en: 'Report a problem' },
+    'app.myBookings': { de: 'Meine Buchungen', en: 'My bookings' },
+    'app.book': { de: 'Buchen', en: 'Book' },
+    'app.week': { de: 'Woche', en: 'Week' },
+    'app.month': { de: 'Monat', en: 'Month' },
+    'app.previousWeek': { de: 'Vorherige Woche', en: 'Previous week' },
+    'app.nextWeek': { de: 'Naechste Woche', en: 'Next week' },
+    'app.dayOverview': { de: 'Tagesuebersicht', en: 'Day overview' },
+    'app.chooseDay': { de: 'Tag auswaehlen', en: 'Choose a day' },
+    'app.guidedBooking': { de: 'Gefuehrt buchen', en: 'Guided booking' },
+    'app.occupancyPlan': { de: 'Belegungsplan', en: 'Occupancy schedule' },
+    'app.bookingIntroResident': { de: 'Verschaffe dir zuerst einen Ueberblick. Danach stellst du dein Waschpaket Schritt fuer Schritt zusammen.', en: 'Start with an overview, then build your laundry package step by step.' },
+    'app.bookingIntroAdmin': { de: 'Belegungen und freie Kapazitaeten ansehen. Normale Waschzeiten buchen Bewohner selbst.', en: 'Review bookings and available capacity. Residents book normal laundry times themselves.' },
+    'app.package': { de: 'Dein Waschpaket', en: 'Your laundry package' },
+    'app.timeFirst': { de: 'Zeit zuerst', en: 'Time first' },
+    'app.machineFirst': { de: 'Maschine zuerst', en: 'Machine first' },
+    'app.washers': { de: 'Waschmaschinen', en: 'Washing machines' },
+    'app.dryingRooms': { de: 'Trockenraeume', en: 'Drying rooms' },
+    'app.tumblers': { de: 'Tumbler', en: 'Dryers' },
+    'app.free': { de: 'Frei', en: 'Available' },
+    'app.occupied': { de: 'Belegt', en: 'Occupied' },
+    'app.blocked': { de: 'Gesperrt', en: 'Blocked' },
+    'app.notBookable': { de: 'Nicht mehr buchbar', en: 'No longer bookable' },
+    'app.releaseEarly': { de: 'Frueher freigeben', en: 'Release early' },
+    'app.cancelBooking': { de: 'Buchung absagen', en: 'Cancel booking' },
+    'app.allNotifications': { de: 'Alle Mitteilungen', en: 'All notifications' },
+    'app.noBookings': { de: 'Keine kommenden Buchungen.', en: 'No upcoming bookings.' },
+    'app.noNotifications': { de: 'Keine neuen Mitteilungen.', en: 'No new notifications.' },
+    'app.noConnection': { de: 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.', en: 'Cannot connect to the app. Check your internet connection and try again.' },
+    'settings.profile': { de: 'Profil', en: 'Profile' },
+    'settings.notifications': { de: 'Benachrichtigungen', en: 'Notifications' },
+    'settings.appDevice': { de: 'App & Geraet', en: 'App & device' },
+    'settings.helpRules': { de: 'Hilfe & Regeln', en: 'Help & rules' },
+    'settings.security': { de: 'Sicherheit & Daten', en: 'Security & data' },
+    'settings.changePassword': { de: 'Passwort aendern', en: 'Change password' },
+    'settings.currentPassword': { de: 'Bisheriges Passwort', en: 'Current password' },
+    'settings.myData': { de: 'Meine Daten', en: 'My data' },
+    'settings.export': { de: 'Daten exportieren', en: 'Export data' },
+    'settings.delete': { de: 'Konto loeschen', en: 'Delete account' },
+    'settings.deleteForever': { de: 'Konto endgueltig loeschen', en: 'Delete account permanently' },
+    'settings.operatorPrivacy': { de: 'Betreiber & Datenschutz', en: 'Operator & privacy' },
+    'settings.install': { de: 'App installieren', en: 'Install app' },
+    'settings.enablePush': { de: 'Push aktivieren', en: 'Enable push' },
+    'settings.disablePush': { de: 'Push deaktivieren', en: 'Disable push' },
+    'settings.firstStart': { de: 'Erster Start', en: 'First start' },
+    'settings.yourAccount': { de: 'Dein Konto', en: 'Your account' },
+    'settings.firstTitle': { de: 'Einmal kurz einrichten.', en: 'A quick setup.' },
+    'settings.firstHint': { de: 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.', en: 'Check your email first. You will then find the app, push and other account features in the tabs.' },
+    'settings.intro': { de: 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.', en: 'Profile, notifications, app, help and security are grouped here.' },
+    'settings.saved': { de: 'Persoenliche Einrichtung gespeichert.', en: 'Personal setup saved.' },
+    'admin.management': { de: 'Verwaltung', en: 'Administration' },
+    'admin.sections': { de: 'Verwaltungsbereiche', en: 'Administration sections' },
+    'admin.roleSummarySuper': { de: 'Du sicherst Rollen, Haeuser und den technischen Betrieb.', en: 'You safeguard roles, buildings and technical operations.' },
+    'admin.roleSummaryHouse': { de: 'Du organisierst Wohnungen, Geraete und Stoerungsfaelle.', en: 'You manage apartments, equipment and reported issues.' },
+    'admin.scopeSuper': { de: 'Das Tagebuch gilt hausuebergreifend. Alle anderen Aktionen beziehen sich auf das oben ausgewaehlte Haus.', en: 'The logbook spans all buildings. All other actions apply to the building selected above.' },
+    'admin.scopeHouse': { de: 'Dein Geltungsbereich ist dieses Haus. Normale Waschzeiten werden von Bewohnern selbst gebucht.', en: 'Your scope is this building. Residents book their normal laundry times themselves.' },
+    'admin.tasks': { de: 'Aufgaben', en: 'Tasks' },
+    'admin.warnings': { de: 'Warnungen', en: 'Warnings' },
+    'admin.information': { de: 'Informationen', en: 'Information' },
+    'admin.responsibility': { de: 'Verantwortung', en: 'Responsibilities' },
+    'admin.yourRole': { de: 'Deine Rolle', en: 'Your role' },
+    'admin.scopeAll': { de: 'Alle Haeuser. Alltagsaktionen gelten fuer das oben ausgewaehlte Haus.', en: 'All buildings. Day-to-day actions apply to the building selected above.' },
+    'admin.operatingState': { de: 'Betriebsstand', en: 'Operating status' },
+    'admin.compactFigures': { de: 'Kompakte Kennzahlen des ausgewaehlten Hauses', en: 'Key figures for the selected building' },
+    'admin.activeUsers': { de: 'aktive Nutzer', en: 'active users' },
+    'admin.unverifiedMail': { de: 'ohne bestaetigte E-Mail', en: 'without confirmed email' },
+    'admin.bookingsToday': { de: 'Buchungen heute', en: 'bookings today' },
+    'admin.activeResources': { de: 'aktive Ressourcen', en: 'active resources' },
+    'admin.recurringBookings': { de: 'feste Buchungen', en: 'recurring bookings' },
+    'admin.releasesWeek': { de: 'Freigaben 7 Tage', en: 'releases in 7 days' },
+    'admin.openLogCases': { de: 'offene Tagebuchfaelle', en: 'open logbook cases' },
+    'admin.notConfigured': { de: 'nicht konfiguriert', en: 'not configured' },
+    'admin.production': { de: 'Produktionsstand', en: 'Production version' },
+    'admin.systemView': { de: 'Systemstatus ansehen', en: 'View system status' },
+    'admin.accountCheck': { de: 'Konto pruefen', en: 'Review account' },
+    'admin.successorCheck': { de: 'Nachfolge pruefen', en: 'Review succession' },
+    'admin.backupSetup': { de: 'Backup einrichten', en: 'Configure backup' },
+    'admin.emailCheck': { de: 'E-Mail pruefen', en: 'Check email' },
+    'admin.backupMissing': { de: 'Externes Backup einrichten', en: 'Configure an external backup' },
+    'admin.emailSetup': { de: 'E-Mail-Versand einrichten', en: 'Configure email delivery' },
+    'admin.emailSetupText': { de: 'SMTP in Render vervollstaendigen und danach eine Testmail senden.', en: 'Complete SMTP configuration in Render, then send a test email.' },
+    'admin.backupSetupText': { de: 'Die lokale Sicherung schuetzt nicht vor einem Ausfall des Render-Datentraegers.', en: 'A local backup does not protect against failure of the Render storage volume.' },
+    'admin.identityRecoveryText': { de: 'Identitaet persoenlich pruefen und bei Bedarf einen kurz gueltigen Wiederherstellungscode ausgeben.', en: 'Verify the identity in person and issue a short-lived recovery code if needed.' },
+    'admin.singleAdminWarning': { de: 'Nur ein aktives Admin-Konto in diesem Haus. Lege eine Stellvertretung fest.', en: 'Only one active admin account exists in this building. Assign a deputy.' },
+    'admin.successorTitle': { de: 'Admin-Nachfolge absichern', en: 'Safeguard admin succession' },
+    'admin.backupNone': { de: 'noch nicht automatisch erstellt', en: 'not yet created automatically' },
+    'admin.externalStorage': { de: 'Externen Speicher in Render einrichten', en: 'Configure external storage in Render' },
+    'admin.superResponsibilitiesOne': { de: 'Haus-Admins, Rollen und Nachfolge absichern', en: 'Safeguard building admins, roles and succession' },
+    'admin.superResponsibilitiesTwo': { de: 'Haeuser und technische Ressourcen verwalten', en: 'Manage buildings and technical resources' },
+    'admin.superResponsibilitiesThree': { de: 'Tagebuchfaelle hausuebergreifend kontrollieren', en: 'Review logbook cases across buildings' },
+    'admin.superResponsibilitiesFour': { de: 'Backups, Wartung und Systembetrieb verantworten', en: 'Own backups, maintenance and system operations' },
+    'admin.superResponsibilitiesFive': { de: 'Im gewaehlten Haus nur bei Bedarf eingreifen', en: 'Intervene in the selected building only when needed' },
+    'admin.start': { de: 'Start', en: 'Overview' },
+    'admin.logbook': { de: 'Tagebuch', en: 'Logbook' },
+    'admin.apartments': { de: 'Wohnungen', en: 'Apartments' },
+    'admin.houseDevices': { de: 'Haus & Geraete', en: 'Building & equipment' },
+    'admin.fixedBookings': { de: 'Dauertermine', en: 'Recurring bookings' },
+    'admin.analytics': { de: 'Auswertung', en: 'Analytics' },
+    'admin.workspace': { de: 'Dein Arbeitsbereich', en: 'Your workspace' },
+    'admin.byPriority': { de: 'Nach Dringlichkeit', en: 'By priority' },
+    'admin.toDoNow': { de: 'Jetzt zu tun', en: 'Tasks requiring attention' },
+    'admin.noUrgent': { de: 'Keine dringenden Aufgaben', en: 'No urgent tasks' },
+    'admin.calm': { de: 'Alles im ruhigen Betrieb', en: 'Everything is running smoothly' },
+    'admin.open': { de: 'Oeffnen', en: 'Open' },
+    'admin.resources': { de: 'Geraete', en: 'Equipment' },
+    'admin.people': { de: 'Personen', en: 'People' },
+    'admin.houses': { de: 'Haeuser', en: 'Buildings' },
+    'admin.backup': { de: 'Backup', en: 'Backup' },
+    'admin.maintenance': { de: 'Wartungsmodus', en: 'Maintenance mode' },
+    'admin.audit': { de: 'Letzte Admin-Aktionen', en: 'Recent admin actions' },
+    'admin.systemStatus': { de: 'Systemstatus', en: 'System status' },
+    'admin.sendTestMail': { de: 'Testmail', en: 'Test email' },
+    'admin.sendTestPush': { de: 'Testpush', en: 'Test push' },
+    'admin.createHouse': { de: 'Haus anlegen', en: 'Create building' },
+    'admin.createResource': { de: 'Geraet oder Raum anlegen', en: 'Add equipment or room' },
+    'admin.invite': { de: 'Einladung senden', en: 'Send invitation' },
+    'admin.repair': { de: 'Reparatur dokumentieren', en: 'Document repair' },
+    'admin.test': { de: 'Funktionspruefung durchfuehren', en: 'Perform functional test' },
+    'admin.release': { de: 'Freigeben und abschliessen', en: 'Release and close' },
+    'admin.loadingTasks': { de: 'Aufgaben werden geprueft', en: 'Checking tasks' },
+    'admin.houseDevicesTitle': { de: 'Haus & Geraete', en: 'Building & equipment' },
+    'admin.houseDevicesHint': { de: 'Bestand pruefen, Geraete verwalten und Stoerungen weiterbearbeiten', en: 'Review inventory, manage equipment and continue issue handling' },
+    'admin.addResource': { de: 'Geraet oder Raum hinzufuegen', en: 'Add equipment or room' },
+    'admin.addResourceHint': { de: 'Neue Waschmaschine, neuen Trockenraum oder Tumbler anlegen', en: 'Add a washing machine, drying room or dryer' },
+    'admin.name': { de: 'Name', en: 'Name' },
+    'admin.area': { de: 'Bereich', en: 'Category' },
+    'admin.add': { de: 'Hinzufuegen', en: 'Add' },
+    'admin.buildingsHint': { de: 'Hausuebergreifende Standortverwaltung fuer Superadmins', en: 'Cross-building location management for superadmins' },
+    'admin.addBuilding': { de: 'Weiteres Haus anlegen', en: 'Add another building' },
+    'admin.addBuildingHint': { de: 'Erzeugt einen neuen Standort mit Standardressourcen', en: 'Creates a new location with standard equipment' },
+    'admin.newBuilding': { de: 'Neue Hausnummer', en: 'New building' },
+    'admin.logbookTitle': { de: 'Maschinen- & Raumtagebuch', en: 'Equipment & room logbook' },
+    'admin.logbookHint': { de: 'Meldung, Sperre, Reparatur, Pruefung und Freigabe lueckenlos dokumentieren', en: 'Document reports, blocks, repairs, tests and releases in one history' },
+    'admin.search': { de: 'Suchen', en: 'Search' },
+    'admin.searchPlaceholder': { de: 'Geraet, Meldung oder Person', en: 'Equipment, report or person' },
+    'admin.status': { de: 'Status', en: 'Status' },
+    'admin.openCases': { de: 'Offene Faelle', en: 'Open cases' },
+    'admin.allCases': { de: 'Alle Faelle', en: 'All cases' },
+    'admin.newReported': { de: 'Neu gemeldet', en: 'Newly reported' },
+    'admin.inRepair': { de: 'In Reparatur', en: 'Under repair' },
+    'admin.tested': { de: 'Geprueft', en: 'Tested' },
+    'admin.closed': { de: 'Abgeschlossen', en: 'Closed' },
+    'admin.fixedTitle': { de: 'Geschuetzte Dauertermine', en: 'Protected recurring bookings' },
+    'admin.fixedHint': { de: 'Wiederkehrende Buchungen koennen nicht ueberschrieben werden', en: 'Recurring bookings cannot be overwritten' },
+    'admin.addFixed': { de: 'Dauertermin anlegen', en: 'Add recurring booking' },
+    'admin.addFixedHint': { de: 'Nur fuer begruendete, regelmaessig geschuetzte Zeiten', en: 'Only for justified, regularly protected times' },
+    'admin.nameHint': { de: 'Name / Hinweis', en: 'Name / note' },
+    'admin.equipment': { de: 'Geraet', en: 'Equipment' },
+    'admin.weekday': { de: 'Wochentag', en: 'Weekday' },
+    'admin.saveFixed': { de: 'Fest speichern', en: 'Save recurring booking' },
+    'admin.apartmentsInvitations': { de: 'Wohnungen & Einladungen', en: 'Apartments & invitations' },
+    'admin.apartmentsInvitationsHint': { de: 'Wohnung fest zuordnen und Bewohner sicher per E-Mail einladen', en: 'Assign apartments and invite residents securely by email' },
+    'admin.addApartment': { de: 'Wohnung anlegen und einladen', en: 'Add apartment and send invitation' },
+    'admin.addApartmentHint': { de: 'Wohnung, Klingelschildname und erste Kontaktadresse erfassen', en: 'Enter apartment, doorbell name and first contact address' },
+    'admin.apartmentLabel': { de: 'Wohnungsbezeichnung', en: 'Apartment label' },
+    'admin.doorbellName': { de: 'Name am Klingelschild', en: 'Doorbell name' },
+    'admin.invitationEmail': { de: 'E-Mail fuer die Einladung', en: 'Invitation email' },
+    'admin.searchAccounts': { de: 'Wohnungen und Konten durchsuchen', en: 'Search apartments and accounts' },
+    'admin.searchAccountsPlaceholder': { de: 'Klingelschild, Wohnung oder E-Mail', en: 'Doorbell name, apartment or email' },
+    'admin.manageAccounts': { de: 'Konten verwalten', en: 'Manage accounts' },
+    'admin.accountsScope': { de: 'Aktive und noch nicht zugeordnete Konten', en: 'Active and not yet assigned accounts' },
+    'admin.analyticsHint': { de: 'Nutzung, Engpaesse und gesperrte Ressourcen', en: 'Usage, bottlenecks and blocked resources' },
+    'admin.systemHint': { de: 'E-Mail, Sicherungen und Protokoll', en: 'Email, backups and audit log' },
+    'admin.operations': { de: 'Betrieb', en: 'Operations' },
+    'admin.operationsHint': { de: 'Verfuegbarkeit, Sicherungen und Wartung', en: 'Availability, backups and maintenance' },
+    'admin.backupData': { de: 'Daten sichern', en: 'Back up data' },
+    'admin.backupDataHint': { de: 'Eine vollstaendige SQLite-Sicherung erstellen oder herunterladen.', en: 'Create or download a complete SQLite backup.' },
+    'admin.backupNow': { de: 'Jetzt sichern', en: 'Back up now' },
+    'admin.download': { de: 'Herunterladen', en: 'Download' },
+    'admin.currentPassword': { de: 'Aktuelles Passwort', en: 'Current password' },
+    'admin.startMaintenance': { de: 'Wartung starten', en: 'Start maintenance' },
+    'admin.endMaintenance': { de: 'Wartung beenden', en: 'End maintenance' },
+    'admin.notificationHint': { de: 'Versandwege gezielt pruefen', en: 'Test delivery channels' },
+    'admin.emailTestTitle': { de: 'E-Mail pruefen', en: 'Test email' },
+    'admin.emailTestHint': { de: 'Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.', en: 'Send a test email to the operational test address or your stored address.' },
+    'admin.pushTestTitle': { de: 'Push pruefen', en: 'Test push' },
+    'admin.pushTestHint': { de: 'Eine Testbenachrichtigung an aktive Geraete im Haus senden.', en: 'Send a test notification to active devices in the building.' },
+    'admin.recipient': { de: 'Empfaenger', en: 'Recipient' },
+    'admin.responsibilityAudit': { de: 'Verantwortung & Protokoll', en: 'Responsibility & audit log' },
+    'admin.responsibilityAuditHint': { de: 'Nachfolge, Bereinigung und nachvollziehbare Admin-Aktionen', en: 'Succession, cleanup and traceable admin actions' },
+    'admin.manageSuperadmin': { de: 'Superadminrechte verwalten', en: 'Manage superadmin rights' },
+    'admin.manageSuperadminHint': { de: 'Einem aktiven Haus-Admin globale Rechte geben oder wieder entziehen. Deine eigenen Rechte bleiben erhalten.', en: 'Grant or revoke global rights for an active building admin. Your own rights remain unchanged.' },
+    'admin.action': { de: 'Aktion', en: 'Action' },
+    'admin.grantRight': { de: 'Recht geben', en: 'Grant right' },
+    'admin.revokeRight': { de: 'Recht entziehen', en: 'Revoke right' },
+    'admin.confirmation': { de: 'Bestaetigung', en: 'Confirmation' },
+    'admin.resetBookings': { de: 'Buchungen zuruecksetzen', en: 'Reset bookings' },
+    'admin.resetBookingsHint': { de: 'Loescht alle normalen Buchungen im aktuellen Haus. Dauertermine und Konten bleiben erhalten.', en: 'Deletes all normal bookings in the current building. Recurring bookings and accounts remain.' },
+    'admin.deleteAllBookings': { de: 'Alle Buchungen loeschen', en: 'Delete all bookings' },
+    'admin.newIssueOne': { de: '{count} neue Stoerung pruefen', en: 'Review {count} new issue' },
+    'admin.newIssueMany': { de: '{count} neue Stoerungen pruefen', en: 'Review {count} new issues' },
+    'admin.issueTaskText': { de: 'Meldung lesen, bei Bedarf sperren und den naechsten Schritt dokumentieren.', en: 'Read the report, block the resource if needed and document the next step.' },
+    'admin.handleIssue': { de: 'Stoerung bearbeiten', en: 'Handle issue' },
+    'admin.openLogTaskOne': { de: '{count} offene Tagebuchaufgabe', en: '{count} open logbook task' },
+    'admin.openLogTaskMany': { de: '{count} offene Tagebuchaufgaben', en: '{count} open logbook tasks' },
+    'admin.logTaskText': { de: 'Reparatur, Funktionspruefung oder Freigabe nachvollziehbar fortfuehren.', en: 'Continue the repair, functional test or release with a traceable note.' },
+    'admin.continueLogbook': { de: 'Tagebuch fortfuehren', en: 'Continue logbook' },
+    'admin.finishRelease': { de: 'Freigabe abschliessen', en: 'Complete release' },
+    'admin.nameRequestOne': { de: '{count} Namenskorrektur entscheiden', en: 'Review {count} name correction' },
+    'admin.nameRequestMany': { de: '{count} Namenskorrekturen entscheiden', en: 'Review {count} name corrections' },
+    'admin.nameRequestText': { de: 'Klingelschild-Vorschlag pruefen und anschliessend uebernehmen oder ablehnen.', en: 'Review the proposed doorbell name, then accept or reject it.' },
+    'admin.invitationProblemOne': { de: '{count} Einladung braucht Aufmerksamkeit', en: '{count} invitation needs attention' },
+    'admin.invitationProblemMany': { de: '{count} Einladungen brauchen Aufmerksamkeit', en: '{count} invitations need attention' },
+    'admin.invitationProblemText': { de: 'Abgelaufene oder nicht versendete Einladung pruefen und gezielt erneuern.', en: 'Review expired or unsent invitations and renew them as needed.' },
+    'admin.renewInvitation': { de: 'Einladung erneut senden', en: 'Resend invitation' },
+    'admin.accountMissingEmailOne': { de: '{count} Konto ohne E-Mail', en: '{count} account without email' },
+    'admin.accountMissingEmailMany': { de: '{count} Konten ohne E-Mail', en: '{count} accounts without email' },
+    'admin.blockedResourceOne': { de: '{count} gesperrte Ressource', en: '{count} blocked resource' },
+    'admin.blockedResourceMany': { de: '{count} gesperrte Ressourcen', en: '{count} blocked resources' },
+    'admin.blockedResourceText': { de: 'Sperren bleiben bis zur dokumentierten Funktionspruefung und Freigabe bestehen.', en: 'Blocks remain until a functional test and release have been documented.' },
+    'admin.viewEquipment': { de: 'Geraet anzeigen', en: 'View equipment' },
+    'admin.maintenanceActive': { de: 'Wartungsmodus ist aktiv', en: 'Maintenance mode is active' },
+    'admin.maintenanceActiveText': { de: 'Schreibende Aktionen bleiben gesperrt, bis System- und Buchungspruefung erfolgreich sind.', en: 'Write actions remain blocked until the system and booking checks pass.' },
+    'admin.checkMaintenance': { de: 'Wartung pruefen', en: 'Check maintenance' },
+    'admin.suspiciousOne': { de: '{count} auffaellige Admin-Aktion pruefen', en: 'Review {count} unusual admin action' },
+    'admin.suspiciousMany': { de: '{count} auffaellige Admin-Aktionen pruefen', en: 'Review {count} unusual admin actions' },
+    'admin.suspiciousText': { de: 'Zuruecksetzungen, Loeschungen oder fehlgeschlagene Aktionen im Audit nachvollziehen.', en: 'Review resets, deletions or failed actions in the audit log.' },
+    'admin.viewAudit': { de: 'Audit ansehen', en: 'View audit log' },
+    'admin.openInvitationOne': { de: '{count} offene Einladung', en: '{count} open invitation' },
+    'admin.openInvitationMany': { de: '{count} offene Einladungen', en: '{count} open invitations' },
+    'admin.openInvitationText': { de: 'Die Einladungen sind versendet und warten auf Annahme.', en: 'The invitations have been sent and are awaiting acceptance.' },
+    'admin.viewInvitations': { de: 'Einladungen ansehen', en: 'View invitations' },
+    'admin.activeFixedOne': { de: '{count} aktive Dauerbuchung', en: '{count} active recurring booking' },
+    'admin.activeFixedMany': { de: '{count} aktive Dauerbuchungen', en: '{count} active recurring bookings' },
+    'admin.activeFixedText': { de: 'Regelmaessige Reservierungen dieses Hauses sind im Kalender vorgemerkt.', en: 'Regular reservations for this building are reserved in the calendar.' },
+    'admin.viewFixed': { de: 'Dauertermine ansehen', en: 'View recurring bookings' },
+    'admin.openTaskOne': { de: '{count} Aufgabe offen', en: '{count} open task' },
+    'admin.openTaskMany': { de: '{count} Aufgaben offen', en: '{count} open tasks' },
+    'admin.noTaskText': { de: 'Keine neue Stoerung, Kontowarnung oder Systemaufgabe wartet auf dich.', en: 'No new issue, account warning or system task is waiting for you.' },
+    'admin.selectedBuildingOnly': { de: 'Nur dieses Haus. Bewohner buchen ihre normalen Waschzeiten selbst.', en: 'This building only. Residents book their normal laundry times themselves.' },
+    'admin.houseResponsibilitiesOne': { de: 'Wohnungen aktivieren und Konten betreuen', en: 'Activate apartments and manage accounts' },
+    'admin.houseResponsibilitiesTwo': { de: 'Geraete und Raeume anlegen oder sperren', en: 'Add or block equipment and rooms' },
+    'admin.houseResponsibilitiesThree': { de: 'Stoerungen bis zur Freigabe dokumentieren', en: 'Document issues through to release' },
+    'admin.houseResponsibilitiesFour': { de: 'Begruendete Dauertermine pflegen', en: 'Maintain justified recurring bookings' },
+    'admin.houseResponsibilitiesFive': { de: 'Betrieb des eigenen Hauses im Blick behalten', en: 'Monitor operations in this building' },
+    'admin.houseSuffixMany': { de: '{count} Haeuser', en: '{count} buildings' },
+    'admin.activeDevices': { de: 'aktive Geraete', en: 'active devices' },
+    'admin.backupChecked': { de: 'geprueft am {date}', en: 'checked on {date}' },
+    'admin.externalCopied': { de: 'extern kopiert', en: 'copied externally' },
+    'admin.externalCopyMissing': { de: 'externe Kopie fehlt', en: 'external copy missing' },
+    'admin.analyticsWindow': { de: 'Buchungen im 60-Tage-Fenster', en: 'bookings in the 60-day window' },
+    'admin.busiestSlot': { de: 'staerkster Slot', en: 'busiest time slot' },
+    'admin.blockedLower': { de: 'gesperrt', en: 'blocked' },
+    'admin.bookingCountOne': { de: '{count} Buchung', en: '{count} booking' },
+    'admin.bookingCountMany': { de: '{count} Buchungen', en: '{count} bookings' },
+    'admin.noBookings': { de: 'Noch keine Buchungen.', en: 'No bookings yet.' },
+    'admin.blocks': { de: 'Sperren', en: 'Blocks' },
+    'admin.noBlockedResources': { de: 'Keine gesperrten Ressourcen.', en: 'No blocked resources.' },
+    'admin.emergencyAccess': { de: 'Notfallzugang', en: 'Emergency access' },
+    'admin.emergencyAccessHint': { de: 'Damit die Verwaltung weiterlaeuft, falls das aktuelle Hauptkonto ausfaellt.', en: 'Keeps administration available if the current primary account becomes unavailable.' },
+    'admin.houseAdmins': { de: 'Hausadmins', en: 'Building admins' },
+    'admin.renderRecovery': { de: 'Render-Recovery', en: 'Render recovery' },
+    'admin.resetActive': { de: 'Reset aktiv', en: 'Reset active' },
+    'admin.prepared': { de: 'vorbereitet', en: 'prepared' },
+    'admin.missing': { de: 'fehlt', en: 'missing' },
+    'admin.emergencyPrepared': { de: 'Notfallprozess ist sauber vorbereitet.', en: 'The emergency process is properly prepared.' },
+    'admin.activeSuperadmins': { de: 'Aktive Superadmins: {names}', en: 'Active superadmins: {names}' },
+    'admin.none': { de: 'keiner', en: 'none' },
+    'admin.noHouseAdminTarget': { de: 'Kein weiterer Haus-Admin verfuegbar', en: 'No other building admin available' },
+    'admin.noSuperadminTarget': { de: 'Kein anderer Superadmin in diesem Haus', en: 'No other superadmin in this building' },
+    'admin.allActiveDevices': { de: 'Alle aktiven Geraete ({count})', en: 'All active devices ({count})' },
+    'admin.noPushDevices': { de: 'Keine aktiven Push-Geraete', en: 'No active push devices' },
+    'admin.deviceOne': { de: '{count} Geraet', en: '{count} device' },
+    'admin.deviceMany': { de: '{count} Geraete', en: '{count} devices' },
+    'admin.maintenanceSince': { de: 'Aktiv seit {date}. Schreibende Aktionen sind gesperrt.', en: 'Active since {date}. Write actions are blocked.' },
+    'admin.maintenanceReadyChecked': { de: 'Bereit. Letzte System- und Buchungspruefung: {date}.', en: 'Ready. Last system and booking check: {date}.' },
+    'admin.maintenanceReady': { de: 'Bereit. Vor dem Start wird automatisch ein geprueftes Backup erstellt.', en: 'Ready. A verified backup is created automatically before maintenance starts.' },
+    'admin.roleUnassigned': { de: 'Ohne Zuordnung', en: 'Unassigned' },
+    'admin.accountMerged': { de: 'zusammengefuehrt', en: 'merged' },
+    'admin.activeLower': { de: 'aktiv', en: 'active' },
+    'admin.inactiveLower': { de: 'inaktiv', en: 'inactive' },
+    'admin.emailMissing': { de: 'E-Mail fehlt', en: 'email missing' },
+    'admin.activate': { de: 'Aktivieren', en: 'Activate' },
+    'admin.deactivate': { de: 'Deaktivieren', en: 'Deactivate' },
+    'admin.grantHouseAdmin': { de: 'Haus-Adminrecht geben', en: 'Grant building admin rights' },
+    'admin.revokeHouseAdmin': { de: 'Adminrecht entziehen', en: 'Revoke admin rights' },
+    'admin.move': { de: 'Verschieben', en: 'Move' },
+    'admin.resetLink': { de: 'Reset-Link senden', en: 'Send reset link' },
+    'admin.recoveryCode': { de: 'Wiederherstellungscode', en: 'Recovery code' },
+    'admin.manageOwnAccount': { de: 'Eigenes Konto unter Buchen verwalten.', en: 'Manage your own account under Calendar.' },
+    'admin.managedBySuperadmin': { de: 'Dieses Admin-Konto verwaltet der Superadmin.', en: 'This admin account is managed by a superadmin.' },
+    'admin.active': { de: 'Aktiv', en: 'Active' },
+    'admin.inactive': { de: 'Inaktiv', en: 'Inactive' },
+    'admin.peopleEquipment': { de: '{people} Personen / {equipment} Geraete', en: '{people} people / {equipment} equipment items' },
+    'admin.rename': { de: 'Umbenennen', en: 'Rename' },
+    'admin.show': { de: 'Anzeigen', en: 'View' },
+    'admin.noLogCases': { de: 'Keine passenden Tagebuchfaelle.', en: 'No matching logbook cases.' },
+    'admin.adjustLogFilter': { de: 'Suche oder Statusfilter anpassen.', en: 'Adjust the search or status filter.' },
+    'admin.resourceRemoved': { de: 'Ressource entfernt', en: 'Resource removed' },
+    'admin.reportedBy': { de: 'Gemeldet von {name}', en: 'Reported by {name}' },
+    'admin.history': { de: 'Chronik ({count})', en: 'History ({count})' },
+    'admin.nextStep': { de: 'Naechster Schritt', en: 'Next step' },
+    'admin.testResult': { de: 'Pruefergebnis', en: 'Test result' },
+    'admin.successful': { de: 'Erfolgreich', en: 'Successful' },
+    'admin.unsuccessful': { de: 'Nicht erfolgreich', en: 'Unsuccessful' },
+    'admin.documentation': { de: 'Dokumentation', en: 'Documentation' },
+    'admin.releaseNotePlaceholder': { de: 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.', en: 'Required: record the work performed and the successful test run.' },
+    'admin.notePlaceholder': { de: 'Sachlich festhalten, was gemacht oder festgestellt wurde.', en: 'Record factually what was done or observed.' },
+    'admin.saveEntry': { de: 'Eintrag speichern', en: 'Save entry' },
+    'admin.addNote': { de: 'Notiz ergaenzen', en: 'Add note' },
+    'admin.blockResource': { de: 'Ressource sperren', en: 'Block resource' },
+    'admin.documentRepair': { de: 'Reparatur dokumentieren', en: 'Document repair' },
+    'admin.documentMoreRepair': { de: 'Weitere Reparatur dokumentieren', en: 'Document further repair' },
+    'admin.documentTest': { de: 'Funktionspruefung dokumentieren', en: 'Document functional test' },
+    'admin.inventoryTotal': { de: 'Geraete & Raeume', en: 'Equipment & rooms' },
+    'admin.readyLower': { de: 'einsatzbereit', en: 'ready' },
+    'admin.readyCount': { de: '{ready} von {total} einsatzbereit', en: '{ready} of {total} ready' },
+    'admin.noInventoryEntry': { de: 'Noch kein Eintrag in diesem Bereich.', en: 'No entry in this category yet.' },
+    'admin.ready': { de: 'Einsatzbereit', en: 'Ready' },
+    'admin.noBlockReason': { de: 'Kein Sperrgrund hinterlegt', en: 'No block reason recorded' },
+    'admin.block': { de: 'Sperren', en: 'Block' },
+    'admin.openLogbook': { de: 'Tagebuch öffnen', en: 'Open logbook' },
+    'admin.save': { de: 'Speichern', en: 'Save' },
+    'admin.cancel': { de: 'Abbrechen', en: 'Cancel' },
+    'admin.noAudit': { de: 'Noch keine protokollierten Admin-Aktionen.', en: 'No recorded admin actions yet.' },
+    'admin.noFixed': { de: 'Noch keine festen Buchungen.', en: 'No recurring bookings yet.' },
+    'admin.remove': { de: 'Entfernen', en: 'Remove' },
+    'admin.noApartments': { de: 'Noch keine Wohnungen angelegt.', en: 'No apartments have been added yet.' },
+    'admin.invitationSent': { de: 'Persoenliche Einladung an {email} gesendet.', en: 'Personal invitation sent to {email}.' },
+    'admin.testInvitationCreated': { de: 'Technische Testeinladung fuer {email} angelegt.', en: 'Technical test invitation created for {email}.' },
+    'admin.invitationOpen': { de: 'Einladung offen fuer {email}', en: 'Invitation pending for {email}' },
+    'admin.peopleConnectedOne': { de: '{count} Person verbunden', en: '{count} person connected' },
+    'admin.peopleConnectedMany': { de: '{count} Personen verbunden', en: '{count} people connected' },
+    'admin.invitationExpired': { de: 'Einladung abgelaufen', en: 'Invitation expired' },
+    'admin.invitationNotSent': { de: 'Einladung nicht versendet', en: 'Invitation not sent' },
+    'admin.notInvited': { de: 'noch nicht eingeladen', en: 'not invited yet' },
+    'admin.correctionRequested': { de: 'Korrektur gewuenscht: {name}', en: 'Correction requested: {name}' },
+    'admin.reviewSuggestion': { de: 'Vorschlag pruefen', en: 'Review suggestion' },
+    'admin.edit': { de: 'Bearbeiten', en: 'Edit' },
+    'admin.renew': { de: 'Einladung erneuern', en: 'Renew invitation' },
+    'admin.additionalPerson': { de: 'Weitere Person', en: 'Additional person' },
+    'admin.invitePerson': { de: 'Einladen', en: 'Invite' },
+    'admin.personalInvitationEmail': { de: 'Persoenliche E-Mail fuer die Einladung', en: 'Personal invitation email' },
+    'admin.apartmentEmailHint': { de: 'Jede Person verwaltet ihre eigene E-Mail. Die Wohnung bleibt ueber den Klingelschildnamen gemeinsam erkennbar.', en: 'Each person manages their own email. The apartment remains identifiable by its shared doorbell name.' },
+    'admin.reject': { de: 'Ablehnen', en: 'Reject' },
+    'admin.statusReported': { de: 'Neu gemeldet', en: 'Newly reported' },
+    'admin.statusBlocked': { de: 'Gesperrt', en: 'Blocked' },
+    'admin.statusRepairing': { de: 'In Reparatur', en: 'Under repair' },
+    'admin.statusTested': { de: 'Pruefung bestanden', en: 'Test passed' },
+    'admin.statusClosed': { de: 'Abgeschlossen', en: 'Closed' },
+    'admin.entryReport': { de: 'Meldung', en: 'Report' },
+    'admin.entryNote': { de: 'Notiz', en: 'Note' },
+    'admin.entryBlock': { de: 'Sperre', en: 'Block' },
+    'admin.entryRepair': { de: 'Reparatur', en: 'Repair' },
+    'admin.entryTestPassed': { de: 'Funktionspruefung bestanden', en: 'Functional test passed' },
+    'admin.entryTestFailed': { de: 'Funktionspruefung nicht bestanden', en: 'Functional test failed' },
+    'admin.entryRelease': { de: 'Freigabe und Abschluss', en: 'Release and closure' },
+    'admin.washers': { de: 'Waschmaschinen', en: 'Washing machines' },
+    'admin.dryingRooms': { de: 'Trockenraeume', en: 'Drying rooms' },
+    'admin.dryers': { de: 'Tumbler', en: 'Dryers' },
+    'admin.users': { de: 'Nutzer', en: 'Users' },
+    'admin.systemActor': { de: 'System', en: 'System' },
+    'admin.nameOf': { de: 'Name von {name}', en: 'Name of {name}' },
+    'admin.blockPrompt': { de: 'Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.', en: 'Why is this item being blocked? For example: defect, maintenance or cleaning.' },
+    'admin.emailTestReady': { de: 'Testmail an die konfigurierte Testadresse senden', en: 'Send a test email to the configured test address' },
+    'admin.emailTestUnavailable': { de: 'Zuerst SMTP in Render konfigurieren', en: 'Configure SMTP in Render first' },
+    'admin.pushTestReady': { de: 'Testpush an die ausgewaehlten aktiven Geraete senden', en: 'Send a test push to the selected active devices' },
+    'admin.pushTestUnavailable': { de: 'Push ist auf dem Server noch nicht bereit', en: 'Push is not ready on the server yet' },
+    'admin.moveToBuilding': { de: '{name} in anderes Haus verschieben', en: 'Move {name} to another building' },
+    'admin.resetFor': { de: 'Passwort-Link an die bestaetigte Adresse von {name} senden', en: 'Send a password reset link to the confirmed address for {name}' },
+    'admin.recoveryFor': { de: 'Einmalcode fuer {name} nach persoenlicher Identitaetspruefung erzeugen', en: 'Create a one-time code for {name} after verifying their identity in person' },
+    'resource.washer': { de: 'Waschmaschine', en: 'Washing machine' },
+    'resource.dryingRoom': { de: 'Trockenraum', en: 'Drying room' },
+    'resource.dryer': { de: 'Tumbler', en: 'Dryer' },
+    'audit.userStatus': { de: 'Kontostatus geaendert', en: 'Account status changed' },
+    'audit.passwordReset': { de: 'Passwort-Link gesendet', en: 'Password reset link sent' },
+    'audit.recoveryCreated': { de: 'Wiederherstellungscode erstellt', en: 'Recovery code created' },
+    'audit.recoveryCompleted': { de: 'Konto wiederhergestellt', en: 'Account recovered' },
+    'audit.userRole': { de: 'Rolle geaendert', en: 'Role changed' },
+    'audit.userMove': { de: 'Konto verschoben', en: 'Account moved' },
+    'audit.houseCreate': { de: 'Haus angelegt', en: 'Building created' },
+    'audit.houseUpdate': { de: 'Haus aktualisiert', en: 'Building updated' },
+    'audit.houseCode': { de: 'Hauscode geaendert', en: 'Building code changed' },
+    'audit.resourceCreate': { de: 'Geraet angelegt', en: 'Equipment created' },
+    'audit.resourceUpdate': { de: 'Geraet aktualisiert', en: 'Equipment updated' },
+    'audit.resourceBlock': { de: 'Ressource gesperrt', en: 'Resource blocked' },
+    'audit.resourceUnblock': { de: 'Ressource freigegeben', en: 'Resource released' },
+    'audit.issueReport': { de: 'Stoerung gemeldet', en: 'Issue reported' },
+    'audit.logNote': { de: 'Tagebuchnotiz ergaenzt', en: 'Logbook note added' },
+    'audit.logBlock': { de: 'Tagebuchsperre gesetzt', en: 'Logbook block set' },
+    'audit.repair': { de: 'Reparatur dokumentiert', en: 'Repair documented' },
+    'audit.test': { de: 'Funktionspruefung dokumentiert', en: 'Functional test documented' },
+    'audit.release': { de: 'Ressource geprueft freigegeben', en: 'Resource tested and released' },
+    'audit.fixedCreate': { de: 'Feste Buchung angelegt', en: 'Recurring booking created' },
+    'audit.fixedDelete': { de: 'Feste Buchung entfernt', en: 'Recurring booking removed' },
+    'audit.bookingsReset': { de: 'Buchungen zurueckgesetzt', en: 'Bookings reset' },
+    'audit.invitationCreate': { de: 'Wohnungseinladung erstellt', en: 'Apartment invitation created' },
+    'audit.invitationRenew': { de: 'Wohnungseinladung erneuert', en: 'Apartment invitation renewed' },
+    'audit.invitationAccept': { de: 'Wohnungseinladung angenommen', en: 'Apartment invitation accepted' },
+    'audit.pushTest': { de: 'Push-Test gesendet', en: 'Push test sent' },
+    'audit.superGrant': { de: 'Superadminrecht gegeben', en: 'Superadmin permission granted' },
+    'audit.superRevoke': { de: 'Superadminrecht entzogen', en: 'Superadmin permission revoked' },
+    'audit.superTransfer': { de: 'Superadmin uebergeben', en: 'Superadmin transferred' },
+    'audit.backupDownload': { de: 'Backup heruntergeladen', en: 'Backup downloaded' },
+    'audit.backupCreate': { de: 'Backup erstellt', en: 'Backup created' },
+    'audit.maintenanceStart': { de: 'Wartungsmodus gestartet', en: 'Maintenance mode started' },
+    'audit.maintenanceFinish': { de: 'Wartungsmodus beendet', en: 'Maintenance mode ended' },
+    'audit.maintenanceFailed': { de: 'Wartungspruefung fehlgeschlagen', en: 'Maintenance check failed' },
+    'admin.onlyOneSuperadmin': { de: 'Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.', en: 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.' },
+    'admin.emergencyRule': { de: 'Notfallregel: Render-Zugang nutzen, SEED_ADMIN_PASSWORD setzen und bei unbekanntem Passwort einmalig SEED_ADMIN_FORCE_PASSWORD_RESET=true aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.', en: 'Emergency procedure: use Render access, set SEED_ADMIN_PASSWORD and, if the password is unknown, enable SEED_ADMIN_FORCE_PASSWORD_RESET=true once. Restart, then remove the reset switch again.' },
+    'admin.errorNameArea': { de: 'Bitte einen gueltigen Namen und Bereich waehlen.', en: 'Choose a valid name and category.' },
+    'admin.errorDuplicateEquipment': { de: 'Ein Geraet mit diesem Namen ist bereits vorhanden.', en: 'Equipment with this name already exists.' },
+    'admin.errorEquipmentMissing': { de: 'Geraet nicht gefunden.', en: 'Equipment not found.' },
+    'admin.errorEquipmentRoomMissing': { de: 'Geraet oder Raum nicht gefunden.', en: 'Equipment or room not found.' },
+    'admin.errorNameLength': { de: 'Der Name muss 2 bis 80 Zeichen haben.', en: 'The name must contain 2 to 80 characters.' },
+    'admin.errorBlockReasonLength': { de: 'Der Sperrgrund muss 3 bis 180 Zeichen haben.', en: 'The reason for blocking must contain 3 to 180 characters.' },
+    'admin.errorBlockReasonRequired': { de: 'Zum Sperren ist ein Grund mit 3 bis 180 Zeichen erforderlich.', en: 'A reason containing 3 to 180 characters is required to block the resource.' },
+    'admin.errorReleaseInLogbook': { de: 'Freigabe nur im Maschinentagebuch: zuerst Reparatur und Funktionspruefung dokumentieren, danach mit Abschlussnotiz freigeben.', en: 'Release the resource in the equipment logbook only: document the repair and functional test first, then release it with a closing note.' },
+    'admin.errorLogCaseMissing': { de: 'Tagebuchfall nicht gefunden.', en: 'Logbook case not found.' },
+    'admin.errorUnknownLogStep': { de: 'Unbekannter Tagebuchschritt.', en: 'Unknown logbook step.' },
+    'admin.errorLogNote': { de: 'Eine nachvollziehbare Notiz mit 3 bis 1000 Zeichen ist erforderlich.', en: 'A traceable note containing 3 to 1000 characters is required.' },
+    'admin.errorResourceGone': { de: 'Die zugehoerige Ressource existiert nicht mehr. Es kann nur noch eine Notiz ergaenzt werden.', en: 'The associated resource no longer exists. Only a note can be added.' },
+    'admin.errorReportedNext': { de: 'Nur eine neue Meldung kann als naechster Schritt gesperrt werden.', en: 'Only a newly reported issue can be blocked as the next step.' },
+    'admin.errorRepairNext': { de: 'Eine Reparatur kann nur an einer gesperrten Ressource dokumentiert werden.', en: 'A repair can only be documented for a blocked resource.' },
+    'admin.errorTestNext': { de: 'Die Funktionspruefung folgt auf eine dokumentierte Reparatur an der gesperrten Ressource.', en: 'The functional test follows a documented repair of the blocked resource.' },
+    'admin.errorReleaseNext': { de: 'Freigabe erst nach einer erfolgreichen Funktionspruefung moeglich.', en: 'The resource can only be released after a successful functional test.' },
+    'admin.errorApartmentMissing': { de: 'Wohnung nicht gefunden.', en: 'Apartment not found.' },
+    'admin.errorApartmentLabel': { de: 'Bitte eine Wohnungsbezeichnung mit 2 bis 60 Zeichen eingeben.', en: 'Enter an apartment label containing 2 to 60 characters.' },
+    'admin.errorDoorbellName': { de: 'Bitte den Namen vom Klingelschild mit 2 bis 80 Zeichen eingeben.', en: 'Enter the doorbell name using 2 to 80 characters.' },
+    'admin.errorInvitationEmail': { de: 'Bitte eine gueltige E-Mail-Adresse fuer die Einladung eingeben.', en: 'Enter a valid email address for the invitation.' },
+    'admin.errorInvitationConflict': { de: 'Diese E-Mail-Adresse gehoert bereits zu einer Wohnung, einem anderen Haus oder einer offenen Einladung.', en: 'This email address already belongs to an apartment, another building or a pending invitation.' },
+    'admin.errorInvitationMailMissing': { de: 'Der E-Mail-Versand ist noch nicht eingerichtet. Es wurde keine Einladung erstellt.', en: 'Email delivery is not configured yet. No invitation was created.' },
+    'admin.errorPersonAlreadyMember': { de: 'Diese Person ist bereits Mitglied dieser Wohnung.', en: 'This person is already a member of this apartment.' },
+    'admin.errorAccountMissing': { de: 'Konto nicht gefunden.', en: 'Account not found.' },
+    'admin.errorOwnAdminDeactivate': { de: 'Du kannst dein eigenes Admin-Konto nicht deaktivieren.', en: 'You cannot deactivate your own admin account.' },
+    'admin.errorSuperadminProtected': { de: 'Das Superadmin-Konto kann hier nicht geaendert werden.', en: 'The superadmin account cannot be changed here.' },
+    'admin.errorHouseAdminAccounts': { de: 'Hausadmins koennen andere Admin-Konten nicht verwalten.', en: 'Building admins cannot manage other admin accounts.' },
+    'admin.errorLastAdmin': { de: 'Mindestens ein aktives Admin-Konto muss erhalten bleiben.', en: 'At least one active admin account must remain.' },
+    'admin.errorHouseMissing': { de: 'Hausnummer nicht gefunden.', en: 'Building not found.' },
+    'admin.errorHouseName': { de: 'Die Hausnummer muss 2 bis 80 Zeichen haben.', en: 'The building name must contain 2 to 80 characters.' },
+    'admin.errorHouseDuplicate': { de: 'Diese Hausnummer ist bereits vorhanden.', en: 'This building already exists.' },
+    'admin.errorSwitchHouseFirst': { de: 'Wechsle zuerst zu einem anderen Haus.', en: 'Switch to another building first.' },
+    'admin.errorHouseInUse': { de: 'Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.', en: 'A building with active accounts or upcoming bookings cannot be deactivated.' },
+    'admin.successBackup': { de: 'Backup wurde erstellt und geprueft.', en: 'The backup was created and verified.' },
+    'admin.successMaintenanceStart': { de: 'Backup geprueft. Wartungsmodus ist jetzt aktiv.', en: 'Backup verified. Maintenance mode is now active.' },
+    'admin.successMaintenanceEnd': { de: 'System- und Buchungspruefung erfolgreich. WaschZeit ist wieder freigegeben.', en: 'System and booking checks passed. WaschZeit is available again.' },
+    'intro.short': { de: 'Kurze Einfuehrung', en: 'Quick introduction' },
+    'intro.title': { de: 'In Ruhe durch den Waschplan.', en: 'A calm tour of your laundry schedule.' },
+    'intro.mediaDescription': { de: 'Das Video erklaert die fuer deine Rolle wichtigen Ablaeufe an konkreten Beispielen. Untertitel, Kapitel und ein vollstaendiges Transkript stehen zusaetzlich bereit.', en: 'The video explains the workflows relevant to your role using practical examples. Captions, chapters and a full transcript are also available.' },
+    'intro.recordedEyebrow': { de: 'Mit Sprecher und Untertiteln', en: 'With narration and captions' },
+    'intro.videoChapters': { de: 'Videokapitel', en: 'Video chapters' },
+    'intro.mediaFallback': { de: 'Das Video ist gerade nicht verfuegbar. Transkript und interaktive Einfuehrung bleiben nutzbar.', en: 'The video is currently unavailable. The transcript and interactive introduction remain available.' },
+    'intro.videoUnsupported': { de: 'Dein Browser kann das Video nicht abspielen. Nutze bitte den interaktiven Rundgang oder den Text zum Mitlesen.', en: 'Your browser cannot play this video. Please use the interactive tour or the full transcript.' },
+    'intro.start': { de: 'Rundgang starten', en: 'Start tour' },
+    'intro.previous': { de: 'Vorheriges Kapitel', en: 'Previous chapter' },
+    'intro.next': { de: 'Naechstes Kapitel', en: 'Next chapter' },
+    'intro.transcript': { de: 'Text zum Mitlesen', en: 'Full transcript' },
+    'intro.chapters': { de: 'Kapitel', en: 'Chapters' },
+    'intro.restartChapter': { de: 'Kapitel neu starten', en: 'Restart chapter' },
+    'intro.roleGuide': { de: 'Rollenbezogenen Rundgang und vollstaendigen Lesetext oeffnen', en: 'Open role-specific tour and full transcript' },
+    'intro.pause': { de: 'Pause', en: 'Pause' },
+    'intro.watchAgain': { de: 'Erneut ansehen', en: 'Watch again' },
+    'intro.continue': { de: 'Fortsetzen', en: 'Continue' },
+    'intro.startGuide': { de: 'Einfuehrung starten', en: 'Start introduction' },
+    'intro.voiceOff': { de: 'Stimme ausschalten', en: 'Turn voice off' },
+    'intro.voiceOn': { de: 'Stimme einschalten', en: 'Turn voice on' },
+    'intro.noVoice': { de: 'Ohne Sprachausgabe', en: 'Without voice output' },
+    'intro.voiceUnavailable': { de: 'Stimme nicht verfuegbar', en: 'Voice unavailable' },
+    'intro.withTranscript': { de: 'Mit Text zum Mitlesen', en: 'With full transcript' },
+    'intro.quizEyebrow': { de: 'Kurz ausprobiert', en: 'Quick check' },
+    'intro.quizTitle': { de: 'Drei Fragen fuer den Alltag', en: 'Three everyday questions' },
+    'intro.quizHint': { de: 'Kein Test und keine Zugangshuerde. Die Fragen helfen nur dabei, die wichtigsten Punkte noch einmal einzuordnen.', en: 'This is not a test or an access barrier. The questions simply review the most important points.' },
+    'intro.quizWasher': { de: 'Du brauchst an einem Waschtag zwei Waschmaschinen. Wie buchst du?', en: 'You need two washing machines on one laundry day. How do you book them?' },
+    'intro.quizSameSlot': { de: 'Beide im gleichen Zeitfenster', en: 'Both in the same time slot' },
+    'intro.quizDifferentSlots': { de: 'Eine morgens und eine abends', en: 'One in the morning and one in the evening' },
+    'intro.quizDrying': { de: 'Du waeschst von 17:00 bis 21:00 Uhr. Bis wann darf der Trockenraum maximal reserviert werden?', en: 'You wash from 17:00 to 21:00. Until when may the drying room be reserved at the latest?' },
+    'intro.quizNextNoon': { de: 'Bis 12:00 Uhr am Folgetag', en: 'Until 12:00 the following day' },
+    'intro.quizNextEvening': { de: 'Bis 21:00 Uhr am Folgetag', en: 'Until 21:00 the following day' },
+    'intro.quizRelease': { de: 'Du bist frueher fertig. Was hilft den anderen im Haus?', en: 'You finish early. What helps the other residents?' },
+    'intro.quizReleaseAnswer': { de: 'Die Buchung frueher freigeben', en: 'Release the booking early' },
+    'intro.quizLeave': { de: 'Nichts, der Slot bleibt einfach belegt', en: 'Nothing; leave the slot occupied' },
+    'intro.quizSubmit': { de: 'Antworten ansehen', en: 'Review answers' },
+    'intro.toApp': { de: 'Zur App', en: 'Go to app' },
+    'intro.chapterCount': { de: 'Kapitel {current} von {total}', en: 'Chapter {current} of {total}' },
+    'intro.voiceLanguage': { de: 'Mit deutscher Stimme', en: 'With English voice' },
+    'intro.quizMissing': { de: 'Waehle bitte bei jeder Frage eine Antwort. Danach schauen wir sie gemeinsam an.', en: 'Please select an answer for each question, then review them together.' },
+    'intro.quizCorrect': { de: 'Passt. Die wichtigsten Punkte sitzen, und du kannst direkt loslegen.', en: 'Great. You have the key points and can get started.' },
+    'privacy.title': { de: 'Datenschutzhinweise', en: 'Privacy information' },
+    'privacy.heading': { de: 'Welche Daten der Waschplan verwendet', en: 'How the laundry schedule uses data' },
+    'privacy.operator': { de: 'Betreiber und Kontakt', en: 'Operator and contact' },
+    'privacy.data': { de: 'Gespeicherte Daten', en: 'Stored data' },
+    'privacy.purpose': { de: 'Wofuer die Daten genutzt werden', en: 'How the data is used' },
+    'privacy.retention': { de: 'Aufbewahrung und Schutz', en: 'Retention and protection' },
+    'privacy.options': { de: 'Deine Moeglichkeiten', en: 'Your options' },
+    'privacy.back': { de: 'Zurueck zum Waschplan', en: 'Back to the laundry schedule' },
+    'game.title': { de: 'Windel-Alarm spielen', en: 'Play Diaper Alert' },
+    'game.start': { de: 'Spiel starten', en: 'Start game' },
+    'game.close': { de: 'Spiel schliessen', en: 'Close game' },
+    'game.leaderboard': { de: 'Globale Bestenliste', en: 'Global leaderboard' },
+    'game.soundOff': { de: 'Ton aus', en: 'Sound off' },
+    'game.soundOn': { de: 'Ton an', en: 'Sound on' },
+    'update.available': { de: 'Eine neue Version ist verfuegbar.', en: 'A new version is available.' },
+    'update.now': { de: 'Jetzt aktualisieren', en: 'Update now' }
+  };
+
+  const englishPatterns = [
+    [/^(\d+) von (\d+) Schritten erledigt\.$/, '$1 of $2 steps completed.'],
+    [/^Kapitel (\d+) von (\d+)$/, 'Chapter $1 of $2'],
+    [/^(\d+) von (\d+) Antworten passen schon\. Die orange markierten Fragen kannst du oben noch einmal nachlesen\. Du kannst die App natuerlich trotzdem nutzen\.$/, '$1 of $2 answers are correct. Review the highlighted questions above. You can still use the app normally.'],
+    [/^(\d+) Aufgaben offen$/, '$1 open tasks'],
+    [/^(\d+) Aufgabe offen$/, '$1 open task'],
+    [/^(\d+) Buchungen heute$/, '$1 bookings today'],
+    [/^(\d+) aktive Nutzer$/, '$1 active users'],
+    [/^(\d+) Konten ohne E-Mail$/, '$1 accounts without email'],
+    [/^Produktionsstand (.+)$/, 'Production version $1'],
+    [/^bereit - (\d+) aktive Geraete$/, 'ready - $1 active devices'],
+    [/^noch nicht automatisch erstellt . Externen Speicher in Render einrichten$/, 'not yet created automatically - configure external storage in Render'],
+    [/^Verwaltung (.+)$/, 'Administration $1'],
+    [/^Aktuelles Haus: (.+)$/, 'Current building: $1'],
+    [/^Waschraum (.+)$/, 'Laundry room $1'],
+    [/^Heute bis (.+)$/, 'Today until $1'],
+    [/^Morgen bis (.+)$/, 'Tomorrow until $1'],
+    [/^Frei bis (.+)$/, 'Available until $1'],
+    [/^Aktiv seit (.+)$/, 'Active since $1'],
+    [/^(.+) wurde gespeichert\.$/, '$1 was saved.'],
+    [/^(.+) wurde angelegt\.$/, '$1 was created.'],
+    [/^(.+) wurde aktualisiert\.$/, '$1 was updated.'],
+    [/^(.+) wurde gesperrt und im Tagebuch erfasst\.$/, '$1 was blocked and recorded in the logbook.'],
+    [/^(.+) ist jetzt (aktiv|deaktiviert)\.$/, (_, name, state) => `${name} is now ${state === 'aktiv' ? 'active' : 'inactive'}.`],
+    [/^Ansicht gewechselt zu (.+)\.$/, 'Switched view to $1.'],
+    [/^Reset-Link wurde an die bestaetigte Adresse von (.+) gesendet\.$/, 'A reset link was sent to the confirmed address for $1.'],
+    [/^(.+) wurde nach (.+) verschoben\.$/, '$1 was moved to $2.'],
+    [/^(.+) wurde geloescht\.$/, '$1 was deleted.'],
+    [/^(.+) ist jetzt frei\.$/, '$1 is now available.']
+  ];
+
+  const sourceLookup = new Map();
+  for (const [key, value] of Object.entries(messages)) {
+    sourceLookup.set(normalize(value.de), key);
+  }
+
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\u00e4/g, 'ae').replace(/\u00f6/g, 'oe').replace(/\u00fc/g, 'ue')
+      .replace(/\u00c4/g, 'Ae').replace(/\u00d6/g, 'Oe').replace(/\u00dc/g, 'Ue')
+      .replace(/\u00df/g, 'ss')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function safeLanguage(value) {
+    return SUPPORTED.includes(String(value || '').toLowerCase()) ? String(value).toLowerCase() : 'de';
+  }
+
+  function readStoredLanguage() {
+    try {
+      return safeLanguage(global.localStorage.getItem(STORAGE_KEY));
+    } catch {
+      return 'de';
+    }
+  }
+
+  function format(template, variables) {
+    return Object.entries(variables || {}).reduce(
+      (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
+      String(template)
+    );
+  }
+
+  function t(key, variables, fallback) {
+    const entry = messages[key];
+    const value = entry?.[currentLanguage] || entry?.de || fallback || key;
+    return format(value, variables);
+  }
+
+  function translateVisibleText(value) {
+    if (currentLanguage === 'de') return value;
+    const original = String(value || '');
+    const trimmed = original.trim();
+    if (!trimmed) return original;
+    const key = sourceLookup.get(normalize(trimmed));
+    let translated = key ? messages[key].en : '';
+    if (!translated) {
+      for (const [pattern, replacement] of englishPatterns) {
+        if (pattern.test(trimmed)) {
+          translated = trimmed.replace(pattern, replacement);
+          break;
+        }
+      }
+    }
+    if (!translated) return original;
+    return original.replace(trimmed, translated);
+  }
+
+  function rememberSource(element, attribute, value) {
+    const key = `i18nSource${attribute.replace(/(^|-)([a-z])/g, (_, __, letter) => letter.toUpperCase())}`;
+    if (!(key in element.dataset)) element.dataset[key] = value;
+    return element.dataset[key];
+  }
+
+  function translateElement(element) {
+    if (!(element instanceof global.HTMLElement) && !(element instanceof global.SVGElement)) return;
+    if (element.closest('[data-i18n-ignore]')) return;
+    const explicitKey = element.dataset.i18n;
+    if (explicitKey) element.textContent = t(explicitKey, {}, element.textContent);
+    for (const attribute of ['aria-label', 'title', 'placeholder']) {
+      if (!element.hasAttribute(attribute)) continue;
+      const source = rememberSource(element, attribute, element.getAttribute(attribute));
+      element.setAttribute(attribute, currentLanguage === 'de' ? source : translateVisibleText(source));
+    }
+  }
+
+  function translateTextNode(node) {
+    if (node.parentElement?.closest('[data-i18n-ignore], script, style, code, pre')) return;
+    if (!node.parentElement) return;
+    if (!node.__waschZeitSource) node.__waschZeitSource = node.nodeValue;
+    node.nodeValue = currentLanguage === 'de'
+      ? node.__waschZeitSource
+      : translateVisibleText(node.__waschZeitSource);
+  }
+
+  function apply(root) {
+    if (applying) return;
+    applying = true;
+    try {
+      document.documentElement.lang = currentLanguage;
+      const target = root || document.documentElement;
+      if (target.nodeType === Node.TEXT_NODE) translateTextNode(target);
+      if (target.nodeType === Node.ELEMENT_NODE) translateElement(target);
+      const walker = document.createTreeWalker(target, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) translateTextNode(node);
+        else translateElement(node);
+        node = walker.nextNode();
+      }
+      document.querySelectorAll('[data-language-picker]').forEach((picker) => {
+        picker.value = currentLanguage;
+      });
+    } finally {
+      applying = false;
+    }
+  }
+
+  function notify() {
+    global.dispatchEvent(new CustomEvent('waschzeit:languagechange', { detail: { language: currentLanguage } }));
+    for (const listener of listeners) listener(currentLanguage);
+  }
+
+  function setLanguage(language, options) {
+    const next = safeLanguage(language);
+    const settings = { persist: true, pending: false, ...options };
+    currentLanguage = next;
+    if (settings.persist) {
+      try {
+        global.localStorage.setItem(STORAGE_KEY, next);
+        if (settings.pending) global.localStorage.setItem(PENDING_KEY, '1');
+      } catch {}
+    }
+    apply(document.documentElement);
+    notify();
+    return next;
+  }
+
+  async function syncAccount(user) {
+    if (!user) return currentLanguage;
+    let pending = false;
+    try {
+      pending = global.localStorage.getItem(PENDING_KEY) === '1';
+    } catch {}
+    const accountLanguage = safeLanguage(user.language);
+    if (pending && currentLanguage !== accountLanguage) {
+      const response = await global.fetch('/api/me/language', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: currentLanguage })
+      });
+      if (response.ok) {
+        user.language = currentLanguage;
+        try { global.localStorage.removeItem(PENDING_KEY); } catch {}
+        return currentLanguage;
+      }
+    }
+    try { global.localStorage.removeItem(PENDING_KEY); } catch {}
+    return setLanguage(accountLanguage, { persist: true, pending: false });
+  }
+
+  async function saveAccountLanguage(language) {
+    const next = setLanguage(language, { persist: true, pending: false });
+    const response = await global.fetch('/api/me/language', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: next })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || t('app.noConnection'));
+    }
+    return next;
+  }
+
+  function bindPickers() {
+    document.querySelectorAll('[data-language-picker]').forEach((picker) => {
+      if (picker.dataset.languageBound) return;
+      picker.dataset.languageBound = 'true';
+      picker.value = currentLanguage;
+      picker.addEventListener('change', async () => {
+        if (picker.hasAttribute('data-account-language')) {
+          try {
+            await saveAccountLanguage(picker.value);
+          } catch (error) {
+            picker.value = currentLanguage;
+            global.dispatchEvent(new CustomEvent('waschzeit:i18nerror', { detail: { message: error.message } }));
+          }
+        } else {
+          setLanguage(picker.value, { persist: true, pending: true });
+        }
+      });
+    });
+  }
+
+  function start() {
+    bindPickers();
+    apply(document.documentElement);
+    if (!observer) {
+      observer = new MutationObserver((mutations) => {
+        if (applying) return;
+        for (const mutation of mutations) {
+          for (const node of mutation.addedNodes) apply(node);
+        }
+        bindPickers();
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+
+  global.WZ_I18N = {
+    supported: [...SUPPORTED],
+    messages,
+    t,
+    apply,
+    start,
+    language: () => currentLanguage,
+    setLanguage,
+    syncAccount,
+    saveAccountLanguage,
+    translateVisibleText,
+    onChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})(window);

@@ -1,0 +1,29 @@
+Welcome to WaschZeit
+Resident | English
+
+1. Sign in and set up your profile [00:00:00.000]
+Welcome to WaschZeit. Sign in with your personal email address and password. In Settings, check your name, language and notification preferences. Your bookings always remain assigned to your apartment.
+
+2. Explore the week and month [00:00:24.000]
+The weekly calendar helps you find a suitable available time quickly. The monthly view shows the shared laundry schedule and supports longer-term planning. Past, occupied or blocked times are clearly marked and cannot be booked.
+
+3. Book a laundry package [00:00:52.000]
+To book a laundry package, first choose a day and an available time slot. Then select a washing machine and add a suitable drying room or tumbler if needed. The app checks all house rules before saving the package as one transaction.
+
+4. Manage your bookings [00:01:22.000]
+My Bookings shows your upcoming appointments in chronological order. You can see the machine, room, date and time slot for each booking. You may only change your own bookings; bookings made by other apartments remain protected.
+
+5. Release early or cancel [00:01:50.000]
+If you finish early, release the machine or room you no longer need. Other residents can then receive a neutral notice about the newly available time. Cancelling instead removes your future booking completely before it starts.
+
+6. Filter notifications [00:02:16.000]
+The notification center collects current information, such as a washing machine released early. Your personal filters determine which resource types and time slots interest you. Your own releases and notices that are no longer valid are not offered as bookable opportunities.
+
+7. Report a problem [00:02:44.000]
+If a machine or room does not work correctly, create a factual issue report. Select the affected resource and briefly describe what you observed. The house administrator then handles the technical process and decides whether the resource must be blocked.
+
+8. Connect another household member [00:03:10.000]
+In App and Device, you can create a short-lived QR code for another household member. That person receives an individual sign-in but is assigned to the same apartment. Administrator permissions are never transferred through this QR code.
+
+9. Help, privacy and sign out [00:03:36.000]
+Help and Rules lets you review the most important workflows at any time. Security and Data explains what information is stored and which rights you have. When using a shared or unfamiliar device, always end your session by signing out.

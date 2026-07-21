@@ -636,6 +636,17 @@ primaryRouter.get('/api/me', (req, res) => {
   });
 });
 
+primaryRouter.put('/api/me/language', requireAuth, (req, res) => {
+  const language = req.body?.language;
+  if (language !== 'de' && language !== 'en') {
+    return res.status(400).json({ error: 'Unterstuetzte Sprachen sind de und en.' });
+  }
+
+  db.prepare('UPDATE users SET language = ? WHERE id = ?').run(language, req.session.user.id);
+  req.session.user.language = language;
+  res.json({ language, user: req.session.user });
+});
+
 primaryRouter.post('/api/me/apartment/claim', requireAuth, (req, res) => {
   if (!allowLegacyHouseRegistration) {
     return res.status(410).json({ error: 'Wohnungscodes wurden durch sichere Einladungslinks ersetzt.' });
@@ -936,4 +947,3 @@ personalRouter.delete('/api/me', requireAuth, (req, res) => {
 }
 
 module.exports = { createAccountRouters };
-

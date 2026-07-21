@@ -229,6 +229,10 @@ async function run() {
       await expectStatus(guest, '/api/maintenance-resources', 401);
       await expectStatus(guest, '/api/admin/users', 403);
       await expectStatus(guest, '/api/me/export', 401);
+      await expectStatus(guest, '/api/me/language', 401, {
+        method: 'PUT',
+        body: JSON.stringify({ language: 'en' })
+      });
     });
 
     await check('AUTH-02', 'Loginfehler verraten weder Kontoexistenz noch Passwortstatus', async () => {
@@ -347,6 +351,7 @@ async function run() {
       assert.equal(registration.body.user.apartmentLabel, 'Audit 2. OG links');
       assert.equal(registration.body.user.displayName, 'Audit Familie');
       assert.equal(registration.body.user.emailVerified, false);
+      assert.equal(registration.body.user.language, 'de');
       await expectStatus(new ApiClient(), '/api/invitations/accept', 400, {
         method: 'POST',
         body: JSON.stringify({
@@ -368,6 +373,69 @@ async function run() {
       const residentState = await expectStatus(resident, '/api/me', 200);
       assert.equal(residentState.body.user.email, 'audit-familie@example.test');
       assert.equal(residentState.body.user.apartmentLabel, 'Audit 2. OG links');
+    });
+
+    await check('AUTH-05B', 'Eigene Sprache ist validiert und ueber Logout und Login persistent', async () => {
+      const before = await expectStatus(resident, '/api/me', 200);
+      const identityBefore = {
+        id: before.body.user.id,
+        role: before.body.user.role,
+        roles: before.body.user.roles,
+        houseId: before.body.user.houseId,
+        apartmentId: before.body.user.apartmentId,
+        canBook: before.body.user.canBook,
+        canManage: before.body.user.canManage,
+        isSuperadmin: before.body.user.isSuperadmin
+      };
+      assert.equal(before.body.user.language, 'de');
+
+      await expectStatus(resident, '/api/me/language', 400, {
+        method: 'PUT',
+        body: JSON.stringify({ language: 'fr' })
+      });
+      await expectStatus(resident, '/api/me/language', 400, {
+        method: 'PUT',
+        body: JSON.stringify({ language: 'EN' })
+      });
+      const unchanged = await expectStatus(resident, '/api/me', 200);
+      assert.equal(unchanged.body.user.language, 'de');
+
+      const saved = await expectStatus(resident, '/api/me/language', 200, {
+        method: 'PUT',
+        body: JSON.stringify({ language: 'en' })
+      });
+      assert.equal(saved.body.language, 'en');
+      assert.equal(saved.body.user.language, 'en');
+      assert.deepEqual({
+        id: saved.body.user.id,
+        role: saved.body.user.role,
+        roles: saved.body.user.roles,
+        houseId: saved.body.user.houseId,
+        apartmentId: saved.body.user.apartmentId,
+        canBook: saved.body.user.canBook,
+        canManage: saved.body.user.canManage,
+        isSuperadmin: saved.body.user.isSuperadmin
+      }, identityBefore);
+
+      await expectStatus(resident, '/api/logout', 200, { method: 'POST' });
+      const relogin = await expectStatus(resident, '/api/login', 200, {
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'audit-familie@example.test',
+          password: 'Audit-Passwort-2026!'
+        })
+      });
+      assert.equal(relogin.body.user.language, 'en');
+      assert.deepEqual({
+        id: relogin.body.user.id,
+        role: relogin.body.user.role,
+        roles: relogin.body.user.roles,
+        houseId: relogin.body.user.houseId,
+        apartmentId: relogin.body.user.apartmentId,
+        canBook: relogin.body.user.canBook,
+        canManage: relogin.body.user.canManage,
+        isSuperadmin: relogin.body.user.isSuperadmin
+      }, identityBefore);
     });
 
     await check('AUTH-05', 'Bewohnerlogin erfolgt per E-Mail, nicht per frei gewaehltem Namen', async () => {
@@ -584,7 +652,7 @@ async function run() {
       passed: results.filter((result) => result.status === 'PASS').length,
       failed: results.filter((result) => result.status === 'FAIL').length,
       durationMs: results.reduce((sum, result) => sum + result.durationMs, 0),
-      areas: ['security-headers', 'origin-protection', 'sessions', 'login', 'invitations', 'device-code', 'roles', 'passwords', 'rate-limits']
+      areas: ['security-headers', 'origin-protection', 'sessions', 'login', 'invitations', 'device-code', 'language-preferences', 'roles', 'passwords', 'rate-limits']
     };
     console.log(JSON.stringify(summary));
   } finally {

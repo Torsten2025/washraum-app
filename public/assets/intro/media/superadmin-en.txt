@@ -1,0 +1,32 @@
+WaschZeit for super administrators
+Super administrator | English
+
+1. Keep multiple houses in view [00:00:00.000]
+As a super administrator, you can see the condition of multiple houses. Start with critical problems, missing backups, maintenance warnings and unusual audit events. Every entry must clearly identify the affected house before you act.
+
+2. Switch the active house [00:00:24.000]
+The house selector changes the active administration context. The following views and actions refer to that house until you switch again. Check the house name and target especially before blocks, invitations or account changes.
+
+3. Manage houses [00:00:52.000]
+Super administrators can create houses with a clear name and address. Master data changes affect administration and display. Before deactivation, review active residents, bookings, resources, open workflows and the required data backup.
+
+4. Manage roles safely [00:01:20.000]
+A personal identity may be a resident of one house, a house administrator and additionally a super administrator. Resident bookings remain assigned to the apartment, while administrative actions are logged personally. Grant only the permissions required for the specific responsibility.
+
+5. Super administrator rights and handover [00:01:48.000]
+A super administrator can grant an active house administrator additional super administrator rights. The existing super administrator keeps their rights, preventing an unintended sole handover. Revocation or planned succession requires password confirmation, an audit trail and at least one remaining capable super administrator.
+
+6. Backups and external storage [00:02:18.000]
+In the System area, check the time, integrity and destination of database backups. A copy on the same server alone does not protect against a complete outage. Configure external storage and regularly verify that a backup can actually be restored.
+
+7. Control maintenance mode [00:02:48.000]
+Use maintenance mode for major database or operational work. Inform residents, create a backup first and prevent new changes during the work. Afterwards, verify health status and core functions before restoring normal operation.
+
+8. Reset pilot data carefully [00:03:16.000]
+The pilot reset is not a routine cleanup tool. Review exactly which bookings and test data will be removed, and create a backup immediately beforehand. Accounts, logbook evidence and production data must not accidentally become part of the reset.
+
+9. Review audit and system status [00:03:44.000]
+The audit records who performed an administrative action, when it happened and which house it affected. System status adds the version, database, email, push, backup and maintenance state. Investigate and document unusual events instead of silently removing them from the history.
+
+10. Perform critical actions safely [00:04:12.000]
+For role changes, house deactivation, maintenance and data resets, work deliberately. Verify the target, house, current backup, impact and recovery option. Confirm with your own current password, then review the audit and system status and document any remaining work.

@@ -12,6 +12,13 @@
   <body class="document-page">
     <header class="document-header">
       <a class="brand-lockup" href="/login.html"><span class="app-wordmark">Wasch<strong>Zeit</strong></span><span>Der Waschplan f&uuml;r dein Haus</span></a>
+      <label class="language-picker">
+        <span data-i18n="language.label">Sprache</span>
+        <select data-language-picker data-local-language aria-label="Sprache">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
+      </label>
     </header>
     <main class="document-shell">
       <p class="eyebrow">Datenschutzhinweise</p>
@@ -43,5 +50,6 @@
 
       <a class="button-link" href="/login.html">Zur&uuml;ck zum Waschplan</a>
     </main>
+    <script src="/i18n.js"></script>
   </body>
 </html>

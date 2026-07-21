@@ -172,6 +172,7 @@ function createCurrentTables() {
       apartment_id INTEGER,
       secondary_email TEXT,
       secondary_email_verified INTEGER NOT NULL DEFAULT 0,
+      language TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en')),
       merged_into_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE RESTRICT,
@@ -458,6 +459,7 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'apartment_id', 'INTEGER');
   ensureColumn('users', 'secondary_email', 'TEXT');
   ensureColumn('users', 'secondary_email_verified', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'language', "TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en'))");
   ensureColumn('users', 'merged_into_user_id', 'INTEGER');
   ensureColumn('device_pairing_codes', 'apartment_id', 'INTEGER');
   ensureColumn('apartments', 'display_name', 'TEXT');
@@ -486,6 +488,8 @@ function seedCurrentDefaults() {
     WHERE email IS NULL OR trim(email) = '';
     UPDATE users SET secondary_email_verified = 0
     WHERE secondary_email IS NULL OR trim(secondary_email) = '';
+    UPDATE users SET language = 'de'
+    WHERE language IS NULL OR language NOT IN ('de', 'en');
   `);
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");

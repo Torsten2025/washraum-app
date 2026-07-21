@@ -1,4 +1,5 @@
 const express = require('express');
+const { mailCopy, normalizeLanguage } = require('../services/localization');
 
 function createNotificationRouters({
   db,
@@ -291,7 +292,7 @@ function createNotificationRouters({
 
   adminRouter.post('/api/admin/email-test', requireAdmin, async (req, res, next) => {
     const config = smtpConfig();
-    const user = db.prepare('SELECT id, username, email FROM users WHERE id = ?').get(req.session.user.id);
+    const user = db.prepare('SELECT id, username, email, language FROM users WHERE id = ?').get(req.session.user.id);
     const house = db.prepare('SELECT name FROM houses WHERE id = ?').get(currentHouseId(req));
     const configuredTestEmail = normalizeEmail(env.SMTP_TEST_TO);
     const recipient = isValidEmail(configuredTestEmail) ? configuredTestEmail : user?.email;
@@ -306,18 +307,15 @@ function createNotificationRouters({
     }
 
     try {
+      const language = normalizeLanguage(user.language);
       await sendMail({
         config,
         to: recipient,
-        subject: 'WaschZeit: Testmail',
-        text: [
-          `Hallo ${apartmentAccountLabel(user.id, user.username)}`,
-          '',
-          'Der E-Mail-Versand des Waschplans funktioniert.',
-          '',
-          'Viele Gr\u00fcsse',
-          `WaschZeit ${house?.name || ''}`.trim()
-        ].join('\n')
+        subject: mailCopy(language, 'testSubject'),
+        text: mailCopy(language, 'testBody', {
+          name: apartmentAccountLabel(user.id, user.username),
+          house: house?.name || ''
+        })
       });
       res.json({ ok: true, message: `Testmail wurde an ${recipient} gesendet.` });
     } catch (error) {
@@ -347,7 +345,7 @@ function createNotificationRouters({
     }
 
     const subscriptions = db.prepare(`
-      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth,
+      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.language,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username
       FROM push_subscriptions ps
       JOIN users u ON u.id = ps.user_id
@@ -365,19 +363,23 @@ function createNotificationRouters({
     let sent = 0;
     let failed = 0;
     const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    const payload = pushPayload({
-      title: 'WaschZeit: Push-Test',
-      body: 'Push-Benachrichtigungen funktionieren fuer dieses Haus.',
-      url: '/index.html',
-      tag: 'waschzeit-test'
-    });
     for (const subscription of subscriptions) {
       try {
+        const english = normalizeLanguage(subscription.language) === 'en';
+        const payload = pushPayload({
+          title: english ? 'WaschZeit: Push test' : 'WaschZeit: Push-Test',
+          body: english
+            ? 'Push notifications are working for this building.'
+            : 'Push-Benachrichtigungen funktionieren fuer dieses Haus.',
+          url: '/index.html',
+          tag: 'waschzeit-test'
+        });
         await sendPushNotification(subscriptionForRow(subscription), payload);
         sent += 1;
       } catch (error) {
         failed += 1;
-        if ([404, 410].includes(error.statusCode)) {
+        const invalidSubscription = /public key|p256dh|auth secret|specified curve/i.test(String(error.message || ''));
+        if ([404, 410].includes(error.statusCode) || invalidSubscription) {
           deactivate.run(subscription.id);
         } else {
           console.error(`Push-Test fehlgeschlagen: ${error.message}`);

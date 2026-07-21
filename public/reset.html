@@ -9,6 +9,13 @@
   <body class="login-page compact-auth-page">
     <main class="reset-shell">
       <section class="login-panel" aria-labelledby="resetTitle">
+        <label class="language-picker">
+          <span data-i18n="language.label">Sprache</span>
+          <select data-language-picker data-local-language aria-label="Sprache">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
         <p class="auth-panel-kicker">WaschZeit</p>
         <h1 id="resetTitle">Neues Passwort</h1>
         <form id="resetForm" class="stack auth-form">
@@ -26,6 +33,7 @@
         <a class="text-link" href="/login.html">Zur Anmeldung</a>
       </section>
     </main>
+    <script src="/i18n.js"></script>
     <script src="/reset.js"></script>
   </body>
 </html>

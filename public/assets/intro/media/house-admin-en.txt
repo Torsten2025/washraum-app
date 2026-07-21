@@ -1,0 +1,35 @@
+WaschZeit for house administrators
+House administrator | English
+
+1. Separate your plan and administration [00:00:00.000]
+As a house administrator, you may also be a resident. My Laundry Plan contains your private apartment bookings. Administration is where you handle tasks for the house. Each administrative action is attributed to your personal identity, not to the shared apartment account.
+
+2. Prioritize the administration overview [00:00:24.000]
+The administration overview places important tasks before general figures. First review urgent incidents, blocked equipment and pending functional checks. Invitations, account notices, recurring appointments and general information for your house follow after those tasks.
+
+3. Apartments and invitations [00:00:50.000]
+For a new resident, first define the stable apartment label and the name shown on the doorbell. Add the resident email address and send a time-limited invitation. The personal sign-in is created only when the invitation is accepted, with the correct apartment already assigned.
+
+4. Accounts and recovery [00:01:18.000]
+Account administration shows active, invited and blocked people. Before helping with recovery, verify the identity, email address and apartment assignment. Never replace another person's email address merely to receive their password reset link yourself.
+
+5. Manage equipment and rooms [00:01:46.000]
+House and Equipment is where you manage washing machines, tumblers and drying rooms for your house. Use clear names so the calendar, issue report and logbook refer to the same resource. A deactivated or blocked resource must no longer appear as bookable.
+
+6. Machine and room logbook [00:02:12.000]
+The machine and room logbook preserves reports, decisions and work performed. Record observations and measures factually with the date and affected resource. Existing entries are not deleted; they are extended or completed by the next workflow step.
+
+7. Handle an incident through release [00:02:40.000]
+Review a resident report and block the resource if safe use is not assured. Then document the repair and functional check. Only a successful check with a closing note permits release and makes the resource bookable again.
+
+8. Maintain recurring appointments [00:03:10.000]
+Recurring appointments are suitable for repeating house-managed occupancy or blocked times. Choose the resource, weekday, time slot and validity period carefully. Review existing entries regularly so obsolete appointments do not block capacity.
+
+9. Understand analytics [00:03:36.000]
+Analytics shows usage, utilization and operational patterns for your house. It supports capacity planning and maintenance decisions. Do not use these figures as a ranking or for public evaluation of individual residents.
+
+10. Confirm critical actions [00:04:02.000]
+Security-sensitive actions require your current password and sometimes an exact confirmation phrase. Recheck the target account, house and impact before submitting. Never share your password or perform a critical action on request without verifying it yourself.
+
+11. Know the house administrator boundaries [00:04:30.000]
+As a house administrator, you manage apartments, accounts, resources and technical workflows for your assigned house. You do not create private bookings on behalf of residents. Other houses, global system settings and super administrator rights remain outside your role.

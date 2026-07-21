@@ -1,0 +1,29 @@
+Willkommen bei WaschZeit
+Bewohner | Deutsch
+
+1. Anmelden und persoenlich einrichten [00:00:00.000]
+Willkommen bei WaschZeit. Du meldest dich mit deiner persoenlichen E-Mail-Adresse und deinem Passwort an. Unter Einstellungen pruefst du deinen Namen, deine Sprache und die gewuenschten Benachrichtigungen. Deine Buchungen bleiben dabei immer deiner Wohnung zugeordnet.
+
+2. Woche und Monat ueberblicken [00:00:24.000]
+Im Wochenkalender findest du schnell einen passenden freien Termin. Die Monatsansicht zeigt dir den gemeinsamen Waschplan und hilft bei der laengerfristigen Orientierung. Vergangene, belegte oder gesperrte Zeiten sind klar gekennzeichnet und koennen nicht gebucht werden.
+
+3. Waschpaket buchen [00:00:52.000]
+Fuer ein Waschpaket waehlst du zuerst einen Tag und ein freies Zeitfenster. Danach entscheidest du dich fuer eine Waschmaschine und kannst einen passenden Trockenraum oder Tumbler ergaenzen. Die App prueft alle Hausregeln, bevor sie das Paket gemeinsam speichert.
+
+4. Eigene Buchungen verwalten [00:01:22.000]
+Unter Meine Buchungen siehst du deine kommenden Termine in zeitlicher Reihenfolge. Dort erkennst du Maschine, Raum, Datum und Zeitfenster. Du kannst nur deine eigenen Buchungen veraendern; Buchungen anderer Wohnungen bleiben geschuetzt.
+
+5. Frueher freigeben oder absagen [00:01:50.000]
+Bist du frueher fertig, kannst du die nicht mehr benoetigte Maschine oder den Raum freigeben. Andere Bewohner erhalten dann einen neutralen Hinweis auf die wieder freie Zeit. Eine Absage entfernt dagegen deine noch nicht begonnene Buchung vollstaendig.
+
+6. Mitteilungen passend filtern [00:02:16.000]
+Das Mitteilungszentrum sammelt aktuelle Hinweise, zum Beispiel eine vorzeitig freigegebene Maschine. Mit deinen persoenlichen Filtern bestimmst du, welche Ressourcentypen und Zeitfenster fuer dich interessant sind. Eigene oder bereits ungueltige Freigaben werden nicht als buchbarer Hinweis angeboten.
+
+7. Stoerung melden [00:02:44.000]
+Wenn eine Maschine oder ein Raum nicht richtig funktioniert, erstellst du eine sachliche Stoerungsmeldung. Waehle die betroffene Ressource und beschreibe kurz, was du beobachtet hast. Der Haus-Admin uebernimmt danach die technische Bearbeitung und entscheidet ueber eine Sperre.
+
+8. Weiteres Haushaltsmitglied verbinden [00:03:10.000]
+Unter App und Geraet kannst du einen kurz gueltigen QR-Code fuer ein weiteres Haushaltsmitglied erzeugen. Die Person erhaelt einen eigenen persoenlichen Zugang, wird aber derselben Wohnung zugeordnet. Adminrechte werden durch den QR-Code niemals uebertragen.
+
+9. Hilfe, Datenschutz und Abmeldung [00:03:36.000]
+Unter Hilfe und Regeln kannst du die wichtigsten Ablaeufe jederzeit nachlesen. Sicherheit und Daten erklaert, welche Angaben gespeichert werden und welche Rechte du hast. Nutzt du ein fremdes oder gemeinsam verwendetes Geraet, beendest du deine Sitzung anschliessend mit Abmelden.

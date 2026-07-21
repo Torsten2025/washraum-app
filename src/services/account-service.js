@@ -92,7 +92,7 @@ function createAccountService({
         await sendMail({
           config,
           to: email,
-          subject: `WaschZeit: Einladung fuer ${apartment.label}`,
+          subject: `WaschZeit: Einladung / Invitation - ${apartment.label}`,
           text: [
             `Hallo ${apartment.display_name}`,
             '',
@@ -102,7 +102,19 @@ function createAccountService({
             link,
             '',
             'Der Link ist sieben Tage gueltig und kann nur einmal verwendet werden.',
-            'Jede Person behaelt einen eigenen Zugang. Wohnungsbuchungen werden trotzdem gemeinsam gezaehlt.'
+            'Jede Person behaelt einen eigenen Zugang. Wohnungsbuchungen werden trotzdem gemeinsam gezaehlt.',
+            '',
+            '--- English ---',
+            '',
+            `Hello ${apartment.display_name}`,
+            '',
+            `You have been invited to WaschZeit for apartment ${apartment.label} at ${apartment.house_name}.`,
+            'Open the link below. With a new email address, you create your personal password. With an existing WaschZeit account, confirm your current password:',
+            '',
+            link,
+            '',
+            'The link is valid for seven days and can only be used once.',
+            'Each person keeps a personal login. Apartment bookings are still counted together.'
           ].join('\n')
         });
       } catch (error) {

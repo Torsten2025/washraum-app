@@ -1,3 +1,10 @@
+const {
+  mailCopy,
+  normalizeLanguage,
+  translateReleaseSubject,
+  translateReleaseText
+} = require('./localization');
+
 function createNotificationService({
   db,
   crypto,
@@ -25,19 +32,13 @@ function createNotificationService({
       VALUES (?, ?, ?, ?, ?)
     `).run(user.id, tokenHash(token), emailKind, email, String(Date.now() + 24 * 60 * 60 * 1000));
     const link = `${publicAppUrl(req)}/api/email-verification/confirm?token=${encodeURIComponent(token)}`;
+    const language = normalizeLanguage(user.language);
+    const name = apartmentAccountLabel(user.id, user.username);
     await sendMail({
       config,
       to: email,
-      subject: 'WaschZeit: E-Mail-Adresse best\u00e4tigen',
-      text: [
-        `Hallo ${apartmentAccountLabel(user.id, user.username)}`,
-        '',
-        'Bitte best\u00e4tige deine E-Mail-Adresse. Erst danach werden Freigabe-Hinweise an diese Adresse gesendet.',
-        '',
-        link,
-        '',
-        'Der Link ist 24 Stunden g\u00fcltig.'
-      ].join('\n')
+      subject: mailCopy(language, 'verifySubject'),
+      text: mailCopy(language, 'verifyBody', { name, link })
     });
     return { configured: true, sent: true };
   }
@@ -58,19 +59,13 @@ function createNotificationService({
       VALUES (?, ?, ?)
     `).run(user.id, tokenHash(token), String(Date.now() + 60 * 60 * 1000));
     const link = `${publicAppUrl(req)}/reset.html?token=${encodeURIComponent(token)}`;
+    const language = normalizeLanguage(user.language);
+    const name = apartmentAccountLabel(user.id, user.username);
     await sendMail({
       config,
       to: email,
-      subject: 'WaschZeit: Passwort neu setzen',
-      text: [
-        `Hallo ${apartmentAccountLabel(user.id, user.username)}`,
-        '',
-        'Mit diesem Link kannst du ein neues Passwort setzen:',
-        '',
-        link,
-        '',
-        'Der Link ist eine Stunde g\u00fcltig. Falls du nichts angefordert hast, kannst du diese Mail ignorieren.'
-      ].join('\n')
+      subject: mailCopy(language, 'resetSubject'),
+      text: mailCopy(language, 'resetBody', { name, link })
     });
     return true;
   }
@@ -83,7 +78,7 @@ function createNotificationService({
     }
 
     const recipients = db.prepare(`
-      SELECT u.id, u.username, u.email, u.secondary_email,
+      SELECT u.id, u.username, u.email, u.secondary_email, u.language,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS display_name,
              u.email_verified, u.secondary_email_verified
       FROM users u
@@ -127,17 +122,13 @@ function createNotificationService({
       const results = await Promise.allSettled(batch.map((recipient) => sendMail({
           config,
           to: recipient.deliveryEmail,
-          subject,
-          text: [
-            `Hallo ${recipient.display_name}`,
-            '',
-            message,
-            '',
-            `Du kannst den Slot jetzt im Waschplan ansehen und buchen: ${appUrl}`,
-            '',
-            'Viele Gr\u00fcsse',
-            `WaschZeit ${booking.house_name || ''}`.trim()
-          ].join('\n')
+          subject: translateReleaseSubject(subject, recipient.language),
+          text: mailCopy(recipient.language, 'releaseBody', {
+            name: recipient.display_name,
+            message: translateReleaseText(message, recipient.language),
+            url: appUrl,
+            house: booking.house_name || ''
+          })
         })));
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') {

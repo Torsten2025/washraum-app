@@ -1,0 +1,35 @@
+WaschZeit fuer Haus-Admins
+Haus-Admin | Deutsch
+
+1. Waschplan und Verwaltung trennen [00:00:00.000]
+Als Haus-Admin kannst du zugleich Bewohner sein. Mein Waschplan enthaelt deine privaten Wohnungsbuchungen. Unter Verwalten bearbeitest du Aufgaben fuer das Haus. Jede Adminaktion wird deiner persoenlichen Identitaet zugeordnet und nicht dem gemeinsamen Wohnungskonto.
+
+2. Verwaltungsuebersicht priorisieren [00:00:24.000]
+Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe zuerst dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach folgen Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
+
+3. Wohnungen und Einladungen [00:00:50.000]
+Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen vom Klingelschild fest. Hinterlege die E-Mail-Adresse des Bewohners und sende eine zeitlich begrenzte Einladung. Erst beim Annehmen der Einladung entsteht der persoenliche Zugang mit der bereits richtigen Wohnungszuordnung.
+
+4. Konten und Wiederherstellung [00:01:18.000]
+In der Kontenverwaltung erkennst du aktive, eingeladene oder gesperrte Personen. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet, E-Mail-Adresse und Wohnungszuordnung. Aendere niemals eine fremde E-Mail-Adresse nur, um selbst einen Passwortlink zu erhalten.
+
+5. Geraete und Raeume verwalten [00:01:46.000]
+Unter Haus und Geraete verwaltest du Waschmaschinen, Tumbler und Trockenraeume deines Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource meinen. Eine deaktivierte oder gesperrte Ressource darf nicht mehr buchbar erscheinen.
+
+6. Maschinen- und Raumtagebuch [00:02:12.000]
+Das Maschinen- und Raumtagebuch dokumentiert Meldungen, Entscheidungen und Arbeiten dauerhaft. Formuliere Beobachtungen und Massnahmen sachlich mit Datum und betroffener Ressource. Bestehende Eintraege werden nicht geloescht, sondern durch den naechsten Schritt ergaenzt oder abgeschlossen.
+
+7. Stoerung bis Freigabe bearbeiten [00:02:40.000]
+Pruefe eine Bewohnermeldung und sperre die Ressource, wenn die sichere Nutzung nicht gewaehrleistet ist. Dokumentiere danach Reparatur und Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt die Freigabe und macht die Ressource wieder buchbar.
+
+8. Dauertermine pflegen [00:03:10.000]
+Dauertermine eignen sich fuer wiederkehrende, vom Haus verantwortete Belegungen oder Sperrzeiten. Waehle Ressource, Wochentag, Zeitfenster und Laufzeit bewusst. Pruefe bestehende Eintraege regelmaessig, damit ueberholte Termine keine Kapazitaet blockieren.
+
+9. Auswertung verstehen [00:03:36.000]
+Die Auswertung zeigt Nutzung, Auslastung und betriebliche Auffaelligkeiten deines Hauses. Sie hilft bei Kapazitaetsfragen und Wartungsentscheidungen. Verwende Kennzahlen nicht als Rangliste oder zur oeffentlichen Bewertung einzelner Bewohner.
+
+10. Kritische Aktionen bestaetigen [00:04:02.000]
+Sicherheitsrelevante Aktionen verlangen dein aktuelles Passwort und teilweise einen exakten Bestaetigungstext. Lies Zielkonto, Haus und Auswirkung vor dem Absenden noch einmal. Teile dein Passwort niemals und fuehre eine kritische Aktion nicht auf Zuruf ohne eigene Pruefung aus.
+
+11. Grenzen der Haus-Adminrolle [00:04:30.000]
+Als Haus-Admin bearbeitest du Wohnungen, Konten, Ressourcen und technische Vorgaenge deines zugewiesenen Hauses. Du buchst keine privaten Termine im Namen anderer Bewohner. Andere Haeuser, globale Systemeinstellungen und Superadminrechte bleiben ausserhalb deiner Rolle.
