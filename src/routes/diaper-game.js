@@ -1,8 +1,8 @@
 const crypto = require('crypto');
 const express = require('express');
 
-const DIAPER_GAME_VERSION = 3;
-const DIAPER_GAME_ROUND_MS = 45000;
+const DIAPER_GAME_VERSION = 4;
+const DIAPER_GAME_ROUND_MS = 60000;
 const DIAPER_GAME_PENALTY_MS = 4500;
 const DIAPER_GAME_MAX_MISTAKES = 3;
 const DIAPER_GAME_FINAL_HOLD_MIN_MS = 900;
@@ -55,34 +55,58 @@ function shuffle(items, random) {
 function buildPuzzle(seedText) {
   const random = seededRandom(seedText);
   const wireTarget = wireOptions[randomInt(random, wireOptions.length)];
+  const wireVariant = ['symbol', 'color', 'pulse'][randomInt(random, 3)];
   const sequence = [];
-  while (sequence.length < 4) {
+  const sequenceLength = 4 + randomInt(random, 3);
+  while (sequence.length < sequenceLength) {
     const next = signalIds[randomInt(random, signalIds.length)];
     if (next !== sequence[sequence.length - 1]) sequence.push(next);
   }
   const safeStart = 18 + randomInt(random, 50);
   const decoderDigits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9], random).slice(0, 4);
   const decoder = Object.fromEntries(decoderSymbols.map((symbol, index) => [symbol, decoderDigits[index]]));
-  const codeSymbols = Array.from({ length: 3 }, () => decoderSymbols[randomInt(random, decoderSymbols.length)]);
-  const temperatureSteps = [-7, -3, 2, 5, 8];
+  const codeLength = 3 + randomInt(random, 2);
+  const codeSymbols = Array.from({ length: codeLength }, () => decoderSymbols[randomInt(random, decoderSymbols.length)]);
+  const temperatureStepSets = [
+    [-7, -3, 2, 5, 8],
+    [-9, -4, 3, 6, 11],
+    [-6, -2, 4, 7, 9]
+  ];
+  const temperatureSteps = temperatureStepSets[randomInt(random, temperatureStepSets.length)];
   const temperatureStart = 16 + randomInt(random, 9);
   const temperatureSolution = Array.from({ length: 3 }, () => temperatureSteps[randomInt(random, temperatureSteps.length)]);
   const temperatureTarget = temperatureStart + temperatureSolution.reduce((sum, step) => sum + step, 0);
-  const leakZone = randomInt(random, 6);
+  const leakZones = random() < 0.5 ? 6 : 9;
+  const leakZone = randomInt(random, leakZones);
+  const circuitPath = shuffle([0, 1, 2, 3, 4, 5], random).slice(0, 4 + randomInt(random, 2));
+  const lockTargets = Array.from({ length: 3 }, () => randomInt(random, 8));
+  const incidentTypes = ['baby-kick', 'blackout', 'pressure-surge', 'scanner-fog'];
+  const incident = {
+    type: incidentTypes[randomInt(random, incidentTypes.length)],
+    afterModule: 1 + randomInt(random, 2)
+  };
   const modules = [
     {
       type: 'wire',
       title: 'Kabelmatrix',
       options: wireOptions,
       targetId: wireTarget.id,
-      targetSymbol: wireTarget.symbol
+      targetSymbol: wireTarget.symbol,
+      targetLabel: wireTarget.label,
+      variant: wireVariant
     },
-    { type: 'signal', title: 'Impulsspeicher', sequence },
+    {
+      type: 'signal',
+      title: 'Impulsspeicher',
+      sequence,
+      playbackMs: 360 + randomInt(random, 180)
+    },
     {
       type: 'valve',
       title: 'Druckventil',
       safeStart,
-      safeEnd: safeStart + 22
+      safeEnd: safeStart + 14 + randomInt(random, 10),
+      sweepMs: 1250 + randomInt(random, 950)
     },
     {
       type: 'code',
@@ -101,11 +125,21 @@ function buildPuzzle(seedText) {
     {
       type: 'leak',
       title: 'Leckscanner',
-      zones: 6,
+      zones: leakZones,
       leakZone
+    },
+    {
+      type: 'circuit',
+      title: 'Leiterbahn',
+      path: circuitPath
+    },
+    {
+      type: 'locks',
+      title: 'Sicherungsringe',
+      targets: lockTargets
     }
   ];
-  return { modules: shuffle(modules, random).slice(0, 3) };
+  return { modules: shuffle(modules, random).slice(0, 4), incident };
 }
 
 function publicModule(module) {
@@ -114,7 +148,9 @@ function publicModule(module) {
       type: module.type,
       title: module.title,
       options: module.options,
-      targetSymbol: module.targetSymbol
+      targetSymbol: module.targetSymbol,
+      targetLabel: module.targetLabel,
+      variant: module.variant
     };
   }
   if (module.type === 'code') {
@@ -133,13 +169,28 @@ function publicModule(module) {
       revealZone: module.leakZone
     };
   }
+  if (module.type === 'circuit') {
+    return {
+      type: module.type,
+      title: module.title,
+      path: module.path
+    };
+  }
+  if (module.type === 'locks') {
+    return {
+      type: module.type,
+      title: module.title,
+      targets: module.targets
+    };
+  }
   return { ...module };
 }
 
 function safePuzzle(rawPuzzle) {
   try {
     const puzzle = JSON.parse(rawPuzzle || '{}');
-    if (!Array.isArray(puzzle.modules) || puzzle.modules.length !== 3) return null;
+    if (!Array.isArray(puzzle.modules) || puzzle.modules.length !== 4) return null;
+    if (!puzzle.incident || !Number.isInteger(puzzle.incident.afterModule)) return null;
     return puzzle;
   } catch {
     return null;
@@ -161,6 +212,16 @@ function moduleAnswerIsCorrect(module, answer) {
   if (module.type === 'code') return String(answer.code || '') === module.answer;
   if (module.type === 'temperature') return Number(answer.value) === module.target;
   if (module.type === 'leak') return Number(answer.zone) === module.leakZone;
+  if (module.type === 'circuit') {
+    return Array.isArray(answer.path)
+      && answer.path.length === module.path.length
+      && answer.path.every((entry, index) => Number(entry) === module.path[index]);
+  }
+  if (module.type === 'locks') {
+    return Array.isArray(answer.positions)
+      && answer.positions.length === module.targets.length
+      && answer.positions.every((entry, index) => Number(entry) === module.targets[index]);
+  }
   return false;
 }
 
@@ -256,6 +317,7 @@ function createDiaperGameRouter({ db, requireAuth, tokenHash }) {
       penaltyMs: DIAPER_GAME_PENALTY_MS,
       maxMistakes: DIAPER_GAME_MAX_MISTAKES,
       modules: puzzle.modules.map(publicModule),
+      incident: puzzle.incident,
       expiresAt: now + 2 * 60 * 1000
     });
   });

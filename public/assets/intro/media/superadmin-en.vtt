@@ -1,0 +1,115 @@
+WEBVTT
+
+00:00:00.350 --> 00:00:06.264
+As a super administrator, you can see the condition
+
+00:00:06.264 --> 00:00:12.179
+of multiple houses. Start with critical problems, missing backups,
+
+00:00:12.179 --> 00:00:18.093
+maintenance warnings and unusual audit events. Every entry must
+
+00:00:18.093 --> 00:00:23.350
+clearly identify the affected house before you act.
+
+00:00:24.350 --> 00:00:31.497
+The house selector changes the active administration context. The
+
+00:00:31.497 --> 00:00:38.644
+following views and actions refer to that house until
+
+00:00:38.644 --> 00:00:45.791
+you switch again. Check the house name and target
+
+00:00:45.791 --> 00:00:51.350
+especially before blocks, invitations or account changes.
+
+00:00:52.350 --> 00:01:01.631
+Super administrators can create houses with a clear name and address.
+
+00:01:01.631 --> 00:01:10.913
+Master data changes affect administration and display. Before deactivation, review active
+
+00:01:10.913 --> 00:01:19.350
+residents, bookings, resources, open workflows and the required data backup.
+
+00:01:20.350 --> 00:01:27.100
+A personal identity may be a resident of one house,
+
+00:01:27.100 --> 00:01:33.850
+a house administrator and additionally a super administrator. Resident bookings
+
+00:01:33.850 --> 00:01:40.600
+remain assigned to the apartment, while administrative actions are logged
+
+00:01:40.600 --> 00:01:47.350
+personally. Grant only the permissions required for the specific responsibility.
+
+00:01:48.350 --> 00:01:55.769
+A super administrator can grant an active house administrator additional super
+
+00:01:55.769 --> 00:02:03.187
+administrator rights. The existing super administrator keeps their rights, preventing an
+
+00:02:03.187 --> 00:02:10.606
+unintended sole handover. Revocation or planned succession requires password confirmation, an
+
+00:02:10.606 --> 00:02:17.350
+audit trail and at least one remaining capable super administrator.
+
+00:02:18.350 --> 00:02:25.600
+In the System area, check the time, integrity and destination
+
+00:02:25.600 --> 00:02:32.850
+of database backups. A copy on the same server alone
+
+00:02:32.850 --> 00:02:40.100
+does not protect against a complete outage. Configure external storage
+
+00:02:40.100 --> 00:02:47.350
+and regularly verify that a backup can actually be restored.
+
+00:02:48.350 --> 00:02:57.350
+Use maintenance mode for major database or operational work. Inform residents,
+
+00:02:57.350 --> 00:03:06.350
+create a backup first and prevent new changes during the work.
+
+00:03:06.350 --> 00:03:15.350
+Afterwards, verify health status and core functions before restoring normal operation.
+
+00:03:16.350 --> 00:03:23.273
+The pilot reset is not a routine cleanup tool. Review
+
+00:03:23.273 --> 00:03:30.196
+exactly which bookings and test data will be removed, and
+
+00:03:30.196 --> 00:03:37.119
+create a backup immediately beforehand. Accounts, logbook evidence and production
+
+00:03:37.119 --> 00:03:43.350
+data must not accidentally become part of the reset.
+
+00:03:44.350 --> 00:03:51.594
+The audit records who performed an administrative action, when it happened
+
+00:03:51.594 --> 00:03:58.838
+and which house it affected. System status adds the version, database,
+
+00:03:58.838 --> 00:04:06.082
+email, push, backup and maintenance state. Investigate and document unusual events
+
+00:04:06.082 --> 00:04:11.350
+instead of silently removing them from the history.
+
+00:04:12.350 --> 00:04:19.273
+For role changes, house deactivation, maintenance and data resets, work
+
+00:04:19.273 --> 00:04:26.196
+deliberately. Verify the target, house, current backup, impact and recovery
+
+00:04:26.196 --> 00:04:33.119
+option. Confirm with your own current password, then review the
+
+00:04:33.119 --> 00:04:39.350
+audit and system status and document any remaining work.

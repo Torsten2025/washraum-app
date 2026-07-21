@@ -638,6 +638,8 @@ async function run() {
       if (module.type === 'code') return { code: module.codeSymbols.map((symbol) => module.decoder[symbol]).join('') };
       if (module.type === 'temperature') return { value: module.target };
       if (module.type === 'leak') return { zone: module.revealZone };
+      if (module.type === 'circuit') return { path: module.path };
+      if (module.type === 'locks') return { positions: module.targets };
       throw new Error(`Unbekanntes Windel-Alarm-Modul: ${module.type}`);
     };
     const solveModules = async (client, round) => {
@@ -656,9 +658,12 @@ async function run() {
         body: JSON.stringify({ mode: 'ranked' })
       });
       assert.match(round.body.token, /^[a-f0-9]{64}$/);
-      assert.equal(round.body.gameVersion, 3);
-      assert.equal(round.body.modules.length, 3);
-      assert.equal(new Set(round.body.modules.map((module) => module.type)).size, 3);
+      assert.equal(round.body.gameVersion, 4);
+      assert.equal(round.body.roundMs, 60000);
+      assert.equal(round.body.modules.length, 4);
+      assert.equal(new Set(round.body.modules.map((module) => module.type)).size, 4);
+      assert.ok(['baby-kick', 'blackout', 'pressure-surge', 'scanner-fog'].includes(round.body.incident.type));
+      assert.ok([1, 2].includes(round.body.incident.afterModule));
       await solveModules(client, round);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       return expectStatus(client, '/api/diaper-game/complete', 200, {
@@ -669,7 +674,7 @@ async function run() {
     await expectStatus(new ApiClient(), '/api/diaper-game/leaderboard', 401);
     await playScoredRound(firstResident, 2600);
     const globalGameScores = await playScoredRound(residentAfterReset, 2650);
-    assert.equal(globalGameScores.body.gameVersion, 3);
+    assert.equal(globalGameScores.body.gameVersion, 4);
     assert.equal(globalGameScores.body.leaderboard.length, 2);
     assert.ok(globalGameScores.body.leaderboard.every((entry) => /^Wickelprofi #\d+$/.test(entry.player)));
     assert.equal(globalGameScores.body.own.isOwn, true);

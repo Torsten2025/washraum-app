@@ -10,11 +10,14 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 - Waschpakete reservieren per Schnellwahl eine bis drei Waschmaschinen im gleichen Slot, eine waehlbare Trockenraumdauer und den Tumbler gemeinsam und atomar. Alle Bestandteile koennen gemeinsam verwaltet werden.
 - Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
 - Jede Person verwendet genau eine eindeutige E-Mail-Identitaet. Diese kann Bewohner einer Wohnung, Haus-Admin und zusaetzlich Superadmin sein; `Mein Waschplan` und `Verwalten` bleiben dabei klar getrennt.
+- Zentrale deutsche und englische Oberflaeche mit lokaler Sprachwahl vor Login und kontobezogener Persistenz nach Login; Deutsch bleibt der sichere Rueckfall.
 - Haus-Admins verwalten ihr Haus. Der Superadmin verwaltet Haeuser, Geraete, additive Rollen und kontrollierte Umzuege zwischen Hausnummern.
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume werden serverseitig in Schweizer Zeit geprueft.
 - Geschuetzte, wiederkehrende Buchungen fuer von Admins betreute Personen.
 - Verifizierte, nach Bereich, Wochentag und Slot filterbare E-Mail-Hinweise bei frueher Freigabe oder Absage.
-- Neu vertontes 5:40-Minuten-Video mit Schweizer Stimme, 28 passend zum Text wechselnden App- und Reinigungsbildern, synchronen Untertiteln, Lesetext und freundlichem Quiz.
+- Sechs echte rollen- und sprachspezifische H.264/AAC-Videos fuer Bewohner, Haus-Admins und Superadmins in Deutsch und Englisch mit passenden App-Szenen, synchronen VTT-Untertiteln, Poster, Transkript und anklickbaren Kapiteln.
+- Die englische Verwaltung wird einschliesslich dynamischer Aufgaben, Ressourcen, Einladungen, Tagebuch, Auswertung und Systemstatus direkt aus dem I18N-Katalog aufgebaut; der Browsertest prueft alle Reiter fuer Haus-Admin und Superadmin sowie EN -> DE -> EN ohne Reload.
+- Sechs ergaenzende interaktive Fuehrungen mit derselben gemeinsamen Kapitel-, Sprecher- und Transkriptquelle.
 - Passwort-Wiederherstellung, Datenexport, Kontoloeschung und Admin-Auditprotokoll.
 - Taegliche, auf Integritaet gepruefte SQLite-Backups mit optionaler externer Kopie.
 
@@ -44,7 +47,15 @@ Danach `http://localhost:3000` oeffnen. Nur lokal werden diese Konten automatisc
 npm run check
 ```
 
-Der Check umfasst Syntax, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, Rollenmatrix, Mehrhaus-Isolation, Datenschutz, Audit, Backup-Wiederherstellung, Sicherheitsheader, Barrierefreiheit und einen verbindlichen Browserlauf mit drei Viewports. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
+Der Check umfasst Syntax, I18N-Vollstaendigkeit, Sprachpersistenz, sechs Rollenfuehrungen, sechs echte Medienpakete, Authentifizierung, E-Mail-Verifikation, echten SMTP-Dialog, Passwort-Wiederherstellung, Buchungsregeln, parallele Buchungsversuche, Waschpakete, Rollenmatrix, Mehrhaus-Isolation, Datenschutz, Audit, Backup-Wiederherstellung, Sicherheitsheader, Barrierefreiheit und einen verbindlichen Browserlauf mit drei Viewports. Zusaetzlich simuliert `npm run test:year` mit 100 Bewohnerkonten in sechs getrennten Haeusern 52 Waschwochen und 5.200 Waschpakete.
+
+Der gezielte Sprachtest kann separat gestartet werden:
+
+```bash
+npm run test:i18n
+```
+
+Die Sprachwahl benoetigt keine Umgebungsvariable. Der Browserkatalog liegt in `public/i18n.js`; serverseitige E-Mail- und Push-Texte liegen in `src/services/localization.js`. `users.language` akzeptiert nur `de` oder `en`.
 
 ## Wohnungseinladung
 
@@ -90,15 +101,19 @@ Fuer eine unabhaengige Kopie kann `BACKUP_UPLOAD_URL` gesetzt werden. Die App se
 
 Bewohner koennen ihre Kontodaten und Buchungen exportieren, Benachrichtigungen abschalten und ihr Konto nach Passwortbestaetigung loeschen. Freigabe-Hinweise werden nach 30 Tagen entfernt; Buchungen und Audit-Eintraege nach einem Jahr. Abgelaufene Sitzungen und Sicherheitslinks werden taeglich bereinigt. Die sichtbaren Hinweise stehen unter `/privacy.html`.
 
-## Video neu erzeugen
+## Videos neu erzeugen
 
-MP4, Poster und VTT-Untertitel entstehen aus derselben Szenendefinition. Jede kurze Sprecherpassage besitzt eine passende echte App-Aufnahme oder ein Reinigungsbild:
+Die sechs MP4-, Poster-, VTT- und Transkriptpakete entstehen aus derselben Kapitelquelle. Zuerst erzeugt der Browserlauf aktuelle Rollen-/Sprachaufnahmen, danach rendert der Generator die Medien:
 
 ```bash
-python scripts/build-intro-video.py
+npm run test:e2e
+npm run generate:intro-media
+npm run test:media
 ```
 
-Dafuer werden lokal `edge-tts`, `imageio-ffmpeg`, `certifi` und `Pillow` benoetigt. Unter Windows verbindet der Generator den Windows-Vertrauensspeicher mit dem Python-Zertifikatsbund. Jede Szene laeuft bis zum Ende ihrer Sprachdatei und erhaelt danach eine kurze Pause.
+Unter Windows nutzt der Generator die installierten deutschen und englischen Systemstimmen sowie FFmpeg aus `FFMPEG_PATH` oder dem lokalen `imageio_ffmpeg`-Paket. Die Medien liegen unter `public/assets/intro/media/`: Bewohner je 04:02 und 9 Kapitel, Haus-Admin je 04:58 und 11 Kapitel, Superadmin je 04:40 und 10 Kapitel. `public/intro-content.js` bleibt die gemeinsame Quelle fuer Kapitelmetadaten, Sprechertext und Transkript; `public/intro-media.js` ordnet Rolle und Sprache den echten Dateien zu.
+
+Poster, Untertitel, Transkripte und Manifest sind offline verfuegbar. Die zusammen rund 9,3 MB grossen MP4-Dateien werden erst bei Wiedergabe geladen und nicht im PWA-Cache gespeichert.
 
 ## Einfuehrung im Haus
 

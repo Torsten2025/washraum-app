@@ -1,0 +1,103 @@
+WEBVTT
+
+00:00:00.350 --> 00:00:08.017
+Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit
+
+00:00:08.017 --> 00:00:15.683
+kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlichen Auditereignissen. Jeder Eintrag
+
+00:00:15.683 --> 00:00:23.350
+muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
+
+00:00:24.350 --> 00:00:33.350
+Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten
+
+00:00:33.350 --> 00:00:42.350
+und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst.
+
+00:00:42.350 --> 00:00:51.350
+Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
+
+00:00:52.350 --> 00:01:01.350
+Superadmins koennen neue Haeuser mit eindeutiger Bezeichnung und Adresse anlegen. Aenderungen
+
+00:01:01.350 --> 00:01:10.350
+an Stammdaten wirken auf Verwaltung und Anzeige. Vor einer Deaktivierung pruefst
+
+00:01:10.350 --> 00:01:19.350
+du aktive Bewohner, Buchungen, Ressourcen, offene Vorgaenge und die notwendige Datensicherung.
+
+00:01:20.350 --> 00:01:29.350
+Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin
+
+00:01:29.350 --> 00:01:38.350
+sein. Bewohnerbuchungen bleiben der Wohnung zugeordnet, waehrend Adminaktionen persoenlich protokolliert werden.
+
+00:01:38.350 --> 00:01:47.350
+Vergib nur die Rechte, die fuer die konkrete Aufgabe erforderlich sind.
+
+00:01:48.350 --> 00:01:56.026
+Ein Superadmin kann einem aktiven Haus-Admin zusaetzliche Superadminrechte geben.
+
+00:01:56.026 --> 00:02:03.703
+Der bisherige Superadmin behaelt sein Recht, damit keine ungewollte
+
+00:02:03.703 --> 00:02:11.379
+alleinige Uebergabe entsteht. Entzug oder geplante Nachfolge verlangen Passwortbestaetigung,
+
+00:02:11.379 --> 00:02:17.350
+Auditspur und mindestens einen verbleibenden handlungsfaehigen Superadmin.
+
+00:02:18.350 --> 00:02:26.188
+Im Systembereich kontrollierst du Zeitpunkt, Integritaet und Ziel der Datenbanksicherungen.
+
+00:02:26.188 --> 00:02:34.026
+Eine Kopie auf demselben Server allein schuetzt nicht vor einem
+
+00:02:34.026 --> 00:02:41.864
+vollstaendigen Ausfall. Richte eine externe Sicherung ein und pruefe regelmaessig,
+
+00:02:41.864 --> 00:02:47.350
+ob sich eine Sicherung tatsaechlich wiederherstellen laesst.
+
+00:02:48.350 --> 00:02:55.497
+Nutze den Wartungsmodus fuer groessere Datenbank- oder Betriebsarbeiten. Informiere
+
+00:02:55.497 --> 00:03:02.644
+Bewohner, erstelle vorher eine Sicherung und verhindere waehrenddessen neue
+
+00:03:02.644 --> 00:03:09.791
+Veraenderungen. Nach der Arbeit pruefst du Health-Status und Kernfunktionen,
+
+00:03:09.791 --> 00:03:15.350
+bevor du den normalen Betrieb wieder freigibst.
+
+00:03:16.350 --> 00:03:25.631
+Der Pilot-Reset ist keine normale Aufraeumfunktion. Pruefe genau, welche Buchungen und
+
+00:03:25.631 --> 00:03:34.913
+Testdaten entfernt werden, und erstelle unmittelbar vorher ein Backup. Konten, Tagebuchnachweise
+
+00:03:34.913 --> 00:03:43.350
+oder produktive Daten duerfen nicht unbeabsichtigt Teil des Resets sein.
+
+00:03:44.350 --> 00:03:51.647
+Das Audit zeigt, wer eine administrative Aktion wann und fuer
+
+00:03:51.647 --> 00:03:58.945
+welches Haus ausgefuehrt hat. Der Systemstatus ergaenzt Version, Datenbank, E-Mail,
+
+00:03:58.945 --> 00:04:06.242
+Push, Backup und Wartungszustand. Ungewoehnliche Ereignisse werden geprueft und dokumentiert,
+
+00:04:06.242 --> 00:04:11.350
+aber nicht still aus dem Verlauf entfernt.
+
+00:04:12.350 --> 00:04:21.350
+Bei Rollenwechseln, Hausdeaktivierung, Wartung und Datenreset handelst du bewusst langsam. Pruefe
+
+00:04:21.350 --> 00:04:30.350
+Ziel, Haus, aktuelle Sicherung, Auswirkungen und Ruecksetzmoeglichkeit. Bestaetige mit deinem eigenen
+
+00:04:30.350 --> 00:04:39.350
+aktuellen Passwort, kontrolliere danach Audit und Systemstatus und dokumentiere offene Restpunkte.

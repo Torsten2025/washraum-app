@@ -1,0 +1,89 @@
+{
+  "version": "media-v1",
+  "packages": [
+    {
+      "id": "resident-de",
+      "role": "resident",
+      "language": "de",
+      "duration": 242,
+      "chapters": 9,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/resident-de.mp4",
+      "captions": "/assets/intro/media/resident-de.vtt",
+      "poster": "/assets/intro/media/resident-de-poster.png",
+      "transcript": "/assets/intro/media/resident-de.txt",
+      "bytes": 1361680
+    },
+    {
+      "id": "resident-en",
+      "role": "resident",
+      "language": "en",
+      "duration": 242,
+      "chapters": 9,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/resident-en.mp4",
+      "captions": "/assets/intro/media/resident-en.vtt",
+      "poster": "/assets/intro/media/resident-en-poster.png",
+      "transcript": "/assets/intro/media/resident-en.txt",
+      "bytes": 1316809
+    },
+    {
+      "id": "house-admin-de",
+      "role": "house_admin",
+      "language": "de",
+      "duration": 298,
+      "chapters": 11,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/house-admin-de.mp4",
+      "captions": "/assets/intro/media/house-admin-de.vtt",
+      "poster": "/assets/intro/media/house-admin-de-poster.png",
+      "transcript": "/assets/intro/media/house-admin-de.txt",
+      "bytes": 1674480
+    },
+    {
+      "id": "house-admin-en",
+      "role": "house_admin",
+      "language": "en",
+      "duration": 298,
+      "chapters": 11,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/house-admin-en.mp4",
+      "captions": "/assets/intro/media/house-admin-en.vtt",
+      "poster": "/assets/intro/media/house-admin-en-poster.png",
+      "transcript": "/assets/intro/media/house-admin-en.txt",
+      "bytes": 1699020
+    },
+    {
+      "id": "superadmin-de",
+      "role": "superadmin",
+      "language": "de",
+      "duration": 280,
+      "chapters": 10,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/superadmin-de.mp4",
+      "captions": "/assets/intro/media/superadmin-de.vtt",
+      "poster": "/assets/intro/media/superadmin-de-poster.png",
+      "transcript": "/assets/intro/media/superadmin-de.txt",
+      "bytes": 1617301
+    },
+    {
+      "id": "superadmin-en",
+      "role": "superadmin",
+      "language": "en",
+      "duration": 280,
+      "chapters": 10,
+      "width": 1280,
+      "height": 720,
+      "video": "/assets/intro/media/superadmin-en.mp4",
+      "captions": "/assets/intro/media/superadmin-en.vtt",
+      "poster": "/assets/intro/media/superadmin-en-poster.png",
+      "transcript": "/assets/intro/media/superadmin-en.txt",
+      "bytes": 1622718
+    }
+  ]
+}

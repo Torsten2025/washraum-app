@@ -20,6 +20,9 @@ const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const updateAppButton = document.querySelector('#updateAppButton');
 const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || '';
+const i18n = window.WZ_I18N;
+const translate = (key, fallback) => i18n?.t(key, {}, fallback) || fallback;
+const localize = (value) => i18n?.translateVisibleText(value) || value;
 let invitationUsesExistingAccount = false;
 
 function escapeHtml(value) {
@@ -88,12 +91,12 @@ async function submitJson(formElement, path, body, messageElement) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      messageElement.textContent = data.error || 'Die Anfrage konnte nicht abgeschlossen werden.';
+      messageElement.textContent = localize(data.error || translate('auth.requestFailed', 'Die Anfrage konnte nicht abgeschlossen werden.'));
       return null;
     }
     return data;
   } catch {
-    messageElement.textContent = 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.';
+    messageElement.textContent = translate('app.noConnection', 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.');
     return null;
   } finally {
     submitButton.disabled = false;
@@ -164,7 +167,7 @@ registerForm.addEventListener('submit', async (event) => {
 
   const formData = new FormData(registerForm);
   if (!invitationUsesExistingAccount && formData.get('password') !== formData.get('passwordConfirmation')) {
-    registerMessage.textContent = 'Die beiden Passwoerter stimmen nicht ueberein.';
+    registerMessage.textContent = translate('auth.passwordMismatch', 'Die beiden Passwoerter stimmen nicht ueberein.');
     return;
   }
   const data = await submitJson(registerForm, '/api/invitations/accept', {
@@ -187,14 +190,14 @@ async function loadInvitation(token) {
     const response = await fetch(`/api/invitations/${encodeURIComponent(token)}`, { cache: 'no-store' });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      invitationSummary.innerHTML = `<strong>Einladung nicht verf&uuml;gbar</strong><span>${escapeHtml(data.error || 'Bitte fordere eine neue Einladung an.')}</span>`;
+      invitationSummary.innerHTML = `<strong>${escapeHtml(translate('auth.invitationUnavailable', 'Einladung nicht verfuegbar'))}</strong><span>${escapeHtml(localize(data.error || translate('auth.requestInvitation', 'Bitte fordere eine neue Einladung an.')))}</span>`;
       return;
     }
     const invitation = data.invitation;
     invitationUsesExistingAccount = Boolean(invitation.existingAccount);
     invitationPasswordLabel.firstChild.textContent = invitationUsesExistingAccount
-      ? 'Vorhandenes Passwort '
-      : 'Dein Passwort ';
+      ? `${translate('auth.existingPassword', 'Vorhandenes Passwort')} `
+      : `${translate('auth.yourPassword', 'Dein Passwort')} `;
     invitationPasswordLabel.querySelector('input').autocomplete = invitationUsesExistingAccount
       ? 'current-password'
       : 'new-password';
@@ -204,11 +207,13 @@ async function loadInvitation(token) {
       <strong>${escapeHtml(invitation.displayName)}</strong>
       <span>${escapeHtml(invitation.apartmentLabel)} &middot; ${escapeHtml(invitation.houseName)}</span>
       <span>${escapeHtml(invitation.email)}</span>
-      <span>${invitationUsesExistingAccount ? 'Bestehenden Zugang bestätigen' : 'Neuen persönlichen Zugang anlegen'}</span>
+      <span>${escapeHtml(invitationUsesExistingAccount
+        ? translate('auth.existingAccess', 'Bestehenden Zugang bestaetigen')
+        : translate('auth.newAccess', 'Neuen persoenlichen Zugang anlegen'))}</span>
     `;
     submitButton.disabled = false;
   } catch {
-    invitationSummary.innerHTML = '<strong>Einladung konnte nicht geladen werden</strong><span>Bitte versuche es erneut.</span>';
+    invitationSummary.innerHTML = `<strong>${escapeHtml(translate('auth.invitationLoadFailed', 'Einladung konnte nicht geladen werden'))}</strong><span>${escapeHtml(translate('auth.tryAgain', 'Bitte versuche es erneut.'))}</span>`;
   }
 }
 
@@ -217,7 +222,7 @@ if (invitationToken) {
 } else if (devicePairingToken) {
   setMode('device');
   deviceLoginForm.elements.deviceCode.value = devicePairingToken;
-  deviceLoginMessage.textContent = 'QR-Code erkannt. Bitte melde dich mit deiner eigenen E-Mail an oder lege damit deinen persönlichen Zugang an.';
+  deviceLoginMessage.textContent = translate('auth.qrRecognized', 'QR-Code erkannt. Bitte melde dich mit deiner eigenen E-Mail an oder lege damit deinen persoenlichen Zugang an.');
 }
 
 deviceLoginForm.addEventListener('submit', async (event) => {
@@ -251,7 +256,7 @@ accountRecoveryForm.addEventListener('submit', async (event) => {
   accountRecoveryMessage.textContent = '';
   const formData = new FormData(accountRecoveryForm);
   if (formData.get('newPassword') !== formData.get('newPasswordConfirmation')) {
-    accountRecoveryMessage.textContent = 'Die beiden neuen Passwoerter stimmen nicht ueberein.';
+    accountRecoveryMessage.textContent = translate('auth.newPasswordMismatch', 'Die beiden neuen Passwoerter stimmen nicht ueberein.');
     return;
   }
   const data = await submitJson(accountRecoveryForm, '/api/account-recovery/confirm', {

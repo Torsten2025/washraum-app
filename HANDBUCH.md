@@ -73,7 +73,7 @@ Organisatorischer Notfallprozess:
 | --- | --- | --- |
 | Landingpage | WaschZeit-Wortmarke, Kurzuebersicht und direkter Einstieg | Oeffentlich |
 | Anmelden | Bewohner mit einer hinterlegten E-Mail und Passwort; Admins alternativ mit technischem Kontonamen | Oeffentlich |
-| Einladung | Sieben Tage gueltige Einladung pruefen; neue Identitaet anlegen oder bestehende Identitaet nach Passwortbestaetigung derselben Wohnung zuordnen | Oeffentlich mit gueltigem Link |
+| Einladung | Unter der Ueberschrift `Wohnung aktivieren` / `Activate apartment` eine sieben Tage gueltige Einladung mit der eindeutigen Aktion `Einladung annehmen` / `Accept invitation` pruefen; neue Identitaet anlegen oder bestehende Identitaet nach Passwortbestaetigung derselben Wohnung zuordnen | Oeffentlich mit gueltigem Link |
 | Geraet verbinden | QR-Code scannen oder lesbaren Einmalcode eingeben und mit eigener E-Mail sowie persoenlichem Passwort einen Bewohnerzugang derselben Wohnung anlegen | Oeffentlich mit zehn Minuten gueltigem Token |
 | Freigabe-Hinweise | E-Mail-Hinweise bei der Einladungsannahme ein- oder ausschalten | Oeffentlich |
 | Passwort vergessen | Sicheren Wiederherstellungslink anfordern | Oeffentlich |
@@ -82,6 +82,14 @@ Organisatorischer Notfallprozess:
 | Datenschutz | Zur Datenschutzerklaerung wechseln | Oeffentlich |
 
 Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem Browser zum Home-Bildschirm hinzugefuegt werden und startet danach wie eine normale App.
+
+### Sprache
+
+WaschZeit unterstuetzt zentral Deutsch (`de`) und Englisch (`en`). Deutsch ist Standard und sicherer Rueckfall. Auf der Anmeldeseite wird die Auswahl unter `waschzeit-language` lokal gespeichert. Nach der Anmeldung speichert `PUT /api/me/language` ausschliesslich `de` oder `en` am persoenlichen Konto; ein anderer Wert wird abgelehnt und veraendert weder Rolle noch aktives Haus. Die Kontosprache hat beim naechsten Login Vorrang und kann unter `Einstellungen > Profil > Sprache` geaendert werden. Freie Namen, Stoerungstexte und Tagebuchnotizen werden nicht automatisch uebersetzt.
+
+Ein Sprachwechsel aktualisiert ohne manuellen Reload auch bereits aufgebaute dynamische Ansichten. Dazu gehoeren Kalender und Datumskoepfe, Empfehlungen, Buchungs- und Mitteilungsbereiche, die sichtbare Verwaltung sowie die passende Rollenfuehrung. Aktives Haus, Rollenrechte, Woche oder Monat, gewaehltes Datum, laufende Buchungsauswahl, Verwaltungsreiter und ausgewaehltes Einfuehrungskapitel bleiben dabei erhalten.
+
+Die sichtbaren Pflichtseiten, Kernablaeufe, zugaenglichen Namen sowie Verifizierungs-, Reset-, Freigabe- und Testbenachrichtigungen besitzen deutsche und englische Fassungen. Wohnungseinladungen werden zweisprachig versendet, weil vor der ersten Kontoaktivierung noch keine persoenliche Kontosprache existiert. Technische API-Werte, Audit-Aktionscodes, Slots und die Schweizer Fachzeit bleiben sprachunabhaengig stabil.
 
 Einladungstoken sind zufaellig, werden serverseitig nur als SHA-256-Hash gespeichert, gelten sieben Tage und koennen nur einmal verwendet werden. Der Admin legt vorab eine stabile Wohnungsbezeichnung, den Klingelschildnamen und die beim Einzug erhaltene Ziel-E-Mail fest. Die App versendet den Link ausschliesslich an diese Adresse und zeigt ihn im Produktivbetrieb niemals dem Admin an. Bei einer neuen E-Mail legt die Person ihr Passwort fest; bei einer bereits vorhandenen Identitaet bestaetigt sie ihr vorhandenes Passwort. Dadurch kann insbesondere ein Haus- oder Superadmin Bewohner derselben Wohnung werden, ohne ein zweites Konto anzulegen. Ohne funktionierenden SMTP-Versand wird keine Produktionseinladung erstellt und kein unsicherer Ersatzlink angeboten. Freie Registrierung, Wohnungscodes und Kontenzusammenfuehrung sind in Produktion abgeschaltet.
 
@@ -211,27 +219,44 @@ Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere recht
 
 ### Minispiel Windel-Alarm
 
-`Windel-Alarm spielen` im Kontomenue oeffnet ein freiwilliges Entschaerfungsspiel. Nach dem Start bleiben 45 Sekunden fuer drei zufaellig ausgewaehlte Module aus sechs Systemen: `Kabelmatrix`, `Impulsspeicher`, `Druckventil`, `Symboldecoder`, `Thermokern` und `Leckscanner`. Die Aufgaben verlangen je nach Modul Symbolerkennung, Merkfaehigkeit, Timing, Decodieren, Kopfrechnen oder raeumliches Erinnern. Danach wird der finale rote Zuendkreis freigelegt. Er muss kontrolliert zwischen 0,9 und 1,8 Sekunden gehalten werden; ein einfacher Klick reicht nicht mehr. Ein Fehler zieht 4,5 Sekunden vom Countdown ab und verbraucht eine von drei sichtbaren Chancen. Beim dritten Fehler oder bei null Sekunden platzt ausschliesslich die gezeichnete Comic-Windel; das Baby wird weder verletzt noch als explodierend dargestellt.
+`Windel-Alarm spielen` im Kontomenue oeffnet ein freiwilliges Entschaerfungsspiel der Spielversion 4. Nach dem Start bleiben 60 Sekunden fuer vier zufaellig ausgewaehlte Module aus acht Systemfamilien: `Kabelmatrix`, `Impulsspeicher`, `Druckventil`, `Symboldecoder`, `Thermokern`, `Leckscanner`, `Leiterbahn` und `Sicherungsringe`. Kabel, Impulsfolge, Ventilkorridor, Codelaenge, Kalibrierimpulse und Scannerfelder besitzen mehrere serverseitig bestimmte Varianten. Nach dem ersten oder zweiten Modul unterbricht genau ein ebenfalls serverseitig vorgegebener Zwischenfall den Ablauf: Das Baby strampelt, die Beleuchtung faellt kurz aus, der Druck steigt oder der Scanner beschlaegt. Danach wird der finale rote Zuendkreis freigelegt. Er muss kontrolliert zwischen 0,9 und 1,8 Sekunden gehalten werden; ein einfacher Klick reicht nicht. Ein Fehler zieht 4,5 Sekunden vom Countdown ab und verbraucht eine von drei sichtbaren Chancen. Beim dritten Fehler oder bei null Sekunden platzt ausschliesslich die gezeichnete Comic-Windel; das Baby wird weder verletzt noch als explodierend dargestellt.
 
-Vor jeder Runde erzeugt der Server einen einmaligen, zwei Minuten gueltigen Rundennachweis, speichert die konkrete Modulfolge und prueft jeden Modulabschluss sowie das finale Haltefenster. Die Serverzeit bleibt massgeblich. In der `Tagesmission` erhalten alle Haeuser am selben Schweizer Kalendertag dieselbe Aufgabe; die Wertungszeit besteht aus Laufzeit plus 4,5 Sekunden je Fehler. Nur die beste persoenliche Tageszeit wird gespeichert. Die zehn schnellsten Konten aller Haeuser erscheinen in der gemeinsamen Tageswertung; zusaetzlich sieht jede Person den eigenen globalen Tagesrang. Andere Konten werden ausschliesslich als `Wickelprofi #Nummer` gezeigt, nicht mit Klingelschild-, Wohnungs- oder Hausnamen. `Bestwert loeschen` entfernt nur den eigenen heutigen Eintrag. Der Modus `Ueben` mischt eine neue Aufgabe, verwendet dieselben Regeln und schreibt keinen Highscore. Bewohner, Haus-Admins und Superadmins haben dieselben Spielrechte. Das Spiel erzeugt keine echten Waschladungen, Buchungen oder Mitteilungen. Die Tagesmission verwendet Spielversion 3; nicht vergleichbare Ergebnisse frueherer Spielversionen bleiben technisch erhalten, werden aber nicht in der neuen Tageswertung angezeigt.
+Vor jeder Runde erzeugt der Server einen einmaligen, zwei Minuten gueltigen Rundennachweis, speichert die vier Module, ihre Varianten und den Zwischenfall und prueft jeden Modulabschluss sowie das finale Haltefenster. Die Serverzeit bleibt massgeblich. In der `Tagesmission` erhalten alle Haeuser am selben Schweizer Kalendertag dieselbe Aufgabe; die Wertungszeit besteht aus Laufzeit plus 4,5 Sekunden je Fehler. Nur die beste persoenliche Tageszeit wird gespeichert. Die zehn schnellsten Konten aller Haeuser erscheinen in der gemeinsamen Tageswertung; zusaetzlich sieht jede Person den eigenen globalen Tagesrang. Andere Konten werden ausschliesslich als `Wickelprofi #Nummer` gezeigt, nicht mit Klingelschild-, Wohnungs- oder Hausnamen. `Bestwert loeschen` entfernt nur den eigenen heutigen Eintrag. Der Modus `Ueben` mischt eine neue Aufgabe, verwendet dieselben Regeln und schreibt keinen Highscore. Bewohner, Haus-Admins und Superadmins haben dieselben Spielrechte. Das Spiel erzeugt keine echten Waschladungen, Buchungen, Freigaben, Mitteilungen oder Benachrichtigungen. Ergebnisse der Spielversion 4 werden getrennt von frueheren Spielversionen gewertet.
 
 Es kann jederzeit mit `Escape`, der Schliessen-Schaltflaeche oder einem Klick ausserhalb beendet werden; die Tastaturbedienung bleibt im geoeffneten Dialog.
 
-Die Spieloberflaeche besitzt eine eigenstaendige responsive Arcade-Gestaltung mit animierter Babyfigur, Zuenddruckring, bewaffneter Windelanzeige, digitalem Countdown, drei Fehlerleuchten, sechs eigenstaendig gestalteten Modultypen, vierteiligem Fortschritt und einem animierten Haltefenster im Finale. Der Countdown wechselt in den letzten zehn Sekunden sichtbar in den kritischen Zustand. Optionaler, standardmaessig ausgeschalteter Synthesizer-Ton und kurze Geraetevibrationen verstaerken Treffer und Alarm ohne zusaetzliche Mediendateien oder nennenswerten Speicherbedarf. Die globale Tageswertung bleibt platzsparend neben den Modulen sichtbar. Bei einer Betriebssystemeinstellung fuer reduzierte Bewegung werden Animationen und Uebergaenge automatisch auf ein Minimum gesetzt; alle Module bleiben per Tastatur bedienbar und Statuswechsel werden als Text ausgegeben.
+Die Spieloberflaeche verwendet waehrend eines Einsatzes eine bildschirmfuellende responsive 2D-Spielbuehne statt der normalen Kartenoptik. Babyfigur, Handschuhe, Schalttafel, Hintergrundraster, Zwischenfaelle, Modulwechsel, Fehler und Finale reagieren animiert. Kabel lassen sich per Wischbewegung trennen, bleiben aber ebenso per Tastatur ausloesbar; Leiterbahn und Sicherungsringe besitzen beschriftete Tastenalternativen. Der Countdown wechselt in den letzten zehn Sekunden sichtbar in den kritischen Zustand. Optionaler, standardmaessig ausgeschalteter Synthesizer-Ton und kurze Geraetevibrationen verstaerken Treffer und Alarm ohne externe Mediendateien. Die globale Tageswertung wird waehrend des laufenden Einsatzes ausgeblendet und erst davor beziehungsweise danach gezeigt. Bei einer Betriebssystemeinstellung fuer reduzierte Bewegung werden Animationen und Uebergaenge automatisch auf ein Minimum gesetzt; alle Module bleiben per Tastatur bedienbar und Statuswechsel werden als Text ausgegeben.
 
 ### Einfuehrung und Quiz
 
 | Bereich | Funktion |
 | --- | --- |
-| Aufgezeichnetes Video | Rund fuenfeinhalbminuetige Einfuehrung mit Sprecher und 28 passend zum Text wechselnden App- und Reinigungsbildern abspielen |
-| Untertitel | Synchronisierte deutsche Untertitel anbieten |
-| Interaktive Einfuehrung | Aufbau, Waschpaket und Regeln kapitelweise mit denselben echten App-Ansichten zeigen und vorlesen |
-| Steuerung | Wiedergabe, Stummschaltung, vor und zurueck bedienen |
+| Aufgezeichnete Videos | Sechs echte MP4-Pakete mit rollen- und sprachgerechter AAC-Vertonung, passenden App-Szenen, VTT-Untertiteln, Poster und vollstaendigem Transkript abspielen |
+| Rollenauswahl | Bewohner, Haus-Admin und Superadmin erhalten automatisch das passende deutsche oder englische Medienpaket und dieselbe interaktive Einfuehrung; bei kombinierten Verwaltungsrollen hat Superadmin Vorrang |
+| Gemeinsame Quelle | Kapitel, Rollenbezug, Sprache, Startzeit, Kurzbeschreibung, Sprechertext und Transkript fuer Medien und interaktiven Rundgang aus `public/intro-content.js` beziehen |
+| Kapitelnavigation | Sichtbare Kapitel im MP4 und im interaktiven Rundgang per Maus, Touch und Tastatur direkt waehlen; aktives Kapitel mit `aria-current` markieren |
+| Sprachausgabe und Lesetext | Das MP4 mit deutscher oder englischer AAC-Vertonung abspielen; die optionale Browser-Sprachausgabe und derselbe vollstaendige Lesetext bleiben als Ergaenzung erhalten |
+| Steuerung | Wiedergabe, Stummschaltung, vor und zurueck sowie direkten Kapitelsprung bedienen |
 | Quiz | Drei alltagsnahe Fragen mit freundlicher Rueckmeldung beantworten |
+
+Der aktuelle Kandidat besitzt sechs vollstaendige echte Medienpakete und sechs gleich aufgebaute interaktive Rollen-/Sprachfuehrungen:
+
+| Paket | Datei | Dauer | Kapitel |
+| --- | --- | ---: | ---: |
+| Bewohner Deutsch | `resident-de.mp4` | 04:02 | 9 |
+| Bewohner Englisch | `resident-en.mp4` | 04:02 | 9 |
+| Haus-Admin Deutsch | `house-admin-de.mp4` | 04:58 | 11 |
+| Haus-Admin Englisch | `house-admin-en.mp4` | 04:58 | 11 |
+| Superadmin Deutsch | `superadmin-de.mp4` | 04:40 | 10 |
+| Superadmin Englisch | `superadmin-en.mp4` | 04:40 | 10 |
+
+Alle Videos liegen als H.264 High, 1280 x 720 und AAC-LC mono vor. Zu jedem MP4 gehoeren gleichnamige `.vtt`-Untertitel, ein `-poster.png` und ein `.txt`-Transkript unter `public/assets/intro/media/`. `public/intro-media.js` verbindet die Dateien mit den gemeinsamen Kapitelstarts. Ein Sprachwechsel waehlt das neue Paket ohne Reload und erhaelt nach Moeglichkeit das Kapitel mit derselben ID.
+
+Fuer die PWA werden Manifest, Poster, Untertitel und Transkripte in die Offline-Shell aufgenommen. Die sechs MP4-Dateien umfassen zusammen rund 9,3 MB und werden weder vorab noch im Laufzeitcache gespeichert. Dadurch bleibt ein App-Update klein; ohne Netz erscheint der Transkript-Fallback, waehrend ein bereits vom Browser gepuffertes Video nicht als verlaessliche Offline-Funktion versprochen wird.
 
 ## Verwaltungsansicht
 
-Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag und ihrem Geltungsbereich. Der Startbereich ordnet konkrete Aufgaben nach Dringlichkeit, fuehrt mit `Oeffnen` direkt zum passenden Arbeitsbereich und zeigt getrennt davon die dauerhaften Verantwortungen der Rolle. Warnzaehler an `Tagebuch`, `Wohnungen`, `Haus & Geraete` und `System` machen offene Arbeit sichtbar. Haus-Admins sehen dabei nur Aufgaben, die sie selbst erledigen duerfen; technische Superadmin-Aufgaben werden ihnen nicht zugewiesen. Auf Tablets verteilt sich die Navigation auf zwei vollstaendig sichtbare Zeilen, auf kleinen Bildschirmen wird auch die Aufgabenansicht einspaltig. Die Reiter lassen sich zusaetzlich mit den Pfeiltasten wechseln.
+Nach `Verwalten` erscheint oben die eigene Adminrolle mit einem kurzen Auftrag und ihrem Geltungsbereich. Der Startbereich trennt `Aufgaben`, `Warnungen` und `Informationen` mit hoechstens drei Prioritaetsstufen. Jede Zeile nennt eine konkrete naechste Aktion wie `Stoerung bearbeiten`, `Funktionspruefung durchfuehren`, `Einladung erneut senden`, `Konto pruefen` oder `Geraet anzeigen` und springt direkt in den passenden Arbeitsbereich. Offene Einladungen und Dauertermine erscheinen als Information; fehlende E-Mail, gesperrte Ressourcen, Nachfolge, E-Mail, Backup, Wartung und auffaellige Auditaktionen als passende Warnung. Superadmins sehen ausserdem Version und Releasekennung; globale Tagebuchaufgaben nennen das betroffene Haus. Haus-Admins sehen nur Aufgaben, die sie im eigenen Haus erledigen duerfen. Auf Tablets verteilt sich die Navigation auf zwei vollstaendig sichtbare Zeilen, auf kleinen Bildschirmen wird auch die Aufgabenansicht einspaltig. Die Reiter lassen sich zusaetzlich mit den Pfeiltasten wechseln.
 
 ### 1. Ueberblick
 
@@ -429,6 +454,8 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - Releaseerkennung, bestaetigtes PWA-Update, Wartungsrechte, Schreibsperre, automatisches Backup und Buchungs-Schreibtest.
 - Datenschutzexport, Kontoloeschung, Sicherheitsheader und Barrierefreiheit.
 - Verknuepfung statischer JavaScript-Ziele mit tatsaechlich vorhandenen HTML-Elementen auf Anmelde-, Waschplan- und Reset-Seite.
+- Vollstaendigkeit der zentralen `de/en`-Schluessel, deutscher Rueckfall, lokale und kontobezogene Sprachpersistenz, sechs Rollen-/Sprachfuehrungen, Kapitelmetadaten sowie englische Mail- und Push-Vorlagen.
+- Sechs echte MP4/VTT/Poster/Transkript-Pakete, Codecmarker, 1280-x-720-Format, Laufzeiten, Untertitelzeitfolge, Textvollstaendigkeit und PWA-Groessenvertrag.
 - Mehrhaus-Jahressimulation mit 100 Personen in sechs Haeusern, 52 Wochen und 5.200 Waschpaketen.
 
 ### Testbefehle
@@ -437,11 +464,13 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | --- | --- |
 | `npm run verify` | Syntax aller zentralen Dateien pruefen |
 | `npm run test:security` | Sicherheitsheader, Origin-Schutz, Sitzungen, Einladungen, Anmeldewege, Einmalcodes, Passwortregeln und Rate-Limits dynamisch pruefen |
+| `npm run test:i18n` | Deutsche und englische Schluessel, Rueckfall, Persistenzvertrag, sechs Rollenfuehrungen, Kapitel und Benachrichtigungsvorlagen pruefen |
+| `npm run test:media` | Sechs MP4/VTT/Poster/Transkript-Pakete, H.264/AAC-Marker, Format, Laufzeit, Textvollstaendigkeit und PWA-Cachegrenzen pruefen |
 | `npm test` | Vollstaendige API- und Funktionsablaeufe pruefen |
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
 | `npm run test:backup` | Externe PUT-Kopie, Tokenuebertragung, SQLite-Integritaet und den Neustart aus einer wiederhergestellten Sicherung pruefen |
-| `npm run test:e2e` | Verbindlichen Browserlauf fuer Einladung, persoenlichen QR-Zugang und visuelle Layoutpruefung bei 390 x 844, 768 x 1024 und 1440 x 900 ausfuehren |
+| `npm run test:e2e` | Verbindlichen Browserlauf fuer Einladung, persoenlichen QR-Zugang, alle sechs Medienpakete mit Kapitelsprung sowie visuelle Layoutpruefung bei 390 x 844, 768 x 1024 und 1440 x 900 ausfuehren |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
 | `npm run audit` | Den ausfuehrlichen Gesamtaudit inklusive Backup-Wiederherstellung und verbindlichem Browsertest Schritt fuer Schritt ausfuehren |
 | `npm run check` | Verbindliches Abschluss-Gate aus Syntax-, Sicherheits-, Funktions-, Rollen-, Jahres-, Barrierefreiheits-, Backup- und Browsertest ausfuehren |
@@ -452,7 +481,11 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 
 ### Agentenrollen
 
-Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fachentwicklung, unabhaengige Endabnahme und Release steht in `.agents/ROLES.md`. Der Hauptagent arbeitet als `CEO_TECHNIK` und damit als Seniorentwickler der gesamten WaschZeit-App. Zu seiner Gesamtverantwortung gehoeren auch Testversionsnummer, sichtbarer Pilotstatus, Betreiberangaben und Datenschutztransparenz; er darf keine ungeprueften Rechtsaussagen oder Kontaktdaten erfinden und gibt keinen Release mit unklarem Pflichtstand frei. Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID. Ihr Auftrag begrenzt Aenderungen auf die Spiel-API, die gekennzeichneten Frontendbereiche, spielbezogene Tests und Dokumentation. Aenderungen an Schema, allgemeinen Rollenrechten, Buchungen oder Produktion erfordern eine zusaetzliche Zuweisung und Freigabe durch die technische Gesamtleitung.
+Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fachentwicklung, Pilot-Betreuung, unabhaengige Endabnahme und Release steht in `.agents/ROLES.md`. Der Hauptagent der separaten Codex-Aufgabe `CEO` arbeitet als `CEO_TECHNIK` und damit als Seniorentwickler der gesamten WaschZeit-App. Zu seiner Gesamtverantwortung gehoeren auch Testversionsnummer, sichtbarer Pilotstatus, Betreiberangaben und Datenschutztransparenz; er darf keine ungeprueften Rechtsaussagen oder Kontaktdaten erfinden und gibt keinen Release mit unklarem Pflichtstand frei.
+
+`PILOT_BETREUUNG` ist organisatorisch direkt mit der Codex-Aufgabe `CEO` verbunden und berichtet an sie. Die Rolle holt Bewohner, Hausdienst, Tester, Sitzungskommission und weitere Beteiligte mit einem Pilot-Steckbrief, klaren Testaufgaben, einem sicheren Rueckmeldeweg und entscheidungsreifen Vorlagen ins Boot. Alltagsfeedback, unabhaengiges QA-Urteil, technische Freigabe durch `CEO_TECHNIK` und Beschluss der Sitzungskommission bleiben getrennt. Der Pilot-Betreuer darf keine Zustimmung, Rechtspruefung, Testfreigabe oder Produktivreife stellvertretend erklaeren.
+
+Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID. Ihr Auftrag begrenzt Aenderungen auf die Spiel-API, die gekennzeichneten Frontendbereiche, spielbezogene Tests und Dokumentation. Aenderungen an Schema, allgemeinen Rollenrechten, Buchungen oder Produktion erfordern eine zusaetzliche Zuweisung und Freigabe durch die technische Gesamtleitung.
 
 ### Aufbau
 
@@ -471,6 +504,7 @@ Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fache
 | `src/services/backup.js` | Gekapselte Erstellung, Integritaetspruefung, Aufbewahrung und externe Kopie von SQLite-Backups |
 | `src/services/booking-rules.js` | Buchungsregeln, Kalenderkapazitaeten, Waschpaketoptionen und Terminempfehlungen |
 | `src/services/mail-transport.js` | SMTP-Konfiguration und Transport fuer ausgehende E-Mails |
+| `src/services/localization.js` | Serverseitige `de/en`-Vorlagen fuer Verifizierung, Reset, Freigabe, Testmail und Push |
 | `src/services/notifications.js` | E-Mail-Bestaetigung, Passwortreset und gemeinsame Freigabe-Benachrichtigungen |
 | `src/services/operations.js` | Wartungsstatus, Freigabestand, Selbstpruefung, zeitgesteuerte Backups und betriebliche Datenbereinigung |
 | `src/services/push.js` | VAPID-Konfiguration, Push-Payloads, Geraetezustand und Push-Versand |
@@ -478,11 +512,15 @@ Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fache
 | `swiss-time.js` | Datums- und Slotberechnung in Schweizer Zeit |
 | `release-window.js` | Zeitfenster fuer Freigaben und Absagen |
 | `public/login.html`, `public/login.js` | Landingpage, Anmeldung und Einladungsannahme |
-| `public/index.html`, `public/app.js` | Waschplan, Konto, Einfuehrung und Verwaltung |
+| `public/i18n.js` | Zentraler Browserkatalog, deutscher Rueckfall, DOM-Lokalisierung und lokale/kontobezogene Sprachwahl |
+| `public/intro-content.js` | Strukturierte Kapitelquelle fuer sechs Rollen-/Sprachfuehrungen |
+| `public/intro-media.js`, `public/assets/intro/media/` | Medienmanifest und sechs echte H.264/AAC-Pakete mit VTT, Poster und Transkript |
+| `public/index.html`, `public/app.js` | Waschplan, Konto, rollenbezogene Einfuehrung und priorisierte Verwaltung |
 | `public/manifest.webmanifest`, `public/sw.js` | PWA-Installation, Offline-Shell und Push-Anzeige |
 | `public/styles.css` | Gemeinsames responsives Erscheinungsbild |
-| `scripts/` | Funktions-, Rollen-, Jahres- und Barrierefreiheitstests |
+| `scripts/` | Funktions-, Rollen-, Jahres-, Medien- und Barrierefreiheitstests sowie reproduzierbarer Mediengenerator |
 | `.agents/ROLES.md` | Verbindliche Rollen, Dateibereiche, Schnittstellen, Akzeptanzkriterien und Pflichtpruefungen fuer technische Arbeitspakete |
+| `PILOTPAKET.md` | Technisches, unabhaengiges QA- und erforderliches institutionelles Gate, externe Datenablagepflichten, Teilnahmeinformation, Beteiligtenmatrix, Einladungs- und Einweisungsplan sowie Feedback-, Entscheidungs- und Lageberichtvorlagen fuer den Kleinstpiloten mit 3 bis 5 Wohnungen |
 | `TESTPLAN_GESAMTAUDIT.md` | Vollstaendiger Pruefkatalog fuer Sicherheit, Konten, Rollen, Regeln, Betrieb und Live-Abnahme |
 | `TESTPROTOKOLL_2026-07-20.md` | Ausgefuehrter Tiefentest mit automatischen Ergebnissen, praktischen Funktionsketten, Befunden und Restgrenzen |
 | `PRUEFBERICHT_GESAMTAUDIT_2026-07-19.md` | Ausgefuehrte Ergebnisse, behobene Fehler, Restrisiken und priorisierte Anpassungsvorschlaege |
@@ -505,6 +543,7 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 - `apartments` speichert die stabile Wohnungsbezeichnung, den aenderbaren Klingelschildnamen, Haus und Aktivierungsstatus. `apartment_invitations` speichert Ziel-E-Mail, Ablauf, Versand- und Annahmestatus; Einladungstoken und Geraetecodes liegen ausschliesslich als SHA-256-Hash vor. Der Klartextlink wird im Produktivbetrieb nur fuer die E-Mail erzeugt und nie ueber die Admin-API ausgegeben. Isolierte Entwicklungstests duerfen ihn mit `ALLOW_TEST_INVITATION_LINK=true` erhalten; der Schalter wird im Produktionsmodus immer ignoriert und aktiviert die alte Registrierung nicht.
 - `apartment_name_requests` speichert offene und entschiedene Korrekturwuensche. Ein Bewohnerwunsch aendert den sichtbaren Namen nie direkt; Freigabe oder Ablehnung erfolgt durch einen Admin und wird auditiert.
 - `users` speichert genau eine persoenliche Identitaet pro eindeutiger E-Mail. `users.apartment_id` bindet mehrere Identitaeten an dieselbe Wohnung; `apartments.claimed_by` bezeichnet nur den stabilen technischen Buchungseigentuemer. Dadurch teilen alle Mitglieder Buchungen und Vorausbuchungsgrenzen.
+- `users.language` speichert ausschliesslich `de` oder `en` mit Standard `de`. Die additive Migration setzt bestehende und ungueltige Werte sicher auf Deutsch zurueck.
 - `user_house_roles` speichert Haus-Adminrechte unabhaengig von der Wohnungsmitgliedschaft. `users.is_superadmin` bleibt die globale Zusatzberechtigung. QR-Partnercodes schreiben ausschliesslich die Wohnungszuordnung und niemals eine Admin- oder Superadminberechtigung.
 - Bewohner und Haus-Admins duerfen keine Daten eines anderen Hauses lesen oder veraendern.
 - Nur der Superadmin darf das aktive Haus wechseln und hausuebergreifende Aktionen ausfuehren.
@@ -518,6 +557,24 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium und fuehrt `npm run check` aus. Der verbindliche Browserlauf erzeugt Screenshots fuer Mobiltelefon, Tablet und Desktop; GitHub bewahrt sie 14 Tage als Testartefakt auf. Nur bei vollstaendigem Erfolg ruft der Workflow den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
 
 ## Aenderungsprotokoll
+
+### 21. Juli 2026
+
+- Windel-Alarm als Spielversion 4 auf einen konsistenten Kandidatenvertrag stabilisiert: 60 Sekunden, vier Module aus acht Systemfamilien, genau ein serverseitig vorgegebener Zwischenfall, drei Fehlerchancen und das bestehende Haltefinale. Bildschirmfuellende 2D-Spielbuehne, direkte Kabelgeste, Leiterbahn, Sicherungsringe und reaktive Zustandsanimationen ersetzen die bisherige Kartenwirkung; Bestenliste, Rollenrechte, Pseudonymisierung und Trennung von Buchungen sowie Benachrichtigungen bleiben erhalten.
+- Pilotpaket fuer 3 bis 5 Wohnungen praezisiert: Einladungen bleiben bis zur getrennten Freigabe durch `CEO_TECHNIK`, `TESTING_QA` und, soweit erforderlich, Sitzungskommission oder zustaendige Verwaltung gesperrt. Das finale Gate verlangt konkrete Angaben zu Zeitraum, Haus, Support, externer Kontakt- und Feedbackablage, Zugriffsrollen, Aufbewahrung, Bereinigung, Version, Revision, Umgebung, Backup/Restore und Verantwortlichen. Teilnahmeinformation, getrennte E-Mail-/Push-Messung und falsche Empfaenger als sofortiges Rot-Kriterium sind verbindlich.
+- Kandidatenstand auf `0.3.0-test.3` angehoben und weiterhin sichtbar als `Testversion` gekennzeichnet; kein Push oder Deployment durch dieses Arbeitspaket.
+- Zentrale deutsche/englische Oberflaechenschicht mit Sprachwahl vor Login und kontobezogener Persistenz eingefuehrt. Verifizierung, Passwortreset, Freigabe-Mail, Push und Admin-Testnachrichten verwenden die Sprache des Empfaengerkontos; Einladungen sind vor der Kontoaktivierung zweisprachig.
+- Sechs strukturierte Rollen-/Sprachfuehrungen mit sichtbarer, tastaturbedienbarer Kapitelliste, Startzeiten, aktivem Kapitel, Transkript, Szenenbezug und passender Systemstimme integriert.
+- Sechs echte Medienpakete fuer Bewohner, Haus-Admin und Superadmin in Deutsch und Englisch fertiggestellt: je ein abspielbares 1280-x-720-H.264/AAC-MP4, vollstaendige VTT-Untertitel, Poster, Transkript und gemeinsame anklickbare Kapitelstarts. Laufzeiten sind 04:02, 04:58 und 04:40 je Rolle; die Browserabnahme prueft alle Pakete in drei Viewports.
+- Englische Haus-Admin- und Superadminansichten vollstaendig nachlokalisiert: Aufgaben, Warnungen, Verantwortungen, Kennzahlen, Ressourcenstatus und -aktionen, Wohnungen und Einladungen, Tagebuch, Dauertermine, Auswertung, Systembetrieb, Recovery und Audit werden auch nach dynamischem Neuladen ausschliesslich in der Kontosprache aufgebaut. Der Browserlauf oeffnet fuer beide Rollen jeden Verwaltungsreiter, erkennt bekannte deutsche Resttexte und wiederholt EN -> DE -> EN ohne Reload. `house-admin-en.mp4` und `superadmin-en.mp4` sowie ihre Poster, Untertitel, Transkripte und Manifestdaten wurden aus dem korrigierten Browserstand neu erzeugt.
+- Verwaltungsstart nach Aufgaben, Warnungen und Informationen geordnet; konkrete Aktionsnamen, Einladungs-, Wiederherstellungs-, Dauertermin-, Stoerungs-, Sperr-, Backup-, Wartungs-, Audit- und Versionshinweise ergaenzt. Rollen- und Hausrechte wurden nicht erweitert.
+- PWA-Cache auf den sichtbaren Kandidatenstand versioniert und neue I18N-/Einfuehrungsdateien sowie kleine Medienbegleitdateien in die Offline-Shell aufgenommen. MP4-Dateien bleiben bewusst ausserhalb des PWA-Caches.
+- `npm run test:i18n` prueft 608 zweisprachige Schluessel, deutschen Rueckfall, Sprachspeicherung, sechs Fuehrungen, Medienzuordnung, Kapitelkonsistenz und serverseitige Benachrichtigungsvorlagen. `npm run test:media` validiert Dateien, Format, Laufzeiten, Untertitel und PWA-Groessenvertrag. Der Browserlauf deckt zusaetzlich alle sechs realen Medienpakete, Tastatur-Kapitelspruenge, die englischen Verwaltungsreiter und drei Zielviewports ab.
+- Hilfe und Einfuehrung folgen auch nach einem Sprachwechsel dem vorgesehenen Weg ueber das Kontomenue. Beim Schliessen des Rundgangs bleibt der Hilfe-Reiter offen und der Fokus kehrt zum ausloesenden Button zurueck.
+- Der englische Einladungsablauf trennt Zustand und Aktion eindeutig: `Activate apartment` ist die Ueberschrift, `Accept invitation` der Button. Ungueltige, abgelaufene, bereits verwendete und wegen abweichender Passwoerter abgewiesene Einladungen bleiben in der gewaehlten Sprache.
+- Ungueltige Push-Testabos mit fehlerhaftem `p256dh`-Schluessel werden als nicht mehr verwendbar deaktiviert. Der absichtlich ungueltige Testdatensatz bleibt ein negativer Testpfad, erzeugt aber keine unkontrollierte Fehlermeldung mehr; echte VAPID-Geheimnisse bleiben ausserhalb des Repositorys.
+- Dynamische sprachabhaengige Ansichten werden nach jedem Wechsel Deutsch/Englisch zustandsschonend neu aufgebaut. Der Browserlauf prueft beide Richtungen ohne Reload, locale-korrekte Kalenderwochentage sowie den Erhalt von Haus, Rechten, Kalenderauswahl, Verwaltungsreiter und Einfuehrungskapitel.
+- Neue organisatorische Rolle `PILOT_BETREUUNG` eingefuehrt und mit der separaten Codex-Aufgabe `CEO` verbunden: Sie bindet Bewohner, Hausdienst, unabhaengige Tester, Sitzungskommission und weitere Beteiligte strukturiert ein und trennt Alltagsfeedback, QA-Urteil, technische Freigabe und Gremienentscheid verbindlich.
 
 ### 20. Juli 2026
 

@@ -39,7 +39,10 @@ function assertStaticDomLinks(script, html, page) {
 assertStaticDomLinks(appScript, indexHtml, 'index.html');
 assertStaticDomLinks(loginScript, loginHtml, 'login.html');
 assertStaticDomLinks(resetScript, resetHtml, 'reset.html');
-assert.match(indexHtml, /<track kind="captions"/, 'Video ohne Untertitelspur');
+assert.match(indexHtml, /<track\b[^>]*\bkind="captions"/, 'Video ohne Untertitelspur');
+assert.match(indexHtml, /id="recordedIntroChapters"[^>]*aria-label=/, 'Aufgezeichnetes Video ohne beschriftete Kapitelnavigation');
+assert.match(indexHtml, /id="recordedIntroFallback"[^>]*role="status"[^>]*aria-live="polite"/, 'Video-Fallback ohne Live-Status');
+assert.match(indexHtml, /id="recordedIntroTranscriptLink"[^>]*href=/, 'Video ohne Transkript-Fallback');
 assert.match(indexHtml, /aria-modal="true"/, 'Dialog ohne modalen Status');
 assert.match(indexHtml, /aria-label="Kalenderansicht"/, 'Kalenderansicht ohne Beschriftung');
 assert.match(indexHtml, /id="calendarDayDetails"[^>]*aria-labelledby="calendarDayDetailsTitle"[^>]*aria-live="polite"/, 'Tagesdetails ohne zug\u00e4nglichen Namen oder Live-Status');
@@ -67,6 +70,11 @@ assert.match(indexHtml, /data-settings-target="help"[^>]*aria-controls="settings
 assert.match(indexHtml, /id="settingsPanelHelp"[^>]*role="tabpanel"[^>]*aria-labelledby="settingsHelpTitle"/, 'Hilfe-Inhalt ohne zugaenglichen Namen');
 assert.match(indexHtml, /id="sessionWarningOverlay"[\s\S]*role="dialog"[\s\S]*aria-labelledby="sessionWarningTitle"[\s\S]*aria-describedby="sessionWarningText"/, 'Sitzungswarnung ohne zugaengliche Dialogbeschreibung');
 assert.match(indexHtml, /id="sessionCountdown"[^>]*role="timer"[^>]*aria-live="polite"/, 'Sitzungswarnung ohne angesagten Countdown');
+assert.match(indexHtml, /id="diaperGameOverlay"[\s\S]*aria-labelledby="diaperGameTitle"[\s\S]*aria-describedby="diaperGameIntro"/, 'Windel-Alarm ohne zugaenglichen Dialogtitel oder Beschreibung');
+assert.match(indexHtml, /id="diaperCountdown"[^>]*role="timer"[^>]*aria-label="Verbleibende Zeit"/, 'Windel-Alarm ohne beschrifteten Countdown');
+assert.match(indexHtml, /id="diaperIncident"[^>]*role="status"[^>]*aria-live="assertive"/, 'Windel-Alarm-Zwischenfall ohne Live-Status');
+assert.match(indexHtml, /id="diaperGameStatus"[^>]*role="status"[^>]*aria-live="polite"/, 'Windel-Alarm ohne fortlaufenden Textstatus');
+assert.match(indexHtml, /id="diaperSoundButton"[^>]*aria-pressed="false"/, 'Windel-Alarm-Ton ohne Schalterstatus');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');

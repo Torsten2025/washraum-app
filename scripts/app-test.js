@@ -18,14 +18,16 @@ function answerForDiaperModule(module) {
   if (module.type === 'code') return { code: module.answer };
   if (module.type === 'temperature') return { value: module.target };
   if (module.type === 'leak') return { zone: module.leakZone };
+  if (module.type === 'circuit') return { path: module.path };
+  if (module.type === 'locks') return { positions: module.targets };
   throw new Error(`Unbekanntes Spielmodul: ${module.type}`);
 }
 
 const diaperModuleSamples = new Map();
-for (let seed = 0; seed < 50 && diaperModuleSamples.size < 6; seed += 1) {
+for (let seed = 0; seed < 80 && diaperModuleSamples.size < 8; seed += 1) {
   for (const module of buildPuzzle(`app-test-${seed}`).modules) diaperModuleSamples.set(module.type, module);
 }
-assert.deepEqual([...diaperModuleSamples.keys()].sort(), ['code', 'leak', 'signal', 'temperature', 'valve', 'wire']);
+assert.deepEqual([...diaperModuleSamples.keys()].sort(), ['circuit', 'code', 'leak', 'locks', 'signal', 'temperature', 'valve', 'wire']);
 for (const module of diaperModuleSamples.values()) {
   assert.equal(moduleAnswerIsCorrect(module, answerForDiaperModule(module)), true);
   assert.equal(moduleAnswerIsCorrect(module, { invalid: true }), false);
@@ -438,12 +440,12 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.2');
+    assert.equal(health.body.version, '0.3.0-test.3');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.2');
+    assert.equal(versionStatus.body.version, '0.3.0-test.3');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -1133,6 +1135,8 @@ async function run() {
     });
     assert.equal(residentPushTest.body.sent, 0);
     assert.equal(residentPushTest.body.failed, 1);
+    const pushDevicesAfterInvalidKey = await expectStatus(admin, '/api/admin/push-devices', 200);
+    assert.equal(pushDevicesAfterInvalidKey.body.totalDevices, 0);
     await expectStatus(admin, '/api/admin/push-test', 404, {
       method: 'POST',
       body: JSON.stringify({ userId: 999999 })
@@ -1669,11 +1673,12 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('scenes-v1'));
-    assert.ok(indexHtml.includes('Kapitel 1 von 8'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.2"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.2'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.2'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.3'));
+    assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
+    assert.ok(indexHtml.includes('Kapitel 1 von 9'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.3"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.3'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.3'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -1690,7 +1695,7 @@ async function run() {
     assert.ok(indexHtml.includes('Globale Tageswertung'));
     assert.ok(indexHtml.includes('class="diaper-game-hero"'));
     assert.ok(indexHtml.includes('class="diaper-step-rail"'));
-    assert.ok(indexHtml.includes('Drei Module aus sechs Systemen. Drei Fehlerleben.'));
+    assert.ok(indexHtml.includes('Vier Module aus acht Systemen. Ein unvorhersehbarer Zwischenfall.'));
     assert.ok(indexHtml.includes('id="diaperStrikeLights"'));
     assert.ok(indexHtml.includes('id="rankedDiaperModeButton"'));
     assert.ok(indexHtml.includes('id="practiceDiaperModeButton"'));
@@ -1707,7 +1712,7 @@ async function run() {
     assert.ok(indexHtml.includes('messageCenterButton'));
     assert.ok(indexHtml.includes('messageCenterOverlay'));
     assert.ok(indexHtml.includes('messageCenterList'));
-    assert.ok(indexHtml.includes('etwa f&uuml;nfeinhalbmin&uuml;tige Video'));
+    assert.ok(indexHtml.includes('Das Video erkl&auml;rt die f&uuml;r deine Rolle wichtigen Abl&auml;ufe'));
     assert.ok(indexHtml.includes('Waschpaket'));
     assert.ok(indexHtml.includes('passwordForm'));
     assert.ok(indexHtml.includes('user-admin-list'));
@@ -1851,7 +1856,10 @@ async function run() {
       /left\.weekday/
     );
     assert.ok(appScriptText.includes('Normale Waschzeiten werden von Bewohnern selbst gebucht'));
-    assert.ok(appScriptText.includes("bookingViewButton.textContent = isAdmin ? 'Kalender' : 'Mein Waschplan'"));
+    assert.ok(appScriptText.includes("translate('app.calendar', 'Kalender')"));
+    assert.ok(appScriptText.includes("translate('app.myPlan', 'Mein Waschplan')"));
+    assert.ok(appScriptText.includes("translate('app.occupancyPlan', 'Belegungsplan')"));
+    assert.ok(appScriptText.includes("translate('app.book', 'Buchen')"));
     assert.ok(appScriptText.includes('bookingFlow.hidden = isAdmin'));
     assert.ok(appScriptText.includes('const isAdmin = !currentUser.canBook'));
     assert.ok(appScriptText.includes('Admin-Nachfolge absichern'));
@@ -1893,7 +1901,7 @@ async function run() {
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
     assert.ok(appScriptText.includes("version.includes('-test.') ? 'Testversion' : 'Version'"));
-    assert.ok(appScriptText.includes('let diaperGameRoundMs = 45000'));
+    assert.ok(appScriptText.includes('let diaperGameRoundMs = 60000'));
     assert.ok(appScriptText.includes("setDiaperGameMode('practice')"));
     assert.ok(appScriptText.includes('function playDiaperSignalSequence'));
     assert.ok(appScriptText.includes('function lockDiaperPressureValve'));
@@ -1922,24 +1930,19 @@ async function run() {
     assert.ok(appScriptText.includes("introSceneImage('booking-tumbler-focused.png')"));
     assert.ok(appScriptText.includes("introSceneImage('release-dialog.png')"));
     assert.ok(appScriptText.includes("introSceneImage('cleaning-tasks.png')"));
-    const video = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung.mp4', 206, {
+    const video = await expectStatus(guest, '/assets/intro/media/resident-de.mp4', 206, {
       headers: { Range: 'bytes=0-1023' }
     });
     assert.equal(video.response.headers.get('content-type'), 'video/mp4');
     assert.equal(video.body.length, 1024);
-    const captions = await expectStatus(guest, '/assets/intro/waschplan-einfuehrung-de.vtt', 200);
+    const captions = await expectStatus(guest, '/assets/intro/media/resident-de.vtt', 200);
     const captionText = captions.body.toString();
     assert.ok(captionText.startsWith('WEBVTT'));
-    assert.ok(captionText.includes('Waschpaket buchen'));
-    assert.ok(captionText.includes('drei beschriftete Farbstreifen'));
-    assert.ok(captionText.includes('Standardm\u00e4ssig steht die Zeit im Mittelpunkt'));
-    assert.ok(captionText.includes('Wenn dir eine bestimmte Maschine wichtiger ist'));
-    assert.ok(captionText.includes('App merkt sich deine Auswahl im Benutzerkonto'));
-    assert.ok(captionText.includes('Erst nach der Waschmaschinenwahl'));
-    assert.ok(captionText.includes('Das normale Löschen entfernt nur deine Buchung'));
-    assert.ok(captionText.includes('Liliane hat Waschmaschine zwei freigegeben'));
-    assert.ok(captionText.includes('Tippst du auf die Push-Nachricht'));
-    assert.ok(captionText.includes('00:05:'));
+    assert.ok(captionText.includes('Willkommen bei WaschZeit'));
+    assert.ok(captionText.includes('Im Wochenkalender findest du schnell'));
+    assert.ok(captionText.includes('Fuer ein Waschpaket waehlst du zuerst'));
+    assert.ok(captionText.includes('Der Haus-Admin uebernimmt danach'));
+    assert.ok(captionText.includes('00:04:'));
     for (const sceneAsset of [
       'app-overview.png',
       'booking-time-focused.png',

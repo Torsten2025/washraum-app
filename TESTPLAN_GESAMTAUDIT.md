@@ -102,14 +102,37 @@ npm run check
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
 | NOT-01 | Lokales SMTP | Wohnungseinladung, Bestaetigung, Reset, Admin-Reset und Freigabe-Mail werden zugestellt | `npm test` |
-| NOT-02 | Push-Abo | Anlegen, gezielter Test, Deaktivierung und ungueltiges Geraet | `npm test` |
+| NOT-02 | Push-Abo | Anlegen, gezielter Test, Deaktivierung und ungueltiges Geraet; fehlerhafter Kurvenschluessel wird still deaktiviert | `npm test` |
 | NOT-03 | Freigabe-Mitteilung | Person, Ressource, Datum, Slot und direkte Buchungsfrage | `npm test` |
 | PWA-01 | Manifest und Service Worker | Installierbar, Update erst nach Zustimmung, Push-Klick oeffnet Ziel | `test:a11y`, `npm test` |
 | UI-01 | Tastatur, Fokus, Dialoge und Untertitel | Zugaengliche Namen, Fokusstatus und reduzierte Bewegung | `test:a11y`, `test:e2e` |
 | UI-02 | Mobile und Desktop | Kein horizontales Ueberlaufen; Screenshots bei 390 x 844, 768 x 1024 und 1440 x 900 | `test:e2e`, manuelle Sichtpruefung der Artefakte |
 | UI-03 | Skript- und HTML-Verknuepfung | Alle statischen `querySelector`-Ziele der Anmelde-, Waschplan- und Reset-Skripte existieren im zugehoerigen HTML | `test:a11y` |
 
-## H. Betrieb, Daten und Belastung
+## H. Sprache, Rollenfuehrungen und Verwaltungsuebersicht
+
+| ID | Pruefung | Soll-Ergebnis | Automatisierung |
+| --- | --- | --- | --- |
+| I18N-01 | Katalogvollstaendigkeit | Jeder zentrale sichtbare Schluessel besitzt `de` und `en`; kein roher Schluessel wird ausgegeben | `test:i18n` |
+| I18N-02 | Standard und Rueckfall | Ohne gueltige Wahl gilt Deutsch; unbekannte Werte fallen auf Deutsch zurueck | `test:i18n`, `test:security` |
+| I18N-03 | Vor Login persistent | Auswahl auf `/login.html` oder der Einladung bleibt nach Reload und Navigation erhalten und wird bei Kontoaktivierung uebernommen | `test:e2e`, manueller Browserlauf |
+| I18N-04 | Kontosprache persistent | `PUT /api/me/language` akzeptiert nur `de/en`; Wert bleibt nach Logout/Login erhalten und aendert keine Rolle | `test:security` |
+| I18N-05 | Englische Kernseiten | Login, Einladung, Reset, Datenschutz, Waschplan sowie alle Haus-Admin- und Superadminreiter mit dynamischen Aufgaben, Ressourcen, Einladungen, Tagebuch, Auswertung, Leer-, Lade-, Fehler- und Erfolgszustaenden sind englisch; bekannte deutsche Admintexte werden im englischen DOM abgewiesen | `test:e2e`, manuelles Review |
+| I18N-06 | Benachrichtigungen | Verifizierung, Reset, Freigabe, Testmail und Push verwenden Empfaengersprache; Einladung vor Kontoaktivierung ist zweisprachig | `test:i18n`, `npm test` |
+| I18N-07 | Sprachwechsel ohne Reload | DE zu EN und EN zu DE aktualisieren Kalenderwochentage und alle dynamischen Verwaltungsansichten sofort; Haus, Rechte, Kalenderzustand, Verwaltungsreiter und Einfuehrungskapitel bleiben erhalten; Haus-Admin und Superadmin durchlaufen zusaetzlich EN -> DE -> EN | `test:e2e` |
+| VID-01 | Sechs Kombinationen | Bewohner, Haus-Admin und Superadmin besitzen je `de` und `en` als echtes MP4/VTT/Poster/Transkript-Paket und als interaktive Fuehrung | `test:i18n`, `test:media` |
+| VID-02 | Rollenwahl | Superadmin, Haus-Admin und Bewohner erhalten nur das passende Medienpaket; Sprache folgt Kontosprache | `test:i18n`, `test:e2e` |
+| VID-03 | Kapitel | Startzeiten steigen, Titel/Beschreibung/Rolle/Sprache/Transkript sind vollstaendig; Maus, Touch und Tastatur springen an die korrekte MP4-Zeit und markieren das aktive Kapitel | `test:i18n`, `test:a11y`, `test:e2e` |
+| VID-04 | Medienformat | Alle sechs MP4s sind 1280 x 720, enthalten H.264/AAC-Marker und besitzen exakt passende Laufzeit; VTT-Zeiten sind geordnet, ueberlappungsfrei und textvollstaendig | `test:media` |
+| VID-05 | Fallback und PWA | Transkript und Untertitel bleiben in der Offline-Shell; MP4s werden wegen Dateigroesse weder vorab noch im Laufzeitcache gespeichert; Fehlerstatus verweist auf die Alternativen | `test:media`, `test:a11y`, `test:e2e` |
+| VID-06 | Responsive Medienansicht | Jedes der sechs Pakete laedt und bleibt bei 390 x 844, 768 x 1024 und 1440 x 900 ohne horizontalen Dialogueberlauf bedienbar | `test:e2e`, Screenshotreview |
+| DASH-01 | Priorisierung | Aufgaben, Warnungen und Informationen sind getrennt und besitzen konkrete Aktionen | `test:e2e`, Browserreview |
+| DASH-02 | Haus- und Rollenbereich | Haus-Admin bleibt im eigenen Haus; Superadmin sieht bei globalen Tagebuchfaellen den Hausnamen | `test:roles`, `test:e2e` |
+| DASH-03 | Responsive | 390 x 844, 768 x 1024 und 1440 x 900 ohne horizontalen Ueberlauf oder abgeschnittene Aktion | `test:e2e`, Screenshotreview |
+
+Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Buchstabenbezeichnung der bestehenden Abschnitte bleibt fuer historische Pruefverweise erhalten.
+
+## I. Betrieb, Daten und Belastung
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |

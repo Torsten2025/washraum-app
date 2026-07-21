@@ -60,6 +60,13 @@
       </section>
 
       <section class="login-panel" aria-label="Anmeldung">
+        <label class="language-picker">
+          <span data-i18n="language.label">Sprache</span>
+          <select data-language-picker data-local-language aria-label="Sprache">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
         <div id="loginMaintenanceNotice" class="login-maintenance-notice" role="status" hidden>
           <strong>Wartung l&auml;uft.</strong>
           <span>Bestehende Buchungen bleiben erhalten. Die Anmeldung f&uuml;r die Verwaltung bleibt m&ouml;glich.</span>
@@ -120,7 +127,7 @@
           <p id="accountRecoveryMessage" class="message" role="status"></p>
         </form>
         <form id="registerForm" class="stack auth-form" hidden>
-          <h2>Wohnung aktivieren</h2>
+          <h2 data-i18n="auth.activateApartment">Wohnung aktivieren</h2>
           <div id="invitationSummary" class="invitation-summary" role="status">
             <strong>Einladungslink erforderlich</strong>
             <span>&Ouml;ffne den Link aus der E-Mail deiner Hausverwaltung.</span>
@@ -138,7 +145,7 @@
             <input name="notifyReleases" type="checkbox" checked>
             <span>Mail senden, wenn ein Zeitfenster fr&uuml;her frei wird</span>
           </label>
-          <button type="submit" disabled>Einladung annehmen</button>
+          <button type="submit" data-i18n="auth.acceptInvitation" disabled>Einladung annehmen</button>
           <p class="helper-text">E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Besteht die E-Mail schon, wird genau diese pers&ouml;nliche Identit&auml;t um die Wohnungsmitgliedschaft erg&auml;nzt.</p>
           <p id="registerMessage" class="message" role="status"></p>
         </form>
@@ -167,6 +174,7 @@
       </section>
     </main>
     <footer class="legal-footer"><a href="/privacy.html">Betreiber &amp; Datenschutz</a></footer>
+    <script src="/i18n.js?v=__WASCHZEIT_RELEASE__"></script>
     <script src="/login.js?v=__WASCHZEIT_RELEASE__"></script>
   </body>
 </html>

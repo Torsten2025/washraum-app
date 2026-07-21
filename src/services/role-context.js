@@ -58,6 +58,7 @@ function createRoleContext({ db, env }) {
       emailVerified: Boolean(user.email_verified),
       secondaryEmail: user.secondary_email || '',
       secondaryEmailVerified: Boolean(user.secondary_email_verified),
+      language: user.language === 'en' ? 'en' : 'de',
       bookingMode: user.booking_mode === 'machine' ? 'machine' : 'time',
       apartmentId: apartment?.id || null,
       apartmentLabel: apartment?.label || '',

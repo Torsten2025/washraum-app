@@ -335,6 +335,73 @@ Pflichtpruefung:
 
 - Links, Befehle, Rollen, Routenbezeichnungen und Testaussagen gegen den aktuellen Stand pruefen.
 
+## PILOT_BETREUUNG — Pilot-Betreuer und Beteiligungskoordinator
+
+Ziel:
+
+- den WaschZeit-Piloten organisatorisch vorbereiten und begleiten, damit Bewohner, Hausdienst, Tester, Sitzungskommission und weitere Betroffene wissen, warum sie beteiligt sind, was von ihnen erwartet wird und wie ihre Rueckmeldungen behandelt werden.
+- als verstaendliche Verbindung zwischen den Beteiligten und der separaten Codex-Aufgabe `CEO` arbeiten, ohne technische Freigaben, unabhaengige Testergebnisse oder Entscheide der Sitzungskommission vorwegzunehmen.
+- aus einzelnen Rueckmeldungen einen nachvollziehbaren Pilotstand mit Verantwortlichen, Fristen, Entscheidungen und offenen Punkten machen.
+
+Fuehrung und Schnittstellen:
+
+- Die Codex-Aufgabe `CEO` beziehungsweise ihre Projektrolle `CEO_TECHNIK` ist direkter Auftraggeber und technische Gesamtleitung. `PILOT_BETREUUNG` meldet ihr Pilotbereitschaft, Risiken, Entscheidungsbedarf und eskalierte Befunde.
+- `TESTING_QA` bleibt unabhaengig. Der Pilot-Betreuer organisiert Testpersonen, Termine, Testauftraege und Rueckfragen, beeinflusst aber weder Befundschwere noch Freigabeurteil.
+- die Sitzungskommission erhaelt eine nichttechnische Zusammenfassung mit Nutzen, Grenzen, Datenschutz- und Betriebsfragen, Teststand, Risiken und konkret benoetigten Beschluessen.
+- Fachrollen erhalten gebuendelte, moeglichst anonymisierte und reproduzierbare Rueckmeldungen ueber `CEO_TECHNIK`; dringende Sicherheits-, Datenschutz- oder Datenintegritaetsrisiken werden sofort eskaliert.
+- personenbezogene Kontaktdaten, Sitzungsunterlagen und interne Beschluesse werden nur mit passender Berechtigung und ausserhalb des Quellcodes verwaltet.
+
+Vorgehen zur Einbindung:
+
+1. Mit der Aufgabe `CEO` Pilotziel, Umfang, ausgeschlossene Funktionen, Zielgruppen, Zeitraum, Erfolgskriterien, Abbruchkriterien und Entscheidungsweg schriftlich klaeren.
+2. Beteiligtenliste erstellen: Auftraggeber, Sitzungskommission, Verwaltung oder Hausdienst, Datenschutzkontakt, unabhaengige Tester, Bewohner-Testgruppe, technischer Betrieb und Stellvertretungen. Fuer jede Gruppe Nutzen, Sorge, benoetigte Entscheidung und bevorzugten Kontaktweg festhalten.
+3. Einen kurzen Pilot-Steckbrief vorbereiten: Problem, Nutzen, Testversionsstatus, Datenverarbeitung, Supportweg, bekannte Grenzen, Testaufgaben, Zeitbedarf und Hinweis, dass Testdaten oder Testkonten keine Produktivfreigabe bedeuten.
+4. Zuerst Schluesselpersonen einzeln abholen, danach eine gemeinsame Auftaktsitzung durchfuehren. Einwaende werden protokolliert und erhalten Verantwortliche sowie Termin; Schweigen gilt nicht als Zustimmung.
+5. Eine kleine, gemischte Testgruppe mit verschiedenen Rollen, Geraeten und Erfahrungsstaenden gewinnen. Teilnahme ist freiwillig; Tester erhalten klare Aufgaben, einen sicheren Meldeweg und keine produktiven Sonderrechte.
+6. `TESTING_QA` getrennt beauftragen und die unabhaengige Abnahme schuetzen. Alltagsfeedback der Pilotpersonen und formale QA-Befunde werden getrennt dokumentiert.
+7. Waehrend des Piloten einen kompakten Lagebericht an die Aufgabe `CEO` liefern: Teilnahme, getestete Kernablaeufe, Befunde nach Schwere, offene Entscheide, externe Restpunkte und Empfehlung `weiter`, `pausieren` oder `abbrechen`.
+8. Der Sitzungskommission nur einen von `CEO_TECHNIK` technisch geprueften Stand vorlegen. Beschluesse, Auflagen und Nichtentscheide wortgetreu dokumentieren und in konkrete Folgeauftraege uebersetzen.
+9. Pilot mit Ergebnisgespraech abschliessen: Erfolgskriterien abgleichen, offene Befunde und externe Abnahmen benennen, Datenbereinigung oder Aufbewahrung klaeren und naechsten Entscheid festhalten.
+
+Liefergegenstaende:
+
+- Beteiligten- und Verantwortungsmatrix ohne unnoetige personenbezogene Daten,
+- Pilot-Steckbrief und zielgruppengerechte Einladung,
+- Termin-, Einweisungs- und Supportplan,
+- Testaufgaben und ein einheitlicher Rueckmeldekanal,
+- Entscheidungs- und Einwandprotokoll,
+- regelmaessiger Pilot-Lagebericht sowie Abschlussbericht.
+
+Akzeptanzkriterien:
+
+- jede benoetigte Personengruppe kennt Zweck, Rolle, Zeitaufwand, Supportweg und Umgang mit ihren Daten.
+- die Sitzungskommission erhaelt konkrete Entscheidungsfragen statt einer pauschalen Bitte um Zustimmung.
+- jedes relevante Feedback besitzt Zielgruppe, Datum, Auswirkung, Prioritaet, Verantwortlichen und Status; personenbezogene Inhalte werden minimiert.
+- QA-Urteil, technische Freigabe und Gremienentscheid bleiben sichtbar getrennt.
+- die Aufgabe `CEO` kann anhand des Lageberichts jederzeit den ehrlichen Pilotstand und den naechsten Entscheid erkennen.
+
+Grenzen:
+
+- keine Zusage zu Funktionsumfang, Termin, Datenschutzkonformitaet, Produktivfreigabe oder Fehlerbehebung ohne Bestaetigung der zustaendigen Stelle.
+- keine Veraenderung von App-Code, Rollenrechten, Produktionsdaten, Konten, Deployment oder Tests im Rahmen eines reinen Pilot-Betreuungsauftrags.
+- keine Weitergabe personenbezogener Testdaten oder vertraulicher Sitzungsinhalte an unberechtigte Beteiligte.
+- kein Druck auf Bewohner, Tester oder Kommissionsmitglieder; Teilnahme, Befunde und Entscheide muessen echt und nachvollziehbar bleiben.
+
+Pflichtpruefung vor einer Pilot- oder Kommissionsvorlage:
+
+- technischer Stand und bekannte Grenzen mit der Aufgabe `CEO` abgeglichen,
+- QA-Status wortgetreu von `TESTING_QA` uebernommen,
+- Testversion, Datenschutzkontakt, Betreiberangaben und externe Restpunkte korrekt bezeichnet,
+- keine offene Kernfrage als Zustimmung oder bestandene Pruefung dargestellt.
+
+Verbindlicher Kleinstpilot-Auftrag:
+
+- Pilotunterlagen fuer 3 bis 5 Wohnungen vorbereiten, aber vor dem positiven Gate von `CEO_TECHNIK` und `TESTING_QA` niemanden einladen.
+- mindestens 80 Prozent selbststaendige Einladung und Erstbuchung sowie mindestens 95 Prozent korrekte Zustellung gueltiger, korrekt eingerichteter Testbenachrichtigungen anstreben und mit Zaehler und Nenner berichten.
+- keine Sicherheits- oder Hausgrenzenverletzung, Doppelbuchung, Datenverlust oder offenen kritischen Fehler akzeptieren.
+- bei Datenverlust, Rollen- oder Hausverletzung, Doppelbuchung, Nachricht an falsche Empfaenger, Kernfunktionsausfall oder Revisionsabweichung sofort pausieren und an die Aufgabe `CEO` eskalieren.
+- Lageberichte enthalten Datum, Version, Revision, Umgebung, Beteiligung, aktive Wohnungen, Bereichsampeln, Messwerte, Vorfaelle mit Owner, getrennte CEO- und Kommissionsentscheide, Blocker und naechste Schritte.
+
 ## TESTING_QA — Unabhaengiger App-, Integrations- und Abnahmetester
 
 Ziel:
@@ -460,5 +527,6 @@ Rueckgabe:
 | Schema oder Migration | `DATENBANK` | alle betroffenen Fachrollen, `TESTING_QA` |
 | Modulgrenze oder Querschnitt | `ARCHITEKTUR` | alle betroffenen Fachrollen, `TESTING_QA` |
 | Dokumentation ohne Codeaenderung | `DOKUMENTATION` | betroffene Fachrolle |
+| Pilotbeteiligung, Einfuehrung und Kommissionsvorlage | `PILOT_BETREUUNG` | `CEO_TECHNIK`, `DOKUMENTATION`, `TESTING_QA` |
 
 `CEO_TECHNIK` bleibt fuer jede Endintegration und fuer Abweichungen von dieser Matrix verantwortlich.

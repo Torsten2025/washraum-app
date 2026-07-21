@@ -1,13 +1,36 @@
-const CACHE_NAME = 'waschzeit-pwa-v2';
+const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.3-admin-i18n-1';
 const SHELL_ASSETS = [
   '/login.html',
   '/index.html',
   '/privacy.html',
   '/styles.css',
+  '/i18n.js',
+  '/intro-content.js',
+  '/intro-media.js',
   '/login.js',
   '/app.js',
+  '/reset.js',
   '/manifest.webmanifest',
-  '/assets/app-icon.svg'
+  '/assets/app-icon.svg',
+  '/assets/intro/media/manifest.json',
+  '/assets/intro/media/resident-de-poster.png',
+  '/assets/intro/media/resident-de.vtt',
+  '/assets/intro/media/resident-de.txt',
+  '/assets/intro/media/resident-en-poster.png',
+  '/assets/intro/media/resident-en.vtt',
+  '/assets/intro/media/resident-en.txt',
+  '/assets/intro/media/house-admin-de-poster.png',
+  '/assets/intro/media/house-admin-de.vtt',
+  '/assets/intro/media/house-admin-de.txt',
+  '/assets/intro/media/house-admin-en-poster.png',
+  '/assets/intro/media/house-admin-en.vtt',
+  '/assets/intro/media/house-admin-en.txt',
+  '/assets/intro/media/superadmin-de-poster.png',
+  '/assets/intro/media/superadmin-de.vtt',
+  '/assets/intro/media/superadmin-de.txt',
+  '/assets/intro/media/superadmin-en-poster.png',
+  '/assets/intro/media/superadmin-en.vtt',
+  '/assets/intro/media/superadmin-en.txt'
 ];
 
 self.addEventListener('install', (event) => {
@@ -37,7 +60,11 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) {
+  if (
+    requestUrl.origin !== self.location.origin
+    || requestUrl.pathname.startsWith('/api/')
+    || requestUrl.pathname.endsWith('.mp4')
+  ) {
     return;
   }
 
@@ -48,7 +75,7 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/login.html')))
+      .catch(() => caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || caches.match('/login.html')))
   );
 });
 

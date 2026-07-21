@@ -1,0 +1,32 @@
+WaschZeit fuer Superadmins
+Superadmin | Deutsch
+
+1. Mehrere Haeuser im Blick behalten [00:00:00.000]
+Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlichen Auditereignissen. Jeder Eintrag muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
+
+2. Das aktive Haus wechseln [00:00:24.000]
+Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
+
+3. Haeuser verwalten [00:00:52.000]
+Superadmins koennen neue Haeuser mit eindeutiger Bezeichnung und Adresse anlegen. Aenderungen an Stammdaten wirken auf Verwaltung und Anzeige. Vor einer Deaktivierung pruefst du aktive Bewohner, Buchungen, Ressourcen, offene Vorgaenge und die notwendige Datensicherung.
+
+4. Rollen sicher verwalten [00:01:20.000]
+Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin sein. Bewohnerbuchungen bleiben der Wohnung zugeordnet, waehrend Adminaktionen persoenlich protokolliert werden. Vergib nur die Rechte, die fuer die konkrete Aufgabe erforderlich sind.
+
+5. Superadminrecht und Uebergabe [00:01:48.000]
+Ein Superadmin kann einem aktiven Haus-Admin zusaetzliche Superadminrechte geben. Der bisherige Superadmin behaelt sein Recht, damit keine ungewollte alleinige Uebergabe entsteht. Entzug oder geplante Nachfolge verlangen Passwortbestaetigung, Auditspur und mindestens einen verbleibenden handlungsfaehigen Superadmin.
+
+6. Backup und externe Sicherung [00:02:18.000]
+Im Systembereich kontrollierst du Zeitpunkt, Integritaet und Ziel der Datenbanksicherungen. Eine Kopie auf demselben Server allein schuetzt nicht vor einem vollstaendigen Ausfall. Richte eine externe Sicherung ein und pruefe regelmaessig, ob sich eine Sicherung tatsaechlich wiederherstellen laesst.
+
+7. Wartungsmodus steuern [00:02:48.000]
+Nutze den Wartungsmodus fuer groessere Datenbank- oder Betriebsarbeiten. Informiere Bewohner, erstelle vorher eine Sicherung und verhindere waehrenddessen neue Veraenderungen. Nach der Arbeit pruefst du Health-Status und Kernfunktionen, bevor du den normalen Betrieb wieder freigibst.
+
+8. Pilotdaten kontrolliert zuruecksetzen [00:03:16.000]
+Der Pilot-Reset ist keine normale Aufraeumfunktion. Pruefe genau, welche Buchungen und Testdaten entfernt werden, und erstelle unmittelbar vorher ein Backup. Konten, Tagebuchnachweise oder produktive Daten duerfen nicht unbeabsichtigt Teil des Resets sein.
+
+9. Audit und Systemstatus pruefen [00:03:44.000]
+Das Audit zeigt, wer eine administrative Aktion wann und fuer welches Haus ausgefuehrt hat. Der Systemstatus ergaenzt Version, Datenbank, E-Mail, Push, Backup und Wartungszustand. Ungewoehnliche Ereignisse werden geprueft und dokumentiert, aber nicht still aus dem Verlauf entfernt.
+
+10. Kritische Aktionen sicher ausfuehren [00:04:12.000]
+Bei Rollenwechseln, Hausdeaktivierung, Wartung und Datenreset handelst du bewusst langsam. Pruefe Ziel, Haus, aktuelle Sicherung, Auswirkungen und Ruecksetzmoeglichkeit. Bestaetige mit deinem eigenen aktuellen Passwort, kontrolliere danach Audit und Systemstatus und dokumentiere offene Restpunkte.

@@ -1,3 +1,7 @@
+const i18n = window.WZ_I18N;
+const translate = (key, fallback, variables = {}) => i18n?.t(key, variables, fallback) || fallback || key;
+const activeLocale = () => i18n?.language() === 'en' ? 'en-GB' : 'de-CH';
+
 const userLine = document.querySelector('#userLine');
 const logoutForm = document.querySelector('#logoutForm');
 const logoutButton = document.querySelector('#logoutButton');
@@ -169,6 +173,10 @@ const diaperOwnRank = document.querySelector('#diaperOwnRank');
 const diaperStepRailSegments = [...document.querySelectorAll('.diaper-step-rail span')];
 const diaperPressureText = document.querySelector('#diaperPressureText');
 const diaperPressureBar = document.querySelector('#diaperPressureBar');
+const diaperIncident = document.querySelector('#diaperIncident');
+const diaperIncidentIcon = document.querySelector('#diaperIncidentIcon');
+const diaperIncidentTitle = document.querySelector('#diaperIncidentTitle');
+const diaperIncidentText = document.querySelector('#diaperIncidentText');
 const startDiaperGameButton = document.querySelector('#startDiaperGameButton');
 const resetDiaperBestButton = document.querySelector('#resetDiaperBestButton');
 const rankedDiaperModeButton = document.querySelector('#rankedDiaperModeButton');
@@ -225,6 +233,7 @@ const filterButtons = [...document.querySelectorAll('.filter')];
 const openIntroButton = document.querySelector('#openIntroButton');
 const openKnowledgeButton = document.querySelector('#openKnowledgeButton');
 const introOverlay = document.querySelector('#introOverlay');
+const introTitle = document.querySelector('#introTitle');
 const closeIntroButton = document.querySelector('#closeIntroButton');
 const introDoneButton = document.querySelector('#introDoneButton');
 const introVideoStage = document.querySelector('#introVideoStage');
@@ -239,10 +248,19 @@ const introVideoMuteButton = document.querySelector('#introVideoMuteButton');
 const introVideoPreviousButton = document.querySelector('#introVideoPreviousButton');
 const introVideoNextButton = document.querySelector('#introVideoNextButton');
 const introVideoVoiceStatus = document.querySelector('#introVideoVoiceStatus');
+const introChapterList = document.querySelector('#introChapterList');
+const introTranscriptList = document.querySelector('#introTranscriptList');
 const introQuizForm = document.querySelector('#introQuizForm');
 const introQuizResult = document.querySelector('#introQuizResult');
 const recordedIntroVideo = document.querySelector('#recordedIntroVideo');
+const recordedIntroTitle = document.querySelector('#recordedIntroTitle');
 const recordedIntroDuration = document.querySelector('#recordedIntroDuration');
+const recordedIntroSection = document.querySelector('#recordedIntroSection');
+const recordedIntroSource = document.querySelector('#recordedIntroSource');
+const recordedIntroTrack = document.querySelector('#recordedIntroTrack');
+const recordedIntroChapters = document.querySelector('#recordedIntroChapters');
+const recordedIntroFallback = document.querySelector('#recordedIntroFallback');
+const recordedIntroTranscriptLink = document.querySelector('#recordedIntroTranscriptLink');
 const sessionWarningOverlay = document.querySelector('#sessionWarningOverlay');
 const sessionCountdown = document.querySelector('#sessionCountdown');
 const sessionStayButton = document.querySelector('#sessionStayButton');
@@ -252,6 +270,7 @@ let currentUser = null;
 let availableHouses = [];
 let resources = [];
 let bookings = [];
+let myBookingItems = [];
 let slots = [];
 let releaseNoticeItems = [];
 let activeReleaseNotice = null;
@@ -332,20 +351,16 @@ const sessionKeepaliveIntervalMs = 30 * 1000;
 const introVideoSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 let introVideoSpeechEnabled = introVideoSpeechSupported;
 
-const weekdayLabels = {
-  1: 'Montag',
-  2: 'Dienstag',
-  3: 'Mittwoch',
-  4: 'Donnerstag',
-  5: 'Freitag',
-  6: 'Samstag'
-};
+function weekdayLabel(weekday) {
+  const date = new Date(Date.UTC(2024, 0, Number(weekday)));
+  return new Intl.DateTimeFormat(activeLocale(), { weekday: 'long', timeZone: 'UTC' }).format(date);
+}
 
 function introSceneImage(filename) {
   return `<img class="video-scene-image" src="/assets/intro/scenes/${filename}?v=scenes-v1" alt="">`;
 }
 
-const introVideoSteps = [
+const defaultIntroVideoSteps = [
   {
     id: 'overview',
     fallbackDurationMs: 18000,
@@ -411,6 +426,10 @@ const introVideoSteps = [
     visual: introSceneImage('cleaning-tasks.png')
   }
 ];
+
+let introVideoSteps = defaultIntroVideoSteps;
+let activeIntroDefinition = null;
+let activeIntroMedia = null;
 
 const swissClockFormatter = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Zurich',
@@ -481,7 +500,7 @@ function syncCalendarPeriod(dateString) {
 }
 
 function formatShortDate(dateString) {
-  return new Intl.DateTimeFormat('de-CH', {
+  return new Intl.DateTimeFormat(activeLocale(), {
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
@@ -493,13 +512,13 @@ function formatCalendarRange(from, to) {
   const start = new Date(`${from}T12:00:00Z`);
   const end = new Date(`${to}T12:00:00Z`);
   const dateOptions = { day: 'numeric', month: 'short', timeZone: 'UTC' };
-  const startLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(start);
-  const endLabel = new Intl.DateTimeFormat('de-CH', dateOptions).format(end);
+  const startLabel = new Intl.DateTimeFormat(activeLocale(), dateOptions).format(start);
+  const endLabel = new Intl.DateTimeFormat(activeLocale(), dateOptions).format(end);
   return `${startLabel} - ${endLabel}`;
 }
 
 function formatCalendarMonth(dateString) {
-  return new Intl.DateTimeFormat('de-CH', {
+  return new Intl.DateTimeFormat(activeLocale(), {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC'
@@ -507,9 +526,9 @@ function formatCalendarMonth(dateString) {
 }
 
 function typeLabel(type) {
-  if (type === 'washer') return 'Waschmaschine';
-  if (type === 'drying_room') return 'Trockenraum';
-  if (type === 'tumbler') return 'Tumbler';
+  if (type === 'washer') return translate('resource.washer', 'Waschmaschine');
+  if (type === 'drying_room') return translate('resource.dryingRoom', 'Trockenraum');
+  if (type === 'tumbler') return translate('resource.dryer', 'Tumbler');
   return type;
 }
 
@@ -537,7 +556,7 @@ function isPastSlot(dateString, slot) {
 
 function showStatus(message, tone = 'ok') {
   window.clearTimeout(statusTimer);
-  statusText.textContent = message;
+  statusText.textContent = i18n?.translateVisibleText(message) || message;
   statusText.className = `notice ${tone}`;
   if (message) {
     statusTimer = window.setTimeout(() => {
@@ -620,7 +639,7 @@ function renderMessageCenter() {
         <span class="message-kind">Neu frei</span>
         <strong>${escapeHtml(notice.resource_name)} ist wieder frei</strong>
         <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - von ${escapeHtml(actor)}</p>
-        <small>${escapeHtml(createdAt.toLocaleString('de-CH'))}</small>
+        <small>${escapeHtml(createdAt.toLocaleString(activeLocale()))}</small>
       </div>
     `;
     const action = document.createElement('button');
@@ -661,23 +680,29 @@ function closeMessageCenter() {
   }
 }
 
-const maintenanceStatusLabels = {
-  reported: 'Neu gemeldet',
-  blocked: 'Gesperrt',
-  repairing: 'In Reparatur',
-  tested: 'Pr\u00fcfung bestanden',
-  closed: 'Abgeschlossen'
-};
+function maintenanceStatusLabel(status) {
+  const labels = {
+    reported: ['admin.statusReported', 'Neu gemeldet'],
+    blocked: ['admin.statusBlocked', 'Gesperrt'],
+    repairing: ['admin.statusRepairing', 'In Reparatur'],
+    tested: ['admin.statusTested', 'Pruefung bestanden'],
+    closed: ['admin.statusClosed', 'Abgeschlossen']
+  };
+  return labels[status] ? translate(...labels[status]) : status;
+}
 
-const maintenanceEntryLabels = {
-  report: 'Meldung',
-  note: 'Notiz',
-  block: 'Sperre',
-  repair: 'Reparatur',
-  test_passed: 'Funktionspr\u00fcfung bestanden',
-  test_failed: 'Funktionspr\u00fcfung nicht bestanden',
-  release: 'Freigabe und Abschluss'
-};
+function maintenanceEntryLabel(entryType) {
+  const labels = {
+    report: ['admin.entryReport', 'Meldung'],
+    note: ['admin.entryNote', 'Notiz'],
+    block: ['admin.entryBlock', 'Sperre'],
+    repair: ['admin.entryRepair', 'Reparatur'],
+    test_passed: ['admin.entryTestPassed', 'Funktionspruefung bestanden'],
+    test_failed: ['admin.entryTestFailed', 'Funktionspruefung nicht bestanden'],
+    release: ['admin.entryRelease', 'Freigabe und Abschluss']
+  };
+  return labels[entryType] ? translate(...labels[entryType]) : entryType;
+}
 
 function renderOwnMaintenanceCases(cases) {
   ownMaintenanceCases.innerHTML = '';
@@ -693,7 +718,7 @@ function renderOwnMaintenanceCases(cases) {
         <strong>${escapeHtml(item.resource_name || 'Nicht mehr vorhandene Ressource')}</strong>
         <span>${escapeHtml(item.title)}</span>
       </div>
-      <span class="maintenance-status status-${escapeHtml(item.status)}">${escapeHtml(maintenanceStatusLabels[item.status] || item.status)}</span>
+      <span class="maintenance-status status-${escapeHtml(item.status)}">${escapeHtml(maintenanceStatusLabel(item.status))}</span>
     `;
     ownMaintenanceCases.append(row);
   }
@@ -779,10 +804,144 @@ function clearBookingFlowStatus() {
 
 function openIntro() {
   introReturnFocus = document.activeElement;
+  configureIntroForCurrentUser();
   introOverlay.hidden = false;
   document.body.classList.add('modal-open');
   renderIntroVideo();
   closeIntroButton.focus();
+}
+
+function currentIntroRole() {
+  if (currentUser?.isSuperadmin) return 'superadmin';
+  if (currentUser?.isHouseAdmin) return 'house_admin';
+  return 'resident';
+}
+
+function introSceneForChapter(chapter) {
+  const imageByView = {
+    settings: 'settings-profile.png',
+    calendar: 'calendar-booking.png',
+    'booking-assistant': 'booking-time-focused.png',
+    'my-bookings': 'app-full-page.png',
+    'booking-details': 'release-dialog.png',
+    'message-center': 'message-center.png',
+    'issue-report': 'app-full-page.png',
+    'house-rules': 'cleaning-tasks.png'
+  };
+  const filename = imageByView[chapter.visual?.view] || 'app-full-page.png';
+  return `<img class="intro-role-visual" src="/assets/intro/scenes/${filename}?v=scenes-v1" alt="">`;
+}
+
+function formatMediaDuration(seconds) {
+  const rounded = Math.max(0, Math.round(Number(seconds || 0)));
+  return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
+}
+
+function activeRecordedChapterIndex() {
+  if (!activeIntroMedia) return 0;
+  const currentTime = Number(recordedIntroVideo.currentTime || 0);
+  let activeIndex = 0;
+  activeIntroMedia.chapters.forEach((chapter, index) => {
+    if (currentTime + 0.05 >= chapter.startTime) activeIndex = index;
+  });
+  return activeIndex;
+}
+
+function updateRecordedIntroChapterState() {
+  const activeIndex = activeRecordedChapterIndex();
+  recordedIntroChapters.querySelectorAll('[data-recorded-chapter]').forEach((button, index) => {
+    button.setAttribute('aria-current', index === activeIndex ? 'true' : 'false');
+  });
+}
+
+function seekRecordedIntroChapter(index, { play = false } = {}) {
+  const chapter = activeIntroMedia?.chapters?.[Number(index)];
+  if (!chapter) return;
+  const seek = () => {
+    recordedIntroVideo.currentTime = Math.min(chapter.startTime, Math.max(0, recordedIntroVideo.duration - 0.05));
+    updateRecordedIntroChapterState();
+    if (play) recordedIntroVideo.play().catch(() => {});
+  };
+  if (recordedIntroVideo.readyState >= 1) seek();
+  else recordedIntroVideo.addEventListener('loadedmetadata', seek, { once: true });
+}
+
+function configureRecordedIntroMedia(media, { preserveStep = false } = {}) {
+  const previousChapterId = preserveStep
+    ? activeIntroMedia?.chapters?.[activeRecordedChapterIndex()]?.id
+    : '';
+  activeIntroMedia = media || null;
+  recordedIntroSection.hidden = !activeIntroMedia;
+  if (!activeIntroMedia) return;
+
+  const mediaVersion = window.WaschZeitIntroMedia?.version || 'media-v1';
+  const mediaUrl = (value) => `${value}?v=${encodeURIComponent(mediaVersion)}`;
+  const sourceChanged = recordedIntroVideo.dataset.mediaId !== activeIntroMedia.id;
+  recordedIntroVideo.dataset.mediaId = activeIntroMedia.id;
+  recordedIntroVideo.poster = mediaUrl(activeIntroMedia.poster);
+  recordedIntroSource.src = mediaUrl(activeIntroMedia.video);
+  recordedIntroTrack.src = mediaUrl(activeIntroMedia.captions);
+  recordedIntroTrack.srclang = activeIntroMedia.language;
+  recordedIntroTrack.label = activeIntroMedia.languageLabel;
+  recordedIntroTranscriptLink.href = mediaUrl(activeIntroMedia.transcript);
+  recordedIntroTitle.textContent = activeIntroMedia.title;
+  recordedIntroDuration.textContent = formatMediaDuration(activeIntroMedia.duration);
+  recordedIntroChapters.setAttribute('aria-label', translate('intro.videoChapters', 'Videokapitel'));
+  recordedIntroFallback.textContent = translate('intro.mediaFallback', 'Das Video ist gerade nicht verfuegbar. Transkript und interaktive Einfuehrung bleiben nutzbar.');
+  recordedIntroTranscriptLink.textContent = translate('intro.transcript', 'Text zum Mitlesen');
+  recordedIntroFallback.hidden = true;
+  recordedIntroChapters.innerHTML = activeIntroMedia.chapters.map((chapter, index) => `
+    <button type="button" class="secondary" data-recorded-chapter="${index}" aria-current="${index === 0 ? 'true' : 'false'}">
+      <span>${formatMediaDuration(chapter.startTime)}</span>
+      <strong>${escapeHtml(chapter.title)}</strong>
+    </button>
+  `).join('');
+  if (sourceChanged) recordedIntroVideo.load();
+  const preservedIndex = previousChapterId
+    ? activeIntroMedia.chapters.findIndex((chapter) => chapter.id === previousChapterId)
+    : -1;
+  if (preservedIndex >= 0) seekRecordedIntroChapter(preservedIndex);
+}
+
+function configureIntroForCurrentUser({ preserveStep = false } = {}) {
+  const language = i18n?.language() || 'de';
+  const previousStepId = preserveStep ? introVideoSteps[introVideoStepIndex]?.id : '';
+  const definition = window.WaschZeitIntroCatalog?.get(currentIntroRole(), language);
+  const media = window.WaschZeitIntroMedia?.get(currentIntroRole(), language);
+  activeIntroDefinition = definition || null;
+  introVideoSteps = definition
+    ? definition.chapters.map((chapter) => ({
+        id: chapter.id,
+        fallbackDurationMs: chapter.duration * 1000,
+        title: chapter.title,
+        caption: chapter.caption,
+        speech: chapter.tts || chapter.transcript,
+        transcript: chapter.transcript,
+        description: chapter.description,
+        startTime: chapter.startTime,
+        visual: introSceneForChapter(chapter)
+      }))
+    : defaultIntroVideoSteps;
+
+  stopIntroVideo();
+  const preservedStepIndex = previousStepId
+    ? introVideoSteps.findIndex((step) => step.id === previousStepId)
+    : -1;
+  introVideoStepIndex = preservedStepIndex >= 0 ? preservedStepIndex : 0;
+  introVideoFinished = false;
+  introTitle.textContent = definition?.title || translate('intro.title', 'In Ruhe durch den Waschplan.');
+  configureRecordedIntroMedia(media, { preserveStep });
+  introTranscriptList.innerHTML = introVideoSteps.map((step) => (
+    `<li><strong>${escapeHtml(step.title)}</strong><span>${escapeHtml(step.transcript || step.speech)}</span></li>`
+  )).join('');
+  introChapterList.innerHTML = introVideoSteps.map((step, index) => `
+    <button type="button" data-intro-chapter="${index}" aria-current="${index === introVideoStepIndex ? 'step' : 'false'}">
+      <strong>${index + 1}. ${escapeHtml(step.title)}</strong>
+      <span>${escapeHtml(step.description || step.caption)}</span>
+    </button>
+  `).join('');
+  refreshIntroVideoVoice();
+  renderIntroVideo();
 }
 
 function closeIntro() {
@@ -859,11 +1018,15 @@ function setSettingsSection(sectionName) {
 function openSettings(firstRun = false) {
   closeAccountMenu();
   settingsReturnFocus = document.activeElement;
-  settingsEyebrow.textContent = firstRun ? 'Erster Start' : 'Dein Konto';
-  settingsTitle.textContent = firstRun ? 'Einmal kurz einrichten.' : 'Einstellungen';
+  settingsEyebrow.textContent = firstRun
+    ? translate('settings.firstStart', 'Erster Start')
+    : translate('settings.yourAccount', 'Dein Konto');
+  settingsTitle.textContent = firstRun
+    ? translate('settings.firstTitle', 'Einmal kurz einrichten.')
+    : translate('common.settings', 'Einstellungen');
   settingsIntroText.textContent = firstRun
-    ? 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.'
-    : 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.';
+    ? translate('settings.firstHint', 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.')
+    : translate('settings.intro', 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.');
   settingsUsername.value = currentUser.displayName || currentUser.username;
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
@@ -893,7 +1056,7 @@ function closeSettings() {
 function finishSettings() {
   markSettingsCompleted();
   closeSettings();
-  showStatus('Persoenliche Einrichtung gespeichert.');
+  showStatus(translate('settings.saved', 'Persoenliche Einrichtung gespeichert.'));
 }
 
 function introVideoStepDuration(step) {
@@ -904,10 +1067,12 @@ function introVideoStepDuration(step) {
 
 function introVoiceScore(voice) {
   const name = voice.name.toLowerCase();
+  const language = i18n?.language() || 'de';
   let score = 0;
   if (/natural|online/.test(name)) score += 100;
-  if (voice.lang.toLowerCase() === 'de-ch') score += 35;
-  if (voice.lang.toLowerCase() === 'de-de') score += 30;
+  if (language === 'en' && voice.lang.toLowerCase().startsWith('en')) score += 35;
+  if (language === 'de' && voice.lang.toLowerCase() === 'de-ch') score += 35;
+  if (language === 'de' && voice.lang.toLowerCase() === 'de-de') score += 30;
   if (/google|microsoft|apple/.test(name)) score += 20;
   if (voice.default) score += 5;
   return score;
@@ -917,10 +1082,11 @@ function refreshIntroVideoVoice() {
   if (!introVideoSpeechSupported) {
     return;
   }
-  const germanVoices = window.speechSynthesis.getVoices()
-    .filter((voice) => voice.lang.toLowerCase().startsWith('de'))
+  const language = i18n?.language() || 'de';
+  const matchingVoices = window.speechSynthesis.getVoices()
+    .filter((voice) => voice.lang.toLowerCase().startsWith(language))
     .sort((left, right) => introVoiceScore(right) - introVoiceScore(left));
-  introVideoPreferredVoice = germanVoices[0] || null;
+  introVideoPreferredVoice = matchingVoices[0] || null;
   renderIntroVideo();
 }
 
@@ -952,7 +1118,11 @@ function renderIntroVideo() {
     : (introVideoStepIndex + stepProgress) / introVideoSteps.length;
 
   introVideoStage.dataset.step = step.id;
-  introVideoChapter.textContent = `Kapitel ${introVideoStepIndex + 1} von ${introVideoSteps.length}`;
+  introVideoChapter.textContent = translate(
+    'intro.chapterCount',
+    `Kapitel ${introVideoStepIndex + 1} von ${introVideoSteps.length}`,
+    { current: introVideoStepIndex + 1, total: introVideoSteps.length }
+  );
   introVideoTitle.textContent = step.title;
   introVideoCaption.textContent = step.caption;
   if (introVideoVisual.dataset.step !== step.id) {
@@ -962,26 +1132,34 @@ function renderIntroVideo() {
   introVideoProgress.style.width = `${Math.round(progress * 100)}%`;
   introVideoProgressTrack.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
   introVideoPlayButton.textContent = introVideoPlaying
-    ? 'Pause'
+    ? translate('intro.pause', 'Pause')
     : introVideoFinished
-      ? 'Erneut ansehen'
+      ? translate('intro.watchAgain', 'Erneut ansehen')
       : introVideoStepElapsedMs > 0
-        ? 'Fortsetzen'
-        : 'Einf\u00fchrung starten';
+        ? translate('intro.continue', 'Fortsetzen')
+        : translate('intro.startGuide', 'Einf\u00fchrung starten');
   introVideoPreviousButton.disabled = introVideoStepIndex === 0;
   introVideoNextButton.disabled = introVideoStepIndex === introVideoSteps.length - 1;
+  introChapterList.querySelectorAll('[data-intro-chapter]').forEach((button, index) => {
+    button.setAttribute('aria-current', index === introVideoStepIndex ? 'step' : 'false');
+  });
 
   if (!introVideoSpeechSupported) {
-    introVideoMuteButton.textContent = 'Stimme nicht verf\u00fcgbar';
+    introVideoMuteButton.textContent = translate('intro.voiceUnavailable', 'Stimme nicht verfuegbar');
     introVideoMuteButton.disabled = true;
-    introVideoVoiceStatus.textContent = 'Mit Text zum Mitlesen';
+    introVideoVoiceStatus.textContent = translate('intro.withTranscript', 'Mit Text zum Mitlesen');
   } else {
     const voiceName = introVideoPreferredVoice?.name.toLowerCase() || '';
-    introVideoMuteButton.textContent = introVideoSpeechEnabled ? 'Stimme ausschalten' : 'Stimme einschalten';
+    const english = i18n?.language() === 'en';
+    introVideoMuteButton.textContent = introVideoSpeechEnabled
+      ? translate('intro.voiceOff', 'Stimme ausschalten')
+      : translate('intro.voiceOn', 'Stimme einschalten');
     introVideoMuteButton.setAttribute('aria-pressed', String(introVideoSpeechEnabled));
     introVideoVoiceStatus.textContent = introVideoSpeechEnabled
-      ? (/natural|online/.test(voiceName) ? 'Nat\u00fcrliche deutsche Stimme' : 'Mit deutscher Stimme')
-      : 'Ohne Sprachausgabe';
+      ? (/natural|online/.test(voiceName)
+        ? (english ? 'Natural English voice' : 'Nat\u00fcrliche deutsche Stimme')
+        : (english ? 'With English voice' : 'Mit deutscher Stimme'))
+      : translate('intro.noVoice', 'Ohne Sprachausgabe');
   }
 }
 
@@ -1018,7 +1196,7 @@ function speakIntroVideoStep(step) {
     utterance.voice = introVideoPreferredVoice;
     utterance.lang = introVideoPreferredVoice.lang;
   } else {
-    utterance.lang = 'de-DE';
+    utterance.lang = i18n?.language() === 'en' ? 'en-GB' : 'de-CH';
   }
   utterance.rate = 0.92;
   utterance.pitch = 1;
@@ -1133,6 +1311,18 @@ function moveIntroVideoStep(direction) {
   }
 }
 
+function jumpIntroVideoStep(index) {
+  const requestedIndex = Number(index);
+  if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= introVideoSteps.length) return;
+  const continuePlaying = introVideoPlaying;
+  stopIntroVideo();
+  introVideoStepIndex = requestedIndex;
+  introVideoFinished = false;
+  seekRecordedIntroChapter(requestedIndex);
+  renderIntroVideo();
+  if (continuePlaying) startIntroVideoPlayback();
+}
+
 function toggleIntroVideoSpeech() {
   if (!introVideoSpeechSupported) {
     return;
@@ -1173,14 +1363,16 @@ function checkIntroQuiz(event) {
   }
 
   if (answered < questions.length) {
-    introQuizResult.textContent = 'W\u00e4hle bitte bei jeder Frage eine Antwort. Danach schauen wir sie gemeinsam an.';
+    introQuizResult.textContent = translate('intro.quizMissing', 'Waehle bitte bei jeder Frage eine Antwort. Danach schauen wir sie gemeinsam an.');
     return;
   }
   if (correct === questions.length) {
-    introQuizResult.textContent = 'Passt. Die wichtigsten Punkte sitzen, und du kannst direkt loslegen.';
+    introQuizResult.textContent = translate('intro.quizCorrect', 'Passt. Die wichtigsten Punkte sitzen, und du kannst direkt loslegen.');
     return;
   }
-  introQuizResult.textContent = `${correct} von ${questions.length} Antworten passen schon. Die orange markierten Fragen kannst du oben noch einmal nachlesen. Du kannst die App nat\u00fcrlich trotzdem nutzen.`;
+  introQuizResult.textContent = i18n?.language() === 'en'
+    ? `${correct} of ${questions.length} answers are correct. Review the highlighted questions above. You can still use the app normally.`
+    : `${correct} von ${questions.length} Antworten passen schon. Die orange markierten Fragen kannst du oben noch einmal nachlesen. Du kannst die App natuerlich trotzdem nutzen.`;
 }
 
 function sessionLoginUrl(expired = false) {
@@ -1339,7 +1531,7 @@ function formatReleaseDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : date.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    : date.toLocaleDateString(activeLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function bookingSelectionInProgress() {
@@ -1576,123 +1768,238 @@ function setAdminTabCount(element, count) {
   element.textContent = safeCount > 99 ? '99+' : String(safeCount);
 }
 
-function renderAdminWorkQueue({ overview, recovery, apartments, resources: adminResourceItems, cases }) {
+function renderAdminWorkQueue({ overview, recovery, apartments, resources: adminResourceItems, cases, fixedBookings, auditEntries }) {
   const openCases = cases.filter((item) => item.status !== 'closed');
   const reportedCases = openCases.filter((item) => item.status === 'reported');
+  const testsDue = openCases.filter((item) => item.status === 'repairing');
+  const releasesDue = openCases.filter((item) => item.status === 'tested');
   const blockedResources = adminResourceItems.filter((item) => !item.active);
   const nameRequests = apartments.filter((item) => item.name_request_id);
+  const openInvitations = apartments.filter((item) => item.invitationStatus === 'pending');
+  const invitationProblems = apartments.filter((item) => ['expired', 'not_sent'].includes(item.invitationStatus));
   const recoveryWarnings = recovery.warnings || [];
+  const suspiciousAuditEntries = (auditEntries || []).filter((item) => /failed|denied|reset|delete/i.test(item.action || '')).slice(0, 3);
   const tasks = [];
+
+  const houseSuffix = (items) => {
+    if (!currentUser.isSuperadmin) return '';
+    const names = [...new Set(items.map((item) => item.house_name).filter(Boolean))];
+    return names.length === 1
+      ? ` - ${names[0]}`
+      : names.length > 1
+        ? ` - ${translate('admin.houseSuffixMany', '{count} Haeuser', { count: names.length })}`
+        : '';
+  };
 
   if (reportedCases.length) {
     tasks.push({
       level: 'urgent',
-      title: `${reportedCases.length} neue ${reportedCases.length === 1 ? 'St\u00f6rung' : 'St\u00f6rungen'} pr\u00fcfen`,
-      text: 'Meldung lesen, bei Bedarf sperren und den n\u00e4chsten Schritt dokumentieren.',
-      section: 'logbook'
+      title: translate(reportedCases.length === 1 ? 'admin.newIssueOne' : 'admin.newIssueMany', '{count} neue Stoerungen pruefen', { count: reportedCases.length }),
+      text: translate('admin.issueTaskText', 'Meldung lesen, bei Bedarf sperren und den naechsten Schritt dokumentieren.'),
+      section: 'logbook',
+      action: translate('admin.handleIssue', 'Stoerung bearbeiten'),
+      group: 'tasks',
+      items: reportedCases
     });
   } else if (openCases.length) {
     tasks.push({
       level: 'attention',
-      title: `${openCases.length} offene ${openCases.length === 1 ? 'Tagebuchaufgabe' : 'Tagebuchaufgaben'}`,
-      text: 'Reparatur, Funktionspr\u00fcfung oder Freigabe nachvollziehbar fortf\u00fchren.',
-      section: 'logbook'
+      title: translate(openCases.length === 1 ? 'admin.openLogTaskOne' : 'admin.openLogTaskMany', '{count} offene Tagebuchaufgaben', { count: openCases.length }),
+      text: translate('admin.logTaskText', 'Reparatur, Funktionspruefung oder Freigabe nachvollziehbar fortfuehren.'),
+      section: 'logbook',
+      action: testsDue.length
+        ? translate('admin.test', 'Funktionspruefung durchfuehren')
+        : releasesDue.length
+          ? translate('admin.finishRelease', 'Freigabe abschliessen')
+          : translate('admin.continueLogbook', 'Tagebuch fortfuehren'),
+      group: 'tasks',
+      items: openCases
     });
   }
 
   if (nameRequests.length) {
     tasks.push({
       level: 'attention',
-      title: `${nameRequests.length} ${nameRequests.length === 1 ? 'Namenskorrektur' : 'Namenskorrekturen'} entscheiden`,
-      text: 'Klingelschild-Vorschlag pr\u00fcfen und anschliessend \u00fcbernehmen oder ablehnen.',
-      section: 'people'
+      title: translate(nameRequests.length === 1 ? 'admin.nameRequestOne' : 'admin.nameRequestMany', '{count} Namenskorrekturen entscheiden', { count: nameRequests.length }),
+      text: translate('admin.nameRequestText', 'Klingelschild-Vorschlag pruefen und anschliessend uebernehmen oder ablehnen.'),
+      section: 'people',
+      action: translate('admin.accountCheck', 'Konto pruefen'),
+      group: 'tasks'
+    });
+  }
+
+  if (invitationProblems.length) {
+    tasks.push({
+      level: 'attention',
+      title: translate(invitationProblems.length === 1 ? 'admin.invitationProblemOne' : 'admin.invitationProblemMany', '{count} Einladungen brauchen Aufmerksamkeit', { count: invitationProblems.length }),
+      text: translate('admin.invitationProblemText', 'Abgelaufene oder nicht versendete Einladung pruefen und gezielt erneuern.'),
+      section: 'people',
+      action: translate('admin.renewInvitation', 'Einladung erneut senden'),
+      group: 'tasks'
     });
   }
 
   if (overview.usersMissingEmail) {
     tasks.push({
       level: 'attention',
-      title: `${overview.usersMissingEmail} ${overview.usersMissingEmail === 1 ? 'Konto' : 'Konten'} ohne E-Mail`,
-      text: 'Identitaet persoenlich pruefen und bei Bedarf einen kurz gueltigen Wiederherstellungscode ausgeben.',
-      section: 'people'
+      title: translate(overview.usersMissingEmail === 1 ? 'admin.accountMissingEmailOne' : 'admin.accountMissingEmailMany', '{count} Konten ohne E-Mail', { count: overview.usersMissingEmail }),
+      text: translate('admin.identityRecoveryText', 'Identitaet persoenlich pruefen und bei Bedarf einen kurz gueltigen Wiederherstellungscode ausgeben.'),
+      section: 'people',
+      action: translate('admin.accountCheck', 'Konto pruefen'),
+      group: 'warnings'
     });
   }
 
   if (blockedResources.length && !openCases.length) {
     tasks.push({
       level: 'attention',
-      title: `${blockedResources.length} gesperrte ${blockedResources.length === 1 ? 'Ressource' : 'Ressourcen'}`,
-      text: 'Sperren bleiben bis zur dokumentierten Funktionspr\u00fcfung und Freigabe bestehen.',
-      section: 'logbook'
+      title: translate(blockedResources.length === 1 ? 'admin.blockedResourceOne' : 'admin.blockedResourceMany', '{count} gesperrte Ressourcen', { count: blockedResources.length }),
+      text: translate('admin.blockedResourceText', 'Sperren bleiben bis zur dokumentierten Funktionspruefung und Freigabe bestehen.'),
+      section: 'logbook',
+      action: translate('admin.viewEquipment', 'Geraet anzeigen'),
+      group: 'warnings'
     });
   }
 
   if (currentUser.isSuperadmin && recoveryWarnings.length) {
     tasks.push({
       level: recoveryWarnings.some((item) => item.level === 'critical') ? 'urgent' : 'attention',
-      title: 'Admin-Nachfolge absichern',
-      text: recoveryWarnings[0].message,
-      section: 'system'
+      title: translate('admin.successorTitle', 'Admin-Nachfolge absichern'),
+      text: i18n?.translateVisibleText(recoveryWarnings[0].message) || recoveryWarnings[0].message,
+      section: 'system',
+      action: translate('admin.successorCheck', 'Nachfolge pruefen'),
+      group: 'warnings'
     });
   }
 
   if (currentUser.isSuperadmin && !overview.externalBackupConfigured) {
     tasks.push({
       level: 'attention',
-      title: 'Externes Backup einrichten',
-      text: 'Die lokale Sicherung sch\u00fctzt nicht vor einem Ausfall des Render-Datentr\u00e4gers.',
-      section: 'system'
+      title: translate('admin.backupMissing', 'Externes Backup einrichten'),
+      text: translate('admin.backupSetupText', 'Die lokale Sicherung schuetzt nicht vor einem Ausfall des Render-Datentraegers.'),
+      section: 'system',
+      action: translate('admin.backupSetup', 'Backup einrichten'),
+      group: 'warnings'
     });
   }
 
   if (currentUser.isSuperadmin && !overview.email.configured) {
     tasks.push({
       level: 'attention',
-      title: 'E-Mail-Versand einrichten',
-      text: 'SMTP in Render vervollst\u00e4ndigen und danach eine Testmail senden.',
-      section: 'system'
+      title: translate('admin.emailSetup', 'E-Mail-Versand einrichten'),
+      text: translate('admin.emailSetupText', 'SMTP in Render vervollstaendigen und danach eine Testmail senden.'),
+      section: 'system',
+      action: translate('admin.emailCheck', 'E-Mail pruefen'),
+      group: 'warnings'
     });
   }
 
-  adminTaskSummary.textContent = tasks.length
-    ? `${tasks.length} ${tasks.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen`
-    : 'Keine dringenden Aufgaben';
+  if (currentUser.isSuperadmin && overview.maintenance?.active) {
+    tasks.push({
+      level: 'urgent',
+      title: translate('admin.maintenanceActive', 'Wartungsmodus ist aktiv'),
+      text: translate('admin.maintenanceActiveText', 'Schreibende Aktionen bleiben gesperrt, bis System- und Buchungspruefung erfolgreich sind.'),
+      section: 'system',
+      action: translate('admin.checkMaintenance', 'Wartung pruefen'),
+      group: 'warnings'
+    });
+  }
+
+  if (currentUser.isSuperadmin && suspiciousAuditEntries.length) {
+    tasks.push({
+      level: 'attention',
+      title: translate(suspiciousAuditEntries.length === 1 ? 'admin.suspiciousOne' : 'admin.suspiciousMany', '{count} auffaellige Admin-Aktionen pruefen', { count: suspiciousAuditEntries.length }),
+      text: translate('admin.suspiciousText', 'Zuruecksetzungen, Loeschungen oder fehlgeschlagene Aktionen im Audit nachvollziehen.'),
+      section: 'system',
+      action: translate('admin.viewAudit', 'Audit ansehen'),
+      group: 'warnings'
+    });
+  }
+
+  if (openInvitations.length) {
+    tasks.push({
+      level: 'info',
+      title: translate(openInvitations.length === 1 ? 'admin.openInvitationOne' : 'admin.openInvitationMany', '{count} offene Einladungen', { count: openInvitations.length }),
+      text: translate('admin.openInvitationText', 'Die Einladungen sind versendet und warten auf Annahme.'),
+      section: 'people',
+      action: translate('admin.viewInvitations', 'Einladungen ansehen'),
+      group: 'info'
+    });
+  }
+
+  if ((fixedBookings || []).length) {
+    tasks.push({
+      level: 'info',
+      title: translate(fixedBookings.length === 1 ? 'admin.activeFixedOne' : 'admin.activeFixedMany', '{count} aktive Dauerbuchungen', { count: fixedBookings.length }),
+      text: translate('admin.activeFixedText', 'Regelmaessige Reservierungen dieses Hauses sind im Kalender vorgemerkt.'),
+      section: 'fixed',
+      action: translate('admin.viewFixed', 'Dauertermine ansehen'),
+      group: 'info'
+    });
+  }
+
+  if (currentUser.isSuperadmin) {
+    tasks.push({
+      level: 'info',
+      title: `${translate('admin.production', 'Produktionsstand')} ${loadedAppVersion}`,
+      text: `${loadedAppRelease}${loadedAppReleasedAt ? ` - ${loadedAppReleasedAt}` : ''}`,
+      section: 'system',
+      action: translate('admin.systemView', 'Systemstatus ansehen'),
+      group: 'info'
+    });
+  }
+
+  const actionableCount = tasks.filter((task) => task.group !== 'info').length;
+  adminTaskSummary.textContent = actionableCount
+    ? translate(actionableCount === 1 ? 'admin.openTaskOne' : 'admin.openTaskMany', '{count} Aufgaben offen', { count: actionableCount })
+    : translate('admin.noUrgent', 'Keine dringenden Aufgaben');
+  const groupLabels = {
+    tasks: translate('admin.tasks', 'Aufgaben'),
+    warnings: translate('admin.warnings', 'Warnungen'),
+    info: translate('admin.information', 'Informationen')
+  };
   adminTaskList.innerHTML = tasks.length
-    ? tasks.slice(0, 6).map((task) => `
+    ? ['tasks', 'warnings', 'info'].map((group) => {
+      const groupTasks = tasks.filter((task) => task.group === group).slice(0, group === 'info' ? 3 : 6);
+      if (!groupTasks.length) return '';
+      return `<section class="admin-task-group" aria-labelledby="admin-task-${group}">
+        <h4 id="admin-task-${group}">${groupLabels[group]}</h4>
+        ${groupTasks.map((task) => `
       <button class="admin-task-item is-${task.level}" type="button" data-admin-jump="${task.section}">
         <span class="admin-task-state" aria-hidden="true"></span>
         <span class="admin-task-copy">
-          <strong>${escapeHtml(task.title)}</strong>
+          <strong>${escapeHtml(task.title)}${escapeHtml(houseSuffix(task.items || []))}</strong>
           <span>${escapeHtml(task.text)}</span>
         </span>
-        <span class="admin-task-open">\u00d6ffnen</span>
+        <span class="admin-task-open">${escapeHtml(task.action)}</span>
       </button>
-    `).join('')
+    `).join('')}</section>`;
+    }).join('')
     : `
       <div class="admin-task-empty">
-        <strong>Alles im ruhigen Betrieb</strong>
-        <span>Keine neue St\u00f6rung, Kontowarnung oder Systemaufgabe wartet auf dich.</span>
+        <strong>${escapeHtml(translate('admin.calm', 'Alles im ruhigen Betrieb'))}</strong>
+        <span>${escapeHtml(translate('admin.noTaskText', 'Keine neue Stoerung, Kontowarnung oder Systemaufgabe wartet auf dich.'))}</span>
       </div>
     `;
 
   const responsibilities = currentUser.isSuperadmin
     ? [
-        'Haus-Admins, Rollen und Nachfolge absichern',
-        'H\u00e4user und technische Ressourcen verwalten',
-        'Tagebuchf\u00e4lle haus\u00fcbergreifend kontrollieren',
-        'Backups, Wartung und Systembetrieb verantworten',
-        'Im gew\u00e4hlten Haus nur bei Bedarf eingreifen'
+        translate('admin.superResponsibilitiesOne', 'Haus-Admins, Rollen und Nachfolge absichern'),
+        translate('admin.superResponsibilitiesTwo', 'Haeuser und technische Ressourcen verwalten'),
+        translate('admin.superResponsibilitiesThree', 'Tagebuchfaelle hausuebergreifend kontrollieren'),
+        translate('admin.superResponsibilitiesFour', 'Backups, Wartung und Systembetrieb verantworten'),
+        translate('admin.superResponsibilitiesFive', 'Im gewaehlten Haus nur bei Bedarf eingreifen')
       ]
     : [
-        'Wohnungen aktivieren und Konten betreuen',
-        'Ger\u00e4te und R\u00e4ume anlegen oder sperren',
-        'St\u00f6rungen bis zur Freigabe dokumentieren',
-        'Begr\u00fcndete Dauertermine pflegen',
-        'Betrieb des eigenen Hauses im Blick behalten'
+        translate('admin.houseResponsibilitiesOne', 'Wohnungen aktivieren und Konten betreuen'),
+        translate('admin.houseResponsibilitiesTwo', 'Geraete und Raeume anlegen oder sperren'),
+        translate('admin.houseResponsibilitiesThree', 'Stoerungen bis zur Freigabe dokumentieren'),
+        translate('admin.houseResponsibilitiesFour', 'Begruendete Dauertermine pflegen'),
+        translate('admin.houseResponsibilitiesFive', 'Betrieb des eigenen Hauses im Blick behalten')
       ];
   adminResponsibilityScope.textContent = currentUser.isSuperadmin
-    ? 'Alle H\u00e4user. Alltagsaktionen gelten f\u00fcr das oben ausgew\u00e4hlte Haus.'
-    : 'Nur dieses Haus. Bewohner buchen ihre normalen Waschzeiten selbst.';
+    ? translate('admin.scopeAll', 'Alle Haeuser. Alltagsaktionen gelten fuer das oben ausgewaehlte Haus.')
+    : translate('admin.selectedBuildingOnly', 'Nur dieses Haus. Bewohner buchen ihre normalen Waschzeiten selbst.');
   adminResponsibilityList.innerHTML = responsibilities
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join('');
@@ -1930,11 +2237,15 @@ function renderHouseContext() {
   document.title = `WaschZeit | ${currentUser.houseName}`;
   introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
   adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
-  bookingViewButton.textContent = isAdmin ? 'Kalender' : 'Mein Waschplan';
-  bookingPanelTitle.textContent = isAdmin ? 'Belegungsplan' : 'Buchen';
+  bookingViewButton.textContent = isAdmin
+    ? translate('app.calendar', 'Kalender')
+    : translate('app.myPlan', 'Mein Waschplan');
+  bookingPanelTitle.textContent = isAdmin
+    ? translate('app.occupancyPlan', 'Belegungsplan')
+    : translate('app.book', 'Buchen');
   bookingPanelIntro.textContent = isAdmin
-    ? 'Belegungen und freie Kapazitaeten ansehen. Normale Waschzeiten buchen Bewohner selbst.'
-    : 'Verschaffe dir zuerst einen Ueberblick. Danach stellst du dein Waschpaket Schritt fuer Schritt zusammen.';
+    ? translate('app.bookingIntroAdmin', 'Belegungen und freie Kapazitaeten ansehen. Normale Waschzeiten buchen Bewohner selbst.')
+    : translate('app.bookingIntroResident', 'Verschaffe dir zuerst einen Ueberblick. Danach stellst du dein Waschpaket Schritt fuer Schritt zusammen.');
   bookingSuggestion.hidden = isAdmin;
   bookingFlow.hidden = isAdmin;
   singleBookingDetails.hidden = isAdmin;
@@ -1950,17 +2261,19 @@ function renderHouseContext() {
 
 function currentRoleLabel() {
   const roles = [];
-  if (currentUser.isResident) roles.push('Bewohner');
-  if (currentUser.isHouseAdmin) roles.push('Haus-Admin');
-  if (currentUser.isSuperadmin) roles.push('Superadmin');
-  return roles.join(' \u00b7 ') || 'Persoenlicher Zugang';
+  if (currentUser.isResident) roles.push(translate('role.resident', 'Bewohner'));
+  if (currentUser.isHouseAdmin) roles.push(translate('role.houseAdmin', 'Haus-Admin'));
+  if (currentUser.isSuperadmin) roles.push(translate('role.superadmin', 'Superadmin'));
+  return roles.join(' \u00b7 ') || (i18n?.language() === 'en' ? 'Personal access' : 'Persoenlicher Zugang');
 }
 
 async function refreshCurrentUser() {
   const data = await api('/api/me');
   currentUser = data.user;
   availableHouses = data.houses || [];
+  if (i18n) await i18n.syncAccount(currentUser);
   renderHouseContext();
+  configureIntroForCurrentUser();
 }
 
 async function switchHouse(houseId) {
@@ -2000,7 +2313,8 @@ async function loadBookings() {
 
 async function loadMyBookings() {
   const data = await api('/api/my-bookings');
-  renderMyBookings(data.bookings);
+  myBookingItems = data.bookings;
+  renderMyBookings(myBookingItems);
 }
 
 async function loadReleaseNotices() {
@@ -2320,10 +2634,10 @@ function renderCalendar() {
       ? 'Ruhetag'
       : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Waschzeit' : 'Waschzeiten'} frei`;
     const dateLabel = monthView
-      ? new Intl.DateTimeFormat('de-CH', { day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))
-      : new Intl.DateTimeFormat('de-CH', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`));
+      ? new Intl.DateTimeFormat(activeLocale(), { day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))
+      : new Intl.DateTimeFormat(activeLocale(), { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`));
     button.innerHTML = `
-      <span class="calendar-weekday">${new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
+      <span class="calendar-weekday">${new Intl.DateTimeFormat(activeLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
       <strong>${dateLabel}</strong>
       <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
       <span class="calendar-status-list">${renderCalendarStatusRows(day)}</span>
@@ -3732,8 +4046,8 @@ function showApartmentInvitationResult(data, apartment) {
   title.textContent = `${apartment.label} - ${apartment.display_name}`;
   const status = document.createElement('span');
   status.textContent = invitation.emailSent
-    ? `Persoenliche Einladung an ${invitation.email} gesendet.`
-    : `Technische Testeinladung fuer ${invitation.email} angelegt.`;
+    ? translate('admin.invitationSent', 'Persoenliche Einladung an {email} gesendet.', { email: invitation.email })
+    : translate('admin.testInvitationCreated', 'Technische Testeinladung fuer {email} angelegt.', { email: invitation.email });
   apartmentInvitationResult.append(title, status);
   apartmentInvitationResult.hidden = false;
 }
@@ -3761,7 +4075,7 @@ async function sendDisplayNameRequest() {
 function renderApartments(apartments) {
   apartmentList.innerHTML = '';
   if (!apartments.length) {
-    apartmentList.innerHTML = '<p class="muted">Noch keine Wohnungen angelegt.</p>';
+    apartmentList.innerHTML = `<p class="muted">${escapeHtml(translate('admin.noApartments', 'Noch keine Wohnungen angelegt.'))}</p>`;
     return;
   }
   for (const apartment of apartments) {
@@ -3776,28 +4090,32 @@ function renderApartments(apartments) {
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
     const invitationState = apartment.invitationStatus === 'pending'
-        ? `Einladung offen fuer ${escapeHtml(apartment.invitation_email)}`
+        ? translate('admin.invitationOpen', 'Einladung offen fuer {email}', { email: apartment.invitation_email })
         : apartment.claimed
-          ? `${apartment.member_count} ${apartment.member_count === 1 ? 'Person' : 'Personen'} verbunden`
+          ? translate(apartment.member_count === 1 ? 'admin.peopleConnectedOne' : 'admin.peopleConnectedMany', '{count} Personen verbunden', { count: apartment.member_count })
         : apartment.invitationStatus === 'expired'
-          ? 'Einladung abgelaufen'
+          ? translate('admin.invitationExpired', 'Einladung abgelaufen')
           : apartment.invitationStatus === 'not_sent'
-            ? 'Einladung nicht versendet'
-            : 'noch nicht eingeladen';
-    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${invitationState}</span>${apartment.member_emails ? `<span>${escapeHtml(apartment.member_emails)}</span>` : ''}${apartment.name_request_id ? `<span class="apartment-name-request">Korrektur gew&uuml;nscht: ${escapeHtml(apartment.requested_display_name)}</span>` : ''}`;
+            ? translate('admin.invitationNotSent', 'Einladung nicht versendet')
+            : translate('admin.notInvited', 'noch nicht eingeladen');
+    identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${escapeHtml(invitationState)}</span>${apartment.member_emails ? `<span>${escapeHtml(apartment.member_emails)}</span>` : ''}${apartment.name_request_id ? `<span class="apartment-name-request">${escapeHtml(translate('admin.correctionRequested', 'Korrektur gewuenscht: {name}', { name: apartment.requested_display_name }))}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
     const editButton = document.createElement('button');
     editButton.type = 'button';
     editButton.className = 'secondary';
-    editButton.textContent = apartment.name_request_id ? 'Vorschlag prüfen' : 'Bearbeiten';
+    editButton.textContent = apartment.name_request_id
+      ? translate('admin.reviewSuggestion', 'Vorschlag pruefen')
+      : translate('admin.edit', 'Bearbeiten');
     actions.append(editButton);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary';
     button.textContent = apartment.invitationStatus === 'pending'
-      ? 'Einladung erneuern'
-      : apartment.claimed ? 'Weitere Person' : 'Einladen';
+      ? translate('admin.renew', 'Einladung erneuern')
+      : apartment.claimed
+        ? translate('admin.additionalPerson', 'Weitere Person')
+        : translate('admin.invitePerson', 'Einladen');
     button.addEventListener('click', () => {
       const inviteForm = item.querySelector('.apartment-invite-form');
       inviteForm.hidden = false;
@@ -3811,19 +4129,17 @@ function renderApartments(apartments) {
     inviteForm.hidden = true;
     inviteForm.innerHTML = `
       <label>
-        Persoenliche E-Mail fuer die Einladung
+        ${escapeHtml(translate('admin.personalInvitationEmail', 'Persoenliche E-Mail fuer die Einladung'))}
         <input name="email" type="email" value="" required>
       </label>
       <div class="inline-actions">
-        <button type="submit">Einladung senden</button>
-        <button class="secondary" type="button" data-cancel>Abbrechen</button>
+        <button type="submit">${escapeHtml(translate('admin.invite', 'Einladung senden'))}</button>
+        <button class="secondary" type="button" data-cancel>${escapeHtml(translate('admin.cancel', 'Abbrechen'))}</button>
       </div>
     `;
     inviteForm.querySelector('[data-cancel]').addEventListener('click', () => {
       inviteForm.hidden = true;
-      const inviteButton = [...actions.querySelectorAll('button')]
-        .find((candidate) => candidate.textContent.includes('Einlad') || candidate.textContent.includes('Person'));
-      if (inviteButton) inviteButton.disabled = false;
+      button.disabled = false;
     });
     inviteForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -3849,14 +4165,14 @@ function renderApartments(apartments) {
     editForm.hidden = true;
     editForm.innerHTML = `
       <label>
-        Name am Klingelschild
+        ${escapeHtml(translate('admin.doorbellName', 'Name am Klingelschild'))}
         <input name="displayName" maxlength="80" value="${escapeHtml(apartment.requested_display_name || apartment.display_name)}" required>
       </label>
-      <p class="muted">Jede Person verwaltet ihre eigene E-Mail. Die Wohnung bleibt ueber den Klingelschildnamen gemeinsam erkennbar.</p>
+      <p class="muted">${escapeHtml(translate('admin.apartmentEmailHint', 'Jede Person verwaltet ihre eigene E-Mail. Die Wohnung bleibt ueber den Klingelschildnamen gemeinsam erkennbar.'))}</p>
       <div class="inline-actions">
-        <button type="submit">Speichern</button>
-        ${apartment.name_request_id ? '<button class="secondary danger" type="button" data-reject>Ablehnen</button>' : ''}
-        <button class="secondary" type="button" data-cancel>Abbrechen</button>
+        <button type="submit">${escapeHtml(translate('admin.save', 'Speichern'))}</button>
+        ${apartment.name_request_id ? `<button class="secondary danger" type="button" data-reject>${escapeHtml(translate('admin.reject', 'Ablehnen'))}</button>` : ''}
+        <button class="secondary" type="button" data-cancel>${escapeHtml(translate('admin.cancel', 'Abbrechen'))}</button>
       </div>
     `;
     editButton.addEventListener('click', () => {
@@ -4000,14 +4316,16 @@ async function loadAdmin() {
     api('/api/admin/maintenance-cases')
   ]);
   adminBox.hidden = false;
-  adminTitle.textContent = `Verwaltung ${settingsData.houseName}`;
-  adminRoleLabel.textContent = currentUser.isSuperadmin ? 'Superadmin' : 'Haus-Admin';
+  adminTitle.textContent = `${translate('admin.management', 'Verwaltung')} ${settingsData.houseName}`;
+  adminRoleLabel.textContent = currentUser.isSuperadmin
+    ? translate('role.superadmin', 'Superadmin')
+    : translate('role.houseAdmin', 'Haus-Admin');
   adminRoleSummary.textContent = currentUser.isSuperadmin
-    ? 'Du sicherst Rollen, H\u00e4user und den technischen Betrieb.'
-    : 'Du organisierst Wohnungen, Ger\u00e4te und St\u00f6rungsf\u00e4lle.';
+    ? translate('admin.roleSummarySuper', 'Du sicherst Rollen, Haeuser und den technischen Betrieb.')
+    : translate('admin.roleSummaryHouse', 'Du organisierst Wohnungen, Geraete und Stoerungsfaelle.');
   adminScopeText.textContent = currentUser.isSuperadmin
-    ? 'Das Tagebuch gilt haus\u00fcbergreifend. Alle anderen Aktionen beziehen sich auf das oben ausgew\u00e4hlte Haus.'
-    : 'Dein Geltungsbereich ist dieses Haus. Normale Waschzeiten werden von Bewohnern selbst gebucht.';
+    ? translate('admin.scopeSuper', 'Das Tagebuch gilt hausuebergreifend. Alle anderen Aktionen beziehen sich auf das oben ausgewaehlte Haus.')
+    : translate('admin.scopeHouse', 'Dein Geltungsbereich ist dieses Haus. Normale Waschzeiten werden von Bewohnern selbst gebucht.');
   backupOperation.hidden = !currentUser.isSuperadmin;
   maintenanceOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
@@ -4026,34 +4344,36 @@ async function loadAdmin() {
   renderAuditLog(auditData.entries);
   if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance);
   adminOverview.innerHTML = `
-    <div><strong>${overviewData.users}</strong><span>aktive Nutzer</span></div>
-    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>ohne bestaetigte E-Mail</span></div>
-    <div><strong>${overviewData.todayBookings}</strong><span>Buchungen heute</span></div>
-    <div><strong>${overviewData.activeResources}</strong><span>aktive Ressourcen</span></div>
-    <div><strong>${overviewData.fixedBookings}</strong><span>feste Buchungen</span></div>
-    <div><strong>${overviewData.recentReleases}</strong><span>Freigaben 7 Tage</span></div>
-    <div class="${overviewData.openMaintenanceCases ? 'is-warning' : ''}"><strong>${overviewData.openMaintenanceCases}</strong><span>offene Tagebuchf\u00e4lle</span></div>
-    <div class="wide"><strong>E-Mail</strong><span>${overviewData.email.label}</span></div>
-    <div class="wide"><strong>Push</strong><span>${overviewData.push.label} - ${overviewData.push.activeSubscriptions} aktive Geraete</span></div>
-    <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `gepr\u00fcft am ${new Date(overviewData.backup.createdAt).toLocaleString('de-CH')}${overviewData.backup.uploaded ? ' - extern kopiert' : ' - externe Kopie fehlt'}` : overviewData.backup?.error || 'noch nicht automatisch erstellt'}${overviewData.externalBackupConfigured ? '' : ' · Externen Speicher in Render einrichten'}</span></div>
+    <div><strong>${overviewData.users}</strong><span>${escapeHtml(translate('admin.activeUsers', 'aktive Nutzer'))}</span></div>
+    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>${escapeHtml(translate('admin.unverifiedMail', 'ohne bestaetigte E-Mail'))}</span></div>
+    <div><strong>${overviewData.todayBookings}</strong><span>${escapeHtml(translate('admin.bookingsToday', 'Buchungen heute'))}</span></div>
+    <div><strong>${overviewData.activeResources}</strong><span>${escapeHtml(translate('admin.activeResources', 'aktive Ressourcen'))}</span></div>
+    <div><strong>${overviewData.fixedBookings}</strong><span>${escapeHtml(translate('admin.recurringBookings', 'feste Buchungen'))}</span></div>
+    <div><strong>${overviewData.recentReleases}</strong><span>${escapeHtml(translate('admin.releasesWeek', 'Freigaben 7 Tage'))}</span></div>
+    <div class="${overviewData.openMaintenanceCases ? 'is-warning' : ''}"><strong>${overviewData.openMaintenanceCases}</strong><span>${escapeHtml(translate('admin.openLogCases', 'offene Tagebuchfaelle'))}</span></div>
+    <div class="wide"><strong>E-Mail</strong><span>${escapeHtml(i18n?.translateVisibleText(overviewData.email.label) || overviewData.email.label)}</span></div>
+    <div class="wide"><strong>Push</strong><span>${escapeHtml(i18n?.translateVisibleText(overviewData.push.label) || overviewData.push.label)} - ${overviewData.push.activeSubscriptions} ${escapeHtml(translate('admin.activeDevices', 'aktive Geraete'))}</span></div>
+    <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `${escapeHtml(translate('admin.backupChecked', 'geprueft am {date}', { date: new Date(overviewData.backup.createdAt).toLocaleString(activeLocale()) }))}${overviewData.backup.uploaded ? ` - ${escapeHtml(translate('admin.externalCopied', 'extern kopiert'))}` : ` - ${escapeHtml(translate('admin.externalCopyMissing', 'externe Kopie fehlt'))}`}` : escapeHtml(i18n?.translateVisibleText(overviewData.backup?.error) || overviewData.backup?.error || translate('admin.backupNone', 'noch nicht automatisch erstellt'))}${overviewData.externalBackupConfigured ? '' : ` \u00b7 ${escapeHtml(translate('admin.externalStorage', 'Externen Speicher in Render einrichten'))}`}</span></div>
   `;
   renderAdminWorkQueue({
     overview: overviewData,
     recovery: recoveryData,
     apartments: apartmentsData.apartments,
     resources: adminResources.resources,
-    cases: maintenanceData.cases
+    cases: maintenanceData.cases,
+    fixedBookings: fixedData.fixedBookings,
+    auditEntries: auditData.entries
   });
   renderAdminRecovery(recoveryData, usersData.users);
   adminEmailTestButton.disabled = !overviewData.email.configured;
   adminEmailTestButton.title = overviewData.email.configured
-    ? 'Testmail an die konfigurierte Testadresse senden'
-    : 'Zuerst SMTP in Render konfigurieren';
+    ? translate('admin.emailTestReady', 'Testmail an die konfigurierte Testadresse senden')
+    : translate('admin.emailTestUnavailable', 'Zuerst SMTP in Render konfigurieren');
   renderAdminPushTargets(pushDevicesData);
   adminPushTestButton.disabled = !overviewData.push.configured || !pushDevicesData.totalDevices;
   adminPushTestButton.title = overviewData.push.configured
-    ? 'Testpush an die ausgewaehlten aktiven Geraete senden'
-    : 'Push ist auf dem Server noch nicht bereit';
+    ? translate('admin.pushTestReady', 'Testpush an die ausgewaehlten aktiven Geraete senden')
+    : translate('admin.pushTestUnavailable', 'Push ist auf dem Server noch nicht bereit');
   renderAdminUsers(usersData.users);
   setAdminSection(activeAdminSection);
 }
@@ -4064,28 +4384,28 @@ function renderAdminAnalytics(data) {
   const busiestSlot = [...data.bySlot].sort((left, right) => Number(right.count) - Number(left.count))[0];
   const blockedList = data.blockedResources.length
     ? data.blockedResources.map((resource) => (
-      `<li><strong>${escapeHtml(resource.name)}</strong><span>${escapeHtml(resource.reason || 'Gesperrt')}</span></li>`
+      `<li><strong>${escapeHtml(resource.name)}</strong><span>${escapeHtml(resource.reason || translate('admin.statusBlocked', 'Gesperrt'))}</span></li>`
     )).join('')
-    : '<li><span>Keine gesperrten Ressourcen.</span></li>';
+    : `<li><span>${escapeHtml(translate('admin.noBlockedResources', 'Keine gesperrten Ressourcen.'))}</span></li>`;
   const resourceRows = data.byResource.slice(0, 8).map((resource) => (
-    `<li><strong>${escapeHtml(resource.name)}</strong><span>${Number(resource.count)} Buchungen</span></li>`
+    `<li><strong>${escapeHtml(resource.name)}</strong><span>${escapeHtml(translate(Number(resource.count) === 1 ? 'admin.bookingCountOne' : 'admin.bookingCountMany', '{count} Buchungen', { count: Number(resource.count) }))}</span></li>`
   )).join('');
   const userRows = data.byUser.slice(0, 8).map((user) => (
-    `<li><strong>${escapeHtml(user.username)}</strong><span>${Number(user.count)} Buchungen</span></li>`
+    `<li><strong>${escapeHtml(user.username)}</strong><span>${escapeHtml(translate(Number(user.count) === 1 ? 'admin.bookingCountOne' : 'admin.bookingCountMany', '{count} Buchungen', { count: Number(user.count) }))}</span></li>`
   )).join('');
   adminAnalytics.innerHTML = `
     <div class="admin-overview">
-      <div><strong>${totalBookings}</strong><span>Buchungen im 60-Tage-Fenster</span></div>
-      <div><strong>${typeLabels.washer || 0}</strong><span>Waschmaschinen</span></div>
-      <div><strong>${typeLabels.drying_room || 0}</strong><span>Trockenraeume</span></div>
-      <div><strong>${typeLabels.tumbler || 0}</strong><span>Tumbler</span></div>
-      <div><strong>${busiestSlot?.slot || '-'}</strong><span>staerkster Slot</span></div>
-      <div class="${data.blockedResources.length ? 'is-warning' : ''}"><strong>${data.blockedResources.length}</strong><span>gesperrt</span></div>
+      <div><strong>${totalBookings}</strong><span>${escapeHtml(translate('admin.analyticsWindow', 'Buchungen im 60-Tage-Fenster'))}</span></div>
+      <div><strong>${typeLabels.washer || 0}</strong><span>${escapeHtml(translate('admin.washers', 'Waschmaschinen'))}</span></div>
+      <div><strong>${typeLabels.drying_room || 0}</strong><span>${escapeHtml(translate('admin.dryingRooms', 'Trockenraeume'))}</span></div>
+      <div><strong>${typeLabels.tumbler || 0}</strong><span>${escapeHtml(translate('admin.dryers', 'Tumbler'))}</span></div>
+      <div><strong>${busiestSlot?.slot || '-'}</strong><span>${escapeHtml(translate('admin.busiestSlot', 'staerkster Slot'))}</span></div>
+      <div class="${data.blockedResources.length ? 'is-warning' : ''}"><strong>${data.blockedResources.length}</strong><span>${escapeHtml(translate('admin.blockedLower', 'gesperrt'))}</span></div>
     </div>
     <div class="analytics-grid">
-      <section><h4>Geraete</h4><ul>${resourceRows || '<li><span>Noch keine Buchungen.</span></li>'}</ul></section>
-      <section><h4>Nutzer</h4><ul>${userRows || '<li><span>Noch keine Buchungen.</span></li>'}</ul></section>
-      <section><h4>Sperren</h4><ul>${blockedList}</ul></section>
+      <section><h4>${escapeHtml(translate('admin.resources', 'Geraete'))}</h4><ul>${resourceRows || `<li><span>${escapeHtml(translate('admin.noBookings', 'Noch keine Buchungen.'))}</span></li>`}</ul></section>
+      <section><h4>${escapeHtml(translate('admin.users', 'Nutzer'))}</h4><ul>${userRows || `<li><span>${escapeHtml(translate('admin.noBookings', 'Noch keine Buchungen.'))}</span></li>`}</ul></section>
+      <section><h4>${escapeHtml(translate('admin.blocks', 'Sperren'))}</h4><ul>${blockedList}</ul></section>
     </div>
   `;
 }
@@ -4094,28 +4414,28 @@ function renderAdminRecovery(data, users) {
   const warnings = data.warnings || [];
   const warningRows = warnings.length
     ? warnings.map((warning) => (
-      `<li class="${warning.level === 'critical' ? 'is-critical' : 'is-warning'}">${escapeHtml(warning.message)}</li>`
+      `<li class="${warning.level === 'critical' ? 'is-critical' : 'is-warning'}">${escapeHtml(i18n?.translateVisibleText(warning.message) || warning.message)}</li>`
     )).join('')
-    : '<li class="is-ok">Notfallprozess ist sauber vorbereitet.</li>';
+    : `<li class="is-ok">${escapeHtml(translate('admin.emergencyPrepared', 'Notfallprozess ist sauber vorbereitet.'))}</li>`;
   const superadminNames = (data.superadmins || [])
     .map((user) => user.email ? `${user.username} (${user.email})` : user.username)
-    .join(', ') || 'keiner';
+    .join(', ') || translate('admin.none', 'keiner');
 
   adminRecoveryPanel.innerHTML = `
     <section class="admin-recovery-card">
       <div>
-        <strong>Notfallzugang</strong>
-        <span>Damit die Verwaltung weiterl&auml;uft, falls das aktuelle Hauptkonto ausf&auml;llt.</span>
+        <strong>${escapeHtml(translate('admin.emergencyAccess', 'Notfallzugang'))}</strong>
+        <span>${escapeHtml(translate('admin.emergencyAccessHint', 'Damit die Verwaltung weiterlaeuft, falls das aktuelle Hauptkonto ausfaellt.'))}</span>
       </div>
       <dl>
-        <div><dt>Hausadmins</dt><dd>${Number(data.houseAdminCount || 0)}</dd></div>
-        <div><dt>Superadmins</dt><dd>${Number(data.superadminCount || 0)}</dd></div>
+        <div><dt>${escapeHtml(translate('admin.houseAdmins', 'Hausadmins'))}</dt><dd>${Number(data.houseAdminCount || 0)}</dd></div>
+        <div><dt>${escapeHtml(translate('role.superadmin', 'Superadmin'))}</dt><dd>${Number(data.superadminCount || 0)}</dd></div>
         <div><dt>Seed-Admin</dt><dd>${escapeHtml(data.seedAdminName || 'admin')}</dd></div>
-        <div><dt>Render-Recovery</dt><dd>${data.seedPasswordResetEnabled ? 'Reset aktiv' : data.seedRecoveryConfigured ? 'vorbereitet' : 'fehlt'}</dd></div>
+        <div><dt>${escapeHtml(translate('admin.renderRecovery', 'Render-Recovery'))}</dt><dd>${escapeHtml(data.seedPasswordResetEnabled ? translate('admin.resetActive', 'Reset aktiv') : data.seedRecoveryConfigured ? translate('admin.prepared', 'vorbereitet') : translate('admin.missing', 'fehlt'))}</dd></div>
       </dl>
       <ul>${warningRows}</ul>
-      <p class="muted">Notfallregel: Render-Zugang nutzen, <code>SEED_ADMIN_PASSWORD</code> setzen und bei unbekanntem Passwort einmalig <code>SEED_ADMIN_FORCE_PASSWORD_RESET=true</code> aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.</p>
-      <p class="muted">Aktive Superadmins: ${escapeHtml(superadminNames)}</p>
+      <p class="muted">${escapeHtml(translate('admin.emergencyRule', 'Notfallregel: Render-Zugang nutzen, SEED_ADMIN_PASSWORD setzen und bei unbekanntem Passwort einmalig SEED_ADMIN_FORCE_PASSWORD_RESET=true aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.'))}</p>
+      <p class="muted">${escapeHtml(translate('admin.activeSuperadmins', 'Aktive Superadmins: {names}', { names: superadminNames }))}</p>
     </section>
   `;
 
@@ -4140,8 +4460,8 @@ function renderSuperadminPermissionTargets() {
     const option = document.createElement('option');
     option.value = '';
     option.textContent = grant
-      ? 'Kein weiterer Haus-Admin verfuegbar'
-      : 'Kein anderer Superadmin in diesem Haus';
+      ? translate('admin.noHouseAdminTarget', 'Kein weiterer Haus-Admin verfuegbar')
+      : translate('admin.noSuperadminTarget', 'Kein anderer Superadmin in diesem Haus');
     superadminPermissionTarget.append(option);
   }
   for (const user of candidates) {
@@ -4153,7 +4473,9 @@ function renderSuperadminPermissionTargets() {
   const confirmation = grant ? 'SUPERADMINRECHT GEBEN' : 'SUPERADMINRECHT ENTZIEHEN';
   superadminPermissionConfirm.placeholder = confirmation;
   superadminPermissionConfirm.value = '';
-  superadminPermissionButton.textContent = grant ? 'Recht geben' : 'Recht entziehen';
+  superadminPermissionButton.textContent = grant
+    ? translate('admin.grantRight', 'Recht geben')
+    : translate('admin.revokeRight', 'Recht entziehen');
   superadminPermissionButton.classList.toggle('danger', !grant);
   superadminPermissionTarget.disabled = !candidates.length;
   superadminPermissionConfirm.disabled = !candidates.length;
@@ -4221,13 +4543,13 @@ function renderAdminPushTargets(data) {
   const allOption = document.createElement('option');
   allOption.value = 'all';
   allOption.textContent = data.totalDevices
-    ? `Alle aktiven Geraete (${data.totalDevices})`
-    : 'Keine aktiven Push-Geraete';
+    ? translate('admin.allActiveDevices', 'Alle aktiven Geraete ({count})', { count: data.totalDevices })
+    : translate('admin.noPushDevices', 'Keine aktiven Push-Geraete');
   adminPushTarget.append(allOption);
   for (const user of users) {
     const option = document.createElement('option');
     option.value = String(user.id);
-    option.textContent = `${user.username} (${user.devices} ${Number(user.devices) === 1 ? 'Geraet' : 'Geraete'})`;
+    option.textContent = `${user.username} (${translate(Number(user.devices) === 1 ? 'admin.deviceOne' : 'admin.deviceMany', '{count} Geraete', { count: user.devices })})`;
     adminPushTarget.append(option);
   }
   adminPushTarget.disabled = !data.totalDevices;
@@ -4249,12 +4571,14 @@ async function runBackupNow() {
 function renderAdminMaintenance(maintenance = {}) {
   const active = Boolean(maintenance.active);
   maintenanceAdminStatus.textContent = active
-    ? `Aktiv seit ${new Date(maintenance.startedAt).toLocaleString('de-CH')}. Schreibende Aktionen sind gesperrt.`
+    ? translate('admin.maintenanceSince', 'Aktiv seit {date}. Schreibende Aktionen sind gesperrt.', { date: new Date(maintenance.startedAt).toLocaleString(activeLocale()) })
     : maintenance.lastCheck?.ok
-      ? `Bereit. Letzte System- und Buchungspruefung: ${new Date(maintenance.lastCheck.checkedAt).toLocaleString('de-CH')}.`
-      : 'Bereit. Vor dem Start wird automatisch ein geprueftes Backup erstellt.';
+      ? translate('admin.maintenanceReadyChecked', 'Bereit. Letzte System- und Buchungspruefung: {date}.', { date: new Date(maintenance.lastCheck.checkedAt).toLocaleString(activeLocale()) })
+      : translate('admin.maintenanceReady', 'Bereit. Vor dem Start wird automatisch ein geprueftes Backup erstellt.');
   toggleMaintenanceButton.dataset.active = String(active);
-  toggleMaintenanceButton.textContent = active ? 'Wartung beenden' : 'Wartung starten';
+  toggleMaintenanceButton.textContent = active
+    ? translate('admin.endMaintenance', 'Wartung beenden')
+    : translate('admin.startMaintenance', 'Wartung starten');
   toggleMaintenanceButton.classList.toggle('danger', active);
   maintenancePasswordLabel.hidden = active;
   maintenanceCurrentPassword.disabled = active;
@@ -4345,15 +4669,19 @@ function renderAdminUsers(users) {
     name.textContent = visibleName;
     const meta = document.createElement('span');
     const roleNames = [
-      ...(user.is_resident ? ['Bewohner'] : []),
-      ...(user.is_house_admin ? ['Haus-Admin'] : []),
-      ...(user.is_superadmin ? ['Superadmin'] : [])
+      ...(user.is_resident ? [translate('role.resident', 'Bewohner')] : []),
+      ...(user.is_house_admin ? [translate('role.houseAdmin', 'Haus-Admin')] : []),
+      ...(user.is_superadmin ? [translate('role.superadmin', 'Superadmin')] : [])
     ];
-    const roleName = roleNames.join(' \u00b7 ') || 'Ohne Zuordnung';
-    const accountState = user.merged_into_user_id ? 'zusammengefuehrt' : user.active ? 'aktiv' : 'inaktiv';
+    const roleName = roleNames.join(' \u00b7 ') || translate('admin.roleUnassigned', 'Ohne Zuordnung');
+    const accountState = user.merged_into_user_id
+      ? translate('admin.accountMerged', 'zusammengefuehrt')
+      : user.active
+        ? translate('admin.activeLower', 'aktiv')
+        : translate('admin.inactiveLower', 'inaktiv');
     const apartmentName = user.apartment_label ? ` \u00b7 ${user.apartment_label}` : '';
     const secondEmail = user.secondary_email ? ` \u00b7 ${user.secondary_email}` : '';
-    meta.textContent = `${roleName} \u00b7 ${accountState}${apartmentName}${user.email ? ` \u00b7 ${user.email}` : ' \u00b7 E-Mail fehlt'}${secondEmail}`;
+    meta.textContent = `${roleName} \u00b7 ${accountState}${apartmentName}${user.email ? ` \u00b7 ${user.email}` : ` \u00b7 ${translate('admin.emailMissing', 'E-Mail fehlt')}`}${secondEmail}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -4368,7 +4696,9 @@ function renderAdminUsers(users) {
       const statusButton = document.createElement('button');
       statusButton.type = 'button';
       statusButton.className = user.active ? 'secondary danger' : 'secondary';
-      statusButton.textContent = user.active ? 'Deaktivieren' : 'Aktivieren';
+      statusButton.textContent = user.active
+        ? translate('admin.deactivate', 'Deaktivieren')
+        : translate('admin.activate', 'Aktivieren');
       statusButton.title = `${visibleName} ${statusButton.textContent.toLowerCase()}`;
       statusButton.addEventListener('click', () => updateUserStatus(user.id, !Boolean(user.active)));
       actions.append(statusButton);
@@ -4378,7 +4708,9 @@ function renderAdminUsers(users) {
       const roleButton = document.createElement('button');
       roleButton.type = 'button';
       roleButton.className = 'secondary';
-      roleButton.textContent = user.is_house_admin ? 'Adminrecht entziehen' : 'Haus-Adminrecht geben';
+      roleButton.textContent = user.is_house_admin
+        ? translate('admin.revokeHouseAdmin', 'Adminrecht entziehen')
+        : translate('admin.grantHouseAdmin', 'Haus-Adminrecht geben');
       roleButton.addEventListener('click', () => updateUserRole(
         user.id,
         user.is_house_admin ? 'user' : 'admin'
@@ -4390,14 +4722,14 @@ function renderAdminUsers(users) {
         const moveWrap = document.createElement('div');
         moveWrap.className = 'user-move-control';
         const moveSelect = document.createElement('select');
-        moveSelect.setAttribute('aria-label', `${visibleName} in anderes Haus verschieben`);
+        moveSelect.setAttribute('aria-label', translate('admin.moveToBuilding', '{name} in anderes Haus verschieben', { name: visibleName }));
         moveSelect.innerHTML = otherHouses.map((house) => (
           `<option value="${house.id}">${escapeHtml(house.name)}</option>`
         )).join('');
         const moveButton = document.createElement('button');
         moveButton.type = 'button';
         moveButton.className = 'secondary';
-        moveButton.textContent = 'Verschieben';
+        moveButton.textContent = translate('admin.move', 'Verschieben');
         moveButton.addEventListener('click', () => moveUserToHouse(user.id, moveSelect.value));
         moveWrap.append(moveSelect, moveButton);
         actions.append(moveWrap);
@@ -4412,16 +4744,16 @@ function renderAdminUsers(users) {
         const resetButton = document.createElement('button');
         resetButton.type = 'button';
         resetButton.className = 'secondary';
-        resetButton.textContent = 'Reset-Link senden';
-        resetButton.title = `Passwort-Link an die best\u00e4tigte Adresse von ${visibleName} senden`;
+        resetButton.textContent = translate('admin.resetLink', 'Reset-Link senden');
+        resetButton.title = translate('admin.resetFor', 'Passwort-Link an die bestaetigte Adresse von {name} senden', { name: visibleName });
         resetButton.addEventListener('click', () => requestUserPasswordReset(user.id, resetButton));
         actions.append(resetButton);
       } else if (user.active && user.is_resident && !user.is_house_admin) {
         const recoveryButton = document.createElement('button');
         recoveryButton.type = 'button';
         recoveryButton.className = 'secondary';
-        recoveryButton.textContent = 'Wiederherstellungscode';
-        recoveryButton.title = `Einmalcode fuer ${visibleName} nach persoenlicher Identitaetspruefung erzeugen`;
+        recoveryButton.textContent = translate('admin.recoveryCode', 'Wiederherstellungscode');
+        recoveryButton.title = translate('admin.recoveryFor', 'Einmalcode fuer {name} nach persoenlicher Identitaetspruefung erzeugen', { name: visibleName });
         recoveryButton.addEventListener('click', () => requestUserRecoveryCode(user, visibleName, recoveryButton));
         actions.append(recoveryButton);
       }
@@ -4431,8 +4763,8 @@ function renderAdminUsers(users) {
       const note = document.createElement('span');
       note.className = 'muted admin-account-note';
       note.textContent = isSelf
-        ? 'Eigenes Konto unter Buchen verwalten.'
-        : 'Dieses Admin-Konto verwaltet der Superadmin.';
+        ? translate('admin.manageOwnAccount', 'Eigenes Konto unter Buchen verwalten.')
+        : translate('admin.managedBySuperadmin', 'Dieses Admin-Konto verwaltet der Superadmin.');
       actions.append(note);
     }
     item.append(identity, actions);
@@ -4466,36 +4798,41 @@ function renderHouses(houses) {
     title.textContent = house.name;
     const status = document.createElement('span');
     status.className = `admin-state-chip ${house.active ? 'is-active' : 'is-blocked'}`;
-    status.textContent = house.active ? 'Aktiv' : 'Inaktiv';
+    status.textContent = house.active
+      ? translate('admin.active', 'Aktiv')
+      : translate('admin.inactive', 'Inaktiv');
     const nameForm = document.createElement('form');
     nameForm.className = 'house-name-form admin-row-edit-form';
     nameForm.hidden = true;
     const name = document.createElement('input');
     name.value = house.name;
     name.maxLength = 80;
-    name.setAttribute('aria-label', `Name von ${house.name}`);
+    name.setAttribute('aria-label', translate('admin.nameOf', 'Name von {name}', { name: house.name }));
     const saveName = document.createElement('button');
     saveName.type = 'submit';
     saveName.className = 'secondary';
-    saveName.textContent = 'Speichern';
+    saveName.textContent = translate('admin.save', 'Speichern');
     const cancelName = document.createElement('button');
     cancelName.type = 'button';
     cancelName.className = 'secondary';
-    cancelName.textContent = 'Abbrechen';
+    cancelName.textContent = translate('admin.cancel', 'Abbrechen');
     nameForm.append(name, saveName, cancelName);
     nameForm.addEventListener('submit', (event) => {
       event.preventDefault();
       updateHouse(house.id, { name: name.value });
     });
     const meta = document.createElement('span');
-    meta.textContent = `${house.users} Personen / ${house.resources} Ger\u00e4te`;
+    meta.textContent = translate('admin.peopleEquipment', '{people} Personen / {equipment} Geraete', {
+      people: house.users,
+      equipment: house.resources
+    });
     copy.append(title, meta, status);
     const actions = document.createElement('div');
     actions.className = 'house-admin-actions';
     const editButton = document.createElement('button');
     editButton.type = 'button';
     editButton.className = 'secondary';
-    editButton.textContent = 'Umbenennen';
+    editButton.textContent = translate('admin.rename', 'Umbenennen');
     editButton.addEventListener('click', () => {
       nameForm.hidden = false;
       editButton.disabled = true;
@@ -4510,13 +4847,17 @@ function renderHouses(houses) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary';
-    button.textContent = Number(house.id) === Number(currentUser.activeHouseId) ? 'Aktiv' : 'Anzeigen';
+    button.textContent = Number(house.id) === Number(currentUser.activeHouseId)
+      ? translate('admin.active', 'Aktiv')
+      : translate('admin.show', 'Anzeigen');
     button.disabled = !house.active || Number(house.id) === Number(currentUser.activeHouseId);
     button.addEventListener('click', () => switchHouse(house.id));
     const activeButton = document.createElement('button');
     activeButton.type = 'button';
     activeButton.className = house.active ? 'secondary danger' : 'secondary';
-    activeButton.textContent = house.active ? 'Deaktivieren' : 'Aktivieren';
+    activeButton.textContent = house.active
+      ? translate('admin.deactivate', 'Deaktivieren')
+      : translate('admin.activate', 'Aktivieren');
     activeButton.disabled = Number(house.id) === Number(currentUser.activeHouseId);
     activeButton.addEventListener('click', () => updateHouse(house.id, { active: !Boolean(house.active) }));
     actions.append(button, editButton, activeButton);
@@ -4539,14 +4880,14 @@ async function updateHouse(houseId, changes) {
 }
 
 function maintenanceActionOptions(status) {
-  const options = [{ value: 'note', label: 'Notiz erg\u00e4nzen' }];
-  if (status === 'reported') options.unshift({ value: 'block', label: 'Ressource sperren' });
-  if (status === 'blocked') options.unshift({ value: 'repair', label: 'Reparatur dokumentieren' });
+  const options = [{ value: 'note', label: translate('admin.addNote', 'Notiz ergaenzen') }];
+  if (status === 'reported') options.unshift({ value: 'block', label: translate('admin.blockResource', 'Ressource sperren') });
+  if (status === 'blocked') options.unshift({ value: 'repair', label: translate('admin.documentRepair', 'Reparatur dokumentieren') });
   if (status === 'repairing') {
-    options.unshift({ value: 'test', label: 'Funktionspr\u00fcfung dokumentieren' });
-    options.unshift({ value: 'repair', label: 'Weitere Reparatur dokumentieren' });
+    options.unshift({ value: 'test', label: translate('admin.documentTest', 'Funktionspruefung dokumentieren') });
+    options.unshift({ value: 'repair', label: translate('admin.documentMoreRepair', 'Weitere Reparatur dokumentieren') });
   }
-  if (status === 'tested') options.unshift({ value: 'release', label: 'Freigeben und abschliessen' });
+  if (status === 'tested') options.unshift({ value: 'release', label: translate('admin.release', 'Freigeben und abschliessen') });
   return options;
 }
 
@@ -4570,7 +4911,7 @@ function renderMaintenanceCases() {
 
   maintenanceCaseList.innerHTML = '';
   if (!filtered.length) {
-    maintenanceCaseList.innerHTML = '<div class="maintenance-empty"><strong>Keine passenden Tagebuchf\u00e4lle.</strong><span>Suche oder Statusfilter anpassen.</span></div>';
+    maintenanceCaseList.innerHTML = `<div class="maintenance-empty"><strong>${escapeHtml(translate('admin.noLogCases', 'Keine passenden Tagebuchfaelle.'))}</strong><span>${escapeHtml(translate('admin.adjustLogFilter', 'Suche oder Statusfilter anpassen.'))}</span></div>`;
     return;
   }
 
@@ -4587,31 +4928,31 @@ function renderMaintenanceCases() {
     heading.className = 'maintenance-case-head';
     heading.innerHTML = `
       <div>
-        <span class="maintenance-resource">${escapeHtml(maintenanceCase.resource_name || 'Ressource entfernt')}</span>
+        <span class="maintenance-resource">${escapeHtml(maintenanceCase.resource_name || translate('admin.resourceRemoved', 'Ressource entfernt'))}</span>
         <h4>${escapeHtml(maintenanceCase.title)}</h4>
         <p>${escapeHtml(maintenanceCase.description)}</p>
       </div>
-      <span class="maintenance-status status-${escapeHtml(maintenanceCase.status)}">${escapeHtml(maintenanceStatusLabels[maintenanceCase.status] || maintenanceCase.status)}</span>
+      <span class="maintenance-status status-${escapeHtml(maintenanceCase.status)}">${escapeHtml(maintenanceStatusLabel(maintenanceCase.status))}</span>
     `;
     const meta = document.createElement('div');
     meta.className = 'maintenance-case-meta';
     meta.innerHTML = `
-      <span>Gemeldet von ${escapeHtml(maintenanceCase.reported_by_name)}</span>
-      <span>${escapeHtml(new Date(maintenanceCase.created_at).toLocaleString('de-CH'))}</span>
+      <span>${escapeHtml(translate('admin.reportedBy', 'Gemeldet von {name}', { name: maintenanceCase.reported_by_name }))}</span>
+      <span>${escapeHtml(new Date(maintenanceCase.created_at).toLocaleString(activeLocale()))}</span>
       ${currentUser.isSuperadmin ? `<span>${escapeHtml(maintenanceCase.house_name)}</span>` : ''}
     `;
 
     const history = document.createElement('details');
     history.className = 'maintenance-history';
     const summary = document.createElement('summary');
-    summary.textContent = `Chronik (${maintenanceCase.entries.length})`;
+    summary.textContent = translate('admin.history', 'Chronik ({count})', { count: maintenanceCase.entries.length });
     const timeline = document.createElement('ol');
     timeline.className = 'maintenance-timeline';
     for (const entry of maintenanceCase.entries) {
       const row = document.createElement('li');
       row.className = `entry-${entry.entry_type}`;
       row.innerHTML = `
-        <div><strong>${escapeHtml(maintenanceEntryLabels[entry.entry_type] || entry.entry_type)}</strong><span>${escapeHtml(new Date(entry.created_at).toLocaleString('de-CH'))}</span></div>
+        <div><strong>${escapeHtml(maintenanceEntryLabel(entry.entry_type))}</strong><span>${escapeHtml(new Date(entry.created_at).toLocaleString(activeLocale()))}</span></div>
         <p>${escapeHtml(entry.note)}</p>
         <small>${escapeHtml(entry.created_by_name)}</small>
       `;
@@ -4623,7 +4964,7 @@ function renderMaintenanceCases() {
     actionForm.className = 'maintenance-action-form';
     const actionLabel = document.createElement('label');
     actionLabel.className = 'maintenance-step-field';
-    actionLabel.textContent = 'N\u00e4chster Schritt';
+    actionLabel.textContent = translate('admin.nextStep', 'Naechster Schritt');
     const actionSelect = document.createElement('select');
     for (const optionData of maintenanceActionOptions(maintenanceCase.status)) {
       const option = document.createElement('option');
@@ -4634,32 +4975,32 @@ function renderMaintenanceCases() {
     actionLabel.append(actionSelect);
     const testLabel = document.createElement('label');
     testLabel.className = 'maintenance-test-field';
-    testLabel.textContent = 'Pr\u00fcfergebnis';
+    testLabel.textContent = translate('admin.testResult', 'Pruefergebnis');
     const testResult = document.createElement('select');
-    testResult.innerHTML = '<option value="true">Erfolgreich</option><option value="false">Nicht erfolgreich</option>';
+    testResult.innerHTML = `<option value="true">${escapeHtml(translate('admin.successful', 'Erfolgreich'))}</option><option value="false">${escapeHtml(translate('admin.unsuccessful', 'Nicht erfolgreich'))}</option>`;
     testLabel.append(testResult);
     testLabel.hidden = actionSelect.value !== 'test';
     actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
     const noteLabel = document.createElement('label');
     noteLabel.className = 'maintenance-note-field';
-    noteLabel.textContent = 'Dokumentation';
+    noteLabel.textContent = translate('admin.documentation', 'Dokumentation');
     const note = document.createElement('textarea');
     note.rows = 3;
     note.maxLength = 1000;
     note.required = true;
     note.placeholder = maintenanceCase.status === 'tested'
-      ? 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.'
-      : 'Sachlich festhalten, was gemacht oder festgestellt wurde.';
+      ? translate('admin.releaseNotePlaceholder', 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.')
+      : translate('admin.notePlaceholder', 'Sachlich festhalten, was gemacht oder festgestellt wurde.');
     noteLabel.append(note);
     const submit = document.createElement('button');
     submit.type = 'submit';
-    submit.textContent = 'Eintrag speichern';
+    submit.textContent = translate('admin.saveEntry', 'Eintrag speichern');
     actionSelect.addEventListener('change', () => {
       testLabel.hidden = actionSelect.value !== 'test';
       actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
       note.placeholder = actionSelect.value === 'release'
-        ? 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.'
-        : 'Sachlich festhalten, was gemacht oder festgestellt wurde.';
+        ? translate('admin.releaseNotePlaceholder', 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.')
+        : translate('admin.notePlaceholder', 'Sachlich festhalten, was gemacht oder festgestellt wurde.');
     });
     actionForm.append(actionLabel, testLabel, noteLabel, submit);
     actionForm.addEventListener('submit', async (event) => {
@@ -4694,15 +5035,15 @@ function renderAdminResources(items) {
   const activeCount = items.filter((resource) => resource.active).length;
   const blockedCount = items.length - activeCount;
   resourceOverview.innerHTML = `
-    <div><strong>${items.length}</strong><span>Ger&auml;te &amp; R&auml;ume</span></div>
-    <div><strong>${activeCount}</strong><span>einsatzbereit</span></div>
-    <div class="${blockedCount ? 'is-warning' : ''}"><strong>${blockedCount}</strong><span>gesperrt</span></div>
+    <div><strong>${items.length}</strong><span>${escapeHtml(translate('admin.inventoryTotal', 'Geraete & Raeume'))}</span></div>
+    <div><strong>${activeCount}</strong><span>${escapeHtml(translate('admin.readyLower', 'einsatzbereit'))}</span></div>
+    <div class="${blockedCount ? 'is-warning' : ''}"><strong>${blockedCount}</strong><span>${escapeHtml(translate('admin.blockedLower', 'gesperrt'))}</span></div>
   `;
 
   const groups = [
-    { type: 'washer', label: 'Waschmaschinen' },
-    { type: 'drying_room', label: 'Trockenr&auml;ume' },
-    { type: 'tumbler', label: 'Tumbler' }
+    { type: 'washer', label: translate('admin.washers', 'Waschmaschinen') },
+    { type: 'drying_room', label: translate('admin.dryingRooms', 'Trockenraeume') },
+    { type: 'tumbler', label: translate('admin.dryers', 'Tumbler') }
   ];
 
   for (const groupData of groups) {
@@ -4712,17 +5053,20 @@ function renderAdminResources(items) {
     const heading = document.createElement('div');
     heading.className = 'admin-list-heading';
     const headingTitle = document.createElement('h4');
-    headingTitle.innerHTML = groupData.label;
+    headingTitle.textContent = groupData.label;
     const headingMeta = document.createElement('span');
     const readyCount = groupItems.filter((resource) => resource.active).length;
-    headingMeta.textContent = `${readyCount} von ${groupItems.length} einsatzbereit`;
+    headingMeta.textContent = translate('admin.readyCount', '{ready} von {total} einsatzbereit', {
+      ready: readyCount,
+      total: groupItems.length
+    });
     heading.append(headingTitle, headingMeta);
     group.append(heading);
 
     if (!groupItems.length) {
       const empty = document.createElement('p');
       empty.className = 'admin-empty-row';
-      empty.textContent = 'Noch kein Eintrag in diesem Bereich.';
+      empty.textContent = translate('admin.noInventoryEntry', 'Noch kein Eintrag in diesem Bereich.');
       group.append(empty);
     }
 
@@ -4735,12 +5079,14 @@ function renderAdminResources(items) {
       title.textContent = resource.name;
       const status = document.createElement('span');
       status.className = `admin-state-chip ${resource.active ? 'is-active' : 'is-blocked'}`;
-      status.textContent = resource.active ? 'Einsatzbereit' : 'Gesperrt';
+      status.textContent = resource.active
+        ? translate('admin.ready', 'Einsatzbereit')
+        : translate('admin.statusBlocked', 'Gesperrt');
       copy.append(title, status);
       if (!resource.active) {
         const reason = document.createElement('span');
         reason.className = 'admin-block-reason';
-        reason.textContent = resource.blocked_reason || 'Kein Sperrgrund hinterlegt';
+        reason.textContent = resource.blocked_reason || translate('admin.noBlockReason', 'Kein Sperrgrund hinterlegt');
         copy.append(reason);
       }
 
@@ -4749,14 +5095,16 @@ function renderAdminResources(items) {
       const editButton = document.createElement('button');
       editButton.type = 'button';
       editButton.className = 'secondary';
-      editButton.textContent = 'Umbenennen';
+      editButton.textContent = translate('admin.rename', 'Umbenennen');
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = resource.active ? 'secondary danger' : 'secondary';
-      toggle.textContent = resource.active ? 'Sperren' : 'Tagebuch öffnen';
+      toggle.textContent = resource.active
+        ? translate('admin.block', 'Sperren')
+        : translate('admin.openLogbook', 'Tagebuch öffnen');
       toggle.addEventListener('click', () => {
         if (resource.active) {
-          const reason = window.prompt('Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.');
+          const reason = window.prompt(translate('admin.blockPrompt', 'Warum wird dieses Geraet gesperrt? Zum Beispiel: Defekt, Wartung, Reinigung.'));
           if (!reason) return;
           updateResource(resource.id, { active: false, blockReason: reason });
           return;
@@ -4774,15 +5122,15 @@ function renderAdminResources(items) {
       const input = document.createElement('input');
       input.value = resource.name;
       input.maxLength = 80;
-      input.setAttribute('aria-label', `Name von ${resource.name}`);
+      input.setAttribute('aria-label', translate('admin.nameOf', 'Name von {name}', { name: resource.name }));
       const save = document.createElement('button');
       save.type = 'submit';
       save.className = 'secondary';
-      save.textContent = 'Speichern';
+      save.textContent = translate('admin.save', 'Speichern');
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'secondary';
-      cancel.textContent = 'Abbrechen';
+      cancel.textContent = translate('admin.cancel', 'Abbrechen');
       form.append(input, save, cancel);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -4840,46 +5188,46 @@ async function createResource() {
 
 function renderAuditLog(entries) {
   const actionLabels = {
-    'user.status': 'Kontostatus ge\u00e4ndert',
-    'user.password_reset_requested': 'Passwort-Link gesendet',
-    'user.recovery_code_created': 'Wiederherstellungscode erstellt',
-    'user.recovery_completed': 'Konto wiederhergestellt',
-    'user.role': 'Rolle ge\u00e4ndert',
-    'user.move': 'Konto verschoben',
-    'house.create': 'Haus angelegt',
-    'house.update': 'Haus aktualisiert',
-    'house.code': 'Hauscode ge\u00e4ndert',
-    'resource.create': 'Ger\u00e4t angelegt',
-    'resource.update': 'Ger\u00e4t aktualisiert',
-    'resource.block': 'Ressource gesperrt',
-    'resource.unblock': 'Ressource freigegeben',
-    'maintenance_case.report': 'St\u00f6rung gemeldet',
-    'maintenance_case.note': 'Tagebuchnotiz ergaenzt',
-    'maintenance_case.block': 'Tagebuchsperre gesetzt',
-    'maintenance_case.repair': 'Reparatur dokumentiert',
-    'maintenance_case.test': 'Funktionspruefung dokumentiert',
-    'maintenance_case.release': 'Ressource geprueft freigegeben',
-    'fixed_booking.create': 'Feste Buchung angelegt',
-    'fixed_booking.delete': 'Feste Buchung entfernt',
-    'bookings.reset': 'Buchungen zurueckgesetzt',
-    'apartment.invitation_created': 'Wohnungseinladung erstellt',
-    'apartment.invitation_renewed': 'Wohnungseinladung erneuert',
-    'apartment.invitation_accepted': 'Wohnungseinladung angenommen',
-    'push.test': 'Push-Test gesendet',
-    'superadmin.grant': 'Superadminrecht gegeben',
-    'superadmin.revoke': 'Superadminrecht entzogen',
-    'superadmin.transfer': 'Superadmin uebergeben',
-    'backup.download': 'Backup heruntergeladen',
-    'backup.create': 'Backup erstellt',
-    'maintenance.start': 'Wartungsmodus gestartet',
-    'maintenance.finish': 'Wartungsmodus beendet',
-    'maintenance.check_failed': 'Wartungspruefung fehlgeschlagen'
+    'user.status': translate('audit.userStatus', 'Kontostatus geaendert'),
+    'user.password_reset_requested': translate('audit.passwordReset', 'Passwort-Link gesendet'),
+    'user.recovery_code_created': translate('audit.recoveryCreated', 'Wiederherstellungscode erstellt'),
+    'user.recovery_completed': translate('audit.recoveryCompleted', 'Konto wiederhergestellt'),
+    'user.role': translate('audit.userRole', 'Rolle geaendert'),
+    'user.move': translate('audit.userMove', 'Konto verschoben'),
+    'house.create': translate('audit.houseCreate', 'Haus angelegt'),
+    'house.update': translate('audit.houseUpdate', 'Haus aktualisiert'),
+    'house.code': translate('audit.houseCode', 'Hauscode geaendert'),
+    'resource.create': translate('audit.resourceCreate', 'Geraet angelegt'),
+    'resource.update': translate('audit.resourceUpdate', 'Geraet aktualisiert'),
+    'resource.block': translate('audit.resourceBlock', 'Ressource gesperrt'),
+    'resource.unblock': translate('audit.resourceUnblock', 'Ressource freigegeben'),
+    'maintenance_case.report': translate('audit.issueReport', 'Stoerung gemeldet'),
+    'maintenance_case.note': translate('audit.logNote', 'Tagebuchnotiz ergaenzt'),
+    'maintenance_case.block': translate('audit.logBlock', 'Tagebuchsperre gesetzt'),
+    'maintenance_case.repair': translate('audit.repair', 'Reparatur dokumentiert'),
+    'maintenance_case.test': translate('audit.test', 'Funktionspruefung dokumentiert'),
+    'maintenance_case.release': translate('audit.release', 'Ressource geprueft freigegeben'),
+    'fixed_booking.create': translate('audit.fixedCreate', 'Feste Buchung angelegt'),
+    'fixed_booking.delete': translate('audit.fixedDelete', 'Feste Buchung entfernt'),
+    'bookings.reset': translate('audit.bookingsReset', 'Buchungen zurueckgesetzt'),
+    'apartment.invitation_created': translate('audit.invitationCreate', 'Wohnungseinladung erstellt'),
+    'apartment.invitation_renewed': translate('audit.invitationRenew', 'Wohnungseinladung erneuert'),
+    'apartment.invitation_accepted': translate('audit.invitationAccept', 'Wohnungseinladung angenommen'),
+    'push.test': translate('audit.pushTest', 'Push-Test gesendet'),
+    'superadmin.grant': translate('audit.superGrant', 'Superadminrecht gegeben'),
+    'superadmin.revoke': translate('audit.superRevoke', 'Superadminrecht entzogen'),
+    'superadmin.transfer': translate('audit.superTransfer', 'Superadmin uebergeben'),
+    'backup.download': translate('audit.backupDownload', 'Backup heruntergeladen'),
+    'backup.create': translate('audit.backupCreate', 'Backup erstellt'),
+    'maintenance.start': translate('audit.maintenanceStart', 'Wartungsmodus gestartet'),
+    'maintenance.finish': translate('audit.maintenanceFinish', 'Wartungsmodus beendet'),
+    'maintenance.check_failed': translate('audit.maintenanceFailed', 'Wartungspruefung fehlgeschlagen')
   };
-  auditLog.innerHTML = entries.length ? '' : '<p class="muted">Noch keine protokollierten Admin-Aktionen.</p>';
+  auditLog.innerHTML = entries.length ? '' : `<p class="muted">${escapeHtml(translate('admin.noAudit', 'Noch keine protokollierten Admin-Aktionen.'))}</p>`;
   for (const entry of entries) {
     const item = document.createElement('div');
     item.className = 'audit-item';
-    item.innerHTML = `<strong>${escapeHtml(actionLabels[entry.action] || entry.action)}</strong><span>${escapeHtml(entry.actor || 'System')} - ${escapeHtml(new Date(`${entry.created_at}Z`).toLocaleString('de-CH'))}</span>`;
+    item.innerHTML = `<strong>${escapeHtml(actionLabels[entry.action] || entry.action)}</strong><span>${escapeHtml(entry.actor || translate('admin.systemActor', 'System'))} - ${escapeHtml(new Date(`${entry.created_at}Z`).toLocaleString(activeLocale()))}</span>`;
     auditLog.append(item);
   }
 }
@@ -4961,7 +5309,7 @@ function populateFixedBookingControls() {
 function renderFixedBookings(items) {
   fixedBookingList.innerHTML = '';
   if (!items.length) {
-    fixedBookingList.innerHTML = '<p class="muted">Noch keine festen Buchungen.</p>';
+    fixedBookingList.innerHTML = `<p class="muted">${escapeHtml(translate('admin.noFixed', 'Noch keine festen Buchungen.'))}</p>`;
     return;
   }
 
@@ -4977,7 +5325,7 @@ function renderFixedBookings(items) {
     item.innerHTML = `
       <div>
         <strong>${escapeHtml(booking.label)}</strong>
-        <span>${escapeHtml(weekdayLabels[booking.weekday])} - ${escapeHtml(booking.slot)}</span>
+        <span>${escapeHtml(weekdayLabel(booking.weekday))} - ${escapeHtml(booking.slot)}</span>
         <span>${escapeHtml(booking.resource_name)}</span>
       </div>
     `;
@@ -4985,7 +5333,7 @@ function renderFixedBookings(items) {
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = 'Entfernen';
+    deleteButton.textContent = translate('admin.remove', 'Entfernen');
     deleteButton.addEventListener('click', () => deleteFixedBooking(booking.id));
 
     item.append(deleteButton);
@@ -5132,7 +5480,7 @@ sessionLogoutButton.addEventListener('click', async () => {
   } catch {}
   window.location.replace('/login.html?loggedOut=1');
 });
-let diaperGameRoundMs = 45000;
+let diaperGameRoundMs = 60000;
 let diaperGamePenaltyMs = 4500;
 let diaperGameMaxMistakes = 3;
 const diaperSignalOptions = [
@@ -5163,6 +5511,10 @@ let diaperGameAudioContext = null;
 let diaperFinalHoldStartedAt = 0;
 let diaperTemperatureValue = 0;
 let diaperCodeEntry = '';
+let diaperGameIncident = null;
+let diaperGameIncidentPlayed = false;
+let diaperCircuitPath = [];
+let diaperLockPositions = [0, 0, 0];
 
 function diaperGameBest() {
   return diaperLeaderboardState.own ? diaperLeaderboardState.own.timeMs / 1000 : null;
@@ -5205,15 +5557,16 @@ function setDiaperGameMode(mode) {
   practiceDiaperModeButton.setAttribute('aria-pressed', String(!ranked));
   diaperMissionLabel.textContent = ranked ? 'Tagesmission' : '\u00dcbungsmodus';
   diaperMissionBrief.textContent = ranked
-    ? 'Heute l\u00f6sen alle H\u00e4user dieselbe Mission. Fehler werden auf die Ranglistenzeit gerechnet.'
-    : 'Ungewertete Trainingsrunde mit neu gemischten Systemen und denselben drei Fehlerleben.';
+    ? 'Heute l\u00f6sen alle H\u00e4user dieselbe Mission samt Zwischenfall. Fehler werden auf die Ranglistenzeit gerechnet.'
+    : 'Ungewerteter Einsatz mit neu gemischten Systemvarianten und einem zuf\u00e4lligen Zwischenfall.';
 }
 
 function renderDiaperGameProgress() {
   const best = diaperGameBest();
-  const progress = Math.min(diaperGameModuleIndex, 3);
-  const phase = diaperGameModuleIndex === 3 ? ' \u00b7 Finale' : diaperGameModuleIndex >= 4 ? ' \u00b7 Entsch\u00e4rft' : '';
-  diaperGameProgress.textContent = `${progress} von 3 Modulen${phase} \u00b7 Tagesbestwert: ${best ? `${best.toFixed(1)} s` : '\u2013'}`;
+  const moduleCount = diaperGameModules.length || 4;
+  const progress = Math.min(diaperGameModuleIndex, moduleCount);
+  const phase = diaperGameModuleIndex === moduleCount ? ' \u00b7 Finale' : diaperGameModuleIndex > moduleCount ? ' \u00b7 Entsch\u00e4rft' : '';
+  diaperGameProgress.textContent = `${progress} von ${moduleCount} Modulen${phase} \u00b7 Tagesbestwert: ${best ? `${best.toFixed(1)} s` : '\u2013'}`;
   diaperStepRailSegments.forEach((segment, index) => {
     segment.classList.toggle('is-complete', index < diaperGameModuleIndex);
     segment.classList.toggle('is-current', diaperGameRunning && index === diaperGameModuleIndex);
@@ -5290,6 +5643,7 @@ function stopDiaperGame() {
   diaperGameRunning = false;
   diaperGameSubmitting = false;
   diaperFinalHoldStartedAt = 0;
+  diaperIncident.hidden = true;
   const gameModal = diaperGameOverlay.querySelector('.diaper-game-modal');
   if (gameModal) gameModal.dataset.gameRunning = 'false';
   rankedDiaperModeButton.disabled = false;
@@ -5327,7 +5681,7 @@ async function winDiaperGame(holdMs) {
       method: 'POST',
       body: JSON.stringify({ token: diaperGameRoundToken, holdMs })
     });
-    diaperGameModuleIndex = 4;
+    diaperGameModuleIndex = diaperGameModules.length + 1;
     stopDiaperGame();
     diaperGameStage.dataset.mood = 'happy';
     diaperGameStage.classList.add('is-defused');
@@ -5396,6 +5750,54 @@ async function submitDiaperGameModule(answer) {
   }
 }
 
+const diaperIncidentCopy = {
+  'baby-kick': {
+    icon: '\u2736',
+    title: 'Baby strampelt!',
+    text: 'Die Windel verrutscht. Bauteile werden neu ausgerichtet.',
+    className: 'incident-kick'
+  },
+  blackout: {
+    icon: '\u25d0',
+    title: 'Kurzschluss!',
+    text: 'Das Licht f\u00e4llt aus. Die Notbeleuchtung springt an.',
+    className: 'incident-blackout'
+  },
+  'pressure-surge': {
+    icon: '\u21c8',
+    title: 'Druckspitze!',
+    text: 'Der Z\u00fcndruck steigt sprunghaft. Ruhig weiterarbeiten.',
+    className: 'incident-surge'
+  },
+  'scanner-fog': {
+    icon: '\u25cc',
+    title: 'Scanner beschlagen!',
+    text: 'Die Sicht kehrt gleich zur\u00fcck. Merke dir die Positionen.',
+    className: 'incident-fog'
+  }
+};
+
+function playDiaperIncident() {
+  if (!diaperGameRunning || !diaperGameIncident || diaperGameIncidentPlayed) return false;
+  diaperGameIncidentPlayed = true;
+  const copy = diaperIncidentCopy[diaperGameIncident.type] || diaperIncidentCopy['baby-kick'];
+  diaperIncidentIcon.textContent = copy.icon;
+  diaperIncidentTitle.textContent = copy.title;
+  diaperIncidentText.textContent = copy.text;
+  diaperIncident.className = `diaper-incident ${copy.className}`;
+  diaperIncident.hidden = false;
+  diaperGameStage.classList.add(copy.className, 'has-incident');
+  diaperGameStatus.textContent = `${copy.title} ${copy.text}`;
+  playDiaperTone(copy.className === 'incident-blackout' ? 90 : 180, 260, 'sawtooth');
+  vibrateDiaperGame([45, 35, 90]);
+  scheduleDiaperGameTask(() => {
+    diaperIncident.hidden = true;
+    diaperGameStage.classList.remove(copy.className, 'has-incident');
+    renderCurrentDiaperGameModule();
+  }, 1450);
+  return true;
+}
+
 function completeDiaperGameModule(message) {
   if (!diaperGameRunning) return;
   diaperGameModuleIndex += 1;
@@ -5404,7 +5806,10 @@ function completeDiaperGameModule(message) {
   window.requestAnimationFrame(() => diaperGameStage.classList.add('module-cleared'));
   renderDiaperGameProgress();
   for (const button of diaperGameActions.querySelectorAll('button')) button.disabled = true;
-  scheduleDiaperGameTask(renderCurrentDiaperGameModule, 420);
+  scheduleDiaperGameTask(() => {
+    if (diaperGameIncident?.afterModule === diaperGameModuleIndex && playDiaperIncident()) return;
+    renderCurrentDiaperGameModule();
+  }, 520);
 }
 
 async function chooseDiaperWire(wireId) {
@@ -5431,7 +5836,7 @@ function playDiaperSignalSequence() {
   module.inputIndex = 0;
   module.entered = [];
   module.accepting = false;
-  diaperGameStatus.textContent = 'Beobachte die vier Impulse. Noch nichts dr\u00fccken.';
+  diaperGameStatus.textContent = `Beobachte ${module.sequence.length} Impulse. Noch nichts dr\u00fccken.`;
   diaperGameActions.querySelectorAll('button').forEach((button) => { button.disabled = true; });
   module.sequence.forEach((signalId, index) => {
     scheduleDiaperGameTask(() => {
@@ -5439,7 +5844,7 @@ function playDiaperSignalSequence() {
       const lamp = diaperGameActions.querySelector(`[data-signal-lamp="${signalId}"]`);
       lamp?.classList.add('is-active');
       scheduleDiaperGameTask(() => lamp?.classList.remove('is-active'), 260);
-    }, 380 + index * 520);
+    }, 360 + index * module.playbackMs);
   });
   scheduleDiaperGameTask(() => {
     if (!diaperGameRunning || diaperGameModuleIndex !== moduleNumber) return;
@@ -5447,7 +5852,7 @@ function playDiaperSignalSequence() {
     diaperGameActions.querySelectorAll('button').forEach((button) => { button.disabled = false; });
     diaperGameStatus.textContent = 'Jetzt: Wiederhole die Impulsfolge.';
     diaperGameActions.querySelector('button')?.focus({ preventScroll: true });
-  }, 380 + module.sequence.length * 520);
+  }, 360 + module.sequence.length * module.playbackMs);
 }
 
 async function chooseDiaperSignal(signalId) {
@@ -5502,12 +5907,14 @@ async function lockDiaperPressureValve() {
 
 function updateDiaperCodeDisplay() {
   const display = diaperGameActions.querySelector('[data-code-display]');
-  if (display) display.textContent = diaperCodeEntry.padEnd(3, '\u00b7');
+  const length = diaperGameModules[diaperGameModuleIndex]?.codeSymbols?.length || 3;
+  if (display) display.textContent = diaperCodeEntry.padEnd(length, '\u00b7');
 }
 
 async function submitDiaperCode() {
-  if (diaperCodeEntry.length !== 3) {
-    diaperGameStatus.textContent = 'Der Entsch\u00e4rfungscode braucht genau drei Ziffern.';
+  const length = diaperGameModules[diaperGameModuleIndex]?.codeSymbols?.length || 3;
+  if (diaperCodeEntry.length !== length) {
+    diaperGameStatus.textContent = `Der Entsch\u00e4rfungscode braucht genau ${length} Ziffern.`;
     return;
   }
   const result = await submitDiaperGameModule({ code: diaperCodeEntry });
@@ -5550,6 +5957,54 @@ async function chooseDiaperLeakZone(zone) {
   }
   diaperGameMistake(result, 'Falscher Sektor! Das Leck wandert zur\u00fcck in den Scan.');
   if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 450);
+}
+
+async function chooseDiaperCircuitNode(node) {
+  if (!diaperGameRunning || diaperGameSubmitting) return;
+  const module = diaperGameModules[diaperGameModuleIndex];
+  if (!module || module.type !== 'circuit') return;
+  const expected = module.path[diaperCircuitPath.length];
+  const button = diaperGameActions.querySelector(`[data-circuit-node="${node}"]`);
+  if (node !== expected) {
+    const result = await submitDiaperGameModule({ path: [...diaperCircuitPath, node] });
+    if (!result) return;
+    diaperCircuitPath = [];
+    diaperGameMistake(result, 'Leiterbahn unterbrochen! Die Route wird neu projiziert.');
+    if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 480);
+    return;
+  }
+  diaperCircuitPath.push(node);
+  button?.classList.add('is-linked');
+  button?.setAttribute('aria-pressed', 'true');
+  playDiaperTone(320 + diaperCircuitPath.length * 55, 70, 'triangle');
+  diaperGameStatus.textContent = `Leiterbahn ${diaperCircuitPath.length} von ${module.path.length} verbunden.`;
+  if (diaperCircuitPath.length !== module.path.length) return;
+  const result = await submitDiaperGameModule({ path: diaperCircuitPath });
+  if (!result) return;
+  if (result.correct) completeDiaperGameModule('Energiepfad geschlossen. Leiterbahn stabil.');
+  else diaperGameMistake(result, 'Die Leiterbahn wurde vom Server abgewiesen.');
+}
+
+function rotateDiaperLock(ring, direction) {
+  if (!diaperGameRunning || diaperGameSubmitting) return;
+  const index = Number(ring);
+  diaperLockPositions[index] = (diaperLockPositions[index] + Number(direction) + 8) % 8;
+  const dial = diaperGameActions.querySelector(`[data-lock-ring="${index}"] .lock-dial`);
+  const value = diaperGameActions.querySelector(`[data-lock-value="${index}"]`);
+  if (dial) dial.style.setProperty('--lock-angle', `${diaperLockPositions[index] * 45}deg`);
+  if (value) value.textContent = String(diaperLockPositions[index] + 1);
+  playDiaperTone(220 + index * 80, 45, 'square');
+}
+
+async function submitDiaperLocks() {
+  const result = await submitDiaperGameModule({ positions: diaperLockPositions });
+  if (!result) return;
+  if (result.correct) {
+    completeDiaperGameModule('Alle Sicherungsringe eingerastet. Mechanik verriegelt.');
+    return;
+  }
+  diaperGameMistake(result, 'Ringstellung falsch! Die Mechanik springt zurueck.');
+  if (diaperGameRunning) scheduleDiaperGameTask(renderCurrentDiaperGameModule, 480);
 }
 
 function beginDiaperFinalHold(event) {
@@ -5596,18 +6051,41 @@ function renderCurrentDiaperGameModule() {
   renderDiaperGameProgress();
 
   if (module.type === 'wire') {
-    diaperMissionBrief.textContent = `Scannerhinweis: Trenne nur das Kabel mit dem Symbol ${module.targetSymbol}. Die Farben sind Ablenkung.`;
+    diaperMissionBrief.textContent = module.variant === 'color'
+      ? `Farbsensor: Durchtrenne die Leitung ${module.targetLabel}. Ziehe quer durch das Kabel.`
+      : module.variant === 'pulse'
+        ? `Pulscode: Die Leitung ${module.targetSymbol} ist mit dem Detonator synchron. Mit einer Wischbewegung trennen.`
+        : `Scannerhinweis: Trenne nur das Kabel mit dem Symbol ${module.targetSymbol}. Die Farben sind Ablenkung.`;
     diaperGameActions.innerHTML = `<div class="diaper-wire-rack" data-game-module="wire">${shuffleDiaperGameItems(module.options).map((wire, index) => `
       <button class="diaper-wire wire-${wire.id}" type="button" data-wire-id="${wire.id}" style="--order:${index}">
         <span class="wire-terminal" aria-hidden="true"></span><i aria-hidden="true"></i><strong>${wire.symbol}</strong><span>${wire.label}</span>
       </button>
     `).join('')}</div>`;
     diaperGameActions.querySelectorAll('[data-wire-id]').forEach((button) => {
-      button.addEventListener('click', () => chooseDiaperWire(button.dataset.wireId));
+      let pointerStart = null;
+      button.addEventListener('pointerdown', (event) => {
+        pointerStart = event.clientX;
+        button.classList.add('is-grabbed');
+      });
+      button.addEventListener('pointerup', (event) => {
+        button.classList.remove('is-grabbed');
+        if (pointerStart !== null && Math.abs(event.clientX - pointerStart) >= 18) {
+          button.dataset.swiped = 'true';
+          chooseDiaperWire(button.dataset.wireId);
+        }
+        pointerStart = null;
+      });
+      button.addEventListener('click', () => {
+        if (button.dataset.swiped === 'true') {
+          delete button.dataset.swiped;
+          return;
+        }
+        chooseDiaperWire(button.dataset.wireId);
+      });
     });
-    diaperGameStatus.textContent = 'Lies den Scannerhinweis. Ein falsches Kabel kostet Zeit.';
+    diaperGameStatus.textContent = 'Ziehe quer durch die richtige Leitung. Tastatur: Leitung ausw\u00e4hlen und Enter dr\u00fccken.';
   } else if (module.type === 'signal') {
-    diaperMissionBrief.textContent = 'Merke dir die aufblinkende Viererfolge und wiederhole sie danach exakt auf dem Tastenfeld.';
+    diaperMissionBrief.textContent = `Merke dir die aufblinkende ${module.sequence.length}er-Folge und wiederhole sie exakt auf dem Tastenfeld.`;
     diaperGameActions.innerHTML = `
       <div class="diaper-signal-bank" data-game-module="signal" data-signal-sequence="${module.sequence.join(',')}" aria-label="Impulsspeicher">
         <div class="signal-lamps" aria-hidden="true">${diaperSignalOptions.map((signal) => `<span class="signal-lamp signal-${signal.id}" data-signal-lamp="${signal.id}">${signal.symbol}</span>`).join('')}</div>
@@ -5635,19 +6113,20 @@ function renderCurrentDiaperGameModule() {
     diaperGameStatus.textContent = 'Warte auf den gr\u00fcnen Korridor \u2013 dann verriegeln!';
   } else if (module.type === 'code') {
     diaperCodeEntry = '';
-    diaperMissionBrief.textContent = 'Entschl\u00fcssle die drei Symbole mit der Zuordnung und gib den Code ein.';
+    const codeLength = module.codeSymbols.length;
+    diaperMissionBrief.textContent = `Entschl\u00fcssle die ${codeLength} Symbole mit der Zuordnung und gib den Code ein.`;
     diaperGameActions.innerHTML = `
       <div class="diaper-code-module" data-game-module="code" data-code-answer="${module.codeSymbols.map((symbol) => module.decoder[symbol]).join('')}">
         <div class="decoder-map" aria-label="Symbol-Ziffer-Zuordnung">${Object.entries(module.decoder).map(([symbol, digit]) => `<span><strong>${symbol}</strong><i>=</i><b>${digit}</b></span>`).join('')}</div>
         <div class="decoder-target" aria-label="Zu entschl\u00fcsselnder Code">${module.codeSymbols.map((symbol) => `<strong>${symbol}</strong>`).join('')}</div>
-        <output class="decoder-display" data-code-display aria-live="polite">\u00b7\u00b7\u00b7</output>
+        <output class="decoder-display" data-code-display aria-live="polite">${'\u00b7'.repeat(codeLength)}</output>
         <div class="decoder-keypad">${[1,2,3,4,5,6,7,8,9].map((digit) => `<button type="button" data-code-digit="${digit}">${digit}</button>`).join('')}
           <button type="button" data-code-delete aria-label="Letzte Ziffer l\u00f6schen">\u232b</button>
           <button class="decoder-confirm" type="button" data-code-confirm>Code pr\u00fcfen</button>
         </div>
       </div>`;
     diaperGameActions.querySelectorAll('[data-code-digit]').forEach((button) => button.addEventListener('click', () => {
-      if (diaperCodeEntry.length < 3) diaperCodeEntry += button.dataset.codeDigit;
+      if (diaperCodeEntry.length < codeLength) diaperCodeEntry += button.dataset.codeDigit;
       updateDiaperCodeDisplay();
     }));
     diaperGameActions.querySelector('[data-code-delete]').addEventListener('click', () => {
@@ -5687,8 +6166,40 @@ function renderCurrentDiaperGameModule() {
       wrapper?.querySelector('button')?.focus({ preventScroll: true });
     }, 1200);
     diaperGameActions.querySelectorAll('[data-leak-zone]').forEach((button) => button.addEventListener('click', () => chooseDiaperLeakZone(Number(button.dataset.leakZone))));
+  } else if (module.type === 'circuit') {
+    diaperCircuitPath = [];
+    diaperMissionBrief.textContent = `Verbinde die Energiepunkte in der projizierten Reihenfolge ${module.path.map((node) => node + 1).join(' - ')}.`;
+    diaperGameActions.innerHTML = `
+      <div class="diaper-circuit-module" data-game-module="circuit" data-circuit-path="${module.path.join(',')}">
+        <div class="circuit-energy" aria-hidden="true"><i></i><span>ENERGIEPFAD</span><b></b></div>
+        <div class="circuit-board">${Array.from({ length: 6 }, (_, node) => `
+          <button type="button" data-circuit-node="${node}" aria-pressed="false" style="--node:${node};--order:${node}"><span>${node + 1}</span><i aria-hidden="true"></i></button>
+        `).join('')}</div>
+      </div>`;
+    diaperGameActions.querySelectorAll('[data-circuit-node]').forEach((button) => {
+      button.addEventListener('click', () => chooseDiaperCircuitNode(Number(button.dataset.circuitNode)));
+    });
+    diaperGameStatus.textContent = 'Starte beim ersten projizierten Punkt und schliesse die Leiterbahn.';
+  } else if (module.type === 'locks') {
+    diaperLockPositions = [0, 0, 0];
+    diaperMissionBrief.textContent = `Drehe die drei Sicherungsringe auf ${module.targets.map((target) => target + 1).join(' - ')}.`;
+    diaperGameActions.innerHTML = `
+      <div class="diaper-lock-module" data-game-module="locks" data-lock-targets="${module.targets.join(',')}">
+        <div class="lock-rings">${module.targets.map((target, ring) => `
+          <section data-lock-ring="${ring}" aria-label="Sicherungsring ${ring + 1}, Ziel ${target + 1}">
+            <button type="button" data-lock-turn="-1" data-lock-index="${ring}" aria-label="Ring ${ring + 1} nach links drehen">\u2039</button>
+            <div class="lock-dial" style="--lock-angle:0deg"><i></i><strong data-lock-value="${ring}">1</strong><span>ZIEL ${target + 1}</span></div>
+            <button type="button" data-lock-turn="1" data-lock-index="${ring}" aria-label="Ring ${ring + 1} nach rechts drehen">\u203a</button>
+          </section>`).join('')}</div>
+        <button class="lock-confirm" type="button" data-lock-confirm>Ringe verriegeln</button>
+      </div>`;
+    diaperGameActions.querySelectorAll('[data-lock-turn]').forEach((button) => {
+      button.addEventListener('click', () => rotateDiaperLock(button.dataset.lockIndex, button.dataset.lockTurn));
+    });
+    diaperGameActions.querySelector('[data-lock-confirm]').addEventListener('click', submitDiaperLocks);
+    diaperGameStatus.textContent = 'Jeder Ring rastet sp\u00fcrbar in acht Positionen ein.';
   } else {
-    diaperMissionBrief.textContent = 'Alle drei Sicherungen sind gr\u00fcn. Halte den Z\u00fcndkreis mindestens 0,9 und h\u00f6chstens 1,8 Sekunden.';
+    diaperMissionBrief.textContent = 'Alle vier Sicherungen sind gr\u00fcn. Halte den Z\u00fcndkreis mindestens 0,9 und h\u00f6chstens 1,8 Sekunden.';
     diaperGameActions.innerHTML = `
       <div class="diaper-final-module" data-game-module="final">
         <div class="final-locks" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -5702,13 +6213,6 @@ function renderCurrentDiaperGameModule() {
     diaperGameStatus.textContent = 'Finale! Nicht tippen \u2013 kontrolliert gedr\u00fcckt halten.';
     diaperGameActions.querySelector('button')?.focus({ preventScroll: true });
   }
-  if (window.matchMedia('(max-width: 620px)').matches) {
-    window.requestAnimationFrame(() => {
-      const modal = diaperGameOverlay.querySelector('.diaper-game-modal');
-      const panel = diaperGameActions.closest('.diaper-tool-panel');
-      if (modal && panel) modal.scrollTo({ top: Math.max(0, panel.offsetTop - 58), behavior: 'auto' });
-    });
-  }
 }
 
 function updateDiaperGameClock() {
@@ -5718,9 +6222,12 @@ function updateDiaperGameClock() {
   diaperCountdown.textContent = formatDiaperCountdown(remaining);
   diaperCountdown.classList.toggle('is-critical', remaining <= 10000);
   setDiaperPressure(100 - (remaining / diaperGameRoundMs) * 100);
-  const module = diaperGameModules[diaperGameModuleIndex];
+  const module = diaperGameModules[diaperGameModuleIndex] || (
+    diaperGameModuleIndex === diaperGameModules.length ? { type: 'final' } : null
+  );
   if (module?.type === 'valve') {
-    const phase = ((now - diaperGameModuleStartedAt) % 1800) / 1800;
+    const sweepMs = Number(module.sweepMs || 1800);
+    const phase = ((now - diaperGameModuleStartedAt) % sweepMs) / sweepMs;
     diaperValvePosition = phase <= 0.5 ? phase * 200 : (1 - phase) * 200;
     const needle = diaperGameActions.querySelector('#diaperValveNeedle');
     if (needle) needle.style.left = `${diaperValvePosition}%`;
@@ -5759,6 +6266,7 @@ async function startDiaperGame() {
     diaperGameRoundMs = round.roundMs;
     diaperGamePenaltyMs = round.penaltyMs;
     diaperGameMaxMistakes = round.maxMistakes;
+    diaperGameIncident = round.incident;
   } catch (error) {
     diaperGameStatus.textContent = error.message;
     startDiaperGameButton.disabled = false;
@@ -5766,10 +6274,11 @@ async function startDiaperGame() {
   }
   diaperGameModuleIndex = 0;
   diaperGameMistakes = 0;
+  diaperGameIncidentPlayed = false;
   diaperGameRunning = true;
   diaperGameStartedAt = performance.now();
   diaperGameDeadline = diaperGameStartedAt + diaperGameRoundMs;
-  diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared');
+  diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared', 'incident-kick', 'incident-blackout', 'incident-surge', 'incident-fog', 'has-incident');
   diaperGameOverlay.querySelector('.diaper-game-modal').dataset.gameRunning = 'true';
   diaperCountdown.classList.remove('is-critical');
   diaperCountdown.textContent = formatDiaperCountdown(diaperGameRoundMs);
@@ -5784,6 +6293,12 @@ async function startDiaperGame() {
   startDiaperGameButton.disabled = false;
   renderDiaperGameProgress();
   renderCurrentDiaperGameModule();
+  startDiaperGameButton.blur();
+  const gameModal = diaperGameOverlay.querySelector('.diaper-game-modal');
+  if (gameModal) {
+    gameModal.scrollTop = 0;
+    window.requestAnimationFrame(() => { gameModal.scrollTop = 0; });
+  }
   diaperGameTimer = window.setInterval(updateDiaperGameClock, 50);
 }
 
@@ -5795,17 +6310,18 @@ function openDiaperGame() {
   if (!diaperGameRunning) {
     diaperGameModuleIndex = 0;
     diaperGameMistakes = 0;
-    diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared');
+    diaperGameIncidentPlayed = false;
+    diaperGameStage.classList.remove('is-shaking', 'is-defused', 'module-cleared', 'incident-kick', 'incident-blackout', 'incident-surge', 'incident-fog', 'has-incident');
     diaperGameStage.dataset.mood = 'calm';
     diaperCountdown.textContent = formatDiaperCountdown(diaperGameRoundMs);
     diaperSerial.textContent = 'WZ-0000';
     setDiaperPressure(0);
     diaperMissionLabel.textContent = 'Einsatzbriefing';
     diaperToolTitle.textContent = 'Windel noch nicht aktiviert';
-    diaperModuleCounter.textContent = '3 aus 6 Modulen';
+    diaperModuleCounter.textContent = '4 aus 8 Modulen';
     diaperMissionBrief.textContent = diaperGameMode === 'ranked'
-      ? 'Heute spielen alle H\u00e4user dieselben drei Module. Drei Fehler l\u00f6sen den Alarm aus.'
-      : 'Im Training wechseln drei Module zuf\u00e4llig. Das Ergebnis wird nicht gewertet.';
+      ? 'Heute spielen alle H\u00e4user dieselben vier Module und denselben Zwischenfall. Drei Fehler l\u00f6sen den Alarm aus.'
+      : 'Im Training wechseln vier Systemvarianten und der Zwischenfall. Das Ergebnis wird nicht gewertet.';
     diaperGameActions.className = 'diaper-game-actions';
     diaperGameActions.innerHTML = '<p class="diaper-actions-empty">Dr\u00fccke auf Spiel starten, um den Einsatzcode zu laden.</p>';
     diaperGameStatus.textContent = 'Einsatz bereit. Starte, sobald deine Nerven ruhig sind.';
@@ -6080,6 +6596,15 @@ introVideoPlayButton.addEventListener('click', playIntroVideo);
 introVideoMuteButton.addEventListener('click', toggleIntroVideoSpeech);
 introVideoPreviousButton.addEventListener('click', () => moveIntroVideoStep(-1));
 introVideoNextButton.addEventListener('click', () => moveIntroVideoStep(1));
+introChapterList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-intro-chapter]');
+  if (button) jumpIntroVideoStep(button.dataset.introChapter);
+});
+recordedIntroChapters.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-recorded-chapter]');
+  if (!button) return;
+  seekRecordedIntroChapter(button.dataset.recordedChapter, { play: true });
+});
 introQuizForm.addEventListener('submit', checkIntroQuiz);
 introOverlay.addEventListener('click', (event) => {
   if (event.target === introOverlay) {
@@ -6227,10 +6752,12 @@ document.addEventListener('keydown', (event) => {
 
 recordedIntroVideo.addEventListener('play', stopIntroVideo);
 recordedIntroVideo.addEventListener('loadedmetadata', () => {
-  const minutes = Math.floor(recordedIntroVideo.duration / 60);
-  const seconds = Math.round(recordedIntroVideo.duration % 60);
-  recordedIntroDuration.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  recordedIntroDuration.textContent = formatMediaDuration(recordedIntroVideo.duration);
+  updateRecordedIntroChapterState();
 });
+recordedIntroVideo.addEventListener('timeupdate', updateRecordedIntroChapterState);
+recordedIntroVideo.addEventListener('loadeddata', () => { recordedIntroFallback.hidden = true; });
+recordedIntroVideo.addEventListener('error', () => { recordedIntroFallback.hidden = false; });
 
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
@@ -6242,6 +6769,41 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   renderInstallStatus();
   showStatus('WaschZeit wurde als App installiert.');
+});
+
+async function refreshLocalizedDynamicViews() {
+  const focusedElement = document.activeElement;
+  renderHouseContext();
+  renderMessageCenter();
+  renderCalendar();
+  renderRecommendation();
+  renderSchedule();
+  renderMyBookings(myBookingItems);
+  renderBookingFlow();
+  renderReleaseStatus();
+  if (activeReleaseNotice) renderReleaseNoticeDetail(activeReleaseNotice);
+  configureIntroForCurrentUser({ preserveStep: true });
+  i18n?.apply(document.documentElement);
+
+  if (currentUser.canManage) {
+    await loadAdmin();
+    i18n?.apply(adminBox);
+  }
+
+  if (focusedElement instanceof HTMLElement && focusedElement.isConnected) {
+    focusedElement.focus({ preventScroll: true });
+  }
+}
+
+window.addEventListener('waschzeit:languagechange', () => {
+  if (!currentUser) return;
+  refreshLocalizedDynamicViews().catch((error) => {
+    showStatus(error.message || translate('app.noConnection', 'Keine Verbindung zur App.'), 'error');
+  });
+});
+
+window.addEventListener('waschzeit:i18nerror', (event) => {
+  showStatus(event.detail?.message || translate('app.noConnection', 'Keine Verbindung zur App.'), 'error');
 });
 
 if (introVideoSpeechSupported) {

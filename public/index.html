@@ -515,22 +515,27 @@
           <div>
             <p class="diaper-game-kicker"><span></span> WaschZeit Arcade</p>
             <h2 id="diaperGameTitle">Windel-Alarm<span>!</span></h2>
-            <p id="diaperGameIntro">Drei Module aus sechs Systemen. Drei Fehlerleben. Entsch&auml;rfe die Tagesmission und halte den Z&uuml;ndkreis im richtigen Zeitfenster.</p>
+            <p id="diaperGameIntro">Vier Module aus acht Systemen. Ein unvorhersehbarer Zwischenfall. Entsch&auml;rfe die Windel, bevor die Lage eskaliert.</p>
           </div>
           <div class="diaper-game-badges" aria-label="Spielmerkmale">
-            <span><b>6</b> Systeme</span>
-            <span><b>45</b> Sekunden</span>
+            <span><b>8</b> Systeme</span>
+            <span><b>60</b> Sekunden</span>
             <button id="diaperSoundButton" class="diaper-sound-toggle" type="button" aria-pressed="false"><b aria-hidden="true">&#9834;</b> Ton aus</button>
           </div>
         </header>
         <div class="diaper-defusal-strip diaper-defusal-strip-sticky">
           <span class="diaper-armed-light"><i aria-hidden="true"></i> Windel scharf</span>
-          <strong id="diaperCountdown" role="timer" aria-label="Verbleibende Zeit">00:45.0</strong>
+          <strong id="diaperCountdown" role="timer" aria-label="Verbleibende Zeit">00:60.0</strong>
           <span id="diaperSerial" class="diaper-serial">WZ-0000</span>
         </div>
         <div id="diaperGameStage" class="diaper-game-stage" data-mood="calm">
           <div class="diaper-stage-glow diaper-stage-glow-one" aria-hidden="true"></div>
           <div class="diaper-stage-glow diaper-stage-glow-two" aria-hidden="true"></div>
+          <div class="diaper-scene-grid" aria-hidden="true"></div>
+          <div id="diaperIncident" class="diaper-incident" role="status" aria-live="assertive" hidden>
+            <span id="diaperIncidentIcon" aria-hidden="true">!</span>
+            <div><small>Zwischenfall</small><strong id="diaperIncidentTitle">Baby bewegt sich</strong><p id="diaperIncidentText">Die Schalttafel wird neu stabilisiert.</p></div>
+          </div>
           <div class="diaper-baby-zone" aria-hidden="true">
             <span class="diaper-orbit orbit-one"></span>
             <span class="diaper-orbit orbit-two"></span>
@@ -555,6 +560,8 @@
             <div class="diaper-burst">
               <span>PLOPP!</span><i></i><i></i><i></i><i></i>
             </div>
+            <span class="diaper-glove diaper-glove-left"></span>
+            <span class="diaper-glove diaper-glove-right"></span>
           </div>
           <div class="diaper-game-console">
             <div class="diaper-strike-row">
@@ -569,12 +576,12 @@
               <span id="diaperPressureBar"><i></i></span>
             </div>
             <div class="diaper-step-rail" aria-hidden="true">
-              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span>
             </div>
             <div class="diaper-status-card">
               <span class="diaper-status-pulse" aria-hidden="true"></span>
               <p id="diaperGameStatus" class="diaper-game-status" role="status" aria-live="polite">Einsatz bereit. Starte, sobald deine Nerven ruhig sind.</p>
-              <p id="diaperGameProgress" class="diaper-game-progress">0 von 3 Modulen &middot; Tagesbestwert: &ndash;</p>
+              <p id="diaperGameProgress" class="diaper-game-progress">0 von 4 Modulen &middot; Tagesbestwert: &ndash;</p>
             </div>
           </div>
         </div>
@@ -585,7 +592,7 @@
                 <p id="diaperMissionLabel">Tagesmission</p>
                 <h3 id="diaperToolTitle">Windel noch nicht aktiviert</h3>
               </div>
-              <span id="diaperModuleCounter">3 + Finale</span>
+              <span id="diaperModuleCounter">4 + Finale</span>
             </div>
             <p id="diaperMissionBrief" class="diaper-mission-brief">Die Ranglistenmission ist heute in allen H&auml;usern identisch. Im &Uuml;bungsmodus werden die Systeme neu gemischt.</p>
             <div id="diaperGameActions" class="diaper-game-actions" aria-label="Entsch&auml;rfungsmodule">
@@ -716,7 +723,7 @@
 
         <div class="settings-content">
           <form id="notificationForm" class="compact-form settings-form">
-            <section id="settingsPanelProfile" class="settings-panel" role="tabpanel" data-settings-section="profile" aria-labelledby="settingsProfileTitle">
+          <section id="settingsPanelProfile" class="settings-panel" role="tabpanel" data-settings-section="profile" aria-labelledby="settingsProfileTitle">
               <div class="settings-section-head">
                 <h3 id="settingsProfileTitle">Profil</h3>
                 <p class="muted">Deine Kontodaten und der bevorzugte Weg zum Buchen.</p>
@@ -733,6 +740,13 @@
                 <label>
                   Rolle
                   <input id="settingsRole" type="text" readonly>
+                </label>
+                <label class="language-picker">
+                  Sprache
+                  <select id="settingsLanguage" data-language-picker data-account-language aria-label="Sprache">
+                    <option value="de">Deutsch</option>
+                    <option value="en">English</option>
+                  </select>
                 </label>
               </div>
               <div class="verification-status">
@@ -981,31 +995,37 @@
       <section class="intro-modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">
         <button id="closeIntroButton" class="icon-close" type="button" aria-label="Intro schliessen">x</button>
         <div class="intro-copy">
-          <p class="eyebrow">Kurze Einf&uuml;hrung</p>
+          <p class="eyebrow" data-i18n="intro.short">Kurze Einf&uuml;hrung</p>
           <h2 id="introTitle">In Ruhe durch den Waschplan.</h2>
-          <p>Das etwa f&uuml;nfeinhalbmin&uuml;tige Video erkl&auml;rt Buchung, Waschpaket, Push-Hinweise und Regeln an konkreten Beispielen. Deutsche Untertitel und ein vollst&auml;ndiger Lesetext stehen zus&auml;tzlich bereit.</p>
+          <p data-i18n="intro.mediaDescription">Das Video erkl&auml;rt die f&uuml;r deine Rolle wichtigen Abl&auml;ufe an konkreten Beispielen. Untertitel, Kapitel und ein vollst&auml;ndiges Transkript stehen zus&auml;tzlich bereit.</p>
         </div>
-        <section class="recorded-intro" aria-labelledby="recordedIntroTitle">
+        <section id="recordedIntroSection" class="recorded-intro" aria-labelledby="recordedIntroTitle" hidden>
           <div class="recorded-intro-head">
             <div>
-              <p class="eyebrow">Mit Sprecher und Untertiteln</p>
-              <h3 id="recordedIntroTitle">Waschplan in etwa f&uuml;nfeinhalb Minuten</h3>
+              <p class="eyebrow" data-i18n="intro.recordedEyebrow">Mit Sprecher und Untertiteln</p>
+              <h3 id="recordedIntroTitle">WaschZeit f&uuml;r Bewohner</h3>
             </div>
-            <span id="recordedIntroDuration">ca. 05:40</span>
+            <span id="recordedIntroDuration">04:02</span>
           </div>
-          <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/waschplan-einfuehrung-poster.png?v=scenes-v1">
-            <source src="/assets/intro/waschplan-einfuehrung.mp4?v=scenes-v1" type="video/mp4">
-            <track kind="captions" srclang="de" label="Deutsch" src="/assets/intro/waschplan-einfuehrung-de.vtt?v=scenes-v1" default>
-            Dein Browser kann das Video nicht abspielen. Nutze bitte den interaktiven Rundgang oder den Text zum Mitlesen.
+          <video id="recordedIntroVideo" controls playsinline preload="metadata" poster="/assets/intro/media/resident-de-poster.png?v=media-v1">
+            <source id="recordedIntroSource" src="/assets/intro/media/resident-de.mp4?v=media-v1" type="video/mp4">
+            <track id="recordedIntroTrack" kind="captions" srclang="de" label="Deutsch" src="/assets/intro/media/resident-de.vtt?v=media-v1" default>
+            <span data-i18n="intro.videoUnsupported">Dein Browser kann das Video nicht abspielen. Nutze bitte den interaktiven Rundgang oder den Text zum Mitlesen.</span>
           </video>
+          <nav id="recordedIntroChapters" class="recorded-intro-chapters" aria-label="Videokapitel"></nav>
+          <div class="recorded-intro-meta">
+            <p id="recordedIntroFallback" data-i18n="intro.mediaFallback" role="status" aria-live="polite" hidden>Das Video ist gerade nicht verf&uuml;gbar. Transkript und interaktive Einf&uuml;hrung bleiben nutzbar.</p>
+            <a id="recordedIntroTranscriptLink" class="text-button" data-i18n="intro.transcript" href="/assets/intro/media/resident-de.txt?v=media-v1" target="_blank" rel="noopener">Text zum Mitlesen</a>
+          </div>
         </section>
 
-        <details class="interactive-guide">
-          <summary>Interaktiven Rundgang und vollst&auml;ndigen Lesetext &ouml;ffnen</summary>
+        <details class="interactive-guide" open>
+          <summary data-i18n="intro.roleGuide">Rollenbezogenen Rundgang und vollst&auml;ndigen Lesetext &ouml;ffnen</summary>
           <section class="video-guide" aria-label="Interaktive gesprochene Einf&uuml;hrung">
+          <nav id="introChapterList" class="intro-chapter-list" aria-label="Kapitel"></nav>
           <div id="introVideoStage" class="video-stage" data-step="overview">
             <div class="video-topline">
-              <span id="introVideoChapter">Kapitel 1 von 8</span>
+              <span id="introVideoChapter">Kapitel 1 von 9</span>
               <span id="introVideoVoiceStatus">Mit deutscher Stimme</span>
             </div>
             <div class="video-screen">
@@ -1031,17 +1051,7 @@
 
           <details class="video-transcript">
             <summary>Text zum Mitlesen</summary>
-            <ol>
-              <li>Oben stehen deine n&auml;chsten Buchungen. Direkt darunter zeigt der Kalender Waschmaschinen, Trockenr&auml;ume und Tumbler mit drei Farbstreifen. Bleibst du kurz mit der Maus auf einem Tag, &ouml;ffnet sich dessen vergr&ouml;&szlig;erte Tagesansicht.</li>
-              <li>Ber&uuml;hre oder &ouml;ffne einen Kalendertag, um alle Zeitfenster und Ger&auml;te zu sehen. Im Buchungsweg &bdquo;Zeit zuerst&ldquo; w&auml;hlst du danach eine Uhrzeit mit passender Verf&uuml;gbarkeit.</li>
-              <li>Nach dem Zeitfenster folgen freie Waschmaschinen, passende Trockenr&auml;ume, die erlaubte Dauer und der Tumbler. Trocknung und Tumbler sind optional. Alternativ kannst du dauerhaft &bdquo;Maschine zuerst&ldquo; verwenden.</li>
-              <li>Die Empfehlung verbindet deinen bisherigen Waschrhythmus mit aktuell freien Zeiten. Beide Buchungswege f&uuml;hren zum gleichen Waschpaket, das gemeinsam gebucht und als Paket angezeigt wird.</li>
-              <li>Pro Waschtag darf nur ein Zeitfenster reserviert werden. Mehrere Waschmaschinen sind im gleichen Zeitfenster m&ouml;glich. Ein weiterer zuk&uuml;nftiger Waschtag kann erst am bereits gebuchten Waschtag reserviert werden.</li>
-              <li>Der Trockenraum folgt dem Waschslot: beim 07:00-Slot bis 21:00 Uhr, beim 12:00- und 17:00-Slot bis sp&auml;testens 12:00 Uhr am Folgetag.</li>
-              <li>Mindestens ein Tumbler bleibt frei. Der Tumbler geh&ouml;rt zum gleichen Zeitfenster wie die Waschmaschine und kann ausgelassen werden.</li>
-              <li>W&auml;hrend eines laufenden Slots kannst du fr&uuml;her freigeben. Vor Beginn kannst du absagen und informieren. Push nennt neutral die freigebende Person und &ouml;ffnet direkt einen Dialog zum Buchen.</li>
-              <li>Nach jeder Nutzung bitte Trommel, Dichtungen, Filter, Fl&auml;chen und Boden reinigen. Das gilt auch bei einem einzelnen Waschgang. Alle Einzelheiten stehen im Wissensbereich.</li>
-            </ol>
+            <ol id="introTranscriptList"></ol>
           </details>
           </section>
         </details>
@@ -1091,6 +1101,9 @@
       </section>
     </div>
 
+    <script src="/i18n.js?v=__WASCHZEIT_RELEASE__"></script>
+    <script src="/intro-content.js?v=__WASCHZEIT_RELEASE__"></script>
+    <script src="/intro-media.js?v=__WASCHZEIT_RELEASE__"></script>
     <script src="/app.js?v=__WASCHZEIT_RELEASE__"></script>
   </body>
 </html>

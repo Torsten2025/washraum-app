@@ -3336,6 +3336,75 @@ aside.panel {
   width: 100%;
 }
 
+.recorded-intro-chapters {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.recorded-intro-chapters button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-items: start;
+  min-height: 48px;
+  text-align: left;
+}
+
+.recorded-intro-chapters button[aria-current="true"] {
+  background: #fff;
+  border-color: #fff;
+  color: var(--night);
+}
+
+.recorded-intro-chapters button span {
+  color: #a8ddca;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.recorded-intro-chapters button[aria-current="true"] span {
+  color: var(--accent);
+}
+
+.recorded-intro-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.recorded-intro-meta p {
+  color: #fff;
+  margin: 0;
+}
+
+.recorded-intro-meta a {
+  color: #a8ddca;
+}
+
+@media (max-width: 620px) {
+  .recorded-intro-chapters {
+    display: flex;
+    margin-inline: -16px;
+    overflow-x: auto;
+    padding: 0 16px 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .recorded-intro-chapters button {
+    flex: 0 0 min(78vw, 280px);
+    scroll-snap-align: start;
+  }
+}
+
 .interactive-guide {
   border-bottom: 1px solid var(--line);
   border-top: 1px solid var(--line);
@@ -4127,6 +4196,41 @@ summary:focus-visible {
 .intro-metrics strong,
 .booking-rhythm strong {
   color: #fff;
+}
+
+.intro-chapter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.intro-chapter-list button {
+  min-height: 2.7rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--surface-alt, #f2f7f5);
+  color: var(--ink);
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.intro-chapter-list button[aria-current="step"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.intro-role-visual {
+  width: 100%;
+  height: 100%;
+  min-height: 15rem;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.language-picker select {
+  min-width: 8.5rem;
 }
 
 .booking-suggestion {
@@ -5817,6 +5921,498 @@ aside.panel > * {
   }
 }
 
+/* Windel-Alarm v4: bildschirmfuellende, reaktive 2D-Spielbuehne. */
+#diaperGameOverlay {
+  background: rgba(4, 12, 10, 0.86);
+  backdrop-filter: blur(18px) saturate(0.75);
+  padding: 0;
+}
+
+.intro-modal.diaper-game-modal {
+  background: #08120f;
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.52);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  height: 100dvh;
+  max-height: 100dvh;
+  max-width: 1280px;
+  overflow: hidden;
+  width: min(100vw, 1280px);
+}
+
+.diaper-game-modal[data-game-running="true"] {
+  grid-template-rows: auto minmax(178px, 0.62fr) minmax(300px, 1.38fr) auto;
+}
+
+.diaper-game-modal[data-game-running="true"] .diaper-game-hero {
+  display: none;
+}
+
+.diaper-game-modal > .icon-close {
+  background: rgba(7, 20, 16, 0.84);
+  border-color: rgba(145, 255, 216, 0.2);
+  color: #d8fff1;
+  position: fixed;
+  right: max(14px, calc((100vw - min(100vw, 1280px)) / 2 + 14px));
+  top: 12px;
+}
+
+.diaper-game-hero {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(72, 255, 188, 0.22), transparent 34%),
+    linear-gradient(120deg, #071b15 0%, #0d3025 58%, #11271f 100%);
+  min-height: 142px;
+  padding: 30px 78px 26px 34px;
+}
+
+.diaper-defusal-strip-sticky {
+  background: rgba(4, 14, 11, 0.96);
+  border-bottom: 1px solid rgba(119, 255, 207, 0.14);
+  min-height: 50px;
+  position: relative;
+}
+
+.diaper-game-stage {
+  background:
+    radial-gradient(circle at 23% 47%, rgba(76, 255, 189, 0.12), transparent 27%),
+    linear-gradient(135deg, #0a1713 0%, #10251e 54%, #091511 100%);
+  border-bottom: 1px solid rgba(130, 255, 210, 0.12);
+  color: #eafff7;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(360px, 1.8fr);
+  min-height: 245px;
+  overflow: hidden;
+  padding: 18px 34px;
+}
+
+.diaper-scene-grid {
+  background-image:
+    linear-gradient(rgba(105, 255, 203, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(105, 255, 203, 0.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  inset: 0;
+  mask-image: linear-gradient(90deg, #000, transparent 86%);
+  opacity: 0.75;
+  position: absolute;
+  animation: diaper-grid-drift 12s linear infinite;
+}
+
+.diaper-game-stage .diaper-strike-row small,
+.diaper-game-stage .pups-meter-head small,
+.diaper-game-stage .diaper-game-progress {
+  color: #7fa398;
+}
+
+.diaper-game-stage .diaper-strike-row strong,
+.diaper-game-stage .pups-meter-head strong,
+.diaper-game-stage .diaper-game-status {
+  color: #effff9;
+}
+
+.diaper-game-stage .diaper-status-card {
+  background: rgba(4, 16, 12, 0.72);
+  border-color: rgba(126, 255, 210, 0.14);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04), 0 18px 44px rgba(0, 0, 0, 0.16);
+}
+
+.diaper-game-stage .diaper-step-rail span {
+  background: rgba(205, 255, 237, 0.12);
+}
+
+.diaper-baby-zone {
+  animation: diaper-camera-in 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.diaper-game-stage[data-mood="danger"] .baby-face {
+  filter: saturate(1.15);
+}
+
+.diaper-game-stage[data-mood="danger"] .baby-mouth {
+  border-bottom: 0;
+  border-top: 3px solid #7c493f;
+  bottom: 10px;
+}
+
+.diaper-glove {
+  background: linear-gradient(145deg, #f8fffc, #a9e9d2);
+  border: 3px solid #163e31;
+  border-radius: 60% 60% 42% 42%;
+  bottom: 2px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+  height: 54px;
+  opacity: 0;
+  position: absolute;
+  width: 42px;
+  z-index: 7;
+}
+
+.diaper-glove-left { left: 10px; transform: rotate(28deg); }
+.diaper-glove-right { right: 10px; transform: rotate(-28deg); }
+
+.diaper-game-stage.module-cleared .diaper-glove-left {
+  animation: diaper-glove-work 520ms ease-out;
+}
+
+.diaper-game-stage.module-cleared .diaper-glove-right {
+  animation: diaper-glove-work-right 520ms ease-out;
+}
+
+.diaper-game-lower {
+  background:
+    radial-gradient(circle at 20% 120%, rgba(72, 255, 188, 0.07), transparent 38%),
+    #07110e;
+  grid-template-columns: minmax(0, 1.7fr) minmax(250px, 0.65fr);
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 26px 12px;
+}
+
+.diaper-game-modal[data-game-running="true"] .diaper-game-lower {
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.diaper-game-modal[data-game-running="true"] .diaper-leaderboard {
+  display: none;
+}
+
+.diaper-tool-panel,
+.diaper-leaderboard {
+  background: linear-gradient(145deg, rgba(18, 42, 34, 0.96), rgba(8, 22, 17, 0.98));
+  border-color: rgba(128, 255, 210, 0.14);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04), 0 18px 60px rgba(0, 0, 0, 0.2);
+  color: #eafff7;
+}
+
+.diaper-panel-head h3,
+.diaper-leaderboard-head h3,
+.diaper-leaderboard li,
+.diaper-game-note {
+  color: #eafff7;
+}
+
+.diaper-mission-brief {
+  background: rgba(119, 255, 205, 0.07);
+  border-color: #5dffc4;
+  color: #c9e7dc;
+}
+
+.diaper-game-actions {
+  min-height: 175px;
+}
+
+.diaper-game-actions::before {
+  border: 1px solid rgba(119, 255, 205, 0.08);
+  border-radius: 20px;
+  content: "";
+  inset: -8px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.diaper-game-actions button {
+  touch-action: manipulation;
+}
+
+.diaper-game-actions .diaper-wire {
+  cursor: ew-resize;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.diaper-game-actions .diaper-wire::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  content: "SWIPE";
+  font: 800 8px/1 ui-monospace, monospace;
+  inset: auto 8px 8px;
+  letter-spacing: .14em;
+  opacity: .42;
+  padding: 4px;
+  position: absolute;
+  transform: translateX(-115%);
+}
+
+.diaper-game-actions .diaper-wire:hover::after,
+.diaper-game-actions .diaper-wire.is-grabbed::after {
+  animation: diaper-wire-swipe 700ms linear infinite;
+}
+
+.diaper-game-actions .diaper-wire.is-grabbed {
+  filter: brightness(1.18);
+  transform: scale(.98);
+}
+
+.diaper-circuit-module,
+.diaper-lock-module {
+  background:
+    linear-gradient(135deg, rgba(95, 255, 198, 0.05), transparent 45%),
+    #081712;
+  border: 1px solid rgba(120, 255, 207, 0.14);
+  border-radius: 18px;
+  min-height: 188px;
+  padding: 14px;
+}
+
+.circuit-energy {
+  align-items: center;
+  color: #79f8ca;
+  display: flex;
+  font: 800 9px/1 ui-monospace, monospace;
+  gap: 10px;
+  letter-spacing: .15em;
+  margin-bottom: 12px;
+}
+
+.circuit-energy i,
+.circuit-energy b {
+  background: linear-gradient(90deg, transparent, #62f5c0);
+  height: 2px;
+  flex: 1;
+}
+
+.circuit-energy b { background: linear-gradient(90deg, #62f5c0, transparent); }
+
+.circuit-board {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.diaper-game-actions .circuit-board button {
+  background: radial-gradient(circle, #18392e, #0a1c16);
+  border-color: rgba(117, 255, 204, .2);
+  color: #a9d8c8;
+  min-height: 58px;
+  position: relative;
+}
+
+.circuit-board button i {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  height: 24px;
+  position: absolute;
+  width: 24px;
+}
+
+.circuit-board button.is-linked {
+  background: #155c45;
+  box-shadow: 0 0 0 2px #62f5c0, 0 0 28px rgba(98, 245, 192, .48);
+  color: #fff;
+}
+
+.circuit-board button.is-linked i {
+  animation: diaper-circuit-ping 580ms ease-out;
+}
+
+.lock-rings {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.lock-rings section {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 38px 1fr 38px;
+}
+
+.diaper-game-actions .lock-rings button {
+  font-size: 28px;
+  min-height: 52px;
+}
+
+.lock-dial {
+  align-items: center;
+  aspect-ratio: 1;
+  background: conic-gradient(from var(--lock-angle), #63f3be 0 5%, #142d24 5% 12.5%, #0a1713 12.5% 100%);
+  border: 5px solid #2b5747;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: auto;
+  max-width: 92px;
+  transition: transform 180ms cubic-bezier(.2,.9,.3,1.4), background 180ms ease;
+}
+
+.lock-dial strong { color: #fff; font: 900 24px/1 ui-monospace, monospace; }
+.lock-dial span { color: #74caaa; font: 800 8px/1 ui-monospace, monospace; margin-top: 5px; }
+.diaper-game-actions .lock-confirm { margin-top: 12px; width: 100%; }
+
+.diaper-incident {
+  align-items: center;
+  animation: diaper-incident-in 1.45s cubic-bezier(.16,1,.3,1) both;
+  background: rgba(8, 18, 15, .96);
+  border: 1px solid rgba(255, 122, 99, .46);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48), 0 0 38px rgba(255, 98, 73, .2);
+  display: flex;
+  gap: 16px;
+  left: 50%;
+  max-width: 430px;
+  padding: 18px 22px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 36px);
+  z-index: 20;
+}
+
+.diaper-incident[hidden] { display: none; }
+.diaper-incident > span { color: #ff7963; font-size: 40px; font-weight: 950; }
+.diaper-incident div { display: grid; gap: 3px; }
+.diaper-incident small { color: #ff8b77; font: 900 9px/1 ui-monospace, monospace; letter-spacing: .16em; text-transform: uppercase; }
+.diaper-incident strong { color: #fff; font-size: 20px; }
+.diaper-incident p { color: #a9c7bc; font-size: 12px; margin: 0; }
+
+.diaper-game-stage.has-incident .diaper-game-console,
+.diaper-game-stage.has-incident .diaper-baby-zone { filter: blur(3px) brightness(.6); }
+.diaper-game-stage.incident-kick .diaper-baby { animation: diaper-baby-kick 260ms ease-in-out 4; }
+.diaper-game-stage.incident-blackout { animation: diaper-blackout 1.45s steps(2, end); }
+.diaper-game-stage.incident-surge .pups-meter { animation: diaper-surge 320ms ease-in-out 3; }
+.diaper-game-stage.incident-fog::after {
+  animation: diaper-fog 1.45s ease-in-out;
+  backdrop-filter: blur(10px);
+  background: rgba(218, 255, 242, .24);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 12;
+}
+
+.diaper-game-footer {
+  background: #07110e;
+  border-top: 1px solid rgba(126, 255, 210, .12);
+  color: #b4d0c6;
+  min-height: 66px;
+}
+
+.diaper-game-modal[data-game-running="true"] .diaper-game-footer {
+  min-height: 54px;
+  padding-block: 8px;
+}
+
+.diaper-game-modal[data-game-running="true"] .diaper-mode-switch,
+.diaper-game-modal[data-game-running="true"] .diaper-game-note,
+.diaper-game-modal[data-game-running="true"] #resetDiaperBestButton {
+  display: none;
+}
+
+@keyframes diaper-camera-in {
+  from { filter: blur(8px); opacity: 0; transform: scale(.72); }
+  to { filter: blur(0); opacity: 1; transform: scale(1); }
+}
+
+@keyframes diaper-grid-drift { to { background-position: 34px 34px; } }
+@keyframes diaper-wire-swipe { to { transform: translateX(115%); } }
+@keyframes diaper-glove-work {
+  0%, 100% { opacity: 0; transform: translate(-25px, 30px) rotate(28deg); }
+  45% { opacity: 1; transform: translate(62px, -52px) rotate(7deg); }
+}
+@keyframes diaper-glove-work-right {
+  0%, 100% { opacity: 0; transform: translate(25px, 30px) rotate(-28deg); }
+  45% { opacity: 1; transform: translate(-62px, -52px) rotate(-7deg); }
+}
+@keyframes diaper-circuit-ping {
+  from { box-shadow: 0 0 0 0 rgba(98,245,192,.8); }
+  to { box-shadow: 0 0 0 18px rgba(98,245,192,0); }
+}
+@keyframes diaper-incident-in {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(.75); }
+  18%, 78% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -56%) scale(.94); }
+}
+@keyframes diaper-baby-kick {
+  25% { transform: translateX(-7px) rotate(-3deg); }
+  75% { transform: translateX(7px) rotate(3deg); }
+}
+@keyframes diaper-blackout {
+  0%, 32%, 48%, 68%, 100% { filter: brightness(1); }
+  20%, 40%, 58% { filter: brightness(.08) saturate(0); }
+}
+@keyframes diaper-surge {
+  50% { box-shadow: 0 0 0 6px rgba(255, 94, 72, .28), 0 0 32px rgba(255, 94, 72, .45); transform: scaleY(1.4); }
+}
+@keyframes diaper-fog {
+  0%, 100% { opacity: 0; }
+  20%, 72% { opacity: 1; }
+}
+
+@media (max-width: 620px) {
+  .intro-modal.diaper-game-modal,
+  .diaper-game-modal[data-game-running="true"] {
+    border-radius: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    height: 100dvh;
+  }
+
+  .diaper-game-modal:not([data-game-running="true"]) {
+    overflow-y: auto;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-game-stage {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    min-height: 158px;
+    padding: 8px 12px;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-defusal-strip {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding-left: 10px;
+    padding-right: 58px;
+  }
+
+  .diaper-game-modal[data-game-running="true"] #diaperCountdown {
+    font-size: 24px;
+    justify-self: center;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-baby-zone {
+    height: 146px;
+    transform: scale(.56);
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-game-console {
+    align-self: center;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-status-card {
+    min-height: 62px;
+    padding-block: 10px;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-game-progress,
+  .diaper-game-modal[data-game-running="true"] .diaper-strike-row small,
+  .diaper-game-modal[data-game-running="true"] .pups-meter-head small {
+    display: none;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-game-lower {
+    padding: 10px;
+  }
+
+  .diaper-game-modal[data-game-running="true"] .diaper-tool-panel {
+    border-radius: 14px;
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .diaper-game-actions { min-height: 150px; }
+  .diaper-game-actions .diaper-wire { min-height: 82px; }
+  .diaper-wire i { height: 24px; }
+  .lock-rings { gap: 6px; }
+  .lock-rings section { grid-template-columns: 30px 1fr 30px; }
+  .diaper-game-actions .lock-rings button { min-height: 44px; padding: 4px; }
+  .lock-dial { border-width: 3px; max-width: 68px; }
+  .lock-dial strong { font-size: 19px; }
+  .diaper-game-modal[data-game-running="true"] .diaper-game-footer .settings-actions { display: block; margin-left: auto; }
+  .diaper-game-modal[data-game-running="true"] #startDiaperGameButton { min-height: 42px; padding-block: 7px; }
+}
+
 /* Calendar-first booking flow */
 .booking-workspace {
   align-items: start;
@@ -6973,6 +7569,22 @@ button:hover:not(:disabled),
   padding: 13px 2px;
   text-align: left;
   width: 100%;
+}
+
+.admin-task-group + .admin-task-group {
+  margin-top: 1rem;
+}
+
+.admin-task-group > h4 {
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-task-item.is-info .admin-task-state {
+  background: #397187;
 }
 
 .admin-task-item:hover:not(:disabled) {
