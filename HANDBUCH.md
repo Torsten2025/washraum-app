@@ -558,6 +558,10 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ## Aenderungsprotokoll
 
+### 22. Juli 2026
+
+- Sichtbare Testversion auf `0.3.0-test.4` angehoben. Der verbindliche Browsertest erkennt das richtige Windel-Alarm-Kabel nun sowohl aus dem sichtbaren Farbhinweis als auch aus dem Symbolhinweis; dadurch ist der zufaellig gewaehlte Kabelmodus im Linux-CI-Lauf deterministisch abgedeckt. Produkt- und Spielregeln bleiben unveraendert.
+
 ### 21. Juli 2026
 
 - Windel-Alarm als Spielversion 4 auf einen konsistenten Kandidatenvertrag stabilisiert: 60 Sekunden, vier Module aus acht Systemfamilien, genau ein serverseitig vorgegebener Zwischenfall, drei Fehlerchancen und das bestehende Haltefinale. Bildschirmfuellende 2D-Spielbuehne, direkte Kabelgeste, Leiterbahn, Sicherungsringe und reaktive Zustandsanimationen ersetzen die bisherige Kartenwirkung; Bestenliste, Rollenrechte, Pseudonymisierung und Trennung von Buchungen sowie Benachrichtigungen bleiben erhalten.

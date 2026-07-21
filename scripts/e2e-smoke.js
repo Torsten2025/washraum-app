@@ -59,6 +59,20 @@ const visualViewports = [
 
 const mediaViewports = visualViewports.filter((viewport) => [390, 768, 1440].includes(viewport.width));
 
+const diaperWireOptions = [
+  { id: 'coral', label: 'Koralle', symbol: '▲' },
+  { id: 'mint', label: 'Mint', symbol: '●' },
+  { id: 'amber', label: 'Bernstein', symbol: '◆' },
+  { id: 'blue', label: 'Blau', symbol: '■' }
+];
+
+async function resolveDiaperWireTarget(page) {
+  const clue = await page.locator('#diaperMissionBrief').innerText();
+  const target = diaperWireOptions.find((wire) => clue.includes(wire.label) || clue.includes(wire.symbol));
+  assert.ok(target, `Kabelziel ist aus dem sichtbaren Hinweis nicht bestimmbar: ${clue}`);
+  return target;
+}
+
 const forbiddenEnglishAdminPatterns = [
   /\bAufgaben\b/i,
   /\bWarnungen\b/i,
@@ -568,16 +582,9 @@ async function run() {
 
       if (moduleIndex === 0) {
         if (moduleType === 'wire') {
-          const clue = await page.locator('#diaperMissionBrief').innerText();
-          const targetSymbol = ['▲', '●', '◆', '■'].find((symbol) => clue.includes(symbol));
-          const wireButtons = page.locator('[data-wire-id]');
-          for (let index = 0; index < await wireButtons.count(); index += 1) {
-            const button = wireButtons.nth(index);
-            if (!(await button.innerText()).includes(targetSymbol)) {
-              await button.click();
-              break;
-            }
-          }
+          const target = await resolveDiaperWireTarget(page);
+          const wrongWire = diaperWireOptions.find((wire) => wire.id !== target.id);
+          await page.click(`[data-wire-id="${wrongWire.id}"]`);
         } else if (moduleType === 'signal') {
           await page.waitForFunction(() => {
             const button = document.querySelector('[data-signal-id]');
@@ -625,16 +632,8 @@ async function run() {
       }
 
       if (moduleType === 'wire') {
-        const clue = await page.locator('#diaperMissionBrief').innerText();
-        const targetSymbol = ['▲', '●', '◆', '■'].find((symbol) => clue.includes(symbol));
-        const wireButtons = page.locator('[data-wire-id]');
-        for (let index = 0; index < await wireButtons.count(); index += 1) {
-          const button = wireButtons.nth(index);
-          if ((await button.innerText()).includes(targetSymbol)) {
-            await button.click();
-            break;
-          }
-        }
+        const target = await resolveDiaperWireTarget(page);
+        await page.click(`[data-wire-id="${target.id}"]`);
       } else if (moduleType === 'signal') {
         await page.waitForFunction(() => {
           const button = document.querySelector('[data-signal-id]');
