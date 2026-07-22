@@ -977,21 +977,21 @@
 
     <div id="apartmentSetupOverlay" class="intro-overlay" hidden>
       <section class="intro-modal apartment-setup-modal" role="dialog" aria-modal="true" aria-labelledby="apartmentSetupTitle">
-        <button id="closeApartmentSetupButton" class="icon-close" type="button" aria-label="Wohnungszuordnung spaeter fortsetzen">x</button>
+        <button id="closeApartmentSetupButton" class="icon-close" type="button" aria-label="Wohnungszuordnung spaeter fortsetzen" data-i18n-aria-label="onboarding.close">x</button>
         <div class="intro-copy">
-          <p class="eyebrow">Bestehendes Konto</p>
-          <h2 id="apartmentSetupTitle">Dieses alte Konto braucht eine Wohnung.</h2>
-          <p>Bitte die Hausverwaltung um eine Einladung an deine pers&ouml;nliche E-Mail-Adresse. Nach der Best&auml;tigung bleibt dein Login bestehen und wird sicher der richtigen Wohnung zugeordnet.</p>
+          <p class="eyebrow" data-i18n="onboarding.eyebrow">Bestehendes Konto</p>
+          <h2 id="apartmentSetupTitle" data-i18n="onboarding.title">Dieses alte Konto braucht eine Wohnung.</h2>
+          <p data-i18n="onboarding.description">Bitte die Hausverwaltung um eine Einladung an deine pers&ouml;nliche E-Mail-Adresse. Nach der Best&auml;tigung bleibt dein Login bestehen und wird sicher der richtigen Wohnung zugeordnet.</p>
         </div>
         <div class="apartment-setup-grid">
-          <form action="/logout" method="post" class="stack compact-form">
-            <h3>Pers&ouml;nliche Einladung verwenden</h3>
-            <p class="muted">Melde dich ab und &ouml;ffne den Einladungslink aus deiner E-Mail. Ein Partner-QR ist nur f&uuml;r eine weitere Person derselben Wohnung vorgesehen.</p>
-            <button type="submit">Abmelden</button>
+          <form id="apartmentSetupLogoutForm" action="/logout" method="post" class="stack compact-form">
+            <h3 data-i18n="onboarding.useInvitation">Pers&ouml;nliche Einladung verwenden</h3>
+            <p class="muted" data-i18n="onboarding.invitationHelp">Melde dich ab und &ouml;ffne den Einladungslink aus deiner E-Mail. Ein Partner-QR ist nur f&uuml;r eine weitere Person derselben Wohnung vorgesehen.</p>
+            <button id="apartmentSetupLogoutButton" type="submit" data-i18n="common.logout">Abmelden</button>
           </form>
         </div>
         <p id="apartmentSetupMessage" class="message" role="status"></p>
-        <button id="postponeApartmentSetupButton" class="text-button" type="button">Sp&auml;ter zuordnen</button>
+        <button id="postponeApartmentSetupButton" class="text-button" type="button" data-i18n="onboarding.postpone">Sp&auml;ter zuordnen</button>
       </section>
     </div>
 

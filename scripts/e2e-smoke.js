@@ -5,6 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const bcrypt = require('bcryptjs');
+const Database = require('better-sqlite3');
 
 async function loadPlaywright() {
   try {
@@ -533,6 +535,26 @@ async function run() {
   let browser;
   try {
     await waitForServer(baseUrl, output);
+    const fixtureDb = new Database(databasePath);
+    try {
+      const insertNullHouseUser = fixtureDb.prepare(`
+        INSERT INTO users (username, email, password_hash, role, house_id, active, notify_releases)
+        VALUES (?, ?, ?, 'user', NULL, 1, 0)
+      `);
+      insertNullHouseUser.run(
+        'e2e-nullhaus',
+        'e2e-nullhaus@example.test',
+        bcrypt.hashSync('E2E-Nullhaus-2026!', 10)
+      );
+      insertNullHouseUser.run(
+        'e2e-nullhaus-de',
+        'e2e-nullhaus-de@example.test',
+        bcrypt.hashSync('E2E-Nullhaus-DE-2026!', 10)
+      );
+      fixtureDb.prepare("UPDATE users SET language = 'en' WHERE username = 'e2e-nullhaus'").run();
+    } finally {
+      fixtureDb.close();
+    }
     const adminLogin = await fetch(`${baseUrl}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -570,6 +592,88 @@ async function run() {
       headless: true,
       ...(executablePath ? { executablePath } : {})
     });
+    const loginNullHouseAccount = async (email, password) => {
+      const response = await fetch(`${baseUrl}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      assert.equal(response.status, 200);
+      const cookie = String(response.headers.get('set-cookie') || '').split(';', 1)[0];
+      const separator = cookie.indexOf('=');
+      assert.ok(separator > 0, 'N0-Anmeldung muss ein Sitzungscookie liefern');
+      return { name: cookie.slice(0, separator), value: cookie.slice(separator + 1) };
+    };
+
+    const onboardingLogoutContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await onboardingLogoutContext.addCookies([{
+      ...(await loginNullHouseAccount('e2e-nullhaus@example.test', 'E2E-Nullhaus-2026!')),
+      url: baseUrl
+    }]);
+    const onboardingLogoutPage = await onboardingLogoutContext.newPage();
+    await onboardingLogoutPage.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded' });
+    await onboardingLogoutPage.waitForSelector('#apartmentSetupOverlay:not([hidden])');
+    await onboardingLogoutPage.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupOverlay .eyebrow').innerText(), 'EXISTING ACCOUNT');
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupTitle').innerText(), 'This existing account needs an apartment.');
+    assert.match(await onboardingLogoutPage.locator('#apartmentSetupOverlay .intro-copy > p:last-child').innerText(), /building administration/i);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm h3').innerText(), 'Use a personal invitation');
+    assert.match(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm .muted').innerText(), /partner QR code/i);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Sign out');
+    assert.equal(await onboardingLogoutPage.locator('#postponeApartmentSetupButton').innerText(), 'Assign later');
+    assert.equal(await onboardingLogoutPage.locator('#closeApartmentSetupButton').getAttribute('aria-label'), 'Continue apartment assignment later');
+    assert.equal((await onboardingLogoutPage.evaluate(() => fetch('/api/me').then((response) => response.json()))).user.apartmentSetupRequired, true);
+    let confirmFailedLogoutRequest;
+    let releaseFailedLogoutResponse;
+    const failedLogoutRequestStarted = new Promise((resolve) => { confirmFailedLogoutRequest = resolve; });
+    const failedLogoutResponseReleased = new Promise((resolve) => { releaseFailedLogoutResponse = resolve; });
+    await onboardingLogoutPage.route(`${baseUrl}/api/logout`, async (route) => {
+      confirmFailedLogoutRequest();
+      await failedLogoutResponseReleased;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"synthetic failure"}' });
+    });
+    await onboardingLogoutPage.click('#apartmentSetupLogoutButton');
+    await failedLogoutRequestStarted;
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').isDisabled(), true);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Signing out...');
+    releaseFailedLogoutResponse();
+    await onboardingLogoutPage.waitForFunction(() => !document.querySelector('#apartmentSetupLogoutButton')?.disabled);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Sign out');
+    assert.equal(
+      await onboardingLogoutPage.locator('#apartmentSetupMessage').innerText(),
+      'Sign out could not be completed. Please try again.'
+    );
+    assert.notEqual((await onboardingLogoutPage.evaluate(() => fetch('/api/me').then((response) => response.json()))).user, null);
+    await onboardingLogoutPage.unroute(`${baseUrl}/api/logout`);
+    const onboardingLogoutRequest = onboardingLogoutPage.waitForRequest((request) => request.url() === `${baseUrl}/api/logout`);
+    await onboardingLogoutPage.click('#apartmentSetupLogoutButton');
+    assert.equal((await onboardingLogoutRequest).method(), 'POST');
+    await onboardingLogoutPage.waitForURL('**/login.html?loggedOut=1', { timeout: 10000 });
+    assert.equal((await onboardingLogoutPage.evaluate(() => fetch('/api/me').then((response) => response.json()))).user, null);
+    await onboardingLogoutContext.close();
+
+    const accountMenuLogoutContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await accountMenuLogoutContext.addCookies([{
+      ...(await loginNullHouseAccount('e2e-nullhaus-de@example.test', 'E2E-Nullhaus-DE-2026!')),
+      url: baseUrl
+    }]);
+    const accountMenuLogoutPage = await accountMenuLogoutContext.newPage();
+    await accountMenuLogoutPage.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded' });
+    await accountMenuLogoutPage.waitForSelector('#apartmentSetupOverlay:not([hidden])');
+    await accountMenuLogoutPage.waitForFunction(() => document.documentElement.lang === 'de');
+    assert.equal(await accountMenuLogoutPage.locator('#apartmentSetupOverlay .eyebrow').innerText(), 'BESTEHENDES KONTO');
+    assert.equal(await accountMenuLogoutPage.locator('#apartmentSetupTitle').innerText(), 'Dieses alte Konto braucht eine Wohnung.');
+    assert.equal(await accountMenuLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Abmelden');
+    assert.equal(await accountMenuLogoutPage.locator('#postponeApartmentSetupButton').innerText(), 'Spaeter zuordnen');
+    await accountMenuLogoutPage.click('#postponeApartmentSetupButton');
+    await accountMenuLogoutPage.click('#accountMenuButton');
+    const accountMenuLogoutRequest = accountMenuLogoutPage.waitForRequest((request) => request.url() === `${baseUrl}/api/logout`);
+    await accountMenuLogoutPage.click('#logoutButton');
+    assert.equal((await accountMenuLogoutRequest).method(), 'POST');
+    await accountMenuLogoutPage.waitForURL('**/login.html?loggedOut=1', { timeout: 10000 });
+    assert.equal((await accountMenuLogoutPage.evaluate(() => fetch('/api/me').then((response) => response.json()))).user, null);
+    await accountMenuLogoutContext.close();
+
     const invalidInvitePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await invalidInvitePage.goto(`${baseUrl}/login.html?invite=invalid-e2e-token`, { waitUntil: 'domcontentloaded' });
     await invalidInvitePage.selectOption('[data-language-picker]', 'en');

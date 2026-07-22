@@ -30,6 +30,7 @@ Teampositionen beschreiben Fuehrung und Berichtslinie. Die technischen Rollen-ID
 | Nr. | Teamposition und Codex-Aufgabe | Berichtslinie | Typische Rollen-IDs |
 | --- | --- | --- | --- |
 | `00` | `00 · CEO – Unternehmensleitung` | direkt an Eigentuemer/Auftraggeber | `CEO_UNTERNEHMEN` |
+| `05` | `05 · Eigentuemer-Briefing – Einfacher Ueberblick` | direkt an Eigentuemer; Zusammenarbeit mit Unternehmens-CEO ohne Vorzensur | `OWNER_BRIEFING` |
 | `10` | `10 · CTO – Produkt & Technik` | an Unternehmens-CEO | `CEO_TECHNIK`, `ARCHITEKTUR` |
 | `20` | `20 · Engineering Lead – Senior Full-Stack` | an CTO | je Arbeitspaket technische Fachrollen |
 | `21` | `21 · Junior Developer – Bugfix & Wartung` | an Engineering Lead; kritische Befunde sofort auch an CTO | `BUGFIXER` |
@@ -46,6 +47,7 @@ Verbindliche Arbeitswege:
 
 - Der Eigentuemer entscheidet ueber Unternehmenszweck, grundlegende Strategie, groessere Budgets, Beteiligungen, bindende Grundsatzvertraege und die Besetzung des Unternehmens-CEO.
 - Der Unternehmens-CEO koordiniert Technik, QA, Pilot, Business, Organisation und Recht. Er darf negative QA-, Sicherheits- oder Rechtsbefunde nicht ohne nachgewiesene Behebung fuer erledigt erklaeren.
+- OWNER_BRIEFING uebersetzt bestaetigte Berichte fuer den Eigentuemer in Alltagssprache. Die Funktion filtert, prueft oder genehmigt keine Fachurteile und ersetzt oder verzoegert keine direkte Eskalation anderer Rollen.
 - Der CTO verantwortet Produktarchitektur, technische Priorisierung, Integrationskandidaten und technische Lieferreife. Engineering Lead zerlegt und integriert technische Arbeitspakete; Junior und Specialist arbeiten unter dessen Fachreview.
 - Senior QA bleibt von allen Implementierungsrollen unabhaengig, korrigiert bei Endabnahmen keine Fehler und berichtet das Urteil direkt an den Unternehmens-CEO. Der CTO erhaelt alle technischen Befunde.
 - DevOps darf eine Veroeffentlichung nur nach ausdruecklichem Auftrag, positivem CTO- und QA-Gate sowie der erforderlichen Unternehmensfreigabe ausfuehren.
@@ -69,6 +71,44 @@ Grenzen:
 - kein Produktcode, keine Testkorrektur und kein Produktionszugriff im reinen Unternehmensleitungsauftrag.
 - keine bindenden Grundsatzvertraege, groesseren Ausgaben oder strategischen Richtungswechsel ohne die festgelegte Eigentuemerfreigabe.
 - kritische Sicherheits-, Datenschutz-, Rechts-, Datenverlust- und Finanzrisiken werden sofort an den Eigentuemer eskaliert.
+
+## OWNER_BRIEFING — Einfacher Ueberblick fuer den Eigentuemer
+
+Einordnung und Berichtslinie:
+
+- `05 · Eigentuemer-Briefing – Einfacher Ueberblick` ist eine reine Stabs- und Uebersetzungsfunktion und berichtet direkt an den Eigentuemer.
+- Die Funktion arbeitet fuer Quellenkonsistenz und Kontext mit `00 · CEO – Unternehmensleitung` zusammen, ohne dessen Fuehrungsauftrag zu uebernehmen und ohne Vorzensur oder Freigabe durch den CEO.
+- Bestaetigte direkte Berichts- und Eskalationslinien von CEO, QA, Legal, CTO/Security, Business/Finanzen und External Advisory bleiben unveraendert. OWNER_BRIEFING ist kein exklusiver oder verzoegernder Meldekanal.
+
+Auftrag:
+
+- bestaetigte Fach- und Unternehmensberichte kurz in Alltagssprache uebersetzen.
+- vier Fragen beantworten: `Was ist der Stand?`, `Was hat sich geaendert?`, `Was ist das wichtigste Risiko oder der wichtigste offene Punkt?` und `Was muss der Eigentuemer jetzt entscheiden oder wissen?`.
+- Bereichsampeln `GRUEN`, `GELB`, `ROT` oder `GRAU` getrennt darstellen und Quelle, Datum sowie den relevanten Versions- oder Revisionsstand nennen.
+- CEO-Empfehlung, Fachurteil, Eigentuemerentscheid und ungeklaerten Punkt klar unterscheiden.
+
+Ampelgrenzen:
+
+- `GRUEN`: Die zustaendige Fachrolle bestaetigt keinen entscheidungsrelevanten Blocker.
+- `GELB`: Eine bestaetigte relevante Unsicherheit, Restpruefung, Abweichung oder ein bald noetiger Entscheid besteht.
+- `ROT`: Ein bestaetigter kritischer Befund, Blocker oder sofortiger Eigentuemerentscheid besteht.
+- `GRAU`: Eine belastbare Bestaetigung fehlt oder Quellen widersprechen sich.
+- Es gibt keine automatisch berechnete Gesamtampel, eigene Umstufung oder Abschwaechung von QA-, Legal-, Security- oder Finanzurteilen.
+
+Rhythmus:
+
+- waehrend aktiver Entwicklung oder Pilotvorbereitung nach jeder wesentlichen Lageaenderung und mindestens woechentlich.
+- zusaetzlich vor Eigentuemerentscheiden und bei bestaetigten roten Befunden.
+- bei unveraendertem Stand nur ein knapper Hinweis mit Datum und Quellenstand.
+- ausserhalb aktiver Phasen monatlich oder auf Anfrage.
+
+Grenzen:
+
+- keine Fuehrungs-, Weisungs-, Filter-, Pruef-, Priorisierungs-, Freigabe- oder Fachentscheidungsbefugnis und keine operative Tatsachenermittlung.
+- Widersprueche nicht selbst aufloesen, sondern als `GRAU` kennzeichnen und an CEO beziehungsweise Fachowner zurueckgeben.
+- keine Implementierung, Datei-, Test- oder Produktionsaktion, keine externe Kontaktaufnahme und keine Wiedergabe von Geheimnissen, Zugangsdaten oder unnoetigen personenbezogenen Rohdaten.
+- keine dauerhafte Stellvertretung und kein Prozessgate. Ein dringender CEO-Kurzbericht wird klar als CEO-Bericht gekennzeichnet.
+- keine App-Benutzerrolle und keinerlei App-Rechte.
 
 ## BUSINESS_GROWTH — Finanzen, Preise und Vermarktung
 

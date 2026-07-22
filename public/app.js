@@ -11,6 +11,8 @@ const localizedSystemText = (value, fallback = '') => {
 const userLine = document.querySelector('#userLine');
 const logoutForm = document.querySelector('#logoutForm');
 const logoutButton = document.querySelector('#logoutButton');
+const apartmentSetupLogoutForm = document.querySelector('#apartmentSetupLogoutForm');
+const apartmentSetupLogoutButton = document.querySelector('#apartmentSetupLogoutButton');
 const accountMenuButton = document.querySelector('#accountMenuButton');
 const accountMenuName = document.querySelector('#accountMenuName');
 const accountMenuRole = document.querySelector('#accountMenuRole');
@@ -1757,6 +1759,7 @@ async function init() {
     return;
   }
 
+  if (i18n) await i18n.syncAccount(me.user);
   currentUser = me.user;
   reportIssueButton.hidden = !currentUser.canBook;
   await checkAppVersion();
@@ -6593,13 +6596,18 @@ function closeDiaperGame() {
   if (diaperGameReturnFocus instanceof HTMLElement) diaperGameReturnFocus.focus();
 }
 
-logoutForm.addEventListener('submit', async (event) => {
+async function submitLogout(event, button, messageTarget = null) {
   event.preventDefault();
   if (logoutInProgress) return;
 
   logoutInProgress = true;
   logoutButton.disabled = true;
-  logoutButton.textContent = 'Wird abgemeldet...';
+  apartmentSetupLogoutButton.disabled = true;
+  button.textContent = translate('common.loggingOut', 'Wird abgemeldet...');
+  if (messageTarget) {
+    messageTarget.textContent = '';
+    messageTarget.className = 'message';
+  }
 
   try {
     const response = await fetch('/api/logout', {
@@ -6607,18 +6615,29 @@ logoutForm.addEventListener('submit', async (event) => {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' }
     });
-    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.error || 'Abmelden konnte nicht abgeschlossen werden.');
+      throw new Error(translate('auth.logoutFailed', 'Abmelden konnte nicht abgeschlossen werden.'));
     }
     window.location.replace('/login.html?loggedOut=1');
   } catch (error) {
     logoutInProgress = false;
     logoutButton.disabled = false;
-    logoutButton.textContent = 'Abmelden';
-    showStatus(`${error.message} Bitte versuche es noch einmal.`, 'error');
+    apartmentSetupLogoutButton.disabled = false;
+    button.textContent = translate('common.logout', 'Abmelden');
+    const message = `${error.message} ${translate('auth.tryAgain', 'Bitte versuche es erneut.')}`;
+    if (messageTarget) {
+      messageTarget.textContent = message;
+      messageTarget.className = 'message error';
+    } else {
+      showStatus(message, 'error');
+    }
   }
-});
+}
+
+logoutForm.addEventListener('submit', (event) => submitLogout(event, logoutButton));
+apartmentSetupLogoutForm.addEventListener('submit', (event) => (
+  submitLogout(event, apartmentSetupLogoutButton, apartmentSetupMessage)
+));
 bookingViewButton.addEventListener('click', () => setAppView('booking', { userInitiated: true }));
 adminViewButton.addEventListener('click', () => setAppView('admin', { userInitiated: true }));
 adminSectionButtons.forEach((button) => {
@@ -6801,7 +6820,10 @@ deleteAccountForm.addEventListener('submit', async (event) => {
 function postponeApartmentSetup() {
   apartmentSetupOverlay.hidden = true;
   document.body.classList.remove('modal-open');
-  showStatus('Vor der naechsten Buchung muss das Konto noch einer Wohnung zugeordnet werden.', 'error');
+  showStatus(translate(
+    'onboarding.postponed',
+    'Vor der naechsten Buchung muss das Konto noch einer Wohnung zugeordnet werden.'
+  ), 'error');
 }
 closeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);
 postponeApartmentSetupButton.addEventListener('click', postponeApartmentSetup);

@@ -440,12 +440,12 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.5');
+    assert.equal(health.body.version, '0.3.0-test.6');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.5');
+    assert.equal(versionStatus.body.version, '0.3.0-test.6');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -1729,13 +1729,31 @@ async function run() {
 
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
+    const rolesDocument = fs.readFileSync(path.resolve(__dirname, '..', '.agents', 'ROLES.md'), 'utf8');
+    const handbookDocument = fs.readFileSync(path.resolve(__dirname, '..', 'HANDBUCH.md'), 'utf8');
+    const roleMatrixTestDocument = fs.readFileSync(path.resolve(__dirname, 'role-matrix-test.js'), 'utf8');
+    const ownerBriefingPosition = rolesDocument.indexOf('| `05` | `05 · Eigentuemer-Briefing');
+    assert.ok(rolesDocument.indexOf('| `00` |') < ownerBriefingPosition);
+    assert.ok(ownerBriefingPosition < rolesDocument.indexOf('| `10` |'));
+    assert.ok(rolesDocument.includes('## OWNER_BRIEFING — Einfacher Ueberblick fuer den Eigentuemer'));
+    assert.ok(rolesDocument.includes('Was ist der Stand?'));
+    assert.ok(rolesDocument.includes('Was hat sich geaendert?'));
+    assert.ok(rolesDocument.includes('Was ist das wichtigste Risiko oder der wichtigste offene Punkt?'));
+    assert.ok(rolesDocument.includes('Was muss der Eigentuemer jetzt entscheiden oder wissen?'));
+    assert.ok(rolesDocument.includes('keine App-Benutzerrolle und keinerlei App-Rechte'));
+    assert.ok(handbookDocument.includes('| `05` | `05 · Eigentuemer-Briefing – Einfacher Ueberblick`'));
+    assert.ok(handbookDocument.includes('keine automatisch berechnete Gesamtampel'));
+    const appRoleMatrix = handbookDocument.match(/\| Funktion \| Bewohner \| Haus-Admin \| Superadmin \|[\s\S]*?Das Kontomenue/)?.[0] || '';
+    assert.ok(appRoleMatrix);
+    assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
+    assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.5'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.6'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.5"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.5'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.5'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.6"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.6'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.6'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
