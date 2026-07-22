@@ -102,6 +102,158 @@ const forbiddenEnglishAdminPatterns = [
   /\bWiederherstellungscode\b/i
 ];
 
+const forbiddenEnglishResidentPatterns = [
+  /Dein Waschplan f(?:ue|\u00fc)r diese Woche/i,
+  /Freie Zeiten und deine n(?:ae|\u00e4)chsten Buchungen/i,
+  /Meine Buchungen/i,
+  /Deine n(?:ae|\u00e4)chsten Termine und schnelle Aktionen/i,
+  /Du hast aktuell keine kommenden Buchungen/i,
+  /Deine Empfehlung/i,
+  /Empfohlenen Termin buchen/i,
+  /Dieser freie Termin entspricht deinem/i,
+  /Dein (?:ue|\u00fc)blicher Termin ist belegt/i,
+  /Ein fr(?:ue|\u00fc)her freier Termin/i,
+  /Zeitfenster zuerst, Ger(?:ae|\u00e4)te danach/i,
+  /Zeitfenster w(?:ae|\u00e4)hlen/i,
+  /Freie Optionen werden gepr(?:ue|\u00fc)ft/i,
+  /Waschmaschinen\s+Trockenr(?:ae|\u00e4)ume/i,
+  /Waschzeiten frei/i,
+  /Sonntag ist Ruhetag/i
+];
+
+async function assertEnglishResidentPage(page, context) {
+  const residentText = await page.locator('.main-column').innerText();
+  const leaks = forbiddenEnglishResidentPatterns
+    .filter((pattern) => pattern.test(residentText))
+    .map((pattern) => pattern.toString());
+  assert.deepEqual(leaks, [], `${context}: deutsche Systemtexte im englischen Bewohnerbereich: ${leaks.join(', ')}`);
+  assert.equal(await page.locator('.intro-copy-block h2').innerText(), 'Your laundry schedule for this week.');
+  assert.equal(await page.locator('.my-bookings-panel h2').innerText(), 'My bookings');
+  assert.equal(await page.locator('#myBookings .muted').innerText(), 'You currently have no upcoming bookings.');
+  if (await page.locator('#bookingSuggestion').isVisible()) {
+    assert.match(await page.locator('#bookingSuggestion .suggestion-label').innerText(), /^Your recommendation$/i);
+    assert.equal(await page.locator('#bookingSuggestion button').innerText(), 'Book recommended time');
+  }
+}
+
+async function assertGermanResidentPage(page, context) {
+  assert.match(await page.locator('.intro-copy-block h2').innerText(), /Dein Waschplan f(?:ue|\u00fc)r diese Woche\./i, context);
+  assert.equal(await page.locator('.my-bookings-panel h2').innerText(), 'Meine Buchungen');
+  assert.match(await page.locator('#myBookings .muted').innerText(), /Du hast aktuell keine kommenden Buchungen\./i, context);
+  if (await page.locator('#bookingSuggestion').isVisible()) {
+    assert.match(await page.locator('#bookingSuggestion .suggestion-label').innerText(), /^Deine Empfehlung$/i, context);
+  }
+}
+
+const settingsLocalizationChecks = {
+  profile: [
+    /Deine Kontodaten/i,
+    /Klingelschild(?:name)?/i,
+    /\bWohnung\b/i,
+    /\bRolle\b/i,
+    /Wohnungskonto/i,
+    /Korrektur anfragen/i,
+    /Erste E-Mail/i,
+    /Zweite E-Mail/i,
+    /Bevorzugter Buchungsweg/i,
+    /Profil speichern/i
+  ],
+  notifications: [
+    /Lege fest, welche/i,
+    /Hinweise senden/i,
+    /\bBereich\b/i,
+    /Wochentag/i,
+    /Zeitfenster/i,
+    /Alle Bereiche/i,
+    /Alle Tage/i,
+    /Alle Zeitfenster/i,
+    /Benachrichtigungen speichern/i
+  ],
+  device: [
+    /Installation und Push gelten/i,
+    /Als App installieren/i,
+    /Push auf diesem Ger(?:ae|\u00e4)t/i,
+    /Partner zur Wohnung einladen/i,
+    /QR-Code erzeugen/i,
+    /Versionsstand wird/i,
+    /Nach Update suchen/i
+  ],
+  help: [
+    /Hilfe & Regeln/i,
+    /Einf(?:ue|\u00fc)hrung/i,
+    /Hausregeln/i,
+    /Massgebend bleibt/i,
+    /Waschmaschinen: pro Waschtag/i,
+    /Reinigung/i
+  ],
+  security: [
+    /Sicherheit & Daten/i,
+    /Passwort (?:ae|\u00e4)ndern/i,
+    /Bisheriges Passwort/i,
+    /Neues Passwort/i,
+    /Meine Daten/i,
+    /Daten exportieren/i,
+    /Konto l(?:oe|\u00f6)schen/i
+  ]
+};
+
+async function assertEnglishSettingsDialog(page, outputDirectory) {
+  fs.mkdirSync(outputDirectory, { recursive: true });
+  const originalViewport = page.viewportSize();
+  for (const viewport of mediaViewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    for (const [section, forbiddenPatterns] of Object.entries(settingsLocalizationChecks)) {
+      await page.click(`[data-settings-target="${section}"]`);
+      await page.waitForSelector(`[data-settings-section="${section}"]:not([hidden])`);
+      await page.locator('.settings-modal').evaluate((modal) => { modal.scrollTop = 0; });
+      const visibleText = await page.locator(`[data-settings-section="${section}"]`).innerText();
+      const leaks = forbiddenPatterns
+        .filter((pattern) => pattern.test(visibleText))
+        .map((pattern) => pattern.toString());
+      assert.deepEqual(leaks, [], `settings/${section}: deutsche Systemtexte im englischen Dialog: ${leaks.join(', ')}`);
+      const layout = await page.locator('.settings-modal').evaluate((modal) => ({
+        modalScrollWidth: modal.scrollWidth,
+        modalClientWidth: modal.clientWidth,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: document.documentElement.clientWidth
+      }));
+      assert.ok(layout.modalScrollWidth <= layout.modalClientWidth + 1, `settings/${section}/${viewport.name}: horizontaler Dialogueberlauf`);
+      assert.ok(layout.documentScrollWidth <= layout.viewportWidth + 1, `settings/${section}/${viewport.name}: horizontaler Seitenueberlauf`);
+      await page.screenshot({
+        path: path.join(outputDirectory, `settings-en-${section}-${viewport.width}x${viewport.height}.png`),
+        fullPage: false,
+        animations: 'disabled'
+      });
+    }
+  }
+
+  await page.setViewportSize(originalViewport || { width: 390, height: 844 });
+  await page.click('[data-settings-target="notifications"]');
+  const optionContracts = await page.evaluate(() => ({
+    language: [...document.querySelector('#settingsLanguage').options].map((option) => [option.value, option.textContent.trim()]),
+    bookingMode: [...document.querySelector('#settingsBookingMode').options].map((option) => [option.value, option.textContent.trim()]),
+    resourceType: [...document.querySelector('#notificationResourceType').options].map((option) => [option.value, option.textContent.trim()]),
+    weekday: [...document.querySelector('#notificationWeekday').options].map((option) => [option.value, option.textContent.trim()]),
+    slot: [...document.querySelector('#notificationSlot').options].map((option) => [option.value, option.textContent.trim()])
+  }));
+  assert.deepEqual(optionContracts.language, [['de', 'German'], ['en', 'English']]);
+  assert.deepEqual(optionContracts.bookingMode, [['time', 'Time first'], ['machine', 'Machine first']]);
+  assert.deepEqual(optionContracts.resourceType, [
+    ['all', 'All categories'], ['washer', 'Washing machines'], ['drying_room', 'Drying rooms'], ['tumbler', 'Dryers']
+  ]);
+  assert.deepEqual(optionContracts.weekday, [
+    ['', 'All days'], ['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'],
+    ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday']
+  ]);
+  assert.deepEqual(optionContracts.slot, [
+    ['', 'All time slots'], ['07:00-12:00', '07:00-12:00'], ['12:00-17:00', '12:00-17:00'], ['17:00-21:00', '17:00-21:00']
+  ]);
+  await page.locator('#notificationResourceType').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.selectOption('#notificationResourceType', 'all');
+  await page.click('[data-settings-target="profile"]');
+}
+
 async function assertEnglishAdminSection(page, role, section) {
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
   const visibleText = await page.locator(`[data-admin-section="${section}"]`).innerText();
@@ -410,12 +562,15 @@ async function run() {
       .then((response) => response.json())
       .then((data) => data.user.language === 'en'));
     assert.equal(await page.locator('#settingsTitle').innerText(), 'Settings');
+    await assertEnglishSettingsDialog(page, screenshotDirectory);
     await page.click('#closeSettingsButton');
+    await assertEnglishResidentPage(page, 'resident/de-to-en-without-reload');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.documentElement.lang === 'en');
     assert.equal(await page.locator('#settingsLanguage').inputValue(), 'en');
     assert.equal(await page.locator('#bookingPanelTitle').innerText(), 'Book');
     assert.ok(await page.locator('#bookingFlow').isVisible());
+    await assertEnglishResidentPage(page, 'resident/en-after-reload');
     await captureMediaSource(page, screenshotDirectory, 'resident-en-plan');
     await verifyIntroMediaPackage(page, screenshotDirectory, {
       id: 'resident-en', language: 'en', duration: 242, chapters: 9, secondStart: 24
@@ -439,6 +594,59 @@ async function run() {
     await page.click('#closeIntroButton');
     assert.ok(await page.locator('#settingsPanelHelp').isVisible());
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'openIntroButton');
+    await page.click('[data-settings-target="profile"]');
+    await page.click('#nameCorrectionPanel summary');
+    await page.fill('#displayNameRequestNote', 'Persoenliche Notiz bleibt unveraendert');
+    await page.selectOption('#settingsBookingMode', 'machine');
+    await page.click('[data-settings-target="notifications"]');
+    await page.selectOption('#notificationResourceType', 'tumbler');
+    await page.selectOption('#notificationWeekday', '5');
+    await page.selectOption('#notificationSlot', '17:00-21:00');
+    const settingsFormState = await page.evaluate(() => ({
+      displayName: document.querySelector('#settingsUsername').value,
+      apartment: document.querySelector('#settingsApartmentLabel').value,
+      email: document.querySelector('#notificationEmail').value,
+      note: document.querySelector('#displayNameRequestNote').value,
+      bookingMode: document.querySelector('#settingsBookingMode').value,
+      resourceType: document.querySelector('#notificationResourceType').value,
+      weekday: document.querySelector('#notificationWeekday').value,
+      slot: document.querySelector('#notificationSlot').value
+    }));
+    await page.locator('#notifyReleases').focus();
+    await page.evaluate(() => {
+      const picker = document.querySelector('#settingsLanguage');
+      picker.value = 'de';
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => document.documentElement.lang === 'de');
+    assert.ok(await page.locator('#settingsPanelNotifications').isVisible());
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'notifyReleases');
+    assert.deepEqual(await page.evaluate(() => [
+      document.querySelector('#notificationResourceType').value,
+      document.querySelector('#notificationWeekday').value,
+      document.querySelector('#notificationSlot').value
+    ]), ['tumbler', '5', '17:00-21:00']);
+    assert.deepEqual(await page.locator('#notificationResourceType option').allTextContents(), [
+      'Alle Bereiche', 'Waschmaschinen', 'Trockenraeume', 'Tumbler'
+    ]);
+    await page.evaluate(() => {
+      const picker = document.querySelector('#settingsLanguage');
+      picker.value = 'en';
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.ok(await page.locator('#settingsPanelNotifications').isVisible());
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'notifyReleases');
+    assert.deepEqual(await page.evaluate(() => ({
+      displayName: document.querySelector('#settingsUsername').value,
+      apartment: document.querySelector('#settingsApartmentLabel').value,
+      email: document.querySelector('#notificationEmail').value,
+      note: document.querySelector('#displayNameRequestNote').value,
+      bookingMode: document.querySelector('#settingsBookingMode').value,
+      resourceType: document.querySelector('#notificationResourceType').value,
+      weekday: document.querySelector('#notificationWeekday').value,
+      slot: document.querySelector('#notificationSlot').value
+    })), settingsFormState);
     await page.click('[data-settings-target="profile"]');
     await page.waitForSelector('#weekCalendar [data-calendar-date]');
     const readLocalizedResidentState = (locale) => page.evaluate((expectedLocale) => {
@@ -478,6 +686,7 @@ async function run() {
     const germanResidentState = await readLocalizedResidentState('de-CH');
     assert.equal(germanResidentState.weekday, germanResidentState.expectedWeekday);
     assert.deepEqual(germanResidentState.stable, englishResidentState.stable);
+    await assertGermanResidentPage(page, 'resident/en-to-de-without-reload');
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'settingsLanguage');
     await page.selectOption('#settingsLanguage', 'en');
     await page.waitForFunction(() => {
@@ -491,6 +700,7 @@ async function run() {
     const englishResidentStateAgain = await readLocalizedResidentState('en-GB');
     assert.equal(englishResidentStateAgain.weekday, englishResidentStateAgain.expectedWeekday);
     assert.deepEqual(englishResidentStateAgain.stable, englishResidentState.stable);
+    await assertEnglishResidentPage(page, 'resident/de-to-en-again-without-reload');
     await page.selectOption('#settingsLanguage', 'de');
     await page.waitForFunction(() => {
       const firstDay = document.querySelector('#weekCalendar [data-calendar-date]');

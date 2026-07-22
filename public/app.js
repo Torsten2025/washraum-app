@@ -1,6 +1,12 @@
 const i18n = window.WZ_I18N;
 const translate = (key, fallback, variables = {}) => i18n?.t(key, variables, fallback) || fallback || key;
 const activeLocale = () => i18n?.language() === 'en' ? 'en-GB' : 'de-CH';
+const localizedSystemText = (value, fallback = '') => {
+  const source = String(value || fallback || '');
+  if (i18n?.language() !== 'en') return source;
+  const localized = i18n.translateVisibleText(source);
+  return localized === source && fallback ? fallback : localized;
+};
 
 const userLine = document.querySelector('#userLine');
 const logoutForm = document.querySelector('#logoutForm');
@@ -331,7 +337,11 @@ let introReturnFocus = null;
 let settingsReturnFocus = null;
 let messageCenterReturnFocus = null;
 let activeSettingsSection = 'profile';
+let settingsFirstRun = false;
 let devicePairingCountdownTimer = null;
+let devicePairingApartmentLabel = '';
+let currentPushState = 'checking';
+let currentPushError = '';
 let activeAdminSection = 'overview';
 let adminUserDirectory = [];
 let logoutInProgress = false;
@@ -543,10 +553,10 @@ function escapeHtml(value) {
 
 function dateStatus(dateString) {
   const diffDays = Math.round((Date.parse(`${dateString}T00:00:00Z`) - Date.parse(`${todayString()}T00:00:00Z`)) / 86400000);
-  if (diffDays < 0) return 'vergangen';
-  if (diffDays === 0) return 'heute';
-  if (diffDays === 1) return 'morgen';
-  return 'geplant';
+  if (diffDays < 0) return translate('app.statusPast', 'vergangen');
+  if (diffDays === 0) return translate('app.statusToday', 'heute');
+  if (diffDays === 1) return translate('app.statusTomorrow', 'morgen');
+  return translate('app.statusPlanned', 'geplant');
 }
 
 function isPastSlot(dateString, slot) {
@@ -607,16 +617,20 @@ function renderReleaseSpotlight() {
   if (!notice) return;
 
   const copy = document.createElement('div');
-  const actor = notice.created_by_name ? ` von ${notice.created_by_name}` : '';
+  const actor = notice.created_by_name
+    ? translate('app.byActor', ` von ${notice.created_by_name}`, { actor: notice.created_by_name })
+    : '';
   copy.innerHTML = `
-    <span class="suggestion-label">Neu frei</span>
+    <span class="suggestion-label">${escapeHtml(translate('app.newlyAvailable', 'Neu frei'))}</span>
     <strong>${escapeHtml(notice.resource_name)} - ${escapeHtml(formatShortDate(notice.booking_date))}, ${escapeHtml(notice.slot)}</strong>
-    <small>Freigegeben${escapeHtml(actor)}</small>
+    <small>${escapeHtml(translate('app.releasedBy', `Freigegeben${actor}`, { actor }))}</small>
   `;
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'text-button';
-  action.textContent = notice.bookable ? 'Ansehen und buchen' : 'Ansehen';
+  action.textContent = notice.bookable
+    ? translate('app.viewAndBook', 'Ansehen und buchen')
+    : translate('app.viewOnly', 'Ansehen');
   action.addEventListener('click', () => openReleaseNotice(notice));
   releaseSpotlightContent.append(copy, action);
 }
@@ -625,7 +639,7 @@ function renderMessageCenter() {
   const entries = messageCenterEntries();
   messageCenterList.innerHTML = '';
   if (!entries.length) {
-    messageCenterList.innerHTML = '<div class="message-center-empty"><strong>Alles ruhig.</strong><p>Passende freie Termine erscheinen hier, solange sie noch buchbar sind.</p></div>';
+    messageCenterList.innerHTML = `<div class="message-center-empty"><strong>${escapeHtml(translate('app.allQuiet', 'Alles ruhig.'))}</strong><p>${escapeHtml(translate('app.messageCenterHint', 'Passende freie Termine erscheinen hier, solange sie noch buchbar sind.'))}</p></div>`;
   }
 
   for (const entry of entries) {
@@ -633,19 +647,19 @@ function renderMessageCenter() {
     item.className = `message-item is-${entry.type}`;
     const createdAt = new Date(messageTimestamp(entry.createdAt));
     const notice = entry.notice;
-    const actor = notice.created_by_name || 'Jemand';
+    const actor = notice.created_by_name || translate('app.someone', 'Jemand');
     item.innerHTML = `
       <div class="message-item-copy">
-        <span class="message-kind">Neu frei</span>
-        <strong>${escapeHtml(notice.resource_name)} ist wieder frei</strong>
-        <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - von ${escapeHtml(actor)}</p>
+        <span class="message-kind">${escapeHtml(translate('app.newlyAvailable', 'Neu frei'))}</span>
+        <strong>${escapeHtml(translate('app.availableAgain', `${notice.resource_name} ist wieder frei`, { resource: notice.resource_name }))}</strong>
+        <p>${escapeHtml(formatShortDate(notice.booking_date))} - ${escapeHtml(notice.slot)} - ${escapeHtml(translate('app.fromActor', `von ${actor}`, { actor }))}</p>
         <small>${escapeHtml(createdAt.toLocaleString(activeLocale()))}</small>
       </div>
     `;
     const action = document.createElement('button');
     action.type = 'button';
     action.className = 'secondary';
-    action.textContent = 'Buchen';
+    action.textContent = translate('app.book', 'Buchen');
     action.addEventListener('click', () => {
       closeMessageCenter();
       openReleaseNotice(notice);
@@ -973,7 +987,7 @@ function markSettingsCompleted() {
 }
 
 function pushIsActive() {
-  return pushStatusText.textContent.includes('auf diesem Geraet aktiv');
+  return currentPushState === 'active';
 }
 
 function renderSettingsSummary() {
@@ -982,24 +996,71 @@ function renderSettingsSummary() {
   const installReady = appInstalled();
   const pushReady = pushIsActive();
   const completedCount = [emailReady, installReady, pushReady].filter(Boolean).length;
-  settingsProgressText.textContent = `${completedCount} von 3 Schritten erledigt.`;
+  settingsProgressText.textContent = translate(
+    'settings.progress',
+    '{completed} von 3 Schritten erledigt.',
+    { completed: completedCount }
+  );
   const items = [
     {
-      label: 'E-Mail',
-      value: !currentUser.email ? 'fehlt' : currentUser.emailVerified ? 'bestaetigt' : 'bestaetigen'
+      label: translate('settings.summaryEmail', 'E-Mail'),
+      value: !currentUser.email
+        ? translate('settings.summaryMissing', 'fehlt')
+        : currentUser.emailVerified
+          ? translate('settings.summaryConfirmed', 'bestaetigt')
+          : translate('settings.summaryConfirm', 'bestaetigen')
     },
     {
-      label: 'App',
-      value: installReady ? 'installiert' : 'optional'
+      label: translate('settings.summaryApp', 'App'),
+      value: installReady
+        ? translate('settings.summaryInstalled', 'installiert')
+        : translate('settings.summaryOptional', 'optional')
     },
     {
-      label: 'Push',
-      value: pushReady ? 'aktiv' : 'nicht aktiv'
+      label: translate('settings.summaryPush', 'Push'),
+      value: pushReady
+        ? translate('settings.summaryActive', 'aktiv')
+        : translate('settings.summaryInactive', 'nicht aktiv')
     }
   ];
   settingsSummary.innerHTML = items.map((item) => (
     `<span><strong>${escapeHtml(item.label)}</strong>${escapeHtml(item.value)}</span>`
   )).join('');
+}
+
+function renderSettingsHeader() {
+  settingsEyebrow.textContent = settingsFirstRun
+    ? translate('settings.firstStart', 'Erster Start')
+    : translate('settings.yourAccount', 'Dein Konto');
+  settingsTitle.textContent = settingsFirstRun
+    ? translate('settings.firstTitle', 'Einmal kurz einrichten.')
+    : translate('common.settings', 'Einstellungen');
+  settingsIntroText.textContent = settingsFirstRun
+    ? translate('settings.firstHint', 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.')
+    : translate('settings.intro', 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.');
+}
+
+function renderApartmentAccountStatus() {
+  apartmentAccountStatus.textContent = currentUser.apartmentLabel
+    ? translate('settings.apartmentAccount', 'Wohnungskonto: {apartment}', { apartment: currentUser.apartmentLabel })
+    : currentUser.canManage
+      ? translate('settings.adminWithoutApartment', 'Verwaltungszugang ohne Wohnungszuordnung.')
+      : translate('settings.apartmentMissing', 'Wohnung noch nicht zugeordnet.');
+}
+
+function renderDevicePairingLabels() {
+  createDeviceCodeButton.textContent = devicePairingPanel.hidden
+    ? translate('settings.createQr', 'QR-Code erzeugen')
+    : translate('settings.createNewQr', 'Neuen QR-Code erzeugen');
+  if (!devicePairingPanel.hidden) {
+    devicePairingApartment.textContent = devicePairingApartmentLabel
+      ? translate('settings.apartmentAccount', 'Wohnungskonto: {apartment}', { apartment: devicePairingApartmentLabel })
+      : translate('settings.sharedApartmentAccount', 'Gemeinsames Wohnungskonto');
+  }
+  if (devicePairingCode.dataset.expired === 'true') {
+    devicePairingExpires.textContent = translate('settings.qrExpired', 'Dieser QR-Code ist abgelaufen.');
+    devicePairingCode.textContent = translate('settings.expired', 'Abgelaufen');
+  }
 }
 
 function setSettingsSection(sectionName) {
@@ -1018,15 +1079,8 @@ function setSettingsSection(sectionName) {
 function openSettings(firstRun = false) {
   closeAccountMenu();
   settingsReturnFocus = document.activeElement;
-  settingsEyebrow.textContent = firstRun
-    ? translate('settings.firstStart', 'Erster Start')
-    : translate('settings.yourAccount', 'Dein Konto');
-  settingsTitle.textContent = firstRun
-    ? translate('settings.firstTitle', 'Einmal kurz einrichten.')
-    : translate('common.settings', 'Einstellungen');
-  settingsIntroText.textContent = firstRun
-    ? translate('settings.firstHint', 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.')
-    : translate('settings.intro', 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.');
+  settingsFirstRun = firstRun;
+  renderSettingsHeader();
   settingsUsername.value = currentUser.displayName || currentUser.username;
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
@@ -1034,9 +1088,7 @@ function openSettings(firstRun = false) {
   requestedDisplayName.value = currentUser.displayName || '';
   settingsRole.value = currentRoleLabel();
   settingsBookingMode.value = bookingMode;
-  apartmentAccountStatus.textContent = currentUser.apartmentLabel
-    ? `Wohnungskonto: ${currentUser.apartmentLabel}`
-    : currentUser.canManage ? 'Verwaltungszugang ohne Wohnungszuordnung.' : 'Wohnung noch nicht zugeordnet.';
+  renderApartmentAccountStatus();
   openApartmentSetupButton.hidden = !currentUser.apartmentSetupRequired;
   setSettingsSection(firstRun ? 'profile' : activeSettingsSection);
   settingsOverlay.hidden = false;
@@ -1527,7 +1579,7 @@ function configureSessionTimeout(sessionConfig = {}) {
 }
 
 function formatReleaseDate(value) {
-  if (!value) return 'Datum unbekannt';
+  if (!value) return translate('settings.dateUnknown', 'Datum unbekannt');
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
@@ -1577,8 +1629,15 @@ function applyMaintenanceStatus(maintenance = {}) {
 function renderReleaseStatus(status = latestReleaseStatus) {
   const version = status?.version || loadedAppVersion;
   const releasedAt = status?.releasedAt || loadedAppReleasedAt;
-  const versionLabel = version.includes('-test.') ? 'Testversion' : 'Version';
-  appVersionText.textContent = `${versionLabel} ${version} - Stand ${formatReleaseDate(releasedAt)}`;
+  const versionLabelFallback = version.includes('-test.') ? 'Testversion' : 'Version';
+  const versionLabel = version.includes('-test.')
+    ? translate('common.testVersion', versionLabelFallback)
+    : translate('settings.version', versionLabelFallback);
+  appVersionText.textContent = translate(
+    'settings.versionStatus',
+    '{label} {version} - Stand {date}',
+    { label: versionLabel, version, date: formatReleaseDate(releasedAt) }
+  );
   const updateAvailable = Boolean(status?.release && status.release !== loadedAppRelease);
   appUpdateNotice.hidden = !updateAvailable;
   if (updateAvailable) {
@@ -1593,13 +1652,13 @@ async function checkAppVersion({ manual = false } = {}) {
   if (manual) checkAppUpdateButton.disabled = true;
   try {
     const response = await fetch('/api/version', { cache: 'no-store' });
-    if (!response.ok) throw new Error('Versionsstatus konnte nicht geladen werden.');
+    if (!response.ok) throw new Error(translate('settings.versionLoadFailed', 'Versionsstatus konnte nicht geladen werden.'));
     latestReleaseStatus = await response.json();
     renderReleaseStatus();
     if (manual) {
       showStatus(latestReleaseStatus.release === loadedAppRelease
-        ? 'Du verwendest bereits die aktuelle Version.'
-        : 'Eine neue Version ist bereit.');
+        ? translate('settings.versionCurrent', 'Du verwendest bereits die aktuelle Version.')
+        : translate('settings.versionReady', 'Eine neue Version ist bereit.'));
     }
     return latestReleaseStatus;
   } catch (error) {
@@ -2020,18 +2079,18 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
 function renderEmailVerificationStatus() {
   const configuredAddress = Boolean(currentUser.email);
   emailVerificationStatus.textContent = !configuredAddress
-    ? 'E-Mail ist Pflicht: Bitte Adresse eintragen, sonst ist kein Passwort-Reset moeglich.'
+    ? translate('settings.emailRequired', 'E-Mail ist Pflicht: Bitte Adresse eintragen, sonst ist kein Passwort-Reset moeglich.')
     : currentUser.emailVerified
-      ? 'E-Mail-Adresse best\u00e4tigt.'
-      : 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.';
+      ? translate('settings.emailVerified', 'E-Mail-Adresse bestaetigt.')
+      : translate('settings.emailUnverified', 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.');
   emailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.emailVerified));
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
   const secondaryConfigured = Boolean(currentUser.secondaryEmail);
   secondaryEmailVerificationStatus.textContent = !secondaryConfigured
-    ? 'Optional: Eine zweite Person kann eine eigene Adresse f\u00fcr Reset und Hinweise hinterlegen.'
+    ? translate('settings.secondaryEmailHint', 'Optional: Eine zweite Person kann eine eigene Adresse fuer Reset und Hinweise hinterlegen.')
     : currentUser.secondaryEmailVerified
-      ? 'Zweite E-Mail-Adresse best\u00e4tigt.'
-      : 'Bitte auch die zweite E-Mail-Adresse best\u00e4tigen.';
+      ? translate('settings.secondaryEmailVerified', 'Zweite E-Mail-Adresse bestaetigt.')
+      : translate('settings.secondaryEmailUnverified', 'Bitte auch die zweite E-Mail-Adresse bestaetigen.');
   secondaryEmailVerificationStatus.classList.toggle('is-verified', Boolean(currentUser.secondaryEmailVerified));
   resendSecondaryVerificationButton.hidden = !secondaryConfigured || Boolean(currentUser.secondaryEmailVerified);
   renderSettingsSummary();
@@ -2048,28 +2107,29 @@ function isiOS() {
 
 function renderInstallStatus() {
   if (appInstalled()) {
-    installHelpText.textContent = 'WaschZeit ist auf diesem Geraet bereits als App geoeffnet.';
+    installHelpText.textContent = translate('settings.installOpen', 'WaschZeit ist auf diesem Geraet bereits als App geoeffnet.');
     installAppButton.hidden = true;
     renderSettingsSummary();
     return;
   }
   installAppButton.hidden = false;
   if (deferredInstallPrompt) {
-    installHelpText.textContent = 'Du kannst WaschZeit direkt auf diesem Geraet installieren.';
+    installHelpText.textContent = translate('settings.installAvailable', 'Du kannst WaschZeit direkt auf diesem Geraet installieren.');
     installAppButton.disabled = false;
-    installAppButton.textContent = 'App installieren';
+    installAppButton.textContent = translate('settings.install', 'App installieren');
     renderSettingsSummary();
     return;
   }
   if (isiOS()) {
-    installHelpText.textContent = 'iPhone/iPad: Im Safari-Teilen-Menue "Zum Home-Bildschirm" waehlen.';
+    installHelpText.textContent = translate('settings.installIos', 'iPhone/iPad: Im Safari-Teilen-Menue "Zum Home-Bildschirm" waehlen.');
     installAppButton.disabled = true;
-    installAppButton.textContent = 'Safari-Teilen-Menue nutzen';
+    installAppButton.textContent = translate('settings.installSafari', 'Safari-Teilen-Menue nutzen');
     renderSettingsSummary();
     return;
   }
-  installHelpText.textContent = 'Wenn dein Browser die Installation anbietet, erscheint hier der Installationsbutton. Sonst Browser-Menue verwenden.';
+  installHelpText.textContent = translate('settings.installFallback', 'Wenn dein Browser die Installation anbietet, erscheint hier der Installationsbutton. Sonst Browser-Menue verwenden.');
   installAppButton.disabled = true;
+  installAppButton.textContent = translate('settings.install', 'App installieren');
   renderSettingsSummary();
 }
 
@@ -2083,9 +2143,9 @@ async function installApp() {
   const choice = await deferredInstallPrompt.userChoice.catch(() => null);
   deferredInstallPrompt = null;
   if (choice?.outcome === 'accepted') {
-    showStatus('WaschZeit wurde als App installiert.');
+    showStatus(translate('settings.installComplete', 'WaschZeit wurde als App installiert.'));
   } else {
-    showStatus('Installation wurde nicht abgeschlossen.');
+    showStatus(translate('settings.installCancelled', 'Installation wurde nicht abgeschlossen.'));
   }
   renderInstallStatus();
 }
@@ -2113,70 +2173,92 @@ async function currentPushSubscription() {
   return registration.pushManager.getSubscription();
 }
 
+function renderPushStatusView() {
+  const state = {
+    checking: ['settings.pushChecking', 'Push-Status wird geprueft.'],
+    unsupported: ['settings.pushUnsupported', 'Dieses Geraet unterstuetzt Web-Push leider nicht.'],
+    unavailable: ['settings.pushServerUnavailable', 'Push ist auf dem Server noch nicht bereit.'],
+    active: ['settings.pushActive', 'Push ist auf diesem Geraet aktiv.'],
+    blocked: ['settings.pushBlocked', 'Push wurde im Browser blockiert. Bitte in den Website-Einstellungen erlauben.'],
+    inactive: ['settings.pushInactive', 'Push ist bereit, aber auf diesem Geraet noch nicht aktiviert.']
+  }[currentPushState];
+  pushStatusText.textContent = currentPushState === 'error'
+    ? localizedSystemText(currentPushError, translate('app.noConnection', 'Keine Verbindung zur App.'))
+    : translate(state?.[0] || 'settings.pushChecking', state?.[1] || 'Push-Status wird geprueft.');
+  enablePushButton.textContent = currentPushState === 'active'
+    ? translate('settings.pushReconnect', 'Push erneut verbinden')
+    : translate('settings.enablePush', 'Push aktivieren');
+  renderSettingsSummary();
+}
+
 async function renderPushStatus() {
   if (!pushSupported()) {
-    pushStatusText.textContent = 'Dieses Geraet unterstuetzt Web-Push leider nicht.';
+    currentPushState = 'unsupported';
+    currentPushError = '';
     enablePushButton.disabled = true;
     disablePushButton.hidden = true;
-    renderSettingsSummary();
+    renderPushStatusView();
     return;
   }
   try {
     await registerServiceWorker();
     const pushConfig = await api('/api/push/public-key');
     if (!pushConfig.configured) {
-      pushStatusText.textContent = 'Push ist auf dem Server noch nicht bereit.';
+      currentPushState = 'unavailable';
+      currentPushError = '';
       enablePushButton.disabled = true;
       disablePushButton.hidden = true;
-      renderSettingsSummary();
+      renderPushStatusView();
       return;
     }
     const subscription = await currentPushSubscription();
     const permission = Notification.permission;
     if (subscription && permission === 'granted') {
-      pushStatusText.textContent = 'Push ist auf diesem Geraet aktiv.';
-      enablePushButton.textContent = 'Push erneut verbinden';
+      currentPushState = 'active';
+      currentPushError = '';
       enablePushButton.disabled = false;
       disablePushButton.hidden = false;
-      renderSettingsSummary();
+      renderPushStatusView();
       return;
     }
     if (permission === 'denied') {
-      pushStatusText.textContent = 'Push wurde im Browser blockiert. Bitte in den Website-Einstellungen erlauben.';
+      currentPushState = 'blocked';
+      currentPushError = '';
       enablePushButton.disabled = true;
       disablePushButton.hidden = true;
-      renderSettingsSummary();
+      renderPushStatusView();
       return;
     }
-    pushStatusText.textContent = 'Push ist bereit, aber auf diesem Geraet noch nicht aktiviert.';
-    enablePushButton.textContent = 'Push aktivieren';
+    currentPushState = 'inactive';
+    currentPushError = '';
     enablePushButton.disabled = false;
     disablePushButton.hidden = true;
   } catch (error) {
-    pushStatusText.textContent = error.message;
+    currentPushState = 'error';
+    currentPushError = error.message;
     enablePushButton.disabled = true;
     disablePushButton.hidden = true;
   }
-  renderSettingsSummary();
+  renderPushStatusView();
 }
 
 async function enablePushNotifications() {
   if (!pushSupported()) {
-    showStatus('Dieses Geraet unterstuetzt Web-Push leider nicht.', 'error');
+    showStatus(translate('settings.pushUnsupported', 'Dieses Geraet unterstuetzt Web-Push leider nicht.'), 'error');
     return;
   }
   enablePushButton.disabled = true;
   try {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      showStatus('Push wurde nicht erlaubt. Du kannst es spaeter in den Browser-Einstellungen aktivieren.', 'error');
+      showStatus(translate('settings.pushDenied', 'Push wurde nicht erlaubt. Du kannst es spaeter in den Browser-Einstellungen aktivieren.'), 'error');
       await renderPushStatus();
       return;
     }
     const registration = await registerServiceWorker();
     const pushConfig = await api('/api/push/public-key');
     if (!pushConfig.configured || !pushConfig.publicKey) {
-      throw new Error('Push ist auf dem Server noch nicht bereit.');
+      throw new Error(translate('settings.pushServerUnavailable', 'Push ist auf dem Server noch nicht bereit.'));
     }
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
@@ -2189,10 +2271,10 @@ async function enablePushNotifications() {
       method: 'POST',
       body: JSON.stringify({ subscription })
     });
-    showStatus(data.message || 'Push-Hinweise sind aktiv.');
+    showStatus(localizedSystemText(data.message, translate('settings.pushEnabled', 'Push-Hinweise sind aktiv.')));
     await renderPushStatus();
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
     await renderPushStatus();
   } finally {
     enablePushButton.disabled = false;
@@ -2209,10 +2291,10 @@ async function disablePushNotifications() {
     if (subscription) {
       await subscription.unsubscribe();
     }
-    showStatus('Push-Hinweise wurden auf diesem Geraet deaktiviert.');
+    showStatus(translate('settings.pushDisabled', 'Push-Hinweise wurden auf diesem Geraet deaktiviert.'));
     await renderPushStatus();
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
@@ -2233,9 +2315,9 @@ function renderHouseContext() {
   settingsRole.value = roleLabel;
   settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
-  brandHouseName.title = `Aktuelles Haus: ${currentUser.houseName}`;
+  brandHouseName.title = translate('app.currentHouse', `Aktuelles Haus: ${currentUser.houseName}`, { house: currentUser.houseName });
   document.title = `WaschZeit | ${currentUser.houseName}`;
-  introHouseName.textContent = `Waschraum ${currentUser.houseName}`;
+  introHouseName.textContent = translate('app.laundryRoomHouse', `Waschraum ${currentUser.houseName}`, { house: currentUser.houseName });
   adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
   bookingViewButton.textContent = isAdmin
     ? translate('app.calendar', 'Kalender')
@@ -2338,10 +2420,14 @@ async function loadRecommendation() {
 }
 
 const calendarResourceTypes = [
-  { type: 'washer', label: 'Waschmaschinen', shortLabel: 'WM' },
-  { type: 'drying_room', label: 'Trockenr\u00e4ume', shortLabel: 'TR' },
-  { type: 'tumbler', label: 'Tumbler', shortLabel: 'TU' }
+  { type: 'washer', labelKey: 'app.washers', label: 'Waschmaschinen', shortLabel: 'WM' },
+  { type: 'drying_room', labelKey: 'app.dryingRooms', label: 'Trockenr\u00e4ume', shortLabel: 'TR' },
+  { type: 'tumbler', labelKey: 'app.tumblers', label: 'Tumbler', shortLabel: 'TU' }
 ];
+
+function calendarResourceTypeLabel(typeMeta) {
+  return translate(typeMeta.labelKey, typeMeta.label);
+}
 
 function availabilityForDay(day, type = 'washer') {
   return day.availability[type] || { free: 0, total: 0, freeSlots: 0, totalSlots: 0 };
@@ -2357,15 +2443,20 @@ function calendarAvailabilityState(day, type) {
 
 function calendarAvailabilityText(day, type) {
   const availability = availabilityForDay(day, type);
-  if (day.closed) return 'Ruhetag';
-  if (day.date < todayString() || availability.total === 0) return 'nicht verf\u00fcgbar';
-  if (availability.free === 0) return 'vollst\u00e4ndig belegt';
-  if (availability.free >= availability.total) return 'frei';
-  return `${availability.free} von ${availability.total} frei`;
+  if (day.closed) return translate('app.restDay', 'Ruhetag');
+  if (day.date < todayString() || availability.total === 0) return translate('app.unavailable', 'nicht verf\u00fcgbar');
+  if (availability.free === 0) return translate('app.fullyBooked', 'vollst\u00e4ndig belegt');
+  if (availability.free >= availability.total) return translate('app.freeLower', 'frei');
+  return translate('app.freeCount', `${availability.free} von ${availability.total} frei`, {
+    free: availability.free,
+    total: availability.total
+  });
 }
 
 function renderCalendarStatusRows(day) {
-  return calendarResourceTypes.map(({ type, label, shortLabel }) => {
+  return calendarResourceTypes.map((typeMeta) => {
+    const { type, shortLabel } = typeMeta;
+    const label = calendarResourceTypeLabel(typeMeta);
     const availability = availabilityForDay(day, type);
     const state = calendarAvailabilityState(day, type);
     const text = calendarAvailabilityText(day, type);
@@ -2382,12 +2473,12 @@ function renderCalendarStatusRows(day) {
 
 function calendarResourceStateLabel(state) {
   return {
-    free: 'frei',
-    booked: 'belegt',
-    own: 'deine Buchung',
-    reserve: 'bleibt frei',
-    closed: 'Ruhetag',
-    past: 'vorbei'
+    free: translate('app.freeLower', 'frei'),
+    booked: translate('app.occupied', 'belegt'),
+    own: translate('app.ownBooking', 'deine Buchung'),
+    reserve: translate('app.reservedFree', 'bleibt frei'),
+    closed: translate('app.restDay', 'Ruhetag'),
+    past: translate('app.past', 'vorbei')
   }[state] || state;
 }
 
@@ -2401,17 +2492,21 @@ function calendarSlotTypeMarkup(day, slotDetail, typeMeta) {
   const resourcesMarkup = detail.resources.map((resource) => {
     const stateLabel = calendarResourceStateLabel(resource.state);
     if (canStartWasher && resource.state === 'free') {
-      return `<button class="calendar-resource is-free" type="button" data-calendar-book-washer="${resource.resourceId}" data-calendar-date="${day.date}" data-calendar-slot="${slotDetail.slot}"><span>${escapeHtml(resource.resourceName)}</span><strong>Ausw\u00e4hlen</strong></button>`;
+      return `<button class="calendar-resource is-free" type="button" data-calendar-book-washer="${resource.resourceId}" data-calendar-date="${day.date}" data-calendar-slot="${slotDetail.slot}"><span>${escapeHtml(resource.resourceName)}</span><strong>${escapeHtml(translate('app.select', 'Ausw\u00e4hlen'))}</strong></button>`;
     }
     return `<span class="calendar-resource is-${resource.state}"><span>${escapeHtml(resource.resourceName)}</span><strong>${escapeHtml(stateLabel)}</strong></span>`;
   }).join('');
   const capacityText = typeMeta.type === 'tumbler'
-    ? `${detail.free} weitere Buchung${detail.free === 1 ? '' : 'en'} m\u00f6glich, einer bleibt frei`
-    : `${detail.free} von ${detail.total} frei`;
+    ? translate(
+      detail.free === 1 ? 'app.moreBookingAvailable' : 'app.moreBookingsAvailable',
+      `${detail.free} weitere Buchung${detail.free === 1 ? '' : 'en'} m\u00f6glich, einer bleibt frei`,
+      { count: detail.free }
+    )
+    : translate('app.freeCount', `${detail.free} von ${detail.total} frei`, { free: detail.free, total: detail.total });
   return `
     <div class="calendar-slot-type">
-      <div class="calendar-slot-type-head"><strong>${escapeHtml(typeMeta.label)}</strong><span>${escapeHtml(capacityText)}</span></div>
-      <div class="calendar-resource-list">${resourcesMarkup || '<span class="muted">Keine Ger\u00e4te eingerichtet</span>'}</div>
+      <div class="calendar-slot-type-head"><strong>${escapeHtml(calendarResourceTypeLabel(typeMeta))}</strong><span>${escapeHtml(capacityText)}</span></div>
+      <div class="calendar-resource-list">${resourcesMarkup || `<span class="muted">${escapeHtml(translate('app.noEquipment', 'Keine Ger\u00e4te eingerichtet'))}</span>`}</div>
     </div>
   `;
 }
@@ -2511,14 +2606,14 @@ function renderCalendarDayDetails() {
       slotDetail.types[type]?.resources.some((resource) => resource.state === 'own')
     ));
     const slotNote = slotDetail.past
-      ? '<span class="calendar-slot-note is-muted">Vorbei</span>'
+      ? `<span class="calendar-slot-note is-muted">${escapeHtml(translate('app.past', 'Vorbei'))}</span>`
       : recommendedSlot === slotDetail.slot
-        ? '<span class="calendar-slot-note is-recommended">Empfohlen</span>'
+        ? `<span class="calendar-slot-note is-recommended">${escapeHtml(translate('app.recommended', 'Empfohlen'))}</span>`
         : hasOwnBooking
-          ? '<span class="calendar-slot-note is-own">Deine Buchung</span>'
+          ? `<span class="calendar-slot-note is-own">${escapeHtml(translate('app.ownBooking', 'Deine Buchung'))}</span>`
           : '';
     const ownAction = currentUser?.canBook && hasOwnBooking && !slotDetail.past
-      ? `<button class="secondary calendar-open-package" type="button" data-calendar-open-package="${day.date}">Waschpaket erg\u00e4nzen</button>`
+      ? `<button class="secondary calendar-open-package" type="button" data-calendar-open-package="${day.date}">${escapeHtml(translate('app.addToPackage', 'Waschpaket erg\u00e4nzen'))}</button>`
       : '';
     return `
       <section class="calendar-slot-detail${slotDetail.past ? ' is-past' : ''}">
@@ -2529,11 +2624,11 @@ function renderCalendarDayDetails() {
   }).join('');
   const openDayAction = currentUser?.canBook && !day.closed && day.date >= todayString()
     ? recommendedSlot
-      ? `<button type="button" data-calendar-use-recommendation="${day.date}" data-calendar-slot="${recommendedSlot}">Empfohlenen Termin buchen</button>`
-      : `<button type="button" data-calendar-open-day="${day.date}">Diesen Tag ausw\u00e4hlen und buchen</button>`
+      ? `<button type="button" data-calendar-use-recommendation="${day.date}" data-calendar-slot="${recommendedSlot}">${escapeHtml(translate('app.bookRecommended', 'Empfohlenen Termin buchen'))}</button>`
+      : `<button type="button" data-calendar-open-day="${day.date}">${escapeHtml(translate('app.chooseAndBookDay', 'Diesen Tag ausw\u00e4hlen und buchen'))}</button>`
     : '';
   calendarDayDetailsContent.innerHTML = day.closed
-    ? '<p class="calendar-detail-empty">Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.</p>'
+    ? `<p class="calendar-detail-empty">${escapeHtml(translate('app.sundayNoBookings', 'Sonntag ist Ruhetag. An diesem Tag sind keine Buchungen m\u00f6glich.'))}</p>`
     : slotsMarkup;
   calendarDayDetailsActions.innerHTML = openDayAction;
   calendarDayDetailsActions.hidden = !openDayAction;
@@ -2576,15 +2671,21 @@ function renderCalendar() {
   weekCalendar.innerHTML = '';
   const monthView = calendarView === 'month';
   weekCalendar.classList.toggle('month-calendar', monthView);
-  weekCalendar.setAttribute('aria-label', monthView ? 'Monatskalender' : 'Kalenderwoche');
+  weekCalendar.setAttribute('aria-label', monthView
+    ? translate('app.monthCalendar', 'Monatskalender')
+    : translate('app.calendarWeek', 'Kalenderwoche'));
   monthWeekdays.hidden = !monthView;
   weekViewButton.classList.toggle('active', !monthView);
   weekViewButton.setAttribute('aria-pressed', String(!monthView));
   monthViewButton.classList.toggle('active', monthView);
   monthViewButton.setAttribute('aria-pressed', String(monthView));
 
-  const previousLabel = monthView ? 'Vorheriger Monat' : 'Vorherige Woche';
-  const nextLabel = monthView ? 'Nächster Monat' : 'Nächste Woche';
+  const previousLabel = monthView
+    ? translate('app.previousMonth', 'Vorheriger Monat')
+    : translate('app.previousWeek', 'Vorherige Woche');
+  const nextLabel = monthView
+    ? translate('app.nextMonth', 'Nächster Monat')
+    : translate('app.nextWeek', 'Nächste Woche');
   previousWeekButton.setAttribute('aria-label', previousLabel);
   previousWeekButton.title = previousLabel;
   nextWeekButton.setAttribute('aria-label', nextLabel);
@@ -2601,6 +2702,9 @@ function renderCalendar() {
   previousWeekButton.disabled = monthView
     ? startOfMonth(calendarAnchorDate) <= startOfMonth(todayString())
     : calendarStartDate <= startOfWeek(todayString());
+  const recommendationBadge = i18n?.language() === 'en'
+    ? `<span>${escapeHtml(translate('app.recommended', 'Empfohlen'))}</span><b>${escapeHtml(translate('app.book', 'Buchen'))}</b>`
+    : '<span>Empfohlen</span><b>Buchen</b>';
 
   for (const day of calendarDays) {
     const availability = availabilityForDay(day);
@@ -2625,24 +2729,30 @@ function renderCalendar() {
     button.setAttribute('aria-expanded', String(day.date === calendarDetailDate));
     button.setAttribute(
       'aria-label',
-      `${formatShortDate(day.date)}, ${closed ? 'Ruhetag' : `${availability.freeSlots} freie Waschzeiten`}, ${calendarResourceTypes.map(({ type, label }) => `${label}: ${calendarAvailabilityText(day, type)}`).join(', ')}${day.ownBookings ? `, ${day.ownBookings} eigene Buchungen` : ''}${recommended ? ', empfohlener Termin; antippen, um ihn direkt zu buchen' : ''}`
+      `${formatShortDate(day.date)}, ${closed
+        ? translate('app.restDay', 'Ruhetag')
+        : translate('app.freeWashTimes', `${availability.freeSlots} freie Waschzeiten`, { count: availability.freeSlots })}, ${calendarResourceTypes.map((typeMeta) => `${calendarResourceTypeLabel(typeMeta)}: ${calendarAvailabilityText(day, typeMeta.type)}`).join(', ')}${day.ownBookings ? `, ${translate('app.ownBookingsCount', `${day.ownBookings} eigene Buchungen`, { count: day.ownBookings })}` : ''}${recommended ? `, ${translate('app.recommendedTap', 'empfohlener Termin; antippen, um ihn direkt zu buchen')}` : ''}`
     );
     if (recommended) {
-      button.title = 'Empfohlenen Termin direkt buchen';
+      button.title = translate('app.bookRecommendedDirectly', 'Empfohlenen Termin direkt buchen');
     }
     const availabilityLabel = closed
-      ? 'Ruhetag'
-      : `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Waschzeit' : 'Waschzeiten'} frei`;
+      ? translate('app.restDay', 'Ruhetag')
+      : translate(
+        availability.freeSlots === 1 ? 'app.washTimeAvailable' : 'app.washTimesAvailable',
+        `${availability.freeSlots} ${availability.freeSlots === 1 ? 'Waschzeit' : 'Waschzeiten'} frei`,
+        { count: availability.freeSlots }
+      );
     const dateLabel = monthView
       ? new Intl.DateTimeFormat(activeLocale(), { day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))
       : new Intl.DateTimeFormat(activeLocale(), { day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`));
     button.innerHTML = `
       <span class="calendar-weekday">${new Intl.DateTimeFormat(activeLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${day.date}T12:00:00Z`))}</span>
       <strong>${dateLabel}</strong>
-      <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : 'vorbei'}</span>
+      <span class="calendar-availability">${closed ? availabilityLabel : availability.totalSlots ? availabilityLabel : escapeHtml(translate('app.past', 'vorbei'))}</span>
       <span class="calendar-status-list">${renderCalendarStatusRows(day)}</span>
-      ${recommended ? '<span class="calendar-recommended" aria-hidden="true"><span>Empfohlen</span><b>Buchen</b></span>' : ''}
-      ${day.ownBookings ? `<span class="calendar-own">${day.ownBookings} eigene</span>` : ''}
+      ${recommended ? `<span class="calendar-recommended" aria-hidden="true">${recommendationBadge}</span>` : ''}
+      ${day.ownBookings ? `<span class="calendar-own">${escapeHtml(translate('app.ownShort', `${day.ownBookings} eigene`, { count: day.ownBookings }))}</span>` : ''}
     `;
     button.addEventListener('pointerenter', (event) => {
       if (event.pointerType !== 'touch') scheduleCalendarPreview(day, button);
@@ -3184,7 +3294,7 @@ function renderFlowActions(backStage, nextStage, nextLabel) {
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'secondary';
-    back.textContent = 'Zur\u00fcck';
+    back.textContent = translate('app.back', 'Zur\u00fcck');
     back.addEventListener('click', () => openBookingFlowStep(bookingStep(backStage)));
     actions.append(back);
   }
@@ -3221,8 +3331,8 @@ function renderTimeStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt ${bookingStep('time')}</span>
-      <h4>Zeitfenster w\u00e4hlen</h4>
+      <span>${escapeHtml(translate('app.step', `Schritt ${bookingStep('time')}`, { number: bookingStep('time') }))}</span>
+      <h4>${escapeHtml(translate('app.chooseTime', 'Zeitfenster w\u00e4hlen'))}</h4>
       <p>${escapeHtml(formatShortDate(bookingFlowState.date))}</p>
     </div>
   `;
@@ -3231,11 +3341,11 @@ function renderTimeStep() {
     const existing = document.createElement('div');
     existing.className = 'flow-existing-selection';
     existing.innerHTML = `
-      <span>Bereits gebuchtes Zeitfenster</span>
+      <span>${escapeHtml(translate('app.existingTime', 'Bereits gebuchtes Zeitfenster'))}</span>
       <strong>${escapeHtml(existingWashers[0].slot)}</strong>
       <small>${existingWashers.map((washer) => escapeHtml(washer.resourceName)).join(', ')}</small>
     `;
-    wrap.append(existing, renderFlowActions(null, 'drying', 'Trocknung erg\u00e4nzen'));
+    wrap.append(existing, renderFlowActions(null, 'drying', translate('app.addDrying', 'Trocknung erg\u00e4nzen')));
     return wrap;
   }
 
@@ -3243,7 +3353,7 @@ function renderTimeStep() {
   if (bookingFlowOptions?.closed) {
     const closed = document.createElement('p');
     closed.className = 'flow-empty';
-    closed.textContent = 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.';
+    closed.textContent = translate('app.sundayChooseAnother', 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.');
     wrap.append(closed);
     return wrap;
   }
@@ -3262,14 +3372,14 @@ function renderTimeStep() {
     button.innerHTML = `
       <span class="flow-time-main">
         <strong>${escapeHtml(slotOption.slot)}</strong>
-        ${recommended ? '<em>Empfohlen</em>' : ''}
+        ${recommended ? `<em>${escapeHtml(translate('app.recommended', 'Empfohlen'))}</em>` : ''}
       </span>
       <span class="flow-time-availability">
-        <span><b>${slotOption.washers.length}</b> Waschmaschinen</span>
-        <span><b>${slotOption.dryingRoomCount || 0}</b> Trockenr\u00e4ume</span>
-        <span><b>${slotOption.tumblerCount || 0}</b> Tumbler zur Auswahl</span>
+        <span>${escapeHtml(translate('app.washersCount', `${slotOption.washers.length} Waschmaschinen`, { count: slotOption.washers.length }))}</span>
+        <span>${escapeHtml(translate('app.dryingRoomsCount', `${slotOption.dryingRoomCount || 0} Trockenr\u00e4ume`, { count: slotOption.dryingRoomCount || 0 }))}</span>
+        <span>${escapeHtml(translate('app.tumblersToChoose', `${slotOption.tumblerCount || 0} Tumbler zur Auswahl`, { count: slotOption.tumblerCount || 0 }))}</span>
       </span>
-      ${available ? '<span class="flow-time-action">Zeitfenster ausw\u00e4hlen</span>' : `<span class="flow-time-unavailable">${escapeHtml(slotOption.washerError || 'Nicht mehr buchbar')}</span>`}
+      ${available ? `<span class="flow-time-action">${escapeHtml(translate('app.chooseTimeAction', 'Zeitfenster ausw\u00e4hlen'))}</span>` : `<span class="flow-time-unavailable">${escapeHtml(localizedSystemText(slotOption.washerError, translate('app.notBookable', 'Nicht mehr buchbar')))}</span>`}
     `;
     button.addEventListener('click', () => selectFlowTime(slotOption.slot));
     choices.append(button);
@@ -3283,8 +3393,8 @@ function renderWasherStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt ${bookingStep('washer')}</span>
-      <h4>Waschmaschine w\u00e4hlen</h4>
+      <span>${escapeHtml(translate('app.step', `Schritt ${bookingStep('washer')}`, { number: bookingStep('washer') }))}</span>
+      <h4>${escapeHtml(translate('app.chooseWasher', 'Waschmaschine w\u00e4hlen'))}</h4>
       <p>${escapeHtml(formatShortDate(bookingFlowState.date))}${bookingMode === 'time' && bookingFlowState.slot ? ` - ${escapeHtml(bookingFlowState.slot)}` : ''}</p>
     </div>
   `;
@@ -3293,11 +3403,11 @@ function renderWasherStep() {
     const existing = document.createElement('div');
     existing.className = 'flow-existing-selection';
     existing.innerHTML = `
-      <span>Bereits gebucht</span>
+      <span>${escapeHtml(translate('app.alreadyBooked', 'Bereits gebucht'))}</span>
       <strong>${existingWashers.map((washer) => escapeHtml(washer.resourceName)).join(', ')}</strong>
       <small>${escapeHtml(existingWashers[0].slot)}</small>
     `;
-    wrap.append(existing, renderFlowActions(null, 'drying', 'Trocknung erg\u00e4nzen'));
+    wrap.append(existing, renderFlowActions(null, 'drying', translate('app.addDrying', 'Trocknung erg\u00e4nzen')));
     return wrap;
   }
 
@@ -3309,8 +3419,8 @@ function renderWasherStep() {
     const empty = document.createElement('p');
     empty.className = 'flow-empty';
     empty.textContent = bookingFlowOptions?.closed
-      ? 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.'
-      : ruleMessage || 'An diesem Tag ist keine Waschmaschine mehr frei. W\u00e4hle einen anderen Tag im Kalender.';
+      ? translate('app.sundayChooseAnother', 'Sonntag ist Ruhetag. W\u00e4hle bitte einen anderen Tag.')
+      : localizedSystemText(ruleMessage, translate('app.noWasherDay', 'An diesem Tag ist keine Waschmaschine mehr frei. W\u00e4hle einen anderen Tag im Kalender.'));
     wrap.append(empty);
     return wrap;
   }
@@ -3320,7 +3430,7 @@ function renderWasherStep() {
     group.className = `flow-slot${currentRecommendation?.date === bookingFlowState.date && currentRecommendation?.slot === slotOption.slot ? ' is-recommended' : ''}`;
     const heading = document.createElement('div');
     heading.className = 'flow-slot-heading';
-    heading.innerHTML = `<strong>${escapeHtml(slotOption.slot)}</strong>${group.classList.contains('is-recommended') ? '<span>Empfohlen</span>' : ''}`;
+    heading.innerHTML = `<strong>${escapeHtml(slotOption.slot)}</strong>${group.classList.contains('is-recommended') ? `<span>${escapeHtml(translate('app.recommended', 'Empfohlen'))}</span>` : ''}`;
     const choices = document.createElement('div');
     choices.className = 'flow-choice-grid';
     for (const washer of slotOption.washers) {
@@ -3332,7 +3442,7 @@ function renderWasherStep() {
       choice.dataset.flowWasher = String(washer.resourceId);
       choice.dataset.flowSlot = slotOption.slot;
       choice.setAttribute('aria-pressed', String(selected));
-      choice.innerHTML = `<strong>${escapeHtml(washer.resourceName)}</strong><span>${selected ? 'Ausgew\u00e4hlt' : 'Frei'}</span>`;
+      choice.innerHTML = `<strong>${escapeHtml(washer.resourceName)}</strong><span>${selected ? escapeHtml(translate('app.selected', 'Ausgew\u00e4hlt')) : escapeHtml(translate('app.free', 'Frei'))}</span>`;
       choice.addEventListener('click', () => toggleFlowWasher(washer.resourceId, slotOption.slot));
       choices.append(choice);
     }
@@ -3344,8 +3454,16 @@ function renderWasherStep() {
   if (selectionCount) {
     const selection = document.createElement('p');
     selection.className = 'flow-selection-note';
-    selection.textContent = `${selectionCount} ${selectionCount === 1 ? 'Waschmaschine' : 'Waschmaschinen'} im Zeitfenster ${bookingFlowState.slot}`;
-    wrap.append(selection, renderFlowActions(bookingMode === 'time' ? 'time' : null, 'drying', 'Weiter zum Trockenraum'));
+    selection.textContent = translate(
+      'app.washerSelection',
+      `${selectionCount} ${selectionCount === 1 ? 'Waschmaschine' : 'Waschmaschinen'} im Zeitfenster ${bookingFlowState.slot}`,
+      {
+        count: selectionCount,
+        label: selectionCount === 1 ? typeLabel('washer') : translate('app.washers', 'Waschmaschinen'),
+        slot: bookingFlowState.slot
+      }
+    );
+    wrap.append(selection, renderFlowActions(bookingMode === 'time' ? 'time' : null, 'drying', translate('app.continueDryingRoom', 'Weiter zum Trockenraum')));
   } else if (bookingMode === 'time') {
     wrap.append(renderFlowActions('time', null, ''));
   }
@@ -3357,9 +3475,9 @@ function renderDryingStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt ${bookingStep('drying')}</span>
-      <h4>Trockenraum erg\u00e4nzen</h4>
-      <p>Optional und passend zu ${escapeHtml(bookingFlowState.slot)}</p>
+      <span>${escapeHtml(translate('app.step', `Schritt ${bookingStep('drying')}`, { number: bookingStep('drying') }))}</span>
+      <h4>${escapeHtml(translate('app.addDryingRoom', 'Trockenraum erg\u00e4nzen'))}</h4>
+      <p>${escapeHtml(translate('app.optionalForSlot', `Optional und passend zu ${bookingFlowState.slot}`, { slot: bookingFlowState.slot }))}</p>
     </div>
   `;
   const choices = document.createElement('div');
@@ -3375,7 +3493,7 @@ function renderDryingStep() {
     without.className = 'flow-option is-selected';
     without.dataset.flowDrying = 'none';
     without.setAttribute('aria-pressed', 'true');
-    without.innerHTML = '<strong>Ohne Trockenraum</strong><span>Du kannst direkt mit dem Tumbler fortfahren.</span>';
+    without.innerHTML = `<strong>${escapeHtml(translate('app.withoutDryingRoom', 'Ohne Trockenraum'))}</strong><span>${escapeHtml(translate('app.withoutDryingRoomHint', 'Du kannst direkt mit dem Tumbler fortfahren.'))}</span>`;
     without.addEventListener('click', () => {
       clearBookingFlowStatus();
       bookingFlowState.dryingResourceId = null;
@@ -3396,7 +3514,7 @@ function renderDryingStep() {
     const currentDuration = room.bookingOptions.find((duration) => duration.id === bookingFlowState.dryingOptionId)
       || room.bookingOptions[0];
     option.innerHTML = selected
-      ? `<span class="flow-option-kicker">Ausgew\u00e4hlt</span><strong>${escapeHtml(room.resourceName)}</strong><span class="flow-option-time">${escapeHtml(currentDuration?.label || '')}</span>`
+      ? `<span class="flow-option-kicker">${escapeHtml(translate('app.selected', 'Ausgew\u00e4hlt'))}</span><strong>${escapeHtml(room.resourceName)}</strong><span class="flow-option-time">${escapeHtml(currentDuration?.label || '')}</span>`
       : `<strong>${escapeHtml(room.resourceName)}</strong><span class="flow-option-time">${escapeHtml(room.bookingOptions.map((duration) => duration.label).join(' \u00b7 '))}</span>`;
     option.addEventListener('click', () => {
       clearBookingFlowStatus();
@@ -3414,9 +3532,9 @@ function renderDryingStep() {
     const durationLabel = document.createElement('label');
     durationLabel.className = 'flow-duration';
     const durationTitle = document.createElement('span');
-    durationTitle.textContent = 'Nutzungszeit des Trockenraums';
+    durationTitle.textContent = translate('app.dryingRoomUse', 'Nutzungszeit des Trockenraums');
     const durationSelect = document.createElement('select');
-    durationSelect.setAttribute('aria-label', 'Trocknungsdauer w\u00e4hlen');
+    durationSelect.setAttribute('aria-label', translate('app.chooseDryingDuration', 'Trocknungsdauer w\u00e4hlen'));
     for (const duration of room.bookingOptions) {
       const option = document.createElement('option');
       option.value = duration.id;
@@ -3434,7 +3552,7 @@ function renderDryingStep() {
     const changeRoom = document.createElement('button');
     changeRoom.type = 'button';
     changeRoom.className = 'text-button flow-change-room';
-    changeRoom.textContent = 'Anderen Trockenraum w\u00e4hlen oder entfernen';
+    changeRoom.textContent = translate('app.changeDryingRoom', 'Anderen Trockenraum w\u00e4hlen oder entfernen');
     changeRoom.addEventListener('click', () => {
       clearBookingFlowStatus();
       bookingFlowState.dryingResourceId = null;
@@ -3446,10 +3564,10 @@ function renderDryingStep() {
   } else if (!(bookingFlowState.companions?.dryingRooms || []).length) {
     const empty = document.createElement('p');
     empty.className = 'flow-empty compact';
-    empty.textContent = 'F\u00fcr diesen Waschslot ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar.';
+    empty.textContent = translate('app.noDryingRoom', 'F\u00fcr diesen Waschslot ist kein durchg\u00e4ngig freier Trockenraum verf\u00fcgbar.');
     wrap.append(empty);
   }
-  wrap.append(renderFlowActions('washer', 'tumbler', 'Weiter zum Tumbler'));
+  wrap.append(renderFlowActions('washer', 'tumbler', translate('app.continueTumbler', 'Weiter zum Tumbler')));
   return wrap;
 }
 
@@ -3458,9 +3576,9 @@ function renderTumblerStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt ${bookingStep('tumbler')}</span>
-      <h4>Tumbler erg\u00e4nzen</h4>
-      <p>Optional. Einer bleibt f\u00fcr das Haus frei.</p>
+      <span>${escapeHtml(translate('app.step', `Schritt ${bookingStep('tumbler')}`, { number: bookingStep('tumbler') }))}</span>
+      <h4>${escapeHtml(translate('app.addTumbler', 'Tumbler erg\u00e4nzen'))}</h4>
+      <p>${escapeHtml(translate('app.tumblerOptional', 'Optional. Einer bleibt f\u00fcr das Haus frei.'))}</p>
     </div>
   `;
   const choices = document.createElement('div');
@@ -3470,7 +3588,7 @@ function renderTumblerStep() {
   without.className = `flow-option${bookingFlowState.tumblerResourceId === null ? ' is-selected' : ''}`;
   without.dataset.flowTumbler = 'none';
   without.setAttribute('aria-pressed', String(bookingFlowState.tumblerResourceId === null));
-  without.innerHTML = '<strong>Ohne Tumbler</strong><span>Nur Waschmaschine und gew\u00e4hlter Trockenraum.</span>';
+  without.innerHTML = `<strong>${escapeHtml(translate('app.withoutTumbler', 'Ohne Tumbler'))}</strong><span>${escapeHtml(translate('app.withoutTumblerHint', 'Nur Waschmaschine und gew\u00e4hlter Trockenraum.'))}</span>`;
   without.addEventListener('click', () => {
     clearBookingFlowStatus();
     bookingFlowState.tumblerResourceId = null;
@@ -3485,7 +3603,7 @@ function renderTumblerStep() {
     option.className = `flow-option${selected ? ' is-selected' : ''}`;
     option.dataset.flowTumbler = String(tumbler.resourceId);
     option.setAttribute('aria-pressed', String(selected));
-    option.innerHTML = `<strong>${escapeHtml(tumbler.resourceName)}</strong><span>Frei im Waschslot</span>`;
+    option.innerHTML = `<strong>${escapeHtml(tumbler.resourceName)}</strong><span>${escapeHtml(translate('app.freeInWashSlot', 'Frei im Waschslot'))}</span>`;
     option.addEventListener('click', () => {
       clearBookingFlowStatus();
       bookingFlowState.tumblerResourceId = tumbler.resourceId;
@@ -3498,10 +3616,10 @@ function renderTumblerStep() {
   if (!(bookingFlowState.companions?.tumblers || []).length) {
     const empty = document.createElement('p');
     empty.className = 'flow-empty compact';
-    empty.textContent = 'Aktuell kann kein Tumbler angeboten werden, weil mindestens einer frei bleiben muss.';
+    empty.textContent = translate('app.noTumblerReserve', 'Aktuell kann kein Tumbler angeboten werden, weil mindestens einer frei bleiben muss.');
     wrap.append(empty);
   }
-  wrap.append(renderFlowActions('drying', 'review', 'Paket pr\u00fcfen'));
+  wrap.append(renderFlowActions('drying', 'review', translate('app.reviewPackage', 'Paket pr\u00fcfen')));
   return wrap;
 }
 
@@ -3510,9 +3628,9 @@ function renderReviewStep() {
   wrap.className = 'flow-stage';
   wrap.innerHTML = `
     <div class="flow-stage-heading">
-      <span>Schritt ${bookingStep('review')}</span>
-      <h4>Waschpaket pr\u00fcfen</h4>
-      <p>Erst mit dem letzten Klick wird verbindlich gebucht.</p>
+      <span>${escapeHtml(translate('app.step', `Schritt ${bookingStep('review')}`, { number: bookingStep('review') }))}</span>
+      <h4>${escapeHtml(translate('app.reviewPackage', 'Waschpaket pr\u00fcfen'))}</h4>
+      <p>${escapeHtml(translate('app.finalClickHint', 'Erst mit dem letzten Klick wird verbindlich gebucht.'))}</p>
     </div>
   `;
   const summary = document.createElement('div');
@@ -3525,10 +3643,10 @@ function renderReviewStep() {
   const dryingOption = selectedDryingOption();
   const tumbler = resourceById(bookingFlowState.tumblerResourceId);
   const rows = [
-    ['Termin', `${formatShortDate(bookingFlowState.date)} - ${bookingFlowState.slot}`],
-    ['Waschmaschine', `${washerNames.join(', ')}${existingWashers.length ? ' - bereits gebucht' : ''}`],
-    ['Trockenraum', room && dryingOption ? `${room.resourceName} - ${dryingOption.label}` : 'Ohne Trockenraum'],
-    ['Tumbler', tumbler?.name || 'Ohne Tumbler']
+    [translate('app.date', 'Termin'), `${formatShortDate(bookingFlowState.date)} - ${bookingFlowState.slot}`],
+    [translate('app.washer', 'Waschmaschine'), `${washerNames.join(', ')}${existingWashers.length ? ` - ${translate('app.alreadyBooked', 'bereits gebucht').toLocaleLowerCase(activeLocale())}` : ''}`],
+    [translate('app.dryingRoom', 'Trockenraum'), room && dryingOption ? `${room.resourceName} - ${dryingOption.label}` : translate('app.withoutDryingRoom', 'Ohne Trockenraum')],
+    [translate('app.tumblers', 'Tumbler'), tumbler?.name || translate('app.withoutTumblerValue', 'Ohne Tumbler')]
   ];
   for (const [label, value] of rows) {
     const row = document.createElement('div');
@@ -3539,7 +3657,9 @@ function renderReviewStep() {
   const actions = renderFlowActions('tumbler', null, '');
   const confirm = document.createElement('button');
   confirm.type = 'button';
-  confirm.textContent = existingWashers.length ? 'Erg\u00e4nzungen buchen' : 'Waschpaket buchen';
+  confirm.textContent = existingWashers.length
+    ? translate('app.bookAdditions', 'Erg\u00e4nzungen buchen')
+    : translate('app.bookPackage', 'Waschpaket buchen');
   const items = bookingFlowItems();
   confirm.disabled = Boolean(existingWashers.length && !items.length);
   confirm.addEventListener('click', () => createBookingPackage(items, {
@@ -3552,7 +3672,7 @@ function renderReviewStep() {
   if (confirm.disabled) {
     const note = document.createElement('p');
     note.className = 'flow-empty compact';
-    note.textContent = 'W\u00e4hle mindestens eine Erg\u00e4nzung oder gehe zur\u00fcck zu deinen Buchungen.';
+    note.textContent = translate('app.chooseAddition', 'W\u00e4hle mindestens eine Erg\u00e4nzung oder gehe zur\u00fcck zu deinen Buchungen.');
     wrap.append(note);
   }
   return wrap;
@@ -3563,11 +3683,11 @@ function renderBookingFlow() {
   syncBookingModeUi();
   bookingFlowSteps.innerHTML = '';
   const labels = {
-    time: 'Zeit',
-    washer: 'Maschine',
-    drying: 'Trockenraum',
-    tumbler: 'Tumbler',
-    review: 'Pr\u00fcfen'
+    time: translate('app.time', 'Zeit'),
+    washer: translate('app.machine', 'Maschine'),
+    drying: translate('app.dryingRoom', 'Trockenraum'),
+    tumbler: translate('app.tumblers', 'Tumbler'),
+    review: translate('app.review', 'Pr\u00fcfen')
   };
   for (const [index, stage] of bookingStageOrder().entries()) {
     const step = index + 1;
@@ -3580,11 +3700,11 @@ function renderBookingFlow() {
     bookingFlowSteps.append(item);
   }
   if (bookingFlowState.loading) {
-    bookingFlowContent.innerHTML = '<p class="flow-loading">Freie Optionen werden gepr\u00fcft...</p>';
+    bookingFlowContent.innerHTML = `<p class="flow-loading">${escapeHtml(translate('app.checkingOptions', 'Freie Optionen werden gepr\u00fcft...'))}</p>`;
     return;
   }
   if (!bookingFlowOptions) {
-    bookingFlowContent.innerHTML = '<p class="flow-empty">Die Buchungsoptionen konnten nicht geladen werden.</p>';
+    bookingFlowContent.innerHTML = `<p class="flow-empty">${escapeHtml(translate('app.optionsFailed', 'Die Buchungsoptionen konnten nicht geladen werden.'))}</p>`;
     return;
   }
   const stage = currentBookingStage();
@@ -3593,6 +3713,24 @@ function renderBookingFlow() {
   else if (stage === 'drying') bookingFlowContent.append(renderDryingStep());
   else if (stage === 'tumbler') bookingFlowContent.append(renderTumblerStep());
   else bookingFlowContent.append(renderReviewStep());
+}
+
+function localizedRecommendationReason(reason) {
+  if (i18n?.language() !== 'en') return reason;
+  const clauses = [
+    ['app.recommendHabit', 'Dieser freie Termin entspricht deinem bisher h\u00e4ufigsten Waschrhythmus.'],
+    ['app.recommendAlternative', 'Dein \u00fcblicher Termin ist belegt. Dies ist die n\u00e4chste passende freie Option.'],
+    ['app.recommendFirst', 'Ein fr\u00fcher freier Termin f\u00fcr deinen ersten Waschrhythmus.'],
+    ['app.recommendDryingAndTumbler', 'W\u00e4hle den Termin und stelle danach Waschmaschinen, Trockenraum und Tumbler Schritt f\u00fcr Schritt zusammen.'],
+    ['app.recommendDrying', 'W\u00e4hle den Termin und erg\u00e4nze danach bei Bedarf einen Trockenraum.'],
+    ['app.recommendTumbler', 'W\u00e4hle den Termin und entscheide danach, ob du einen Tumbler brauchst.'],
+    ['app.recommendExistingDrying', 'Die Waschmaschine ist bereits gebucht. Im gef\u00fchrten Ablauf kannst du passende Trocknungsoptionen erg\u00e4nzen.'],
+    ['app.recommendExistingOptions', 'Die Waschmaschine ist bereits gebucht. Der gef\u00fchrte Ablauf zeigt dir, welche Trocknungsoptionen noch verf\u00fcgbar sind.'],
+    ['app.recommendWashPlanned', 'Waschmaschine und sinnvolle Erg\u00e4nzungen sind bereits geplant.']
+  ];
+  return clauses.reduce((text, [key, source]) => (
+    text.replace(source, translate(key, source))
+  ), String(reason || ''));
 }
 
 function renderRecommendation() {
@@ -3604,14 +3742,14 @@ function renderRecommendation() {
   const copy = document.createElement('div');
   copy.className = 'suggestion-copy';
   copy.innerHTML = `
-    <span class="suggestion-label">Deine Empfehlung</span>
+    <span class="suggestion-label">${escapeHtml(translate('app.yourRecommendation', 'Deine Empfehlung'))}</span>
     <strong>${escapeHtml(formatShortDate(recommendation.date))} - ${escapeHtml(recommendation.slot)}</strong>
-    <p>${escapeHtml(recommendation.reason)}</p>
+    <p>${escapeHtml(localizedRecommendationReason(recommendation.reason))}</p>
   `;
   const choose = document.createElement('button');
   choose.type = 'button';
   choose.className = 'secondary';
-  choose.textContent = 'Empfohlenen Termin buchen';
+  choose.textContent = translate('app.bookRecommended', 'Empfohlenen Termin buchen');
   choose.addEventListener('click', () => openRecommendedCalendarPackage(
     recommendation.date,
     recommendation.slot
@@ -3661,19 +3799,27 @@ function renderSchedule() {
       const card = document.createElement('article');
       card.className = `booking-card ${booking ? 'is-booked' : ''} ${booking?.is_fixed ? 'is-fixed' : ''} ${slotIsPast ? 'is-disabled' : ''}`;
 
-      const owner = booking ? booking.username : slotIsPast ? 'vorbei' : 'frei';
+      const owner = booking
+        ? booking.username
+        : slotIsPast
+          ? translate('app.past', 'vorbei')
+          : translate('app.freeLower', 'frei');
       const canDelete = booking && !booking.is_fixed && (currentUser.canManage || booking.user_id === currentUser.bookingUserId);
       card.innerHTML = `
         <div>
           <strong>${escapeHtml(resource.name)}</strong>
           <span>${escapeHtml(typeLabel(resource.type))}</span>
         </div>
-        <p>${booking?.is_fixed ? `Fest: ${escapeHtml(owner)}` : escapeHtml(owner)}</p>
+        <p>${booking?.is_fixed ? escapeHtml(translate('app.fixedPrefix', `Fest: ${owner}`, { owner })) : escapeHtml(owner)}</p>
       `;
 
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = booking?.is_fixed ? 'Gesch\u00fctzt' : booking ? 'L\u00f6schen' : 'Buchen';
+      action.textContent = booking?.is_fixed
+        ? translate('app.protected', 'Gesch\u00fctzt')
+        : booking
+          ? translate('app.delete', 'L\u00f6schen')
+          : translate('app.book', 'Buchen');
       action.disabled = Boolean(slotIsPast || booking?.is_fixed || (booking && !canDelete));
       action.addEventListener('click', () => booking ? deleteBooking(booking.id) : createBooking(resource.id, slot));
       card.append(action);
@@ -3688,7 +3834,7 @@ function renderSchedule() {
 function renderMyBookings(items) {
   myBookings.innerHTML = '';
   if (!items.length) {
-    myBookings.innerHTML = '<p class="muted">Du hast aktuell keine kommenden Buchungen.</p>';
+    myBookings.innerHTML = `<p class="muted">${escapeHtml(translate('app.noUpcomingBookings', 'Du hast aktuell keine kommenden Buchungen.'))}</p>`;
     return;
   }
 
@@ -3709,7 +3855,7 @@ function renderMyBookings(items) {
     const status = dateStatus(primary.booking_date);
     item.innerHTML = `
       <div>
-        <strong>${isPackage ? 'Waschpaket' : escapeHtml(primary.resource_name)}</strong>
+        <strong>${isPackage ? escapeHtml(translate('app.laundryPackage', 'Waschpaket')) : escapeHtml(primary.resource_name)}</strong>
         <span>${escapeHtml(primary.booking_date)} - ${escapeHtml(primary.slot)}</span>
       </div>
       <span class="status-chip">${escapeHtml(status)}</span>
@@ -3727,7 +3873,7 @@ function renderMyBookings(items) {
         const releaseButton = document.createElement('button');
         releaseButton.type = 'button';
         releaseButton.className = 'secondary';
-        releaseButton.textContent = 'Fr\u00fcher frei';
+        releaseButton.textContent = translate('app.releaseEarlyShort', 'Fr\u00fcher frei');
         releaseButton.addEventListener('click', () => releaseBooking(booking.id));
         lineActions.append(releaseButton);
       }
@@ -3735,7 +3881,7 @@ function renderMyBookings(items) {
         const notifyButton = document.createElement('button');
         notifyButton.type = 'button';
         notifyButton.className = 'secondary';
-        notifyButton.textContent = 'Absagen & informieren';
+        notifyButton.textContent = translate('app.cancelAndNotify', 'Absagen & informieren');
         notifyButton.addEventListener('click', () => cancelBookingAndNotify(booking.id));
         lineActions.append(notifyButton);
       }
@@ -3750,14 +3896,16 @@ function renderMyBookings(items) {
       const notifyButton = document.createElement('button');
       notifyButton.type = 'button';
       notifyButton.className = 'secondary';
-      notifyButton.textContent = 'Paket absagen & informieren';
+      notifyButton.textContent = translate('app.cancelPackageAndNotify', 'Paket absagen & informieren');
       notifyButton.addEventListener('click', () => cancelBookingGroupAndNotify(primary.group_id));
       actions.append(notifyButton);
     }
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = isPackage ? 'Ganzes Paket l\u00f6schen' : 'L\u00f6schen';
+    deleteButton.textContent = isPackage
+      ? translate('app.deleteWholePackage', 'Ganzes Paket l\u00f6schen')
+      : translate('app.delete', 'L\u00f6schen');
     deleteButton.addEventListener('click', () => (
       isPackage ? deleteBookingGroup(primary.group_id) : deleteBooking(primary.id)
     ));
@@ -3949,9 +4097,9 @@ async function saveNotifications() {
     currentUser = data.user;
     renderEmailVerificationStatus();
     renderSettingsSummary();
-    showStatus(data.message || 'Benachrichtigungen gespeichert.');
+    showStatus(localizedSystemText(data.message, translate('settings.notificationsSaved', 'Benachrichtigungen gespeichert.')));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
@@ -3961,9 +4109,9 @@ async function resendEmailVerification() {
       method: 'POST',
       body: JSON.stringify({ emailKind: 'primary' })
     });
-    showStatus(data.message);
+    showStatus(localizedSystemText(data.message));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
@@ -3973,9 +4121,9 @@ async function resendSecondaryEmailVerification() {
       method: 'POST',
       body: JSON.stringify({ emailKind: 'secondary' })
     });
-    showStatus(data.message);
+    showStatus(localizedSystemText(data.message));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
@@ -3985,32 +4133,36 @@ async function createDevicePairingCode() {
   try {
     const data = await api('/api/me/device-code', { method: 'POST' });
     devicePairingCode.textContent = data.code;
+    devicePairingCode.dataset.expired = 'false';
     devicePairingQr.src = data.qrCodeDataUrl;
     devicePairingQr.hidden = false;
-    devicePairingApartment.textContent = data.apartmentLabel
-      ? `Wohnungskonto: ${data.apartmentLabel}`
-      : 'Gemeinsames Wohnungskonto';
+    devicePairingApartmentLabel = data.apartmentLabel || '';
     devicePairingPanel.hidden = false;
-    createDeviceCodeButton.textContent = 'Neuen QR-Code erzeugen';
+    renderDevicePairingLabels();
     const updateCountdown = () => {
       const remainingSeconds = Math.max(0, Math.ceil((Number(data.expiresAt) - Date.now()) / 1000));
       if (!remainingSeconds) {
         window.clearInterval(devicePairingCountdownTimer);
         devicePairingCountdownTimer = null;
-        devicePairingExpires.textContent = 'Dieser QR-Code ist abgelaufen.';
+        devicePairingCode.dataset.expired = 'true';
+        devicePairingExpires.textContent = translate('settings.qrExpired', 'Dieser QR-Code ist abgelaufen.');
         devicePairingQr.hidden = true;
-        devicePairingCode.textContent = 'Abgelaufen';
+        devicePairingCode.textContent = translate('settings.expired', 'Abgelaufen');
         return;
       }
       const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
       const seconds = String(remainingSeconds % 60).padStart(2, '0');
-      devicePairingExpires.textContent = `Noch ${minutes}:${seconds} gueltig`;
+      devicePairingExpires.textContent = translate(
+        'settings.qrRemaining',
+        'Noch {time} gueltig',
+        { time: `${minutes}:${seconds}` }
+      );
     };
     updateCountdown();
     devicePairingCountdownTimer = window.setInterval(updateCountdown, 1000);
-    showStatus(data.message);
+    showStatus(localizedSystemText(data.message, translate('settings.qrCreated', 'Der QR-Code ist zehn Minuten gueltig und kann einmal verwendet werden.')));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   } finally {
     createDeviceCodeButton.disabled = false;
   }
@@ -4064,9 +4216,9 @@ async function sendDisplayNameRequest() {
     });
     displayNameRequestNote.value = '';
     nameCorrectionPanel.open = false;
-    showStatus(data.message);
+    showStatus(localizedSystemText(data.message, translate('settings.correctionSent', 'Dein Korrekturwunsch wurde an die Hausverwaltung weitergegeben.')));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   } finally {
     sendDisplayNameRequestButton.disabled = false;
   }
@@ -4266,7 +4418,7 @@ async function cancelBookingAndNotify(id) {
 
 async function changePassword() {
   if (newPasswordInput.value !== newPasswordConfirmation.value) {
-    showStatus('Die beiden neuen Passw\u00f6rter stimmen nicht \u00fcberein.', 'error');
+    showStatus(translate('settings.passwordMismatch', 'Die beiden neuen Passwoerter stimmen nicht ueberein.'), 'error');
     newPasswordConfirmation.focus();
     return;
   }
@@ -4280,23 +4432,23 @@ async function changePassword() {
       })
     });
     passwordForm.reset();
-    showStatus(data.message || 'Dein Passwort wurde ge\u00e4ndert.');
+    showStatus(localizedSystemText(data.message, translate('settings.passwordChanged', 'Dein Passwort wurde geaendert.')));
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
 async function deleteOwnAccount() {
-  if (!window.confirm('Konto und alle eigenen Buchungen endg\u00fcltig l\u00f6schen?')) return;
+  if (!window.confirm(translate('settings.deleteConfirm', 'Konto und alle eigenen Buchungen endgueltig loeschen?'))) return;
   try {
     const data = await api('/api/me', {
       method: 'DELETE',
       body: JSON.stringify({ password: deleteAccountPassword.value })
     });
-    window.alert(data.message);
+    window.alert(localizedSystemText(data.message, translate('settings.accountDeleted', 'Dein persoenlicher Zugang wurde geloescht. Gemeinsame Wohnungsbuchungen bleiben fuer andere Mitglieder erhalten.')));
     window.location.href = '/login.html';
   } catch (error) {
-    showStatus(error.message, 'error');
+    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
   }
 }
 
@@ -6768,8 +6920,19 @@ window.addEventListener('beforeinstallprompt', (event) => {
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   renderInstallStatus();
-  showStatus('WaschZeit wurde als App installiert.');
+  showStatus(translate('settings.installComplete', 'WaschZeit wurde als App installiert.'));
 });
+
+function renderLocalizedSettingsState() {
+  renderSettingsHeader();
+  renderApartmentAccountStatus();
+  renderEmailVerificationStatus();
+  renderInstallStatus();
+  renderPushStatusView();
+  renderDevicePairingLabels();
+  renderReleaseStatus();
+  renderSettingsSummary();
+}
 
 async function refreshLocalizedDynamicViews() {
   const focusedElement = document.activeElement;
@@ -6783,6 +6946,7 @@ async function refreshLocalizedDynamicViews() {
   renderReleaseStatus();
   if (activeReleaseNotice) renderReleaseNoticeDetail(activeReleaseNotice);
   configureIntroForCurrentUser({ preserveStep: true });
+  renderLocalizedSettingsState();
   i18n?.apply(document.documentElement);
 
   if (currentUser.canManage) {

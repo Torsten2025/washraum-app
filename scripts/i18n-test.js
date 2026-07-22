@@ -66,6 +66,19 @@ assert.equal(i18n.translateVisibleText('Nur ein aktiver Superadmin. Gib einer ve
 assert.equal(i18n.translateVisibleText('Bitte einen gueltigen Namen und Bereich waehlen.'), 'Choose a valid name and category.');
 assert.equal(i18n.translateVisibleText('Freigabe erst nach einer erfolgreichen Funktionspruefung moeglich.'), 'The resource can only be released after a successful functional test.');
 assert.equal(i18n.translateVisibleText('WM 1 wurde gesperrt und im Tagebuch erfasst.'), 'WM 1 was blocked and recorded in the logbook.');
+assert.equal(i18n.t('settings.doorbellName'), 'Doorbell name');
+assert.equal(i18n.t('settings.notificationsHint'), 'Choose which newly available slots are relevant to you.');
+assert.equal(i18n.t('settings.allCategories'), 'All categories');
+assert.equal(i18n.t('settings.allDays'), 'All days');
+assert.equal(i18n.t('settings.allSlots'), 'All time slots');
+assert.equal(i18n.t('settings.pushActive'), 'Push is active on this device.');
+assert.equal(i18n.t('settings.securityHint'), 'Password, data export and account management.');
+assert.equal(i18n.translateVisibleText('Benachrichtigungen gespeichert. Bitte bestaetige die neue E-Mail-Adresse.'), 'Notification settings saved. Confirm the new email address.');
+assert.equal(i18n.t('app.heroTitle'), 'Your laundry schedule for this week.');
+assert.equal(i18n.t('app.myBookings'), 'My bookings');
+assert.equal(i18n.t('app.noUpcomingBookings'), 'You currently have no upcoming bookings.');
+assert.equal(i18n.t('app.yourRecommendation'), 'Your recommendation');
+assert.equal(i18n.t('app.washTimesAvailable', { count: 4 }), '4 laundry times available');
 i18n.setLanguage('unsupported');
 assert.equal(i18n.language(), 'de', 'unsupported languages must fall back to German');
 
@@ -112,6 +125,37 @@ for (const role of ['resident', 'house_admin', 'superadmin']) {
 const indexHtml = read('public/index.html');
 const loginHtml = read('public/login.html');
 const appSource = read('public/app.js');
+const explicitI18nKeys = [...indexHtml.matchAll(/data-i18n="([^"]+)"/g)].map((match) => match[1]);
+for (const key of explicitI18nKeys) {
+  assert.ok(i18n.messages[key], `public/index.html uses unknown i18n key ${key}`);
+}
+for (const requiredSettingsKey of [
+  'settings.profileHint',
+  'settings.correctDoorbell',
+  'settings.secondaryEmailHint',
+  'settings.notificationFilterHint',
+  'settings.installFallback',
+  'settings.pairingHint',
+  'settings.ruleWasher',
+  'settings.cleanEveryUse',
+  'settings.deleteWarning',
+  'settings.progress'
+]) {
+  assert.ok(i18n.messages[requiredSettingsKey], `${requiredSettingsKey} must be part of the settings contract`);
+}
+for (const requiredResidentKey of [
+  'app.heroTitle',
+  'app.heroHint',
+  'app.myBookingsHint',
+  'app.noUpcomingBookings',
+  'app.yourRecommendation',
+  'app.chooseTime',
+  'app.washTimesAvailable',
+  'app.bookRecommended'
+]) {
+  assert.ok(i18n.messages[requiredResidentKey], `${requiredResidentKey} must be part of the resident language-switch contract`);
+  assert.ok(appSource.includes(`'${requiredResidentKey}'`) || indexHtml.includes(`data-i18n="${requiredResidentKey}"`), `${requiredResidentKey} must be used by the resident UI`);
+}
 assert.ok(indexHtml.includes('/i18n.js?v=__WASCHZEIT_RELEASE__'));
 assert.ok(indexHtml.includes('/intro-content.js?v=__WASCHZEIT_RELEASE__'));
 assert.ok(indexHtml.includes('/intro-media.js?v=__WASCHZEIT_RELEASE__'));

@@ -68,6 +68,12 @@ assert.match(indexHtml, /id="messageCenterOverlay"[\s\S]*aria-labelledby="messag
 assert.match(indexHtml, /class="settings-tabs"[^>]*aria-label=/, 'Einstellungsreiter ohne Beschriftung');
 assert.match(indexHtml, /data-settings-target="help"[^>]*aria-controls="settingsPanelHelp"/, 'Hilfe-Reiter ohne zugeordneten Inhalt');
 assert.match(indexHtml, /id="settingsPanelHelp"[^>]*role="tabpanel"[^>]*aria-labelledby="settingsHelpTitle"/, 'Hilfe-Inhalt ohne zugaenglichen Namen');
+assert.match(indexHtml, /id="settingsLanguage"[^>]*aria-label="Sprache"/, 'Sprachauswahl ohne zugaenglichen Namen');
+assert.match(indexHtml, /id="notificationResourceType"[^>]*name="resourceType"/, 'Benachrichtigungsbereich ohne Formularnamen');
+assert.match(indexHtml, /id="notificationWeekday"[^>]*name="weekday"/, 'Wochentagsfilter ohne Formularnamen');
+assert.match(indexHtml, /id="notificationSlot"[^>]*name="slot"/, 'Zeitfensterfilter ohne Formularnamen');
+assert.match(indexHtml, /id="emailVerificationStatus"[^>]*role="status"/, 'E-Mail-Status ohne Live-Semantik');
+assert.match(indexHtml, /id="devicePairingExpires"[^>]*role="status"/, 'QR-Ablaufstatus ohne Live-Semantik');
 assert.match(indexHtml, /id="sessionWarningOverlay"[\s\S]*role="dialog"[\s\S]*aria-labelledby="sessionWarningTitle"[\s\S]*aria-describedby="sessionWarningText"/, 'Sitzungswarnung ohne zugaengliche Dialogbeschreibung');
 assert.match(indexHtml, /id="sessionCountdown"[^>]*role="timer"[^>]*aria-live="polite"/, 'Sitzungswarnung ohne angesagten Countdown');
 assert.match(indexHtml, /id="diaperGameOverlay"[\s\S]*aria-labelledby="diaperGameTitle"[\s\S]*aria-describedby="diaperGameIntro"/, 'Windel-Alarm ohne zugaenglichen Dialogtitel oder Beschreibung');

@@ -87,7 +87,9 @@ Die App ist als PWA installierbar. Auf unterstuetzten Geraeten kann sie aus dem 
 
 WaschZeit unterstuetzt zentral Deutsch (`de`) und Englisch (`en`). Deutsch ist Standard und sicherer Rueckfall. Auf der Anmeldeseite wird die Auswahl unter `waschzeit-language` lokal gespeichert. Nach der Anmeldung speichert `PUT /api/me/language` ausschliesslich `de` oder `en` am persoenlichen Konto; ein anderer Wert wird abgelehnt und veraendert weder Rolle noch aktives Haus. Die Kontosprache hat beim naechsten Login Vorrang und kann unter `Einstellungen > Profil > Sprache` geaendert werden. Freie Namen, Stoerungstexte und Tagebuchnotizen werden nicht automatisch uebersetzt.
 
-Ein Sprachwechsel aktualisiert ohne manuellen Reload auch bereits aufgebaute dynamische Ansichten. Dazu gehoeren Kalender und Datumskoepfe, Empfehlungen, Buchungs- und Mitteilungsbereiche, die sichtbare Verwaltung sowie die passende Rollenfuehrung. Aktives Haus, Rollenrechte, Woche oder Monat, gewaehltes Datum, laufende Buchungsauswahl, Verwaltungsreiter und ausgewaehltes Einfuehrungskapitel bleiben dabei erhalten.
+Ein Sprachwechsel aktualisiert ohne manuellen Reload auch bereits aufgebaute dynamische Ansichten. Dazu gehoeren die vollstaendige Bewohnerseite mit Hero, eigenen Buchungen, Leerzustaenden, Kalender und Datumskoepfen, Empfehlungen, gefuehrtem Buchungsablauf und Mitteilungsbereichen sowie die sichtbare Verwaltung und die passende Rollenfuehrung. Die dynamischen Renderer beziehen ihre Systemtexte aus dem zentralen Sprachkatalog; serverseitig gelieferte Empfehlungssaetze werden aus bekannten, strukturierten Textbausteinen lokalisiert. Freie Namen und technische Werte bleiben unveraendert. Aktives Haus, Rollenrechte, Woche oder Monat, gewaehltes Datum, laufende Buchungsauswahl, Verwaltungsreiter und ausgewaehltes Einfuehrungskapitel bleiben dabei erhalten.
+
+Der geoeffnete Einstellungsdialog folgt demselben Vertrag in allen fuenf Reitern. Ueberschriften, Hilfetexte, Formularbeschriftungen, Optionen, E-Mail-, Installations-, Push-, QR-, Versions- und Fortschrittsstatus wechseln sofort zwischen Deutsch und Englisch. Der aktive Reiter, Fokus, geoeffnete Detailbereiche, ungespeicherte Formulareingaben und ausgewaehlte Filter bleiben erhalten. Technische Select-Werte wie `washer`, `drying_room`, Wochentagsnummern und Slots werden nicht veraendert; Klingelschild-, Wohnungs-, Haus- und Ressourcennamen sowie E-Mail-Adressen bleiben freie Nutzerdaten und werden nicht uebersetzt.
 
 Die sichtbaren Pflichtseiten, Kernablaeufe, zugaenglichen Namen sowie Verifizierungs-, Reset-, Freigabe- und Testbenachrichtigungen besitzen deutsche und englische Fassungen. Wohnungseinladungen werden zweisprachig versendet, weil vor der ersten Kontoaktivierung noch keine persoenliche Kontosprache existiert. Technische API-Werte, Audit-Aktionscodes, Slots und die Schweizer Fachzeit bleiben sprachunabhaengig stabil.
 
@@ -216,6 +218,8 @@ Bewohner waehlen in der Kopfzeile `Stoerung melden`, das betroffene Geraet oder 
 | Hilfe und Regeln | Einfuehrungsvideo, interaktiven Rundgang, Reservierungsregeln und Reinigung gebuendelt in den persoenlichen Einstellungen oeffnen |
 
 Die normale Buchungsansicht verwendet die volle Seitenbreite. Der fruehere rechte Block `Gut zu wissen` wurde entfernt; selten benoetigte Hilfe nimmt dadurch keinen dauerhaften Platz neben Kalender und Waschpaket mehr ein. Der Kontomenuepunkt `Hilfe & Einfuehrung` oeffnet direkt den Einstellungsreiter `Hilfe & Regeln`.
+
+Die Benachrichtigungsfilter zeigen sprachabhaengige Optionsnamen, speichern aber weiterhin unveraendert denselben Bereichs-, Wochentag- und Slotwert. Der Push-Schritt in der Fusszeile wird aus dem tatsaechlichen Pushzustand bestimmt und haengt nicht von einem deutschen oder englischen Anzeigesatz ab.
 
 ### Minispiel Windel-Alarm
 
@@ -481,11 +485,32 @@ Der vollstaendige Katalog mit Pruef-ID, Soll-Ergebnis und Automatisierungsweg st
 
 ### Agentenrollen
 
-Der verbindliche Katalog fuer Seniorentwicklung, technische Gesamtleitung, Fachentwicklung, Pilot-Betreuung, unabhaengige Endabnahme und Release steht in `.agents/ROLES.md`. Der Hauptagent der separaten Codex-Aufgabe `CEO` arbeitet als `CEO_TECHNIK` und damit als Seniorentwickler der gesamten WaschZeit-App. Zu seiner Gesamtverantwortung gehoeren auch Testversionsnummer, sichtbarer Pilotstatus, Betreiberangaben und Datenschutztransparenz; er darf keine ungeprueften Rechtsaussagen oder Kontaktdaten erfinden und gibt keinen Release mit unklarem Pflichtstand frei.
+Der verbindliche Katalog fuer Unternehmensleitung, Technik, Entwicklung, Pilot, Business, Organisation, Recht, unabhaengige Endabnahme und externe Beratung steht in `.agents/ROLES.md`. Der Nutzer bleibt Eigentuemer und Auftraggeber. Die bestehenden technischen Aufgaben wurden in die neue Hierarchie ueberfuehrt; fuer die fuenf neuen Unternehmensfunktionen bestehen eigene Codex-Aufgaben:
 
-`PILOT_BETREUUNG` ist organisatorisch direkt mit der Codex-Aufgabe `CEO` verbunden und berichtet an sie. Die Rolle holt Bewohner, Hausdienst, Tester, Sitzungskommission und weitere Beteiligte mit einem Pilot-Steckbrief, klaren Testaufgaben, einem sicheren Rueckmeldeweg und entscheidungsreifen Vorlagen ins Boot. Alltagsfeedback, unabhaengiges QA-Urteil, technische Freigabe durch `CEO_TECHNIK` und Beschluss der Sitzungskommission bleiben getrennt. Der Pilot-Betreuer darf keine Zustimmung, Rechtspruefung, Testfreigabe oder Produktivreife stellvertretend erklaeren.
+| Nr. | Codex-Aufgabe | Berichtslinie |
+| --- | --- | --- |
+| `00` | `00 · CEO – Unternehmensleitung` | direkt an Eigentuemer/Auftraggeber |
+| `10` | `10 · CTO – Produkt & Technik` | an Unternehmens-CEO |
+| `20` | `20 · Engineering Lead – Senior Full-Stack` | an CTO |
+| `21` | `21 · Junior Developer – Bugfix & Wartung` | an Engineering Lead; kritische Befunde auch an CTO |
+| `22` | `22 · Specialist Developer – Frontend & Windel-Alarm` | fuer Integration an Engineering Lead |
+| `30` | `30 · Senior QA – Test & Abnahme` | unabhaengig direkt an Unternehmens-CEO; technische Befunde an CTO |
+| `40` | `40 · DevOps & Integration – E-Mail, Push & Betrieb` | an CTO |
+| `50` | `50 · Product Operations – Pilot & Beteiligte` | direkt an Unternehmens-CEO |
+| `60` | `60 · Business & Growth – Finanzen & Vermarktung` | an Unternehmens-CEO |
+| `70` | `70 · People & Organisation – HR & Rollen` | an Unternehmens-CEO |
+| `80` | `80 · Legal & Compliance – Recht & Datenschutz` | an Unternehmens-CEO; kritische Rechtsrisiken auch an Eigentuemer |
+| `90` | `90 · External Advisory – Unabhaengiges Review` | unabhaengig an Eigentuemer und Unternehmens-CEO |
 
-Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID. Ihr Auftrag begrenzt Aenderungen auf die Spiel-API, die gekennzeichneten Frontendbereiche, spielbezogene Tests und Dokumentation. Aenderungen an Schema, allgemeinen Rollenrechten, Buchungen oder Produktion erfordern eine zusaetzliche Zuweisung und Freigabe durch die technische Gesamtleitung.
+Die Teambezeichnungen steuern Fuehrung und Kommunikation. Fachliche Rollen-IDs wie `BUCHUNGEN`, `FRONTEND_UX`, `BENACHRICHTIGUNGEN` oder `RELEASE` werden weiterhin je Arbeitspaket ausdruecklich zugewiesen. Sie sind keine Benutzerrollen der App und erzeugen keine zusaetzlichen Produkt-, Datei- oder Produktionsrechte. Die historische technische Rollen-ID `CEO_TECHNIK` bleibt bestehen und wird vom CTO wahrgenommen. Der Unternehmens-CEO koordiniert die Gesamtfirma, ersetzt aber weder CTO-, QA-, Rechts- noch Eigentuemerentscheide.
+
+`BUGFIXER` ist die Rollen-ID des Junior Developers fuer kleine, klar abgegrenzte Fehlerkorrekturen. Der CTO priorisiert den technischen Befund; Engineering Lead konkretisiert den Auftrag, prueft Domaenengrenzen und fuehrt das Fachreview. Kritische Sicherheits-, Datenschutz-, Daten-, Rollen-, Hausgrenzen- oder Produktionsbefunde gehen sofort auch an den CTO. Die unabhaengige Endabnahme verbleibt bei Senior QA; der Junior gibt niemals selbst frei.
+
+`PILOT_BETREUUNG` wird durch `50 · Product Operations – Pilot & Beteiligte` wahrgenommen und berichtet an den Unternehmens-CEO. Die Rolle holt Bewohner, Hausdienst, Tester, Sitzungskommission und weitere Beteiligte ins Boot. Alltagsfeedback, QA-Urteil, technische CTO-Freigabe, Rechtspruefung und institutioneller Entscheid bleiben getrennt.
+
+Business & Growth verantwortet wirtschaftliche Modelle und Vermarktung, People & Organisation die regelmaessige Rollenpruefung und Legal & Compliance die Rechts- und Datenschutzpruefung. Keine dieser Rollen darf ohne Freigabe externe Zusagen, Rollen- oder Produktveraenderungen vornehmen. External Advisory bleibt ausserhalb der Befehlskette und liefert mindestens quartalsweise sowie vor Pilot-/Live-Entscheiden einen unabhaengigen Blick an Eigentuemer und CEO.
+
+Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID von `22 · Specialist Developer – Frontend & Windel-Alarm`. Gemeinsame Oberflaechen und Integrationspunkte werden mit Engineering Lead abgestimmt. Aenderungen an Schema, allgemeinen Rollenrechten, Buchungen oder Produktion erfordern eine zusaetzliche Zuweisung und Freigabe durch den CTO.
 
 ### Aufbau
 
@@ -560,6 +585,10 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ### 22. Juli 2026
 
+- I18N-P2 im Bewohnerbereich geschlossen: Hero, `Meine Buchungen`, Leerzustand, Kalenderstatus, persoenliche Empfehlung, Buchungsassistent, Einzelbuchung und sichtbare Freigabehinweise werden bei DE -> EN und EN -> DE ohne Reload neu lokalisiert. Der E2E-Leakdetektor prueft nun den gesamten sichtbaren Bewohnerbereich und weist die vier QA-Ausgangstexte sowie weitere bekannte deutsche Systemtexte im englischen Zustand ab; Haus, Rolle, Kalender, Buchungsauswahl, Einstellungsreiter, Eingaben und Fokus bleiben erhalten.
+- Unternehmensorganisation erweitert und vollstaendig verbunden: Der Nutzer ist Eigentuemer, `00 · CEO – Unternehmensleitung` fuehrt die Firma, und die bisherige technische Gesamtleitung arbeitet als `10 · CTO – Produkt & Technik`. Bestehende Entwicklung, QA, DevOps und Pilotbetreuung wurden neu nummeriert; eigene Aufgaben fuer Business & Growth, People & Organisation, Legal & Compliance und unabhaengige externe Beratung wurden angelegt. QA-, Rechts- und Beratungsunabhaengigkeit, kritische Eskalationen sowie technische, unternehmerische und Eigentuemer-Gates sind getrennt dokumentiert. App-Benutzerrollen und Berechtigungen bleiben unveraendert.
+- Die Rollen-ID `BUGFIXER` fuer den bestehenden Fehleranalyse- und Korrekturchat eingefuehrt. Der Vertrag regelt Auftrag, Schweregrade, Reproduktion, Ursachenanalyse, minimalen Korrekturumfang, Regressionstests, Soforteskalation kritischer Befunde sowie die getrennten Verantwortungen von CTO, Fachrollen und `TESTING_QA`. Die Teamordnung fuehrt diesen Chat als Junior Developer unter dem Fachreview des Engineering Lead; App-Benutzerrollen und Berechtigungen bleiben unveraendert.
+- Den vollstaendigen Einstellungsdialog in allen fuenf Reitern nachlokalisiert. Statische Beschriftungen, native Select-Optionen und dynamische Profil-, E-Mail-, PWA-, Push-, QR-, Versions-, Validierungs- und Fortschrittszustaende wechseln nun DE -> EN und EN -> DE ohne Reload; aktive Reiter, Fokus, Nutzerdaten, ungespeicherte Eingaben und technische Filterwerte bleiben erhalten. Der Browserlauf weist bekannte deutsche Resttexte im englischen Dialog ab und erzeugt je Reiter Screenshots bei 390 x 844, 768 x 1024 und 1440 x 900.
 - Sichtbare Testversion auf `0.3.0-test.4` angehoben. Der verbindliche Browsertest erkennt das richtige Windel-Alarm-Kabel nun sowohl aus dem sichtbaren Farbhinweis als auch aus dem Symbolhinweis; dadurch ist der zufaellig gewaehlte Kabelmodus im Linux-CI-Lauf deterministisch abgedeckt. Produkt- und Spielregeln bleiben unveraendert.
 
 ### 21. Juli 2026
