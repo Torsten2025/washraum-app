@@ -31,8 +31,7 @@ function createHouseRoleRouters({
   writeAudit,
   confirmCurrentAdminPassword,
   isValidPlainText,
-  todayStringLocal,
-  seedHouseResources
+  todayStringLocal
 }) {
   const activeHouseRouter = express.Router();
   const accountsRouter = express.Router();
@@ -668,11 +667,10 @@ housesRouter.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, re
   try {
     const house = db.transaction(() => {
       const result = db.prepare('INSERT INTO houses (name, code) VALUES (?, ?)').run(name, code);
-      seedHouseResources(result.lastInsertRowid);
       return db.prepare('SELECT id, name, code, active FROM houses WHERE id = ?').get(result.lastInsertRowid);
     })();
     writeAudit(req, 'house.create', 'house', house.id, { name: house.name });
-    res.status(201).json({ house, message: `${house.name} wurde mit eigenen Ger\u00e4ten angelegt.` });
+    res.status(201).json({ house, message: `${house.name} wurde ohne Ger\u00e4te angelegt.` });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Hausnummer oder Hauscode ist bereits vorhanden.' });

@@ -162,7 +162,25 @@ async function run() {
         method: 'PUT',
         body: JSON.stringify({ houseId: house.id })
       });
-      const resourceResult = await expectStatus(admin, '/api/resources', 200);
+      let resourceResult = await expectStatus(admin, '/api/resources', 200);
+      if (resourceResult.body.resources.length === 0) {
+        for (const [type, count, label] of [
+          ['washer', 3, 'Waschmaschine'],
+          ['drying_room', 3, 'Trockenraum'],
+          ['tumbler', 2, 'Tumbler']
+        ]) {
+          for (let resourceIndex = 1; resourceIndex <= count; resourceIndex += 1) {
+            await expectStatus(admin, '/api/admin/resources', 201, {
+              method: 'POST',
+              body: JSON.stringify({
+                name: `${label} ${resourceIndex}`,
+                type
+              })
+            });
+          }
+        }
+        resourceResult = await expectStatus(admin, '/api/resources', 200);
+      }
       house.washers = resourceResult.body.resources.filter((resource) => resource.type === 'washer');
       house.dryingRooms = resourceResult.body.resources.filter((resource) => resource.type === 'drying_room');
       house.tumblers = resourceResult.body.resources.filter((resource) => resource.type === 'tumbler');

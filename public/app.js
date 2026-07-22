@@ -53,6 +53,7 @@ const bookingFlowSteps = document.querySelector('#bookingFlowSteps');
 const bookingFlowDescription = document.querySelector('#bookingFlowDescription');
 const bookingModeButtons = [...document.querySelectorAll('[data-booking-mode]')];
 const weekCalendar = document.querySelector('#weekCalendar');
+const calendarEmptyState = document.querySelector('#calendarEmptyState');
 const calendarRange = document.querySelector('#calendarRange');
 const weekViewButton = document.querySelector('#weekViewButton');
 const monthViewButton = document.querySelector('#monthViewButton');
@@ -293,6 +294,10 @@ let calendarView = (() => {
 let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
+let calendarResourceCount = null;
+let houseContextRevision = 0;
+let appViewRevision = 0;
+const staleHouseRequest = Symbol('stale-house-request');
 let calendarDetailDate = '';
 let calendarDetailAnchor = null;
 let calendarDetailPinned = false;
@@ -1743,6 +1748,7 @@ async function api(path, options = {}) {
 }
 
 async function init() {
+  const initialAppViewRevision = appViewRevision;
   bookingDate.value = todayString();
   syncCalendarPeriod(bookingDate.value);
   const me = await api('/api/me');
@@ -1773,11 +1779,12 @@ async function init() {
   apartmentSetupOverlay.hidden = !currentUser.apartmentSetupRequired;
   if (currentUser.apartmentSetupRequired) document.body.classList.add('modal-open');
 
+  const initialHouseRevision = houseContextRevision;
   const [resourceData, slotData] = await Promise.all([
-    api('/api/resources'),
+    resolveHouseScopedRequest(initialHouseRevision, api('/api/resources')),
     api('/api/slots')
   ]);
-  resources = resourceData.resources;
+  if (resourceData !== staleHouseRequest) resources = resourceData.resources;
   slots = slotData.slots;
 
   if (currentUser.canManage) {
@@ -1786,7 +1793,9 @@ async function init() {
   }
 
   await refreshAll();
-  if (currentUser.canManage && !currentUser.canBook) setAppView('admin');
+  if (currentUser.canManage && !currentUser.canBook) {
+    setAppView('admin', { expectedRevision: initialAppViewRevision });
+  }
   const pageUrl = new URL(window.location.href);
   if (pageUrl.searchParams.get('notice')) {
     await openReleaseNoticeFromUrl(pageUrl);
@@ -1797,13 +1806,16 @@ async function init() {
   }
 }
 
-function setAppView(view) {
+function setAppView(view, { userInitiated = false, expectedRevision = null } = {}) {
+  if (expectedRevision !== null && expectedRevision !== appViewRevision) return false;
+  if (userInitiated) appViewRevision += 1;
   const adminView = view === 'admin' && currentUser?.canManage;
   document.body.classList.toggle('admin-view', adminView);
   bookingViewButton.classList.toggle('active', !adminView);
   adminViewButton.classList.toggle('active', adminView);
   if (adminView) setAdminSection(activeAdminSection);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  return true;
 }
 
 function setAdminSection(sectionName) {
@@ -2358,21 +2370,64 @@ async function refreshCurrentUser() {
   configureIntroForCurrentUser();
 }
 
+async function resolveHouseScopedRequest(revision, request) {
+  try {
+    const data = await request;
+    return revision === houseContextRevision ? data : staleHouseRequest;
+  } catch (error) {
+    if (revision !== houseContextRevision) return staleHouseRequest;
+    throw error;
+  }
+}
+
+function clearHouseScopedState() {
+  resources = [];
+  bookings = [];
+  myBookingItems = [];
+  releaseNoticeItems = [];
+  calendarDays = [];
+  calendarResourceCount = null;
+  currentRecommendation = null;
+  bookingFlowOptions = null;
+  resetBookingFlowState(bookingDate.value);
+  closeCalendarPreview();
+  weekCalendar.innerHTML = '';
+  calendarEmptyState.hidden = true;
+  calendarRange.textContent = '';
+  schedule.innerHTML = '';
+  myBookings.innerHTML = '';
+  bookingSuggestion.innerHTML = '';
+  bookingSuggestion.hidden = true;
+  bookingFlowContent.innerHTML = '';
+  adminBox.hidden = true;
+  renderMessageCenter();
+}
+
 async function switchHouse(houseId) {
+  const revision = ++houseContextRevision;
+  houseSelect.disabled = true;
   try {
     const data = await api('/api/me/active-house', {
       method: 'PUT',
       body: JSON.stringify({ houseId: Number(houseId) })
     });
+    if (revision !== houseContextRevision) return;
     currentUser = data.user;
     renderHouseContext();
+    clearHouseScopedState();
     const resourceData = await api('/api/resources');
+    if (revision !== houseContextRevision) return;
     resources = resourceData.resources;
+    calendarResourceCount = resources.length;
     await Promise.all([refreshAll(), loadAdmin()]);
+    if (revision !== houseContextRevision) return;
     showStatus(data.message);
   } catch (error) {
+    if (revision !== houseContextRevision) return;
     houseSelect.value = String(currentUser.activeHouseId);
     showStatus(error.message, 'error');
+  } finally {
+    if (revision === houseContextRevision) houseSelect.disabled = false;
   }
 }
 
@@ -2388,32 +2443,49 @@ async function refreshAll() {
 }
 
 async function loadBookings() {
-  const data = await api(`/api/bookings?date=${encodeURIComponent(bookingDate.value)}`);
+  const revision = houseContextRevision;
+  const data = await resolveHouseScopedRequest(
+    revision,
+    api(`/api/bookings?date=${encodeURIComponent(bookingDate.value)}`)
+  );
+  if (data === staleHouseRequest) return;
   bookings = data.bookings;
   renderSchedule();
 }
 
 async function loadMyBookings() {
-  const data = await api('/api/my-bookings');
+  const revision = houseContextRevision;
+  const data = await resolveHouseScopedRequest(revision, api('/api/my-bookings'));
+  if (data === staleHouseRequest) return;
   myBookingItems = data.bookings;
   renderMyBookings(myBookingItems);
 }
 
 async function loadReleaseNotices() {
-  const data = await api('/api/release-notices');
+  const revision = houseContextRevision;
+  const data = await resolveHouseScopedRequest(revision, api('/api/release-notices'));
+  if (data === staleHouseRequest) return;
   releaseNoticeItems = data.notices || [];
   renderMessageCenter();
 }
 
 async function loadCalendar() {
+  const revision = houseContextRevision;
   const days = calendarView === 'month' ? 42 : 7;
-  const data = await api(`/api/calendar?from=${encodeURIComponent(calendarStartDate)}&days=${days}`);
+  const data = await resolveHouseScopedRequest(
+    revision,
+    api(`/api/calendar?from=${encodeURIComponent(calendarStartDate)}&days=${days}`)
+  );
+  if (data === staleHouseRequest) return;
+  calendarResourceCount = Number(data.resourceCount || 0);
   calendarDays = data.days;
   renderCalendar();
 }
 
 async function loadRecommendation() {
-  const data = await api('/api/recommendation');
+  const revision = houseContextRevision;
+  const data = await resolveHouseScopedRequest(revision, api('/api/recommendation'));
+  if (data === staleHouseRequest) return;
   currentRecommendation = data.recommendation;
   renderRecommendation();
   if (calendarDays.length) renderCalendar();
@@ -2669,6 +2741,8 @@ function renderCalendarDayDetails() {
 
 function renderCalendar() {
   weekCalendar.innerHTML = '';
+  weekCalendar.hidden = false;
+  calendarEmptyState.hidden = true;
   const monthView = calendarView === 'month';
   weekCalendar.classList.toggle('month-calendar', monthView);
   weekCalendar.setAttribute('aria-label', monthView
@@ -2702,6 +2776,13 @@ function renderCalendar() {
   previousWeekButton.disabled = monthView
     ? startOfMonth(calendarAnchorDate) <= startOfMonth(todayString())
     : calendarStartDate <= startOfWeek(todayString());
+  if (calendarResourceCount === 0) {
+    closeCalendarPreview();
+    weekCalendar.hidden = true;
+    monthWeekdays.hidden = true;
+    calendarEmptyState.hidden = false;
+    return;
+  }
   const recommendationBadge = i18n?.language() === 'en'
     ? `<span>${escapeHtml(translate('app.recommended', 'Empfohlen'))}</span><b>${escapeHtml(translate('app.book', 'Buchen'))}</b>`
     : '<span>Empfohlen</span><b>Buchen</b>';
@@ -3193,6 +3274,7 @@ function focusBookingFlowHeading() {
 }
 
 async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
+  const revision = houseContextRevision;
   const date = bookingDate.value;
   if (!preserveSelection || bookingFlowState.date !== date) {
     resetBookingFlowState(date);
@@ -3203,7 +3285,12 @@ async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
     const slotQuery = preserveSelection && bookingFlowState.slot
       ? `&slot=${encodeURIComponent(bookingFlowState.slot)}`
       : '';
-    bookingFlowOptions = await api(`/api/booking-options?date=${encodeURIComponent(date)}${slotQuery}`);
+    const nextBookingFlowOptions = await resolveHouseScopedRequest(
+      revision,
+      api(`/api/booking-options?date=${encodeURIComponent(date)}${slotQuery}`)
+    );
+    if (nextBookingFlowOptions === staleHouseRequest) return;
+    bookingFlowOptions = nextBookingFlowOptions;
     const existingWashers = bookingFlowOptions.existingWashers || [];
     if (existingWashers.length) {
       bookingFlowState.slot = existingWashers[0].slot;
@@ -3224,12 +3311,15 @@ async function loadBookingFlowOptions({ preserveSelection = false } = {}) {
     }
     bookingFlowState.companions = bookingFlowOptions.companions;
   } catch (error) {
+    if (revision !== houseContextRevision) return;
     bookingFlowOptions = null;
     showStatus(error.message, 'error');
     showBookingFlowStatus(error.message, 'error');
   } finally {
-    bookingFlowState.loading = false;
-    renderBookingFlow();
+    if (revision === houseContextRevision) {
+      bookingFlowState.loading = false;
+      renderBookingFlow();
+    }
   }
 }
 
@@ -3705,6 +3795,11 @@ function renderBookingFlow() {
   }
   if (!bookingFlowOptions) {
     bookingFlowContent.innerHTML = `<p class="flow-empty">${escapeHtml(translate('app.optionsFailed', 'Die Buchungsoptionen konnten nicht geladen werden.'))}</p>`;
+    return;
+  }
+  if (Number(bookingFlowOptions.resourceCount || 0) === 0) {
+    bookingFlowSteps.innerHTML = '';
+    bookingFlowContent.innerHTML = `<div class="flow-empty"><strong>${escapeHtml(translate('app.noResourcesTitle', 'In diesem Haus sind noch keine Ger\u00e4te eingerichtet.'))}</strong><p>${escapeHtml(translate('app.noResourcesHint', 'Sobald ein Haus-Admin Ressourcen anlegt, erscheint hier der Belegungsplan.'))}</p></div>`;
     return;
   }
   const stage = currentBookingStage();
@@ -4453,7 +4548,8 @@ async function deleteOwnAccount() {
 }
 
 async function loadAdmin() {
-  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData, maintenanceData] = await Promise.all([
+  const revision = houseContextRevision;
+  const adminData = await resolveHouseScopedRequest(revision, Promise.all([
     api('/api/admin/users'),
     api('/api/admin/overview'),
     api('/api/admin/recovery-status'),
@@ -4466,7 +4562,9 @@ async function loadAdmin() {
     api('/api/admin/analytics?days=30'),
     api('/api/admin/apartments'),
     api('/api/admin/maintenance-cases')
-  ]);
+  ]));
+  if (adminData === staleHouseRequest) return;
+  const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData, maintenanceData] = adminData;
   adminBox.hidden = false;
   adminTitle.textContent = `${translate('admin.management', 'Verwaltung')} ${settingsData.houseName}`;
   adminRoleLabel.textContent = currentUser.isSuperadmin
@@ -6521,8 +6619,8 @@ logoutForm.addEventListener('submit', async (event) => {
     showStatus(`${error.message} Bitte versuche es noch einmal.`, 'error');
   }
 });
-bookingViewButton.addEventListener('click', () => setAppView('booking'));
-adminViewButton.addEventListener('click', () => setAppView('admin'));
+bookingViewButton.addEventListener('click', () => setAppView('booking', { userInitiated: true }));
+adminViewButton.addEventListener('click', () => setAppView('admin', { userInitiated: true }));
 adminSectionButtons.forEach((button) => {
   button.addEventListener('click', () => setAdminSection(button.dataset.adminTarget));
   button.addEventListener('keydown', (event) => {
@@ -6688,7 +6786,7 @@ checkMaintenanceButton.addEventListener('click', async () => {
 });
 openMaintenanceAdminButton.addEventListener('click', () => {
   maintenanceOverlay.hidden = true;
-  setAppView('admin');
+  setAppView('admin', { userInitiated: true });
   setAdminSection('system');
 });
 

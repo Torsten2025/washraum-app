@@ -127,6 +127,10 @@
                   <span data-i18n="weekday.monShort">Mo</span><span data-i18n="weekday.tueShort">Di</span><span data-i18n="weekday.wedShort">Mi</span><span data-i18n="weekday.thuShort">Do</span><span data-i18n="weekday.friShort">Fr</span><span data-i18n="weekday.satShort">Sa</span><span data-i18n="weekday.sunShort">So</span>
                 </div>
                 <div id="weekCalendar" class="week-calendar" aria-label="Kalenderwoche" data-i18n-aria-label="app.calendarWeek"></div>
+                <div id="calendarEmptyState" class="notice muted" role="status" hidden>
+                  <strong data-i18n="app.noResourcesTitle">In diesem Haus sind noch keine Ger&auml;te eingerichtet.</strong>
+                  <p data-i18n="app.noResourcesHint">Sobald ein Haus-Admin Ressourcen anlegt, erscheint hier der Belegungsplan.</p>
+                </div>
                 <div id="calendarDayDetailsBackdrop" class="calendar-day-details-backdrop" hidden></div>
                 <section id="calendarDayDetails" class="calendar-day-details" aria-labelledby="calendarDayDetailsTitle" aria-live="polite" hidden>
                   <div class="calendar-day-details-head">
@@ -262,7 +266,7 @@
               <details class="admin-create-panel">
                 <summary>
                   <span>Weiteres Haus anlegen</span>
-                  <small>Erzeugt einen neuen Standort mit Standardressourcen</small>
+                  <small>Erzeugt einen leeren Standort; Ressourcen werden separat angelegt</small>
                 </summary>
                 <form id="houseForm" class="stack compact-form admin-inline-form">
                   <label>

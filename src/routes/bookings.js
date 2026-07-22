@@ -67,11 +67,18 @@ function createBookingRouters({
       return res.status(400).json({ error: 'Ung\u00fcltiger Kalenderzeitraum' });
     }
 
+    const calendarDays = Array.from({ length: days }, (_, index) => (
+      calendarDaySummary(req.session.user.bookingUserId, addDays(from, index), houseId)
+    ));
+    const resourceCount = db.prepare(`
+      SELECT COUNT(*) AS count FROM resources
+      WHERE house_id = ?
+    `).get(houseId).count;
     res.json({
       from,
-      days: Array.from({ length: days }, (_, index) => (
-        calendarDaySummary(req.session.user.bookingUserId, addDays(from, index), houseId)
-      ))
+      resourceCount,
+      activeResourceCount: calendarDays[0]?.activeResourceCount || 0,
+      days: calendarDays
     });
   });
 
@@ -82,6 +89,15 @@ function createBookingRouters({
     if (!isDateString(date) || (selectedSlot && !slots.includes(selectedSlot))) {
       return res.status(400).json({ error: 'Ung\u00fcltiger Buchungszeitraum' });
     }
+
+    const resourceCount = db.prepare(`
+      SELECT COUNT(*) AS count FROM resources
+      WHERE house_id = ?
+    `).get(houseId).count;
+    const activeResourceCount = db.prepare(`
+      SELECT COUNT(*) AS count FROM resources
+      WHERE active = 1 AND house_id = ?
+    `).get(houseId).count;
 
     const existingWashers = db.prepare(`
       SELECT b.id AS bookingId, b.group_id AS groupId, b.slot,
@@ -135,6 +151,8 @@ function createBookingRouters({
 
     res.json({
       date,
+      resourceCount,
+      activeResourceCount,
       closed: isSunday(date),
       existingWashers,
       slots: slotOptions,

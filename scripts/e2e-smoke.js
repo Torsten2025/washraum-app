@@ -470,6 +470,37 @@ async function verifyIntroMediaPackage(page, outputDirectory, expected, screensh
   if (originalViewport) await page.setViewportSize(originalViewport);
 }
 
+async function gateNextRequest(page, pattern, { reject = false } = {}) {
+  let releaseRequest;
+  let markStarted;
+  let firstMatch = true;
+  const started = new Promise((resolve) => { markStarted = resolve; });
+  const released = new Promise((resolve) => { releaseRequest = resolve; });
+  const handler = async (route) => {
+    if (!firstMatch) {
+      await route.continue();
+      return;
+    }
+    firstMatch = false;
+    if (reject) {
+      markStarted();
+      await released;
+      await route.abort('failed');
+      return;
+    }
+    const response = await route.fetch();
+    markStarted();
+    await released;
+    await route.fulfill({ response });
+  };
+  await page.route(pattern, handler);
+  return {
+    started,
+    release: () => releaseRequest(),
+    remove: () => page.unroute(pattern, handler)
+  };
+}
+
 async function run() {
   const playwright = await loadPlaywright();
   const port = 34000 + (process.pid % 1000);
@@ -481,6 +512,7 @@ async function run() {
   const output = [];
   const gameStateScreenshots = [];
   const mediaScreenshots = [];
+  const houseIsolationScreenshots = [];
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -519,6 +551,20 @@ async function run() {
     });
     assert.equal(apartmentResponse.status, 201);
     const apartment = await apartmentResponse.json();
+    const initialHousesResponse = await fetch(`${baseUrl}/api/admin/houses`, {
+      headers: { Cookie: adminCookie }
+    });
+    assert.equal(initialHousesResponse.status, 200);
+    const initialHouses = await initialHousesResponse.json();
+    const defaultHouseId = initialHouses.activeHouseId;
+    const defaultHouseName = initialHouses.houses.find((house) => house.id === defaultHouseId).name;
+    const zeroHouseResponse = await fetch(`${baseUrl}/api/admin/houses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({ name: 'E2E Haus ohne Ressourcen', code: 'E2E Leerhaus 46' })
+    });
+    assert.equal(zeroHouseResponse.status, 201);
+    const zeroHouse = (await zeroHouseResponse.json()).house;
     const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || systemBrowserPath();
     browser = await playwright.chromium.launch({
       headless: true,
@@ -959,18 +1005,211 @@ async function run() {
       url: baseUrl
     }]);
     const adminPage = await adminContext.newPage();
+    const interactiveInitGate = await gateNextRequest(adminPage, '**/api/admin/maintenance-cases');
     await adminPage.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded' });
+    await interactiveInitGate.started;
+    await adminPage.waitForSelector('#viewSwitcher:not([hidden])');
+    await adminPage.click('#bookingViewButton');
+    interactiveInitGate.release();
+    await adminPage.waitForFunction(() => document.querySelector('#adminBox')?.hidden === false);
+    await interactiveInitGate.remove();
+    await adminPage.waitForFunction(() => !document.body.classList.contains('admin-view'));
+
+    const passiveAdminContext = await browser.newContext();
+    await passiveAdminContext.addCookies([{
+      name: adminCookie.slice(0, cookieSeparator),
+      value: adminCookie.slice(cookieSeparator + 1),
+      url: baseUrl
+    }]);
+    const passiveAdminPage = await passiveAdminContext.newPage();
+    const passiveInitGate = await gateNextRequest(passiveAdminPage, '**/api/admin/maintenance-cases');
+    await passiveAdminPage.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded' });
+    await passiveInitGate.started;
+    await passiveAdminPage.waitForSelector('#viewSwitcher:not([hidden])');
+    passiveInitGate.release();
+    await passiveAdminPage.waitForSelector('body.admin-view');
+    await passiveAdminPage.waitForFunction(() => document.querySelector('#adminBox')?.hidden === false);
+    await passiveInitGate.remove();
+    await passiveAdminContext.close();
+
+    await adminPage.waitForSelector('#weekCalendar [data-calendar-date]');
+    const readHouseState = () => adminPage.evaluate(() => ({
+      selectedHouse: document.querySelector('#houseSelect')?.value || '',
+      activeHouse: String(currentUser?.activeHouseId || ''),
+      brandHouse: document.querySelector('#brandHouseName')?.textContent.trim() || '',
+      resources: resources.map((resource) => `${resource.id}:${resource.name}`),
+      calendarResourceCount,
+      calendarDates: calendarDays.map((day) => day.date),
+      emptyVisible: document.querySelector('#calendarEmptyState')?.hidden === false,
+      adminHouse: document.querySelector('#adminTitle')?.textContent.trim() || '',
+      status: document.querySelector('#statusText')?.textContent.trim() || '',
+      focus: document.activeElement?.id || ''
+    }));
+
+    const staleSuccessGate = await gateNextRequest(adminPage, '**/api/calendar?*');
+    await adminPage.evaluate(() => {
+      window.__e2eStaleSuccess = loadCalendar()
+        .then(() => ({ ok: true }))
+        .catch((error) => ({ ok: false, message: error.message }));
+    });
+    await staleSuccessGate.started;
+    await adminPage.selectOption('#houseSelect', String(zeroHouse.id));
+    await adminPage.waitForFunction((expectedHouseId) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#calendarEmptyState')?.hidden === false
+      && document.querySelector('#houseSelect')?.disabled === false
+      && document.querySelector('#statusText')?.textContent.includes('E2E Haus ohne Ressourcen')
+    ), zeroHouse.id);
+    await adminPage.locator('#houseSelect').focus();
+    const houseBAfterSwitch = await readHouseState();
+    staleSuccessGate.release();
+    assert.deepEqual(await adminPage.evaluate(() => window.__e2eStaleSuccess), { ok: true });
+    await staleSuccessGate.remove();
+    assert.deepEqual(await readHouseState(), houseBAfterSwitch);
+
+    await adminPage.selectOption('#houseSelect', String(defaultHouseId));
+    await adminPage.waitForFunction(({ expectedHouseId, expectedHouseName }) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#calendarEmptyState')?.hidden === true
+      && document.querySelectorAll('#weekCalendar [data-calendar-date]').length > 0
+      && document.querySelector('#houseSelect')?.disabled === false
+      && document.querySelector('#statusText')?.textContent.includes(expectedHouseName)
+    ), { expectedHouseId: defaultHouseId, expectedHouseName: defaultHouseName });
+    const staleRejectGate = await gateNextRequest(adminPage, '**/api/my-bookings');
+    await adminPage.evaluate(() => {
+      window.__e2eStaleReject = loadMyBookings()
+        .then(() => ({ ok: true }))
+        .catch((error) => ({ ok: false, message: error.message }));
+    });
+    await staleRejectGate.started;
+    await adminPage.selectOption('#houseSelect', String(zeroHouse.id));
+    await adminPage.waitForFunction((expectedHouseId) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#calendarEmptyState')?.hidden === false
+      && document.querySelector('#houseSelect')?.disabled === false
+      && document.querySelector('#statusText')?.textContent.includes('E2E Haus ohne Ressourcen')
+    ), zeroHouse.id);
+    await adminPage.locator('#houseSelect').focus();
+    const houseBAfterRejectSwitch = await readHouseState();
+    staleRejectGate.release();
+    assert.deepEqual(await adminPage.evaluate(() => window.__e2eStaleReject), { ok: true });
+    await staleRejectGate.remove();
+    assert.deepEqual(await readHouseState(), houseBAfterRejectSwitch);
+
+    const emptyHouseApiState = await adminPage.evaluate(async (foreignHouseId) => {
+      const date = document.querySelector('#bookingDate')?.value;
+      const [resourcesResponse, calendarResponse, optionsResponse] = await Promise.all([
+        fetch(`/api/resources?houseId=${foreignHouseId}`),
+        fetch(`/api/calendar?from=${date}&days=7&houseId=${foreignHouseId}`),
+        fetch(`/api/booking-options?date=${date}&houseId=${foreignHouseId}`)
+      ]);
+      return {
+        resources: await resourcesResponse.json(),
+        calendar: await calendarResponse.json(),
+        options: await optionsResponse.json()
+      };
+    }, defaultHouseId);
+    assert.equal(emptyHouseApiState.resources.resources.length, 0);
+    assert.equal(emptyHouseApiState.calendar.resourceCount, 0);
+    assert.equal(emptyHouseApiState.calendar.activeResourceCount, 0);
+    assert.equal(emptyHouseApiState.options.resourceCount, 0);
+    assert.ok(emptyHouseApiState.options.slots.every((slot) => (
+      slot.washers.length === 0 && slot.dryingRoomCount === 0 && slot.tumblerCount === 0
+    )));
+    assert.equal(await adminPage.locator('#weekCalendar').isVisible(), false);
+    assert.equal(await adminPage.locator('#bookingFlow').isVisible(), false);
+    assert.doesNotMatch(await adminPage.locator('.booking-workspace').innerText(), /(?:9\s*\/\s*9|3\s*\/\s*3)/);
+    await adminPage.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
+    for (const viewport of [
+      { name: 'mobile', width: 390, height: 844 },
+      { name: 'desktop', width: 1440, height: 900 }
+    ]) {
+      await adminPage.setViewportSize({ width: viewport.width, height: viewport.height });
+      const screenshotPath = path.join(
+        screenshotDirectory,
+        `zero-resource-house-${viewport.name}-${viewport.width}x${viewport.height}.png`
+      );
+      await adminPage.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+      houseIsolationScreenshots.push(screenshotPath);
+    }
+    await adminPage.reload({ waitUntil: 'domcontentloaded' });
+    await adminPage.waitForFunction((expectedHouseId) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#calendarEmptyState')?.hidden === false
+    ), zeroHouse.id);
+    await adminPage.click('#accountMenuButton');
+    await adminPage.click('#openSettingsButton');
+    await adminPage.waitForSelector('#settingsOverlay:not([hidden])');
+    await adminPage.selectOption('#settingsLanguage', 'en');
+    await adminPage.waitForFunction(() => (
+      document.documentElement.lang === 'en'
+      && /No equipment has been configured/.test(document.querySelector('#calendarEmptyState')?.textContent || '')
+    ));
+    await adminPage.selectOption('#settingsLanguage', 'de');
+    await adminPage.waitForFunction(() => (
+      document.documentElement.lang === 'de'
+      && /noch keine Geraete eingerichtet/.test(document.querySelector('#calendarEmptyState')?.textContent || '')
+    ));
+    await adminPage.click('#closeSettingsButton');
+    await adminPage.click('#bookingViewButton');
+    await adminPage.waitForFunction(() => !document.body.classList.contains('admin-view'));
+    const currentHouseErrorGate = await gateNextRequest(adminPage, '**/api/calendar?*', { reject: true });
+    await adminPage.click('#monthViewButton');
+    await currentHouseErrorGate.started;
+    currentHouseErrorGate.release();
+    await adminPage.waitForFunction(() => (
+      /Keine Verbindung zur App/.test(document.querySelector('#statusText')?.textContent || '')
+    ));
+    await currentHouseErrorGate.remove();
+    const currentErrorHouseState = await readHouseState();
+    assert.equal(currentErrorHouseState.selectedHouse, String(zeroHouse.id));
+    assert.equal(currentErrorHouseState.activeHouse, String(zeroHouse.id));
+    assert.equal(currentErrorHouseState.emptyVisible, true);
+    await adminPage.selectOption('#houseSelect', String(defaultHouseId));
+    await adminPage.waitForFunction((expectedHouseId) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#calendarEmptyState')?.hidden === true
+      && document.querySelectorAll('#weekCalendar [data-calendar-date]').length > 0
+    ), defaultHouseId);
     await adminPage.click('#adminViewButton');
     await adminPage.waitForSelector('body.admin-view');
 
     await adminPage.click('[data-admin-target="house"]');
     await adminPage.waitForSelector('.resource-admin-group');
     assert.equal(await adminPage.locator('.resource-admin-group').count(), 3);
+    const createHouseThroughAdmin = async (name, expectedHint, expectedMessage) => {
+      const createPanel = adminPage.locator('#houseForm').locator('..');
+      if ((await createPanel.getAttribute('open')) === null) {
+        await createPanel.locator('summary').click();
+      }
+      assert.equal(await createPanel.locator('summary small').innerText(), expectedHint);
+      await adminPage.fill('#houseNameInput', name);
+      await adminPage.click('#houseForm button[type="submit"]');
+      await adminPage.waitForFunction((message) => (
+        document.querySelector('#statusText')?.textContent.trim() === message
+      ), expectedMessage);
+      const houseId = await adminPage.locator('#houseSelect').inputValue();
+      const createdHouseResources = await adminPage.evaluate(() => (
+        fetch('/api/resources').then((response) => response.json())
+      ));
+      assert.equal(createdHouseResources.resources.length, 0);
+      return houseId;
+    };
     await verifyIntroMediaPackage(adminPage, screenshotDirectory, {
       id: 'superadmin-de', language: 'de', duration: 280, chapters: 10, secondStart: 24
     }, mediaScreenshots);
     await captureMediaSource(adminPage, screenshotDirectory, 'superadmin-de-house');
     await captureVisualChecks(adminPage, screenshotDirectory, 'admin-house-');
+    await createHouseThroughAdmin(
+      'E2E Hausanlage Deutsch',
+      'Erzeugt einen leeren Standort; Ressourcen werden separat angelegt',
+      'E2E Hausanlage Deutsch wurde ohne Ger\u00e4te angelegt.'
+    );
+    await adminPage.selectOption('#houseSelect', String(defaultHouseId));
+    await adminPage.waitForFunction(({ expectedHouseId, expectedHouseName }) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#statusText')?.textContent.includes(expectedHouseName)
+    ), { expectedHouseId: defaultHouseId, expectedHouseName: defaultHouseName });
 
     const readAdminLanguageState = () => adminPage.evaluate(() => ({
       activeSection: document.querySelector('[data-admin-target][aria-current="page"]')?.dataset.adminTarget || '',
@@ -1004,6 +1243,16 @@ async function run() {
       }
     }
     await adminPage.click('[data-admin-target="house"]');
+    await createHouseThroughAdmin(
+      'E2E House Creation English',
+      'Creates an empty location; equipment is added separately',
+      'E2E House Creation English was created without equipment.'
+    );
+    await adminPage.selectOption('#houseSelect', String(defaultHouseId));
+    await adminPage.waitForFunction(({ expectedHouseId, expectedHouseName }) => (
+      document.querySelector('#houseSelect')?.value === String(expectedHouseId)
+      && document.querySelector('#statusText')?.textContent.includes(expectedHouseName)
+    ), { expectedHouseId: defaultHouseId, expectedHouseName: defaultHouseName });
     await adminPage.click('#accountMenuButton');
     await adminPage.click('#openSettingsButton');
     await adminPage.waitForSelector('#settingsOverlay:not([hidden])');
@@ -1110,7 +1359,7 @@ async function run() {
       screenshots: [''].concat(['game-', 'admin-house-', 'admin-people-', 'admin-system-'])
         .flatMap((prefix) => visualViewports.map((viewport) => (
           path.join(screenshotDirectory, `${prefix}${viewport.name}-${viewport.width}x${viewport.height}.png`)
-        ))).concat(gameStateScreenshots, mediaScreenshots)
+        ))).concat(gameStateScreenshots, mediaScreenshots, houseIsolationScreenshots)
     }));
   } finally {
     if (browser) await browser.close();

@@ -274,6 +274,27 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ houseId: secondHouseId })
     });
+    const emptySecondHouseResources = await expectStatus(superadmin, '/api/resources', 200);
+    assert.equal(emptySecondHouseResources.body.resources.length, 0);
+    const emptySecondHouseCalendar = await expectStatus(
+      superadmin,
+      `/api/calendar?from=${futureMonday()}&days=7&houseId=${firstHouseId}`,
+      200
+    );
+    assert.equal(emptySecondHouseCalendar.body.resourceCount, 0);
+    assert.equal(emptySecondHouseCalendar.body.activeResourceCount, 0);
+    assert.ok(emptySecondHouseCalendar.body.days.every((day) => (
+      day.activeResourceCount === 0
+      && Object.values(day.availability).every(({ free, total }) => free === 0 && total === 0)
+    )));
+    await expectStatus(resident, '/api/bookings', 404, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: firstWasher.id, date: futureMonday(), slot: '12:00-17:00' })
+    });
+    const secondHouseWasher = await expectStatus(superadmin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Rollen Waschmaschine Haus 20', type: 'washer' })
+    });
     await expectStatus(superadmin, `/api/admin/users/${houseAdminRegistration.body.user.id}/role`, 200, {
       method: 'PUT',
       body: JSON.stringify({ role: 'admin' })
@@ -466,6 +487,7 @@ async function run() {
 
     const secondResources = await expectStatus(houseAdmin, '/api/resources', 200);
     const secondWasher = secondResources.body.resources.find((resource) => resource.type === 'washer');
+    assert.equal(secondWasher.id, secondHouseWasher.body.id);
     const adminOnly = new ApiClient();
     await login(adminOnly, 'Rollen Zweitadmin', 'Rollen-Zweitadmin-2026!');
     const forbiddenAdminBooking = {

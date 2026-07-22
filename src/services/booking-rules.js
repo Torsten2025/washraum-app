@@ -278,6 +278,7 @@ function createBookingRules({
     return {
       date,
       closed,
+      activeResourceCount: activeResources.length,
       availability,
       slotDetails,
       ownBookings: Object.values(ownByType).reduce((sum, count) => sum + count, 0),

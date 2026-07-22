@@ -68,6 +68,7 @@ npm run check
 | ROLE-07 | Fremdhausdaten | Bewohner und Haus-Admin sehen und aendern keine fremden Konten, Meldungen oder Buchungen | `test:roles`, `test:year` |
 | ROLE-08 | Kombinierte und reine Adminrollen | Wohnungskonto plus Hausrolle darf getrennt buchen und verwalten; reine Admins und Superadmins ohne Wohnung koennen keine normale Buchung erzeugen | `test:roles`, manueller Browsertest |
 | ROLE-09 | QR von Bewohner-Hausadmin | Partner erhaelt eigene Identitaet und nur Bewohnerrecht; gemeinsame Buchungen und Vorausbuchungsgrenze gelten wohnungsweit | `test:roles`, `npm test` |
+| ROLE-10 | Null-Ressourcen-Haus und Fremdhausparameter | Ein serverseitig aktives Haus ohne Ressourcen liefert auch bei manipuliertem `houseId` weder fremde Ressourcen noch Kapazitaeten oder Buchungsmoeglichkeiten | `npm test`, `test:roles`, `test:e2e` |
 
 ## E. Buchungen und Regelwerk
 
@@ -83,6 +84,9 @@ npm run check
 | BOOK-08 | Monats-/Wochenkalender | API-Daten, Tagesdetails und eigene Buchungen stimmen ueberein | `npm test`, `test:e2e` |
 | BOOK-09 | Dauertermine | Normale Buchung wird blockiert; Tumblerreserve bleibt bestehen | `npm test`, `test:roles` |
 | BOOK-10 | Parallelzugriff | Eindeutige Ressourcenbelegung ohne Teilbuchung | `npm test`, `test:year` |
+| BOOK-11 | Hauswechsel mit leerem Haus | Haus A zeigt nur eigene Ressourcen; Haus B ohne Ressourcen zeigt 0 Kapazitaet, einen DE/EN-Leerzustand und keine Buchungsaktion; Rueckwechsel und Reload erben keine alten Daten | `npm test`, `test:roles`, `test:i18n`, `test:e2e` |
+| BOOK-12 | Bestehende Ressourcen beim Hausanlegen | Vorhandene Ressourcen und ihre IDs bleiben vor, waehrend und nach Anlage sowie Wechsel zu einem leeren Haus unveraendert; es gibt keine heuristische Bestandsbereinigung | `npm test` |
+| BOOK-13 | Initialisierungs- und Hauswechselrennen | Bewusste Kalenderwahl waehrend verzoegerter Admininitialisierung bleibt erhalten; ohne Klick startet der reine Admin in der Verwaltung. Verspaeteter Erfolg und Netzfehler aus Haus A veraendern Haus B nicht, ein aktueller B-Fehler bleibt sichtbar | `test:e2e` dreimal hintereinander, `npm run check` zweimal |
 
 ## F. Stoerungen und Maschinentagebuch
 

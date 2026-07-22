@@ -440,12 +440,12 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.4');
+    assert.equal(health.body.version, '0.3.0-test.5');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.4');
+    assert.equal(versionStatus.body.version, '0.3.0-test.5');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -1468,19 +1468,66 @@ async function run() {
       body: JSON.stringify({ action: 'release', note: 'Reinigung abgeschlossen, Testbetrieb erfolgreich.' })
     });
 
+    const defaultResourcesBeforeHouseCreate = await expectStatus(admin, '/api/resources', 200);
+    const preservedDefaultResourceIds = defaultResourcesBeforeHouseCreate.body.resources
+      .map((resource) => resource.id)
+      .sort((left, right) => left - right);
     const secondHouse = await expectStatus(admin, '/api/admin/houses', 201, {
       method: 'POST',
       body: JSON.stringify({ name: 'Maneggplatz 20', code: 'Testhaus 20 Neu' })
     });
+    const defaultResourcesAfterHouseCreate = await expectStatus(admin, '/api/resources', 200);
+    assert.deepEqual(
+      defaultResourcesAfterHouseCreate.body.resources.map((resource) => resource.id).sort((left, right) => left - right),
+      preservedDefaultResourceIds
+    );
     await expectStatus(admin, '/api/me/active-house', 200, {
       method: 'PUT',
       body: JSON.stringify({ houseId: secondHouse.body.house.id })
     });
     const secondHouseResources = await expectStatus(admin, '/api/resources', 200);
-    assert.equal(secondHouseResources.body.resources.length, 8);
-    assert.ok(!secondHouseResources.body.resources.some((resource) => (
+    assert.equal(secondHouseResources.body.resources.length, 0);
+    const emptyHouseCalendar = await expectStatus(
+      admin,
+      `/api/calendar?from=${bookingDate}&days=7&houseId=${defaultHouseId}`,
+      200
+    );
+    assert.equal(emptyHouseCalendar.body.resourceCount, 0);
+    assert.equal(emptyHouseCalendar.body.activeResourceCount, 0);
+    assert.ok(emptyHouseCalendar.body.days.every((day) => (
+      day.activeResourceCount === 0
+      && Object.values(day.availability).every(({ free, total }) => free === 0 && total === 0)
+    )));
+    const emptyHouseOptions = await expectStatus(
+      admin,
+      `/api/booking-options?date=${bookingDate}&houseId=${defaultHouseId}`,
+      200
+    );
+    assert.equal(emptyHouseOptions.body.resourceCount, 0);
+    assert.equal(emptyHouseOptions.body.activeResourceCount, 0);
+    assert.ok(emptyHouseOptions.body.slots.every((slot) => (
+      slot.washers.length === 0 && slot.dryingRoomCount === 0 && slot.tumblerCount === 0
+    )));
+    const secondWasherResource = await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Waschmaschine Haus 20', type: 'washer' })
+    });
+    await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Tumbler Haus 20 A', type: 'tumbler' })
+    });
+    await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Tumbler Haus 20 B', type: 'tumbler' })
+    });
+    const configuredSecondHouseResources = await expectStatus(admin, '/api/resources', 200);
+    assert.equal(configuredSecondHouseResources.body.resources.length, 3);
+    assert.ok(!configuredSecondHouseResources.body.resources.some((resource) => (
       resources.some((defaultResource) => defaultResource.id === resource.id)
     )));
+    const configuredHouseCalendar = await expectStatus(admin, `/api/calendar?from=${bookingDate}&days=7`, 200);
+    assert.equal(configuredHouseCalendar.body.resourceCount, 3);
+    assert.equal(configuredHouseCalendar.body.activeResourceCount, 3);
 
     const secondHouseUser = new ApiClient();
     const secondHouseRegistration = await expectStatus(secondHouseUser, '/api/register', 201, {
@@ -1494,7 +1541,12 @@ async function run() {
       })
     });
     assert.equal(secondHouseRegistration.body.user.houseName, 'Maneggplatz 20');
-    const secondWasher = secondHouseResources.body.resources.find((resource) => resource.type === 'washer');
+    await expectStatus(secondHouseUser, '/api/bookings', 404, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: washers[0].id, date: bookingDate, slot: '07:00-12:00' })
+    });
+    const secondWasher = configuredSecondHouseResources.body.resources.find((resource) => resource.type === 'washer');
+    assert.equal(secondWasher.id, secondWasherResource.body.id);
     const secondHouseWasherBooking = await expectStatus(secondHouseUser, '/api/bookings', 201, {
       method: 'POST',
       body: JSON.stringify({ resourceId: secondWasher.id, date: bookingDate, slot: '07:00-12:00' })
@@ -1510,7 +1562,7 @@ async function run() {
       body: JSON.stringify({ role: 'admin' })
     });
 
-    const secondHouseTumblers = secondHouseResources.body.resources.filter((resource) => resource.type === 'tumbler');
+    const secondHouseTumblers = configuredSecondHouseResources.body.resources.filter((resource) => resource.type === 'tumbler');
     await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
@@ -1534,6 +1586,11 @@ async function run() {
       method: 'PUT',
       body: JSON.stringify({ houseId: defaultHouseId })
     });
+    const defaultResourcesAfterHouseRoundTrip = await expectStatus(admin, '/api/resources', 200);
+    assert.deepEqual(
+      defaultResourcesAfterHouseRoundTrip.body.resources.map((resource) => resource.id).sort((left, right) => left - right),
+      preservedDefaultResourceIds
+    );
     const isolatedDefaultBookings = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
     assert.ok(!isolatedDefaultBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
     const isolatedDefaultUsers = await expectStatus(admin, '/api/admin/users', 200);
@@ -1673,12 +1730,12 @@ async function run() {
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.4'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.5'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.4"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.4'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.4'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.5"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.5'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.5'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

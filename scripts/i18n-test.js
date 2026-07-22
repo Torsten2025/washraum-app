@@ -61,11 +61,14 @@ assert.equal(localValues.get('waschzeit-language'), 'en');
 assert.equal(i18n.t('admin.inventoryTotal'), 'Equipment & rooms');
 assert.equal(i18n.t('admin.rename'), 'Rename');
 assert.equal(i18n.t('admin.block'), 'Block');
+assert.equal(i18n.t('admin.addBuildingHint'), 'Creates an empty location; equipment is added separately');
 assert.equal(i18n.t('admin.onlyOneSuperadmin'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
 assert.equal(i18n.translateVisibleText('Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
 assert.equal(i18n.translateVisibleText('Bitte einen gueltigen Namen und Bereich waehlen.'), 'Choose a valid name and category.');
 assert.equal(i18n.translateVisibleText('Freigabe erst nach einer erfolgreichen Funktionspruefung moeglich.'), 'The resource can only be released after a successful functional test.');
 assert.equal(i18n.translateVisibleText('WM 1 wurde gesperrt und im Tagebuch erfasst.'), 'WM 1 was blocked and recorded in the logbook.');
+assert.equal(i18n.translateVisibleText('Tuchmacherstrasse 46 wurde ohne Ger\u00e4te angelegt.'), 'Tuchmacherstrasse 46 was created without equipment.');
+assert.equal(i18n.translateVisibleText('Tuchmacherstrasse 46 wurde ohne Geraete angelegt.'), 'Tuchmacherstrasse 46 was created without equipment.');
 assert.equal(i18n.t('settings.doorbellName'), 'Doorbell name');
 assert.equal(i18n.t('settings.notificationsHint'), 'Choose which newly available slots are relevant to you.');
 assert.equal(i18n.t('settings.allCategories'), 'All categories');
@@ -79,8 +82,11 @@ assert.equal(i18n.t('app.myBookings'), 'My bookings');
 assert.equal(i18n.t('app.noUpcomingBookings'), 'You currently have no upcoming bookings.');
 assert.equal(i18n.t('app.yourRecommendation'), 'Your recommendation');
 assert.equal(i18n.t('app.washTimesAvailable', { count: 4 }), '4 laundry times available');
+assert.equal(i18n.t('app.noResourcesTitle'), 'No equipment has been configured for this building yet.');
+assert.equal(i18n.t('app.noResourcesHint'), 'The occupancy schedule will appear here once a building admin adds resources.');
 i18n.setLanguage('unsupported');
 assert.equal(i18n.language(), 'de', 'unsupported languages must fall back to German');
+assert.equal(i18n.translateVisibleText('Tuchmacherstrasse 46 wurde ohne Ger\u00e4te angelegt.'), 'Tuchmacherstrasse 46 wurde ohne Ger\u00e4te angelegt.');
 
 const introWindow = loadBrowserScript('public/intro-content.js', {});
 const catalog = introWindow.WaschZeitIntroCatalog;
@@ -151,7 +157,9 @@ for (const requiredResidentKey of [
   'app.yourRecommendation',
   'app.chooseTime',
   'app.washTimesAvailable',
-  'app.bookRecommended'
+  'app.bookRecommended',
+  'app.noResourcesTitle',
+  'app.noResourcesHint'
 ]) {
   assert.ok(i18n.messages[requiredResidentKey], `${requiredResidentKey} must be part of the resident language-switch contract`);
   assert.ok(appSource.includes(`'${requiredResidentKey}'`) || indexHtml.includes(`data-i18n="${requiredResidentKey}"`), `${requiredResidentKey} must be used by the resident UI`);

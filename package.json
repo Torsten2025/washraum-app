@@ -1,6 +1,6 @@
 {
   "name": "waschplan-app",
-  "version": "0.3.0-test.4",
+  "version": "0.3.0-test.5",
   "description": "Waschraum-Buchungsapp mit Express, SQLite und statischem Frontend.",
   "main": "server.js",
   "scripts": {

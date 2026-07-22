@@ -1392,8 +1392,7 @@ const houseRoleRouters = createHouseRoleRouters({
   writeAudit,
   confirmCurrentAdminPassword,
   isValidPlainText,
-  todayStringLocal,
-  seedHouseResources
+  todayStringLocal
 });
 app.use(houseRoleRouters.activeHouseRouter);
 
