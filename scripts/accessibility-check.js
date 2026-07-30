@@ -81,6 +81,14 @@ assert.match(indexHtml, /id="diaperCountdown"[^>]*role="timer"[^>]*aria-label="V
 assert.match(indexHtml, /id="diaperIncident"[^>]*role="status"[^>]*aria-live="assertive"/, 'Windel-Alarm-Zwischenfall ohne Live-Status');
 assert.match(indexHtml, /id="diaperGameStatus"[^>]*role="status"[^>]*aria-live="polite"/, 'Windel-Alarm ohne fortlaufenden Textstatus');
 assert.match(indexHtml, /id="diaperSoundButton"[^>]*aria-pressed="false"/, 'Windel-Alarm-Ton ohne Schalterstatus');
+assert.match(indexHtml, /id="backupOperationHint"[^>]*role="status"/, 'Backup-Verfuegbarkeit ohne Statussemantik');
+assert.match(indexHtml, /id="runBackupButton"[^>]*aria-describedby="backupOperationHint"/, 'Backup-Aktion ohne zugaengliche Verfuegbarkeitsbeschreibung');
+assert.match(indexHtml, /<button id="downloadBackupButton"[^>]*aria-describedby="backupOperationHint"/, 'Backup-Download muss als deaktivierbare, beschriebene Button-Aktion vorliegen');
+assert.doesNotMatch(indexHtml, /<a id="downloadBackupButton"/, 'Backup-Download darf kein trotz Deaktivierung navigierbarer Link sein');
+assert.match(indexHtml, /id="adminEmailTestHint"[^>]*role="status"/, 'E-Mail-Verfuegbarkeit ohne Statussemantik');
+assert.match(indexHtml, /id="adminEmailTestButton"[^>]*aria-describedby="adminEmailTestHint"/, 'E-Mail-Test ohne zugaengliche Verfuegbarkeitsbeschreibung');
+assert.match(indexHtml, /id="adminPushTestHint"[^>]*role="status"/, 'Push-Verfuegbarkeit ohne Statussemantik');
+assert.match(indexHtml, /id="adminPushTestButton"[^>]*aria-describedby="adminPushTestHint"/, 'Push-Test ohne zugaengliche Verfuegbarkeitsbeschreibung');
 const styles = fs.readFileSync(path.join(publicDir, 'styles.css'), 'utf8');
 assert.match(styles, /prefers-reduced-motion:\s*reduce/, 'Reduzierte Bewegung wird nicht beruecksichtigt');
 assert.match(styles, /:focus-visible/, 'Sichtbarer Tastaturfokus fehlt');

@@ -61,7 +61,7 @@ function parseTimestamp(value) {
 }
 
 function parseVtt(filename) {
-  const source = fs.readFileSync(filename, 'utf8');
+  const source = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
   assert.ok(source.startsWith('WEBVTT\n'), `${path.basename(filename)}: WEBVTT-Kopf fehlt`);
   const cues = [];
   const lines = source.split(/\r?\n/);

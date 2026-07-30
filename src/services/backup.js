@@ -1,4 +1,12 @@
-function createBackupService({ db, Database, fs, path, env, dbDir, setSetting, fetchImpl }) {
+function createBackupService({ db, Database, fs, path, env, dbDir, setSetting, fetchImpl, enabled = false }) {
+  const integrationEnabled = enabled === true;
+
+  function disabledError() {
+    const error = new Error('Backups sind durch BACKUP_ENABLED=false deaktiviert.');
+    error.code = 'BACKUP_DISABLED';
+    return error;
+  }
+
   function backupDirectory() {
     return path.resolve(env.BACKUP_DIR || (
       env.RENDER === 'true' ? '/var/data/backups' : path.join(dbDir, 'backups')
@@ -6,6 +14,10 @@ function createBackupService({ db, Database, fs, path, env, dbDir, setSetting, f
   }
 
   async function createVerifiedBackup() {
+    if (!integrationEnabled) {
+      throw disabledError();
+    }
+
     const directory = backupDirectory();
     fs.mkdirSync(directory, { recursive: true });
     const filename = `washplan-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
@@ -61,7 +73,7 @@ function createBackupService({ db, Database, fs, path, env, dbDir, setSetting, f
     return status;
   }
 
-  return { backupDirectory, createVerifiedBackup };
+  return { backupDirectory, createVerifiedBackup, enabled: integrationEnabled };
 }
 
 module.exports = { createBackupService };

@@ -9,11 +9,29 @@ function createPushService({
   smtpConfig,
   extractEmailAddress,
   publicAppUrl,
-  weekdayForDate
+  weekdayForDate,
+  enabled = false
 }) {
-  const sendPushNotification = (subscription, payload) => webPush.sendNotification(subscription, payload);
+  const integrationEnabled = enabled === true;
+
+  function disabledError() {
+    const error = new Error('Push ist durch PUSH_ENABLED=false deaktiviert.');
+    error.code = 'PUSH_DISABLED';
+    return error;
+  }
+
+  async function sendPushNotification(subscription, payload) {
+    if (!integrationEnabled) {
+      throw disabledError();
+    }
+    return webPush.sendNotification(subscription, payload);
+  }
 
   function configuredVapidKeys() {
+    if (!integrationEnabled) {
+      return { publicKey: '', privateKey: '', source: 'disabled' };
+    }
+
     const envPublicKey = String(env.VAPID_PUBLIC_KEY || '').trim();
     const envPrivateKey = String(env.VAPID_PRIVATE_KEY || '').trim();
     if (envPublicKey && envPrivateKey) {
@@ -33,10 +51,22 @@ function createPushService({
   }
 
   function pushStatus() {
+    if (!integrationEnabled) {
+      return {
+        enabled: false,
+        configured: false,
+        label: 'deaktiviert',
+        publicKey: '',
+        keySource: 'disabled',
+        activeSubscriptions: 0
+      };
+    }
+
     try {
       const keys = configuredVapidKeys();
       const activeSubscriptions = db.prepare('SELECT COUNT(*) AS count FROM push_subscriptions WHERE active = 1').get().count;
       return {
+        enabled: true,
         configured: Boolean(keys.publicKey && keys.privateKey),
         label: 'bereit',
         publicKey: keys.publicKey,
@@ -45,6 +75,7 @@ function createPushService({
       };
     } catch (error) {
       return {
+        enabled: true,
         configured: false,
         label: `nicht bereit: ${error.message}`,
         publicKey: '',
@@ -100,7 +131,7 @@ function createPushService({
   async function notifyPushSubscribers(req, booking, message, title = `WaschZeit: ${booking.resource_name} frei`) {
     const status = applyPushConfig(req);
     if (!status.configured) {
-      return { configured: false, sent: 0, failed: 0 };
+      return { enabled: status.enabled, configured: false, sent: 0, failed: 0 };
     }
 
     const recipients = db.prepare(`
@@ -128,7 +159,7 @@ function createPushService({
     );
 
     if (!recipients.length) {
-      return { configured: true, sent: 0, failed: 0 };
+      return { enabled: true, configured: true, sent: 0, failed: 0 };
     }
 
     let sent = 0;
@@ -154,7 +185,7 @@ function createPushService({
       }
     }
 
-    return { configured: true, sent, failed };
+    return { enabled: true, configured: true, sent, failed };
   }
 
   return {

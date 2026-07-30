@@ -62,6 +62,17 @@ assert.equal(i18n.t('admin.inventoryTotal'), 'Equipment & rooms');
 assert.equal(i18n.t('admin.rename'), 'Rename');
 assert.equal(i18n.t('admin.block'), 'Block');
 assert.equal(i18n.t('admin.addBuildingHint'), 'Creates an empty location; equipment is added separately');
+assert.equal(i18n.t('admin.integrationDisabled'), 'Disabled');
+assert.equal(i18n.t('admin.backupDisabledHint'), 'Backups are disabled in this environment. Creating and downloading backups are unavailable.');
+assert.equal(i18n.t('admin.emailDisabledHint'), 'Email is disabled in this environment. Test emails are unavailable.');
+assert.equal(i18n.t('admin.pushDisabledHint'), 'Push is disabled in this environment. Test notifications are unavailable.');
+assert.equal(i18n.t('admin.maintenanceBackupDisabled'), 'Unavailable while backups are disabled in this environment.');
+assert.equal(i18n.t('admin.errorBackupDisabled'), 'Backups are disabled in this environment.');
+assert.equal(i18n.t('admin.errorEmailDisabled'), 'Email is disabled in this environment.');
+assert.equal(i18n.t('admin.errorPushDisabled'), 'Push notifications are disabled in this environment.');
+assert.equal(i18n.translateVisibleText('Backups sind in dieser Umgebung deaktiviert.'), 'Backups are disabled in this environment.');
+assert.equal(i18n.translateVisibleText('E-Mail ist in dieser Umgebung deaktiviert.'), 'Email is disabled in this environment.');
+assert.equal(i18n.translateVisibleText('Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'), 'Push notifications are disabled in this environment.');
 assert.equal(i18n.t('admin.onlyOneSuperadmin'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
 assert.equal(i18n.translateVisibleText('Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
 assert.equal(i18n.translateVisibleText('Bitte einen gueltigen Namen und Bereich waehlen.'), 'Choose a valid name and category.');
@@ -175,6 +186,14 @@ assert.ok(appSource.includes("data-intro-chapter"));
 assert.ok(appSource.includes("aria-current"));
 assert.ok(appSource.includes('jumpIntroVideoStep'));
 for (const requiredAdminKey of [
+  'admin.integrationDisabled',
+  'admin.backupDisabledHint',
+  'admin.emailDisabledHint',
+  'admin.pushDisabledHint',
+  'admin.maintenanceBackupDisabled',
+  'admin.errorBackupDisabled',
+  'admin.errorEmailDisabled',
+  'admin.errorPushDisabled',
   'admin.newIssueOne',
   'admin.inventoryTotal',
   'admin.invitationOpen',

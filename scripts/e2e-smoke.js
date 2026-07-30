@@ -95,6 +95,12 @@ const forbiddenEnglishAdminPatterns = [
   /Nur ein aktiver Superadmin/i,
   /\bNotfallregel\b/i,
   /\bDaten sichern\b/i,
+  /\bDeaktiviert\b/i,
+  /Backups sind in dieser Umgebung deaktiviert/i,
+  /E-Mail ist in dieser Umgebung deaktiviert/i,
+  /Push(?:-Benachrichtigungen)? ist in dieser Umgebung deaktiviert/i,
+  /noch nicht automatisch erstellt/i,
+  /Externen Speicher in Render einrichten/i,
   /Wartung (?:starten|beenden)/i,
   /Buchungen zuruecksetzen/i,
   /\bKonten verwalten\b/i,
@@ -515,6 +521,7 @@ async function run() {
   const gameStateScreenshots = [];
   const mediaScreenshots = [];
   const houseIsolationScreenshots = [];
+  const disabledIntegrationScreenshots = [];
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -1382,6 +1389,171 @@ async function run() {
     await captureMediaSource(adminPage, screenshotDirectory, 'superadmin-de-system');
     await captureVisualChecks(adminPage, screenshotDirectory, 'admin-system-');
 
+    const disabledOverviewHandler = async (route) => {
+      const response = await route.fetch();
+      const overview = await response.json();
+      await route.fulfill({
+        response,
+        json: {
+          ...overview,
+          backupEnabled: false,
+          externalBackupConfigured: false,
+          backup: {
+            ok: false,
+            error: 'Noch kein automatisches Backup vorhanden.'
+          },
+          email: {
+            ...(overview.email || {}),
+            enabled: false,
+            configured: false,
+            label: 'deaktiviert'
+          },
+          push: {
+            ...(overview.push || {}),
+            enabled: false,
+            configured: false,
+            label: 'deaktiviert'
+          }
+        }
+      });
+    };
+    await adminPage.route('**/api/admin/overview', disabledOverviewHandler);
+    await adminPage.evaluate(() => loadAdmin());
+    const disabledGermanOverview = await adminPage.locator('#adminOverview').textContent();
+    assert.equal((disabledGermanOverview.match(/Deaktiviert/g) || []).length, 3);
+    assert.doesNotMatch(disabledGermanOverview, /noch nicht automatisch erstellt|Externen Speicher in Render einrichten/i);
+    await adminPage.click('[data-admin-target="system"]');
+    assert.match(await adminPage.locator('#backupOperationHint').innerText(), /Backups sind in dieser Umgebung deaktiviert/i);
+    assert.match(await adminPage.locator('#adminEmailTestHint').innerText(), /E-Mail ist in dieser Umgebung deaktiviert/i);
+    assert.match(await adminPage.locator('#adminPushTestHint').innerText(), /Push ist in dieser Umgebung deaktiviert/i);
+    for (const selector of [
+      '#runBackupButton',
+      '#downloadBackupButton',
+      '#adminEmailTestButton',
+      '#adminPushTarget',
+      '#adminPushTestButton',
+      '#toggleMaintenanceButton'
+    ]) {
+      assert.equal(await adminPage.locator(selector).isDisabled(), true, `${selector} muss bei deaktivierter Integration unbedienbar sein`);
+    }
+    await adminPage.locator('#adminSystemOperationTitle').evaluate((element) => {
+      element.tabIndex = -1;
+      element.focus();
+    });
+    await adminPage.keyboard.press('Tab');
+    assert.ok(![
+      'runBackupButton',
+      'downloadBackupButton',
+      'adminEmailTestButton',
+      'adminPushTarget',
+      'adminPushTestButton',
+      'toggleMaintenanceButton'
+    ].includes(await adminPage.evaluate(() => document.activeElement?.id || '')), 'Tastaturfokus darf keine deaktivierte Aktion erreichen');
+    for (const viewport of [
+      { name: 'mobile', width: 390, height: 844 },
+      { name: 'desktop', width: 1440, height: 900 }
+    ]) {
+      await adminPage.setViewportSize({ width: viewport.width, height: viewport.height });
+      const screenshotPath = path.join(
+        screenshotDirectory,
+        `disabled-integrations-de-${viewport.name}-${viewport.width}x${viewport.height}.png`
+      );
+      await adminPage.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+      disabledIntegrationScreenshots.push(screenshotPath);
+    }
+
+    const disabledLanguageState = await readAdminLanguageState();
+    await adminPage.click('#accountMenuButton');
+    await adminPage.click('#openSettingsButton');
+    await adminPage.waitForSelector('#settingsOverlay:not([hidden])');
+    await adminPage.click('[data-settings-target="profile"]');
+    await adminPage.selectOption('#settingsLanguage', 'en');
+    await adminPage.waitForFunction(() => (
+      document.documentElement.lang === 'en'
+      && /Backups are disabled in this environment/.test(document.querySelector('#backupOperationHint')?.textContent || '')
+    ));
+    assert.deepEqual(await readAdminLanguageState(), disabledLanguageState);
+    await adminPage.click('#closeSettingsButton');
+    const disabledEnglishOverview = await adminPage.locator('#adminOverview').textContent();
+    assert.equal((disabledEnglishOverview.match(/Disabled/g) || []).length, 3);
+    assert.doesNotMatch(disabledEnglishOverview, /Deaktiviert|noch nicht automatisch erstellt|Externen Speicher in Render einrichten/i);
+    await assertEnglishAdminSection(adminPage, 'superadmin-disabled-integrations', 'system');
+    assert.match(await adminPage.locator('#backupOperationHint').innerText(), /Backups are disabled in this environment/i);
+    assert.match(await adminPage.locator('#adminEmailTestHint').innerText(), /Email is disabled in this environment/i);
+    assert.match(await adminPage.locator('#adminPushTestHint').innerText(), /Push is disabled in this environment/i);
+    assert.match(await adminPage.locator('#maintenanceAdminStatus').innerText(), /Unavailable while backups are disabled/i);
+
+    for (const viewport of [
+      { name: 'mobile', width: 390, height: 844 },
+      { name: 'desktop', width: 1440, height: 900 }
+    ]) {
+      await adminPage.setViewportSize({ width: viewport.width, height: viewport.height });
+      const layout = await adminPage.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth
+      }));
+      assert.ok(layout.scrollWidth <= layout.clientWidth + 1, `disabled-integrations/${viewport.name}: horizontaler Ueberlauf`);
+      const screenshotPath = path.join(
+        screenshotDirectory,
+        `disabled-integrations-en-${viewport.name}-${viewport.width}x${viewport.height}.png`
+      );
+      await adminPage.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+      disabledIntegrationScreenshots.push(screenshotPath);
+    }
+
+    let backupRunDriftRequests = 0;
+    let backupDownloadDriftRequests = 0;
+    const backupRunDriftHandler = async (route) => {
+      backupRunDriftRequests += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'BACKUP_DISABLED', error: 'Backups sind in dieser Umgebung deaktiviert.' })
+      });
+    };
+    const backupDownloadDriftHandler = async (route) => {
+      backupDownloadDriftRequests += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'BACKUP_DISABLED', error: 'Backups sind in dieser Umgebung deaktiviert.' })
+      });
+    };
+    await adminPage.route('**/api/admin/backup/run', backupRunDriftHandler);
+    await adminPage.route('**/api/admin/backup', backupDownloadDriftHandler);
+    await adminPage.evaluate(async () => {
+      adminIntegrationState.backup = true;
+      await runBackupNow();
+      adminIntegrationState.backup = false;
+      runBackupButton.disabled = true;
+    });
+    assert.equal(backupRunDriftRequests, 1);
+    assert.equal(await adminPage.locator('#statusText').innerText(), 'Backups are disabled in this environment.');
+    await adminPage.evaluate(async () => {
+      adminIntegrationState.backup = true;
+      await downloadBackupNow();
+      adminIntegrationState.backup = false;
+      downloadBackupButton.disabled = true;
+    });
+    assert.equal(backupDownloadDriftRequests, 1);
+    assert.equal(await adminPage.locator('#statusText').innerText(), 'Backups are disabled in this environment.');
+    await adminPage.unroute('**/api/admin/backup/run', backupRunDriftHandler);
+    await adminPage.unroute('**/api/admin/backup', backupDownloadDriftHandler);
+
+    await adminPage.click('#accountMenuButton');
+    await adminPage.click('#openSettingsButton');
+    await adminPage.waitForSelector('#settingsOverlay:not([hidden])');
+    await adminPage.click('[data-settings-target="profile"]');
+    await adminPage.selectOption('#settingsLanguage', 'de');
+    await adminPage.waitForFunction(() => (
+      document.documentElement.lang === 'de'
+      && /Backups sind in dieser Umgebung deaktiviert/.test(document.querySelector('#backupOperationHint')?.textContent || '')
+    ));
+    assert.deepEqual(await readAdminLanguageState(), disabledLanguageState);
+    await adminPage.click('#closeSettingsButton');
+    await adminPage.unroute('**/api/admin/overview', disabledOverviewHandler);
+    await adminPage.evaluate(() => loadAdmin());
+
     const germanSystemState = await readAdminLanguageState();
     await adminPage.click('#accountMenuButton');
     await adminPage.click('#openSettingsButton');
@@ -1463,7 +1635,7 @@ async function run() {
       screenshots: [''].concat(['game-', 'admin-house-', 'admin-people-', 'admin-system-'])
         .flatMap((prefix) => visualViewports.map((viewport) => (
           path.join(screenshotDirectory, `${prefix}${viewport.name}-${viewport.width}x${viewport.height}.png`)
-        ))).concat(gameStateScreenshots, mediaScreenshots, houseIsolationScreenshots)
+        ))).concat(gameStateScreenshots, mediaScreenshots, houseIsolationScreenshots, disabledIntegrationScreenshots)
     }));
   } finally {
     if (browser) await browser.close();

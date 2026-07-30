@@ -1,6 +1,6 @@
 # WaschZeit Gesamtaudit
 
-Stand: 20. Juli 2026
+Stand: 31. Juli 2026
 
 Dieser Testplan prueft die App in einer isolierten lokalen Umgebung. Jeder Lauf verwendet eine eigene SQLite-Datei und veraendert keine Produktionsdaten. Externe Live-Dienste wie Render, echtes SMTP, Betriebssystem-Push und App-Installation werden zusaetzlich manuell abgenommen.
 
@@ -23,6 +23,7 @@ npm run check
 | SEC-04 | Produktionsmodus | HSTS sowie `Secure`, `HttpOnly` und `SameSite=Lax` am Sitzungscookie | `test:security` |
 | SEC-05 | Abhaengigkeiten | Keine bekannte kritische produktive Schwachstelle | `npm audit --omit=dev` |
 | SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `test:roles` |
+| SEC-07 | Harte Betriebs-Kill-Switches | Nur explizites, trim-/case-insensitives `true` aktiviert Backup, E-Mail oder Push. Pro Kanal bleiben `false`, fehlend, leer, ungueltig und direkte Factory-Nutzung ohne `enabled` trotz gesetzter Providerwerte fail-closed; direkte und indirekte Pfade erzeugen null Dateien, DB-Kopien, Queue-/Token-/Abo-/Auditwirkungen sowie null DNS-, Netzwerk- oder Providerverbindungen. Die Adminoberflaeche zeigt DE/EN eindeutig `Deaktiviert`/`Disabled`, blendet irrefuehrende Providerhinweise aus und macht Backup-Erstellung, Download, Testversand sowie Wartungsstart unbedienbar; direkte API-Pfade bleiben `503` | `test:safety`, `test:i18n`, `test:a11y`, `test:e2e` |
 
 ## B. Anmeldung, Einladung und Sitzungen
 
@@ -128,7 +129,7 @@ npm run check
 | VID-01 | Sechs Kombinationen | Bewohner, Haus-Admin und Superadmin besitzen je `de` und `en` als echtes MP4/VTT/Poster/Transkript-Paket und als interaktive Fuehrung | `test:i18n`, `test:media` |
 | VID-02 | Rollenwahl | Superadmin, Haus-Admin und Bewohner erhalten nur das passende Medienpaket; Sprache folgt Kontosprache | `test:i18n`, `test:e2e` |
 | VID-03 | Kapitel | Startzeiten steigen, Titel/Beschreibung/Rolle/Sprache/Transkript sind vollstaendig; Maus, Touch und Tastatur springen an die korrekte MP4-Zeit und markieren das aktive Kapitel | `test:i18n`, `test:a11y`, `test:e2e` |
-| VID-04 | Medienformat | Alle sechs MP4s sind 1280 x 720, enthalten H.264/AAC-Marker und besitzen exakt passende Laufzeit; VTT-Zeiten sind geordnet, ueberlappungsfrei und textvollstaendig | `test:media` |
+| VID-04 | Medienformat | Alle sechs MP4s sind 1280 x 720, enthalten H.264/AAC-Marker und besitzen exakt passende Laufzeit; VTT-Zeiten sind bei LF- und CRLF-Checkout geordnet, ueberlappungsfrei und textvollstaendig | `test:media` |
 | VID-05 | Fallback und PWA | Transkript und Untertitel bleiben in der Offline-Shell; MP4s werden wegen Dateigroesse weder vorab noch im Laufzeitcache gespeichert; Fehlerstatus verweist auf die Alternativen | `test:media`, `test:a11y`, `test:e2e` |
 | VID-06 | Responsive Medienansicht | Jedes der sechs Pakete laedt und bleibt bei 390 x 844, 768 x 1024 und 1440 x 900 ohne horizontalen Dialogueberlauf bedienbar | `test:e2e`, Screenshotreview |
 | DASH-01 | Priorisierung | Aufgaben, Warnungen und Informationen sind getrennt und besitzen konkrete Aktionen | `test:e2e`, Browserreview |
@@ -142,11 +143,12 @@ Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Bu
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
 | OPS-01 | SQLite-Backup und Restore | Externe PUT-Kopie mit optionalem Token ist gueltig; Integritaetspruefung, Neustart, Anmeldung und Ressourcenbestand sind erfolgreich | `npm test`, `test:roles`, `test:backup` |
-| OPS-02 | Wartungsmodus | Aktuelles Superadmin-Passwort und Backup vor Start, Schreibsperre, Datenbank- und Buchungstest vor Ende | `npm test`, `test:roles` |
+| OPS-02 | Wartungsmodus | Aktuelles Superadmin-Passwort und Backup vor Start, Schreibsperre, Datenbank- und Buchungstest vor Ende; bei deaktiviertem Backup ist der Start bereits im UI nicht verfuegbar, eine laufende Wartung kann weiterhin sicher beendet werden | `npm test`, `test:roles`, `test:e2e` |
 | OPS-03 | Auditprotokoll | Kritische Adminaktionen sind mit Haus und Ausloeser nachvollziehbar | `npm test`, `test:roles` |
 | OPS-04 | Auswertung | Zeitraum, Ressourcen, Slots und gesperrte Ressourcen korrekt | `npm test` |
 | OPS-05 | Mehrhaus-Jahr | 100 Personen, sechs Haeuser, 52 Wochen und 5.200 Waschpakete ohne Kollision | `test:year` |
 | OPS-06 | Produktion | `/api/health`, persistenter Pfad, Revision, SMTP, Push und externes Backup | Manueller Live-Test |
+| OPS-07 | Isoliertes Staging | Eigener Dienst und Zweig, Auto-Deploy aus, `npm ci`, Healthcheck, fluechtige `/tmp`-DB, keine Disk/Produktions-Env-Gruppe und alle drei Kill-Switches exakt `false` | `test:safety`, Blueprintreview |
 
 ## Manuelle Live-Abnahme
 

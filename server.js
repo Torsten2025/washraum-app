@@ -28,6 +28,7 @@ const { createNotificationService } = require('./src/services/notifications');
 const { createOperationsService } = require('./src/services/operations');
 const { createPushService } = require('./src/services/push');
 const { createRoleContext } = require('./src/services/role-context');
+const { createRuntimeFlags } = require('./src/services/runtime-flags');
 const {
   addDays,
   isDateString,
@@ -50,6 +51,7 @@ const appRelease = String(
 const appReleasedAt = String(process.env.APP_RELEASE_DATE || serverStartedAt).trim();
 const allowLegacyHouseRegistration = process.env.ALLOW_LEGACY_HOUSE_REGISTRATION === 'true';
 const allowTestInvitationLink = !isProduction && process.env.ALLOW_TEST_INVITATION_LINK === 'true';
+const runtimeFlags = createRuntimeFlags({ env: process.env, logger: console });
 const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
 const renderDbPath = '/var/data/washraum.sqlite';
 const dbPath = path.resolve(
@@ -856,7 +858,8 @@ const {
   createVerifiedBackup: (...args) => createVerifiedBackup(...args),
   appVersion,
   appRelease,
-  appReleasedAt
+  appReleasedAt,
+  runtimeFlags
 });
 
 const {
@@ -1153,7 +1156,8 @@ function publicAppUrl(req) {
 const { emailStatus, smtpConfig, extractEmailAddress, sendMail } = createMailTransport({
   net,
   tls,
-  env: process.env
+  env: process.env,
+  enabled: runtimeFlags.email.enabled === true
 });
 
 const {
@@ -1173,7 +1177,8 @@ const {
   smtpConfig,
   extractEmailAddress,
   publicAppUrl,
-  weekdayForDate
+  weekdayForDate,
+  enabled: runtimeFlags.push.enabled === true
 });
 
 function writeAudit(req, action, targetType, targetId = '', details = {}) {
@@ -1254,7 +1259,8 @@ const { backupDirectory, createVerifiedBackup } = createBackupService({
   env: process.env,
   dbDir,
   setSetting,
-  fetchImpl: fetch
+  fetchImpl: fetch,
+  enabled: runtimeFlags.backup.enabled === true
 });
 
 const operationsRouters = createOperationsRouters({
@@ -1284,7 +1290,8 @@ const operationsRouters = createOperationsRouters({
   setSetting,
   todayStringLocal,
   addDays,
-  destroyUserSessions
+  destroyUserSessions,
+  runtimeFlags
 });
 app.use(operationsRouters.publicRouter);
 
@@ -1504,7 +1511,10 @@ app.use((err, req, res, next) => {
 cleanupExpiredData();
 const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
 cleanupTimer.unref();
-if (isProduction || String(process.env.AUTO_BACKUP || '').toLowerCase() === 'true') {
+if (
+  runtimeFlags.backup.enabled === true
+  && (isProduction || String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true')
+) {
   const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
   initialBackupTimer.unref();
   const backupTimer = setInterval(runScheduledBackup, 24 * 60 * 60 * 1000);
@@ -1514,4 +1524,9 @@ if (isProduction || String(process.env.AUTO_BACKUP || '').toLowerCase() === 'tru
 app.listen(port, () => {
   console.log(`Waschplan App laeuft auf http://localhost:${port}`);
   console.log(`SQLite: ${dbPath}`);
+  console.log(
+    `Integrationen: Backup=${runtimeFlags.backup.enabled === true ? 'aktiv' : 'deaktiviert'}, `
+    + `E-Mail=${runtimeFlags.email.enabled === true ? 'aktiv' : 'deaktiviert'}, `
+    + `Push=${runtimeFlags.push.enabled === true ? 'aktiv' : 'deaktiviert'}`
+  );
 });

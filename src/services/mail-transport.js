@@ -1,16 +1,46 @@
-function createMailTransport({ net, tls, env }) {
+function createMailTransport({ net, tls, env, enabled = false }) {
+  const integrationEnabled = enabled === true;
+
+  function disabledError() {
+    const error = new Error('E-Mail ist durch EMAIL_ENABLED=false deaktiviert.');
+    error.code = 'EMAIL_DISABLED';
+    return error;
+  }
+
   function emailStatus() {
+    if (!integrationEnabled) {
+      return {
+        enabled: false,
+        configured: false,
+        label: 'deaktiviert'
+      };
+    }
+
     const host = String(env.SMTP_HOST || '').trim();
     const from = String(env.SMTP_FROM || '').trim();
     return {
+      enabled: true,
       configured: Boolean(host && from),
       label: host && from ? 'bereit' : 'nicht konfiguriert'
     };
   }
 
   function smtpConfig() {
+    if (!integrationEnabled) {
+      return {
+        enabled: false,
+        host: '',
+        port: 0,
+        secure: false,
+        user: '',
+        password: '',
+        from: ''
+      };
+    }
+
     const secure = String(env.SMTP_SECURE || '').toLowerCase() === 'true';
     return {
+      enabled: true,
       host: String(env.SMTP_HOST || '').trim(),
       port: Number(env.SMTP_PORT || (secure ? 465 : 587)),
       secure,
@@ -46,6 +76,10 @@ function createMailTransport({ net, tls, env }) {
   }
 
   async function sendMail({ config, to, subject, text }) {
+    if (!integrationEnabled) {
+      throw disabledError();
+    }
+
     let socket = await openSmtpSocket(config, config.secure);
     let session = smtpSession(socket);
 

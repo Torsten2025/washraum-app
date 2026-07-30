@@ -76,7 +76,9 @@ const adminBox = document.querySelector('#adminBox');
 const adminOverview = document.querySelector('#adminOverview');
 const adminRecoveryPanel = document.querySelector('#adminRecoveryPanel');
 const adminEmailTestButton = document.querySelector('#adminEmailTestButton');
+const adminEmailTestHint = document.querySelector('#adminEmailTestHint');
 const adminPushTestButton = document.querySelector('#adminPushTestButton');
+const adminPushTestHint = document.querySelector('#adminPushTestHint');
 const adminPushTarget = document.querySelector('#adminPushTarget');
 const superadminPermissionOperation = document.querySelector('#superadminPermissionOperation');
 const superadminPermissionAction = document.querySelector('#superadminPermissionAction');
@@ -103,7 +105,9 @@ const adminSystemCount = document.querySelector('#adminSystemCount');
 const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')];
 const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
+const backupOperationHint = document.querySelector('#backupOperationHint');
 const runBackupButton = document.querySelector('#runBackupButton');
+const downloadBackupButton = document.querySelector('#downloadBackupButton');
 const maintenanceOperation = document.querySelector('#maintenanceOperation');
 const maintenanceAdminStatus = document.querySelector('#maintenanceAdminStatus');
 const maintenancePasswordLabel = document.querySelector('#maintenancePasswordLabel');
@@ -351,6 +355,7 @@ let currentPushState = 'checking';
 let currentPushError = '';
 let activeAdminSection = 'overview';
 let adminUserDirectory = [];
+let adminIntegrationState = { backup: false, email: false, push: false };
 let logoutInProgress = false;
 let sessionIdleTimeoutMs = 0;
 let sessionWarningMs = 0;
@@ -1732,7 +1737,7 @@ async function api(path, options = {}) {
       ...options
     });
   } catch {
-    throw new Error('Keine Verbindung zur App. Bitte pr\u00fcfe deine Internetverbindung und versuche es erneut.');
+    throw new Error(translate('app.noConnection', 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.'));
   }
 
   const data = await response.json().catch(() => ({}));
@@ -1744,7 +1749,12 @@ async function api(path, options = {}) {
     applyMaintenanceStatus(data.maintenance || { active: true, message: data.error });
   }
   if (!response.ok) {
-    throw new Error(data.error || 'Anfrage fehlgeschlagen');
+    const controlledErrors = {
+      BACKUP_DISABLED: translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'),
+      EMAIL_DISABLED: translate('admin.errorEmailDisabled', 'E-Mail ist in dieser Umgebung deaktiviert.'),
+      PUSH_DISABLED: translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.')
+    };
+    throw new Error(controlledErrors[data.code] || localizedSystemText(data.error, translate('auth.requestFailed', 'Die Anfrage konnte nicht abgeschlossen werden.')));
   }
   return data;
 }
@@ -1840,6 +1850,39 @@ function setAdminTabCount(element, count) {
   const safeCount = Math.max(0, Number(count || 0));
   element.hidden = safeCount === 0;
   element.textContent = safeCount > 99 ? '99+' : String(safeCount);
+}
+
+function integrationEnabled(status) {
+  return status?.enabled === true;
+}
+
+function integrationStatusLabel(status) {
+  if (!integrationEnabled(status)) {
+    return translate('admin.integrationDisabled', 'Deaktiviert');
+  }
+  return status.configured
+    ? translate('admin.readyStatus', 'bereit')
+    : translate('admin.notConfigured', 'nicht konfiguriert');
+}
+
+function backupStatusLabel(overview) {
+  if (overview.backupEnabled !== true) {
+    return translate('admin.integrationDisabled', 'Deaktiviert');
+  }
+  if (!overview.backup?.ok) {
+    const localStatus = overview.backup?.error
+      ? localizedSystemText(overview.backup.error, translate('admin.backupNone', 'noch nicht automatisch erstellt'))
+      : translate('admin.backupNone', 'noch nicht automatisch erstellt');
+    return overview.externalBackupConfigured
+      ? localStatus
+      : `${localStatus} \u00b7 ${translate('admin.externalStorage', 'Externen Speicher in Render einrichten')}`;
+  }
+  const checked = translate('admin.backupChecked', 'geprueft am {date}', {
+    date: new Date(overview.backup.createdAt).toLocaleString(activeLocale())
+  });
+  return `${checked} - ${overview.backup.uploaded
+    ? translate('admin.externalCopied', 'extern kopiert')
+    : translate('admin.externalCopyMissing', 'externe Kopie fehlt')}`;
 }
 
 function renderAdminWorkQueue({ overview, recovery, apartments, resources: adminResourceItems, cases, fixedBookings, auditEntries }) {
@@ -1946,7 +1989,7 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     });
   }
 
-  if (currentUser.isSuperadmin && !overview.externalBackupConfigured) {
+  if (currentUser.isSuperadmin && overview.backupEnabled === true && !overview.externalBackupConfigured) {
     tasks.push({
       level: 'attention',
       title: translate('admin.backupMissing', 'Externes Backup einrichten'),
@@ -1957,7 +2000,7 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     });
   }
 
-  if (currentUser.isSuperadmin && !overview.email.configured) {
+  if (currentUser.isSuperadmin && integrationEnabled(overview.email) && !overview.email.configured) {
     tasks.push({
       level: 'attention',
       title: translate('admin.emailSetup', 'E-Mail-Versand einrichten'),
@@ -2085,8 +2128,8 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     adminSystemCount,
     currentUser.isSuperadmin
       ? recoveryWarnings.length
-        + (!overview.externalBackupConfigured ? 1 : 0)
-        + (!overview.email.configured ? 1 : 0)
+        + (overview.backupEnabled === true && !overview.externalBackupConfigured ? 1 : 0)
+        + (integrationEnabled(overview.email) && !overview.email.configured ? 1 : 0)
       : 0
   );
 }
@@ -4568,6 +4611,11 @@ async function loadAdmin() {
   ]));
   if (adminData === staleHouseRequest) return;
   const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData, maintenanceData] = adminData;
+  adminIntegrationState = {
+    backup: overviewData.backupEnabled === true,
+    email: integrationEnabled(overviewData.email),
+    push: integrationEnabled(overviewData.push)
+  };
   adminBox.hidden = false;
   adminTitle.textContent = `${translate('admin.management', 'Verwaltung')} ${settingsData.houseName}`;
   adminRoleLabel.textContent = currentUser.isSuperadmin
@@ -4595,7 +4643,7 @@ async function loadAdmin() {
   renderApartments(apartmentsData.apartments);
   renderAdminAnalytics(analyticsData);
   renderAuditLog(auditData.entries);
-  if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance);
+  if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance, adminIntegrationState.backup);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>${escapeHtml(translate('admin.activeUsers', 'aktive Nutzer'))}</span></div>
     <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>${escapeHtml(translate('admin.unverifiedMail', 'ohne bestaetigte E-Mail'))}</span></div>
@@ -4604,9 +4652,9 @@ async function loadAdmin() {
     <div><strong>${overviewData.fixedBookings}</strong><span>${escapeHtml(translate('admin.recurringBookings', 'feste Buchungen'))}</span></div>
     <div><strong>${overviewData.recentReleases}</strong><span>${escapeHtml(translate('admin.releasesWeek', 'Freigaben 7 Tage'))}</span></div>
     <div class="${overviewData.openMaintenanceCases ? 'is-warning' : ''}"><strong>${overviewData.openMaintenanceCases}</strong><span>${escapeHtml(translate('admin.openLogCases', 'offene Tagebuchfaelle'))}</span></div>
-    <div class="wide"><strong>E-Mail</strong><span>${escapeHtml(i18n?.translateVisibleText(overviewData.email.label) || overviewData.email.label)}</span></div>
-    <div class="wide"><strong>Push</strong><span>${escapeHtml(i18n?.translateVisibleText(overviewData.push.label) || overviewData.push.label)} - ${overviewData.push.activeSubscriptions} ${escapeHtml(translate('admin.activeDevices', 'aktive Geraete'))}</span></div>
-    <div class="wide ${overviewData.externalBackupConfigured ? '' : 'is-warning'}"><strong>Backup</strong><span>${overviewData.backup?.ok ? `${escapeHtml(translate('admin.backupChecked', 'geprueft am {date}', { date: new Date(overviewData.backup.createdAt).toLocaleString(activeLocale()) }))}${overviewData.backup.uploaded ? ` - ${escapeHtml(translate('admin.externalCopied', 'extern kopiert'))}` : ` - ${escapeHtml(translate('admin.externalCopyMissing', 'externe Kopie fehlt'))}`}` : escapeHtml(i18n?.translateVisibleText(overviewData.backup?.error) || overviewData.backup?.error || translate('admin.backupNone', 'noch nicht automatisch erstellt'))}${overviewData.externalBackupConfigured ? '' : ` \u00b7 ${escapeHtml(translate('admin.externalStorage', 'Externen Speicher in Render einrichten'))}`}</span></div>
+    <div class="wide"><strong>${escapeHtml(translate('admin.emailLabel', 'E-Mail'))}</strong><span>${escapeHtml(integrationStatusLabel(overviewData.email))}</span></div>
+    <div class="wide"><strong>${escapeHtml(translate('admin.pushLabel', 'Push'))}</strong><span>${escapeHtml(integrationStatusLabel(overviewData.push))}${adminIntegrationState.push ? ` - ${overviewData.push.activeSubscriptions} ${escapeHtml(translate('admin.activeDevices', 'aktive Geraete'))}` : ''}</span></div>
+    <div class="wide ${adminIntegrationState.backup && !overviewData.externalBackupConfigured ? 'is-warning' : ''}"><strong>${escapeHtml(translate('admin.backup', 'Backup'))}</strong><span>${escapeHtml(backupStatusLabel(overviewData))}</span></div>
   `;
   renderAdminWorkQueue({
     overview: overviewData,
@@ -4618,15 +4666,37 @@ async function loadAdmin() {
     auditEntries: auditData.entries
   });
   renderAdminRecovery(recoveryData, usersData.users);
-  adminEmailTestButton.disabled = !overviewData.email.configured;
-  adminEmailTestButton.title = overviewData.email.configured
-    ? translate('admin.emailTestReady', 'Testmail an die konfigurierte Testadresse senden')
-    : translate('admin.emailTestUnavailable', 'Zuerst SMTP in Render konfigurieren');
-  renderAdminPushTargets(pushDevicesData);
-  adminPushTestButton.disabled = !overviewData.push.configured || !pushDevicesData.totalDevices;
-  adminPushTestButton.title = overviewData.push.configured
-    ? translate('admin.pushTestReady', 'Testpush an die ausgewaehlten aktiven Geraete senden')
-    : translate('admin.pushTestUnavailable', 'Push ist auf dem Server noch nicht bereit');
+  runBackupButton.disabled = !adminIntegrationState.backup;
+  downloadBackupButton.disabled = !adminIntegrationState.backup;
+  backupOperationHint.textContent = adminIntegrationState.backup
+    ? translate('admin.backupDataHint', 'Eine vollstaendige SQLite-Sicherung erstellen oder herunterladen.')
+    : translate('admin.backupDisabledHint', 'Backups sind in dieser Umgebung deaktiviert. Erstellen und Herunterladen sind nicht verfuegbar.');
+  const backupActionTitle = adminIntegrationState.backup
+    ? ''
+    : translate('admin.backupDisabledTitle', 'Backup ist in dieser Umgebung nicht verfuegbar');
+  runBackupButton.title = backupActionTitle;
+  downloadBackupButton.title = backupActionTitle;
+
+  adminEmailTestHint.textContent = adminIntegrationState.email
+    ? translate('admin.emailTestHint', 'Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.')
+    : translate('admin.emailDisabledHint', 'E-Mail ist in dieser Umgebung deaktiviert. Testmails sind nicht verfuegbar.');
+  adminEmailTestButton.disabled = !adminIntegrationState.email || !overviewData.email.configured;
+  adminEmailTestButton.title = !adminIntegrationState.email
+    ? translate('admin.emailDisabledTitle', 'E-Mail ist in dieser Umgebung nicht verfuegbar')
+    : overviewData.email.configured
+      ? translate('admin.emailTestReady', 'Testmail an die konfigurierte Testadresse senden')
+      : translate('admin.emailTestUnavailable', 'Zuerst SMTP in Render konfigurieren');
+
+  adminPushTestHint.textContent = adminIntegrationState.push
+    ? translate('admin.pushTestHint', 'Eine Testbenachrichtigung an aktive Geraete im Haus senden.')
+    : translate('admin.pushDisabledHint', 'Push ist in dieser Umgebung deaktiviert. Testnachrichten sind nicht verfuegbar.');
+  renderAdminPushTargets(pushDevicesData, adminIntegrationState.push);
+  adminPushTestButton.disabled = !adminIntegrationState.push || !overviewData.push.configured || !pushDevicesData.totalDevices;
+  adminPushTestButton.title = !adminIntegrationState.push
+    ? translate('admin.pushDisabledTitle', 'Push ist in dieser Umgebung nicht verfuegbar')
+    : overviewData.push.configured
+      ? translate('admin.pushTestReady', 'Testpush an die ausgewaehlten aktiven Geraete senden')
+      : translate('admin.pushTestUnavailable', 'Push ist auf dem Server noch nicht bereit');
   renderAdminUsers(usersData.users);
   setAdminSection(activeAdminSection);
 }
@@ -4769,6 +4839,10 @@ async function updateSuperadminPermission() {
 }
 
 async function sendAdminTestEmail() {
+  if (!adminIntegrationState.email) {
+    showStatus(translate('admin.errorEmailDisabled', 'E-Mail ist in dieser Umgebung deaktiviert.'), 'error');
+    return;
+  }
   try {
     const data = await api('/api/admin/email-test', { method: 'POST' });
     showStatus(data.message);
@@ -4778,6 +4852,10 @@ async function sendAdminTestEmail() {
 }
 
 async function sendAdminTestPush() {
+  if (!adminIntegrationState.push) {
+    showStatus(translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'), 'error');
+    return;
+  }
   try {
     const data = await api('/api/admin/push-test', {
       method: 'POST',
@@ -4790,7 +4868,7 @@ async function sendAdminTestPush() {
   }
 }
 
-function renderAdminPushTargets(data) {
+function renderAdminPushTargets(data, enabled = adminIntegrationState.push) {
   const users = data.users || [];
   adminPushTarget.innerHTML = '';
   const allOption = document.createElement('option');
@@ -4805,10 +4883,14 @@ function renderAdminPushTargets(data) {
     option.textContent = `${user.username} (${translate(Number(user.devices) === 1 ? 'admin.deviceOne' : 'admin.deviceMany', '{count} Geraete', { count: user.devices })})`;
     adminPushTarget.append(option);
   }
-  adminPushTarget.disabled = !data.totalDevices;
+  adminPushTarget.disabled = enabled !== true || !data.totalDevices;
 }
 
 async function runBackupNow() {
+  if (!adminIntegrationState.backup) {
+    showStatus(translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'), 'error');
+    return;
+  }
   runBackupButton.disabled = true;
   try {
     const data = await api('/api/admin/backup/run', { method: 'POST' });
@@ -4817,14 +4899,50 @@ async function runBackupNow() {
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {
-    runBackupButton.disabled = false;
+    runBackupButton.disabled = !adminIntegrationState.backup;
   }
 }
 
-function renderAdminMaintenance(maintenance = {}) {
+async function downloadBackupNow() {
+  if (!adminIntegrationState.backup) {
+    showStatus(translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'), 'error');
+    return;
+  }
+  downloadBackupButton.disabled = true;
+  try {
+    const response = await fetch('/api/admin/backup');
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const message = data.code === 'BACKUP_DISABLED'
+        ? translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.')
+        : localizedSystemText(data.error, translate('auth.requestFailed', 'Die Anfrage konnte nicht abgeschlossen werden.'));
+      throw new Error(message);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filenameMatch?.[1] || 'waschzeit-backup.sqlite';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    showStatus(translate('admin.backupDownloadReady', 'Backup wurde heruntergeladen.'));
+  } catch (error) {
+    showStatus(error.message, 'error');
+  } finally {
+    downloadBackupButton.disabled = !adminIntegrationState.backup;
+  }
+}
+
+function renderAdminMaintenance(maintenance = {}, backupEnabled = adminIntegrationState.backup) {
   const active = Boolean(maintenance.active);
   maintenanceAdminStatus.textContent = active
     ? translate('admin.maintenanceSince', 'Aktiv seit {date}. Schreibende Aktionen sind gesperrt.', { date: new Date(maintenance.startedAt).toLocaleString(activeLocale()) })
+    : backupEnabled !== true
+      ? translate('admin.maintenanceBackupDisabled', 'Nicht verfuegbar, solange Backups in dieser Umgebung deaktiviert sind.')
     : maintenance.lastCheck?.ok
       ? translate('admin.maintenanceReadyChecked', 'Bereit. Letzte System- und Buchungspruefung: {date}.', { date: new Date(maintenance.lastCheck.checkedAt).toLocaleString(activeLocale()) })
       : translate('admin.maintenanceReady', 'Bereit. Vor dem Start wird automatisch ein geprueftes Backup erstellt.');
@@ -4833,13 +4951,21 @@ function renderAdminMaintenance(maintenance = {}) {
     ? translate('admin.endMaintenance', 'Wartung beenden')
     : translate('admin.startMaintenance', 'Wartung starten');
   toggleMaintenanceButton.classList.toggle('danger', active);
-  maintenancePasswordLabel.hidden = active;
-  maintenanceCurrentPassword.disabled = active;
+  toggleMaintenanceButton.disabled = !active && backupEnabled !== true;
+  toggleMaintenanceButton.title = !active && backupEnabled !== true
+    ? translate('admin.maintenanceBackupDisabledTitle', 'Wartungsmodus benoetigt ein aktiviertes Backup')
+    : '';
+  maintenancePasswordLabel.hidden = active || backupEnabled !== true;
+  maintenanceCurrentPassword.disabled = active || backupEnabled !== true;
   if (active) maintenanceCurrentPassword.value = '';
 }
 
 async function toggleMaintenanceMode() {
   const active = toggleMaintenanceButton.dataset.active === 'true';
+  if (!active && !adminIntegrationState.backup) {
+    showStatus(translate('admin.maintenanceBackupDisabled', 'Nicht verfuegbar, solange Backups in dieser Umgebung deaktiviert sind.'), 'error');
+    return;
+  }
   if (!active && !maintenanceCurrentPassword.value) {
     showStatus('Bitte dein aktuelles Passwort eingeben.', 'error');
     maintenanceCurrentPassword.focus();
@@ -4857,7 +4983,7 @@ async function toggleMaintenanceMode() {
       method: 'PUT',
       body: JSON.stringify({ active: !active, currentPassword })
     });
-    renderAdminMaintenance(data.maintenance);
+    renderAdminMaintenance(data.maintenance, adminIntegrationState.backup);
     if (latestReleaseStatus) latestReleaseStatus.maintenance = data.maintenance;
     applyMaintenanceStatus(data.maintenance);
     showStatus(data.message);
@@ -4865,7 +4991,7 @@ async function toggleMaintenanceMode() {
   } catch (error) {
     showStatus(error.message, 'error');
   } finally {
-    toggleMaintenanceButton.disabled = false;
+    toggleMaintenanceButton.disabled = !active && !adminIntegrationState.backup;
   }
 }
 
@@ -6787,6 +6913,7 @@ adminPeopleSearch.addEventListener('input', filterAdminPeople);
 adminEmailTestButton.addEventListener('click', sendAdminTestEmail);
 adminPushTestButton.addEventListener('click', sendAdminTestPush);
 runBackupButton.addEventListener('click', runBackupNow);
+downloadBackupButton.addEventListener('click', downloadBackupNow);
 toggleMaintenanceButton.addEventListener('click', toggleMaintenanceMode);
 resetBookingsButton.addEventListener('click', resetAllBookings);
 superadminPermissionAction.addEventListener('change', renderSuperadminPermissionTargets);

@@ -32,6 +32,7 @@ function createNotificationRouters({
   pushRouter.get('/api/push/public-key', requireAuth, (req, res) => {
     const status = pushStatus();
     res.json({
+      enabled: status.enabled,
       configured: status.configured,
       publicKey: status.publicKey,
       activeSubscriptions: status.activeSubscriptions,
@@ -40,6 +41,14 @@ function createNotificationRouters({
   });
 
   pushRouter.post('/api/push/subscriptions', requireAuth, (req, res) => {
+    const status = pushStatus();
+    if (status.enabled !== true) {
+      return res.status(503).json({
+        code: 'PUSH_DISABLED',
+        error: 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'
+      });
+    }
+
     const subscription = req.body?.subscription || req.body;
     const endpoint = String(subscription?.endpoint || '').trim();
     const p256dh = String(subscription?.keys?.p256dh || '').trim();
@@ -297,6 +306,12 @@ function createNotificationRouters({
     const configuredTestEmail = normalizeEmail(env.SMTP_TEST_TO);
     const recipient = isValidEmail(configuredTestEmail) ? configuredTestEmail : user?.email;
 
+    if (config.enabled !== true) {
+      return res.status(503).json({
+        code: 'EMAIL_DISABLED',
+        error: 'E-Mail ist in dieser Umgebung deaktiviert.'
+      });
+    }
     if (!config.host || !config.from) {
       return res.status(409).json({ error: 'Der E-Mail-Versand ist noch nicht in Render konfiguriert.' });
     }
@@ -325,6 +340,12 @@ function createNotificationRouters({
 
   adminRouter.post('/api/admin/push-test', requireAdmin, async (req, res) => {
     const status = applyPushConfig(req);
+    if (status.enabled !== true) {
+      return res.status(503).json({
+        code: 'PUSH_DISABLED',
+        error: 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'
+      });
+    }
     if (!status.configured) {
       return res.status(409).json({ error: 'Push ist noch nicht bereit.' });
     }

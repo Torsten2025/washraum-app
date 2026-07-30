@@ -3,15 +3,17 @@ services:
     name: waschplan-app
     env: node
     plan: starter
+    branch: master
     buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: DB_PATH
         value: /var/data/washraum.sqlite
       - key: SESSION_SECRET
-        generateValue: true
+        sync: false
       - key: SESSION_IDLE_MINUTES
         value: 30
       - key: SEED_ADMIN_NAME
@@ -23,6 +25,8 @@ services:
       - key: PUBLIC_APP_URL
         sync: false
       - key: AUTO_BACKUP
+        value: true
+      - key: BACKUP_ENABLED
         value: true
       - key: BACKUP_DIR
         value: /var/data/backups
@@ -44,6 +48,10 @@ services:
         sync: false
       - key: SMTP_TEST_TO
         sync: false
+      - key: EMAIL_ENABLED
+        value: true
+      - key: PUSH_ENABLED
+        value: true
     disk:
       name: washraum-data
       mountPath: /var/data

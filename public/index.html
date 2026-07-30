@@ -408,12 +408,12 @@
               <div id="adminRecoveryPanel" class="admin-recovery-panel"></div>
               <div id="backupOperation" class="admin-operation">
                 <div>
-                  <strong>Daten sichern</strong>
-                  <span>Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
+                  <strong data-i18n="admin.backupData">Daten sichern</strong>
+                  <span id="backupOperationHint" role="status">Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
                 </div>
                 <div class="inline-actions">
-                  <button id="runBackupButton" class="secondary" type="button">Jetzt sichern</button>
-                  <a class="button-link secondary" href="/api/admin/backup" download>Herunterladen</a>
+                  <button id="runBackupButton" class="secondary" type="button" aria-describedby="backupOperationHint" data-i18n="admin.backupNow">Jetzt sichern</button>
+                  <button id="downloadBackupButton" class="secondary" type="button" aria-describedby="backupOperationHint" data-i18n="admin.download">Herunterladen</button>
                 </div>
               </div>
               <div id="maintenanceOperation" class="admin-operation" hidden>
@@ -437,22 +437,22 @@
               </div>
               <div class="admin-operation">
                 <div>
-                  <strong>E-Mail pr&uuml;fen</strong>
-                  <span>Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.</span>
+                  <strong data-i18n="admin.emailTestTitle">E-Mail pr&uuml;fen</strong>
+                  <span id="adminEmailTestHint" role="status">Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.</span>
                 </div>
-                <button id="adminEmailTestButton" class="secondary" type="button">Testmail</button>
+                <button id="adminEmailTestButton" class="secondary" type="button" aria-describedby="adminEmailTestHint" data-i18n="admin.sendTestMail">Testmail</button>
               </div>
               <div class="admin-operation">
                 <div>
-                  <strong>Push pr&uuml;fen</strong>
-                  <span>Eine Testbenachrichtigung an aktive Ger&auml;te im Haus senden.</span>
+                  <strong data-i18n="admin.pushTestTitle">Push pr&uuml;fen</strong>
+                  <span id="adminPushTestHint" role="status">Eine Testbenachrichtigung an aktive Ger&auml;te im Haus senden.</span>
                 </div>
                 <div class="inline-actions admin-push-actions">
                   <label>
                     Empfaenger
                     <select id="adminPushTarget"></select>
                   </label>
-                  <button id="adminPushTestButton" class="secondary" type="button">Testpush</button>
+                  <button id="adminPushTestButton" class="secondary" type="button" aria-describedby="adminPushTestHint" data-i18n="admin.sendTestPush">Testpush</button>
                 </div>
               </div>
             </section>

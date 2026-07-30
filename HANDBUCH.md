@@ -392,6 +392,17 @@ Der Buchungsreset loescht keine Konten und keine Dauertermine. Er verlangt das a
 
 Die App behaelt lokal die drei neuesten Sicherungen sowie je eine Sicherung pro Tag fuer bis zu 14 Tage. Liegt die externe Kopie auf demselben Render-Datentraeger nicht vor, zeigt der Ueberblick eine Warnung. Fuer einen Ausfall des Render-Datentraegers muss `BACKUP_UPLOAD_URL` auf einen unabhaengigen Speicher zeigen.
 
+### Betriebliche Kill-Switches
+
+- `BACKUP_ENABLED`, `EMAIL_ENABLED` und `PUSH_ENABLED` sind harte serverseitige Schalter. Eine Integration ist ausschliesslich bei explizitem `true` aktiv. `false`, ein fehlender oder leerer Wert sowie jede ungueltige Eingabe deaktivieren sie sicherheitshalber.
+- Gross-/Kleinschreibung und aeussere Leerzeichen werden normalisiert. Ein ungueltiger Wert schreibt nur den Variablennamen, niemals den eingegebenen Wert oder Zugangsdaten, ins Serverlog. Auch direkt erzeugte Transport-Services bleiben ohne ausdrueckliches `enabled: true` deaktiviert.
+- `BACKUP_ENABLED=false` hat Vorrang vor `AUTO_BACKUP`, Produktionsmodus, manueller Sicherung, Wartungsstart und Pilot-Reset. Es wird weder eine Backupdatei angelegt noch `BACKUP_UPLOAD_URL` kontaktiert. Backupabhaengige Adminaktionen antworten mit `503 BACKUP_DISABLED`.
+- `EMAIL_ENABLED=false` hat Vorrang vor allen vorhandenen SMTP-Werten. SMTP-Sockets werden nicht geoeffnet; Verifizierung, Reset, Einladung, Freigabe- und Testmail koennen nichts extern senden. E-Mail-abhaengige Fachablaeufe melden den deaktivierten beziehungsweise nicht verfuegbaren Versand.
+- `PUSH_ENABLED=false` hat Vorrang vor vorhandenen VAPID-Werten und Abos. Es werden keine VAPID-Schluessel erzeugt oder gespeichert, keine Abos neu angelegt und keine Push-Providerverbindung aufgebaut. Pushabhaengige Schreib- und Testrouten antworten mit `503 PUSH_DISABLED`.
+- `/api/health`, `/api/version` und die Adminuebersicht zeigen ausschliesslich den aktivierten/deaktivierten Zustand der drei Integrationen; Geheimnisse und Providerwerte werden nie ausgegeben.
+- In `Verwalten` zeigen Ueberblick und Systemreiter einen deaktivierten Kanal in Deutsch oder Englisch ausdruecklich als `Deaktiviert` beziehungsweise `Disabled`. Bei deaktiviertem Backup erscheinen weder der Hinweis auf ein noch nicht automatisch erstelltes Backup noch eine Aufforderung zur Providerkonfiguration. Manuelles Erstellen, Herunterladen und der backupabhaengige Wartungsstart sind dann als nicht verfuegbare, deaktivierte Bedienelemente ausgegeben. Direkte oder veraltete Clients erhalten weiterhin kontrolliert `503 BACKUP_DISABLED`, `503 EMAIL_DISABLED` oder `503 PUSH_DISABLED`.
+- Automatisierte Funktionspruefungen, die einen aktiven Transportvertrag benoetigen, starten ihren isolierten Kindprozess ueber den Safety-Runner mit allen drei Schaltern explizit auf `true`. Der eigentliche No-Send-Test verwendet diese Testhilfe nicht.
+
 Der Systemreiter gliedert die vorhandenen Funktionen in `Betrieb`, `Benachrichtigungen` sowie `Verantwortung & Protokoll`. Gefaehrliche Aktionen bleiben geschlossen und optisch von Testmail und Testpush getrennt.
 
 ### App-Updates und Wartung
@@ -402,7 +413,7 @@ Der Systemreiter gliedert die vorhandenen Funktionen in `Betrieb`, `Benachrichti
 - Ist ein neuer Stand verfuegbar, erscheint der sichtbare Hinweis `Eine neue Version ist verfuegbar` mit `Jetzt aktualisieren`. Erst nach dieser Zustimmung aktiviert der Service Worker den neuen Stand und laedt die Seite neu.
 - Eine bereits begonnene Buchungsauswahl wird nie durch ein Update unterbrochen. Die Zustimmung wird vorgemerkt; das Neuladen erfolgt erst, wenn die Auswahl abgeschlossen oder verworfen wurde.
 - Unter `Einstellungen` > `App & Geraet` stehen Versionsnummer und Auslieferungsdatum. `Nach Update suchen` prueft den Stand sofort.
-- Fuer groessere Datenbank- oder Betriebsarbeiten startet ausschliesslich der Superadmin unter `Verwalten` > `System` den globalen Wartungsmodus. Der Start verlangt zur erneuten Bestaetigung das aktuelle Superadmin-Passwort. Vor der Sperre erstellt und prueft der Server automatisch ein SQLite-Backup.
+- Fuer groessere Datenbank- oder Betriebsarbeiten startet ausschliesslich der Superadmin unter `Verwalten` > `System` den globalen Wartungsmodus. Der Start verlangt zur erneuten Bestaetigung das aktuelle Superadmin-Passwort. Vor der Sperre erstellt und prueft der Server automatisch ein SQLite-Backup. Bei `BACKUP_ENABLED=false` bleibt der Wartungsstart gesperrt, weil der Sicherheitsvertrag ohne vorherige Sicherung nicht erfuellt ist.
 - Waehrend der Wartung bleiben Anmeldung, Abmeldung, Health- und Lesezugriffe erreichbar. Alle anderen schreibenden Anfragen werden serverseitig mit `503 MAINTENANCE_MODE` abgelehnt. Bewohner sehen einen ruhigen Wartungsdialog; bestehende Buchungen bleiben unveraendert.
 - Beim Beenden muessen SQLite-`quick_check` und eine sofort wieder entfernte Testbuchung erfolgreich sein. Bei einem Fehler bleibt die Wartung aktiv. Start, erfolgreicher Abschluss und Fehler werden im Admin-Audit festgehalten.
 - `/api/health` liefert Version, Releasekennung und Wartungsstatus. `/api/version` stellt denselben Release- und Wartungsstand fuer PWA und Browser bereit.
@@ -419,6 +430,7 @@ Der Systemreiter gliedert die vorhandenen Funktionen in `Betrieb`, `Benachrichti
 - Empfaenger muessen im selben Haus sein und passende Filter fuer Bereich, Wochentag und Slot aktiviert haben.
 - `Loeschen` entfernt eine Buchung ohne Rundmail.
 - Ohne eingerichteten SMTP-Zugang funktioniert die bestehende Buchungsapp weiter, versendet aber keine E-Mails und kann keine neuen Wohnungskonten einladen.
+- `EMAIL_ENABLED=false` blockiert den SMTP-Transport auch dann vollstaendig, wenn SMTP-Zugangsdaten vorhanden sind.
 
 ## Push-Hinweise und PWA
 
@@ -430,6 +442,7 @@ Der Systemreiter gliedert die vorhandenen Funktionen in `Betrieb`, `Benachrichti
 - Push-Texte nennen neutral, wer den Termin freigegeben oder abgesagt hat. Beim Antippen oeffnet die App einen Detaildialog mit Person, Ressource, Datum, Slot und Buchungsfrage.
 - Der Dialog bucht den Slot ueber die normale Buchungspruefung. Ist der Slot inzwischen vergeben, abgelaufen oder die Ressource gesperrt, wird das im Dialog angezeigt.
 - Der Server erzeugt VAPID-Schluessel automatisch und speichert sie in SQLite, falls keine `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` gesetzt sind. Fuer dauerhafte Produktionsschluessel koennen diese Werte in Render als Environment Variables hinterlegt werden.
+- Bei `PUSH_ENABLED=false` werden weder vorhandene VAPID-Werte verwendet noch neue Schluessel oder Abos gespeichert.
 - Im Adminbereich zeigt der Ueberblick den Push-Status und die Anzahl aktiver Geraete. Unter `System` kann ein Testpush an alle aktiven Push-Geraete im Haus oder gezielt an eine Person mit aktivem Push-Geraet gesendet werden.
 - Auf iOS funktionieren PWA-Push-Hinweise nur, wenn die App zum Home-Bildschirm hinzugefuegt wurde und Benachrichtigungen erlaubt sind.
 
@@ -461,6 +474,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - Schutz von Haus-Admins vor Eingriffen durch gleichrangige Haus-Admins.
 - Feste Buchungen, Benutzerverwaltung, Geraeteverwaltung, Audit und Backups.
 - PWA-Dateien, Push-Abo, Push-Test und Freigabe-Hinweise ueber Push.
+- Harte No-Send-Schalter fuer Backup, E-Mail und Push inklusive direkter und indirekter Adminpfade, vorhandener Providerwerte und null externen Verbindungsversuchen.
 - Releaseerkennung, bestaetigtes PWA-Update, Wartungsrechte, Schreibsperre, automatisches Backup und Buchungs-Schreibtest.
 - Datenschutzexport, Kontoloeschung, Sicherheitsheader und Barrierefreiheit.
 - Verknuepfung statischer JavaScript-Ziele mit tatsaechlich vorhandenen HTML-Elementen auf Anmelde-, Waschplan- und Reset-Seite.
@@ -480,6 +494,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | `npm run test:roles` | Rollen, Rechte, Hausisolation und Abmeldung pruefen |
 | `npm run test:year` | Ein Jahr mit 100 Bewohnerkonten in sechs getrennten Haeusern simulieren |
 | `npm run test:backup` | Externe PUT-Kopie, Tokenuebertragung, SQLite-Integritaet und den Neustart aus einer wiederhergestellten Sicherung pruefen |
+| `npm run test:safety` | Strikte Kill-Switches, Render-Blueprints und null Backup-/SMTP-/Push-Providerkontakte bei deaktivierten Integrationen pruefen |
 | `npm run test:e2e` | Verbindlichen Browserlauf fuer Einladung, persoenlichen QR-Zugang, alle sechs Medienpakete mit Kapitelsprung sowie visuelle Layoutpruefung bei 390 x 844, 768 x 1024 und 1440 x 900 ausfuehren |
 | `npm run test:a11y` | Statische Barrierefreiheitspruefung ausfuehren |
 | `npm run audit` | Den ausfuehrlichen Gesamtaudit inklusive Backup-Wiederherstellung und verbindlichem Browsertest Schritt fuer Schritt ausfuehren |
@@ -588,9 +603,27 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 ### Deployment
 
+`render.staging.yaml` beschreibt einen getrennten kostenlosen Render-Dienst `waschplan-staging-test7` auf dem eindeutigen Zweig `codex/staging`. Auto-Deploy ist aus; der erste Freeze wird bewusst manuell gestartet. Staging installiert mit `npm ci`, prueft `/api/health`, verwendet ausschliesslich die fluechtige Datenbank `/tmp/waschplan-staging.sqlite`, besitzt keine Disk und keine Produktions-Env-Gruppe. `BACKUP_ENABLED`, `EMAIL_ENABLED`, `PUSH_ENABLED` und `AUTO_BACKUP` stehen dort auf `false`; SMTP-, VAPID- und Backup-Upload-Werte werden nicht hinterlegt. Eigene Staging-Geheimnisse wie `SESSION_SECRET`, Seed-Passwort, Hauscode und spaetere Basis-URL bleiben `sync: false`.
+
+`render.yaml` beschreibt ausschliesslich einen spaeteren, getrennt freizugebenden Produktionsdeploy auf `master`, installiert ebenfalls mit `npm ci` und behaelt SQLite sowie Backups auf der persistenten Disk unter `/var/data`. `SESSION_SECRET` wird nie im Repository erzeugt oder gespeichert, sondern bleibt im Blueprint `sync: false`. Die drei Integrationsschalter sind dort bewusst explizit auf `true` gesetzt; ohne diese Werte blieben sie deaktiviert. Eine tatsaechliche Mail-, Push- oder externe Backupwirkung verlangt weiterhin die getrennte Providerkonfiguration. Diese Kandidatenpruefung wendet `render.yaml` nicht an und veraendert die laufende Produktion nicht. Der Staging-Blueprint darf niemals eine Produktionsdisk, Produktions-Env-Gruppe oder reale Domain uebernehmen.
+
+Stop-/Ruecksetzregel: Staging wird bei unerwartetem externem Verbindungsversuch, falscher Version, nichtfluechtigem Speicher, fehlgeschlagenem Healthcheck oder nicht exakt deaktiviertem Kill-Switch sofort gestoppt. Ein Ruecksetzen erfolgt durch Stoppen des Dienstes und Verwerfen der fluechtigen `/tmp`-Datenbank; Produktionsdaten werden dafuer niemals kopiert oder veraendert. Der Free-Plan kann schlafen und ist nicht fuer Verfuegbarkeits- oder Lastzusagen geeignet.
+
 Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium und fuehrt `npm run check` aus. Der verbindliche Browserlauf erzeugt Screenshots fuer Mobiltelefon, Tablet und Desktop; GitHub bewahrt sie 14 Tage als Testartefakt auf. Nur bei vollstaendigem Erfolg ruft der Workflow den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
 
 ## Aenderungsprotokoll
+
+### 31. Juli 2026
+
+- Deaktivierte Backup-, E-Mail- und Push-Kanaele im Adminueberblick und Systemreiter vollstaendig auf Deutsch und Englisch gekennzeichnet. Backup-Providerhinweise werden bei ausgeschaltetem Kanal nicht mehr behauptet; Erstellen, Download, Testversand und backupabhaengiger Wartungsstart sind bereits in der Oberflaeche unbedienbar. Kontrollierte `503`-Antworten bleiben als zweite Schutzschicht lokalisiert und die No-Send-Semantik unveraendert.
+
+### 30. Juli 2026
+
+- Technischen Kandidaten `0.3.0-test.7` als weiterhin sichtbare `Testversion` vorbereitet. Paket, Health-/Versionsantwort, ausgelieferte Assetkennung, automatisierte Tests und PWA-Cache verwenden denselben Vorabstand.
+- Harte, fehlersicher geparste Kill-Switches `BACKUP_ENABLED`, `EMAIL_ENABLED` und `PUSH_ENABLED` eingefuehrt. Nur explizites `true` aktiviert den jeweiligen Transport. `false`, fehlende oder leere Werte und ungueltige Eingaben blockieren auch bei vorhandenen Providerwerten jeden direkten, manuellen, zeitgesteuerten oder indirekten Transport. Dieselbe Fail-Closed-Vorgabe gilt fuer direkt erzeugte Service-Factories. Health, Versionsantwort, Adminstatus und geheimnisfreie Startlogs zeigen den Zustand.
+- Isolierten Free-Staging-Blueprint fuer `codex/staging` mit manueller Ausloesung, `npm ci`, `/api/health`, fluechtiger `/tmp`-Datenbank, ohne Disk und mit dreifachem No-Send erstellt. Produktions-Blueprint auf `master`, `npm ci`, persistente Disk und `SESSION_SECRET` als `sync: false` harmonisiert; es wurde keine Render- oder Produktionsaktion ausgefuehrt.
+- `npm run test:safety` ergaenzt: Pro Kanal werden explizites `false`, fehlende und leere Werte, ungueltige Eingaben sowie direkte Factory-Nutzung ohne `enabled` geprueft. Synthetische Providerwerte und direkte sowie indirekte Adminpfade muessen dabei null Backup-Dateien, null Tokens/Abos/Auditwirkungen, null DNS-/Netzwerkversuche und null Backup-/SMTP-/Push-Providerkontakte erzeugen. Explizites `true` wird im Sicherheitstest nur als Parser- und In-Memory-Statusvertrag bestaetigt.
+- Medienpakettest plattformneutralisiert: Gueltige `WEBVTT`-Dateien werden bei unveraenderten Medienbytes sowohl mit LF- als auch mit Windows-CRLF-Zeilenenden geprueft.
 
 ### 22. Juli 2026
 

@@ -8,7 +8,8 @@ function createOperationsService({
   createVerifiedBackup,
   appVersion,
   appRelease,
-  appReleasedAt
+  appReleasedAt,
+  runtimeFlags
 }) {
   function maintenanceStatus() {
     const fallback = {
@@ -35,6 +36,11 @@ function createOperationsService({
       version: appVersion,
       release: appRelease,
       releasedAt: appReleasedAt,
+      features: {
+        backup: { enabled: runtimeFlags?.backup?.enabled === true },
+        email: { enabled: runtimeFlags?.email?.enabled === true },
+        push: { enabled: runtimeFlags?.push?.enabled === true }
+      },
       maintenance: {
         active: maintenance.active,
         message: maintenance.message,
@@ -81,12 +87,18 @@ function createOperationsService({
   }
   
   async function runScheduledBackup() {
+    if (runtimeFlags?.backup?.enabled !== true) {
+      return { skipped: true, reason: 'BACKUP_DISABLED' };
+    }
+
     try {
       const status = await createVerifiedBackup();
       console.log(`Backup gepr\u00fcft: ${status.filename}${status.uploaded ? ' (extern kopiert)' : ''}`);
+      return status;
     } catch (error) {
       setSetting('backup_status', JSON.stringify({ ok: false, createdAt: new Date().toISOString(), error: error.message }));
       console.error(`Automatisches Backup fehlgeschlagen: ${error.message}`);
+      return { ok: false, error: error.message };
     }
   }
   

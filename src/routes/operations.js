@@ -27,12 +27,21 @@ function createOperationsRouters({
   setSetting,
   todayStringLocal,
   addDays,
-  destroyUserSessions
+  destroyUserSessions,
+  runtimeFlags
 }) {
   const publicRouter = express.Router();
   const adminRouter = express.Router();
   const analyticsRouter = express.Router();
   const pilotRouter = express.Router();
+  const backupEnabled = runtimeFlags?.backup?.enabled === true;
+
+  function rejectDisabledBackup(res) {
+    return res.status(503).json({
+      code: 'BACKUP_DISABLED',
+      error: 'Backups sind in dieser Umgebung deaktiviert.'
+    });
+  }
 
 publicRouter.get(['/health', '/api/health'], (req, res) => {
   const storage = env.RENDER === 'true'
@@ -52,7 +61,12 @@ publicRouter.get(['/health', '/api/health'], (req, res) => {
     revision: String(env.RENDER_GIT_COMMIT || '').trim() || null,
     version: appVersion,
     release: appRelease,
-    maintenanceMode: maintenanceStatus().active
+    maintenanceMode: maintenanceStatus().active,
+    features: {
+      backup: { enabled: backupEnabled },
+      email: { enabled: runtimeFlags?.email?.enabled === true },
+      push: { enabled: runtimeFlags?.push?.enabled === true }
+    }
   });
 });
 
@@ -77,6 +91,8 @@ adminRouter.get('/api/admin/audit-log', requireAdmin, (req, res) => {
 });
 
 adminRouter.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req, res, next) => {
+  if (!backupEnabled) return rejectDisabledBackup(res);
+
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const downloadName = `waschplan-backup-${stamp}.sqlite`;
   const backupPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${downloadName}`);
@@ -97,6 +113,8 @@ adminRouter.get('/api/admin/backup', requireAdmin, requireSuperadmin, async (req
 });
 
 adminRouter.post('/api/admin/backup/run', requireAdmin, requireSuperadmin, async (req, res) => {
+  if (!backupEnabled) return rejectDisabledBackup(res);
+
   try {
     const status = await createVerifiedBackup();
     writeAudit(req, 'backup.create', 'database', '', status);
@@ -116,6 +134,7 @@ adminRouter.put('/api/admin/maintenance', requireAdmin, requireSuperadmin, async
   const current = maintenanceStatus();
 
   if (active) {
+    if (!backupEnabled) return rejectDisabledBackup(res);
     if (!confirmCurrentAdminPassword(req, res)) return;
     if (current.active) {
       return res.json({ maintenance: current, message: 'Der Wartungsmodus ist bereits aktiv.' });
@@ -211,8 +230,9 @@ adminRouter.get('/api/admin/overview', requireAdmin, (req, res) => {
     openMaintenanceCases,
     email: emailStatus(),
     push: pushStatus(),
+    backupEnabled,
     maintenance: maintenanceStatus(),
-    externalBackupConfigured: Boolean(String(env.BACKUP_UPLOAD_URL || '').trim()),
+    externalBackupConfigured: backupEnabled && Boolean(String(env.BACKUP_UPLOAD_URL || '').trim()),
     backup: (() => {
       try { return JSON.parse(getSetting('backup_status') || 'null'); } catch { return null; }
     })()
@@ -290,6 +310,8 @@ analyticsRouter.get('/api/admin/analytics', requireAdmin, (req, res) => {
 });
 
 pilotRouter.delete('/api/admin/pilot-accounts', requireAdmin, requireSuperadmin, async (req, res, next) => {
+  if (!backupEnabled) return rejectDisabledBackup(res);
+
   const confirmText = String(req.body?.confirm || '').trim();
   if (!confirmCurrentAdminPassword(req, res)) return;
   if (confirmText !== 'ALLE TESTKONTEN LOESCHEN') {
