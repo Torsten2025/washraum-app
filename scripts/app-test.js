@@ -440,12 +440,12 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.7');
+    assert.equal(health.body.version, '0.3.0-test.8');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.7');
+    assert.equal(versionStatus.body.version, '0.3.0-test.8');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -1748,12 +1748,12 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.7'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.8'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.7"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.7'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.7'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.8"'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.8'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.8'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

@@ -1,10 +1,11 @@
 services:
   - type: web
-    name: waschplan-staging-test7
+    name: waschzeit-agent-test
     env: node
     plan: free
-    branch: codex/staging
-    autoDeployTrigger: off
+    region: frankfurt
+    branch: codex/agent-test
+    autoDeployTrigger: commit
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
@@ -12,23 +13,25 @@ services:
       - key: NODE_ENV
         value: production
       - key: APP_ENV
-        value: staging
+        value: agent-test
       - key: APP_RELEASE
-        value: staging-v0.3.0-test.8
+        value: agent-v0.3.0-test.8
       - key: DB_PATH
-        value: /tmp/waschplan-staging.sqlite
+        value: /tmp/waschzeit-agent-test.sqlite
       - key: SESSION_SECRET
-        sync: false
+        generateValue: true
       - key: SESSION_IDLE_MINUTES
         value: 30
       - key: SEED_ADMIN_NAME
-        value: staging-admin
+        value: agent-test-admin
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      - key: SEED_ADMIN_FORCE_PASSWORD_RESET
+        value: false
       - key: HOUSE_CODE
-        sync: false
+        generateValue: true
       - key: PUBLIC_APP_URL
-        sync: false
+        value: https://waschzeit-agent-test.onrender.com
       - key: BACKUP_ENABLED
         value: false
       - key: AUTO_BACKUP

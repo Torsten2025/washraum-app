@@ -256,7 +256,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.7',
+      appVersion: '0.3.0-test.8',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -324,12 +324,13 @@ function verifyBlueprintsAndVersion() {
   const serviceWorker = fs.readFileSync(path.join(projectRoot, 'public', 'sw.js'), 'utf8');
   const envExample = fs.readFileSync(path.join(projectRoot, '.env.example'), 'utf8');
   const staging = fs.readFileSync(path.join(projectRoot, 'render.staging.yaml'), 'utf8');
+  const agentTest = fs.readFileSync(path.join(projectRoot, 'render.agent-test.yaml'), 'utf8');
   const production = fs.readFileSync(path.join(projectRoot, 'render.yaml'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.7');
-  assert.equal(lock.version, '0.3.0-test.7');
-  assert.equal(lock.packages[''].version, '0.3.0-test.7');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.7';"));
+  assert.equal(packageInfo.version, '0.3.0-test.8');
+  assert.equal(lock.version, '0.3.0-test.8');
+  assert.equal(lock.packages[''].version, '0.3.0-test.8');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.8';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
@@ -347,6 +348,28 @@ function verifyBlueprintsAndVersion() {
   assert.match(staging, /SESSION_SECRET\s*\n\s*sync: false/);
   assert.doesNotMatch(staging, /\bdisk:/);
   assert.doesNotMatch(staging, /SMTP_|VAPID_|BACKUP_UPLOAD_|envVarGroups/);
+
+  assert.match(agentTest, /name: waschzeit-agent-test/);
+  assert.match(agentTest, /region: frankfurt/);
+  assert.match(agentTest, /branch: codex\/agent-test/);
+  assert.match(agentTest, /autoDeployTrigger: commit/);
+  assert.match(agentTest, /plan: free/);
+  assert.match(agentTest, /buildCommand: npm ci/);
+  assert.match(agentTest, /startCommand: npm start/);
+  assert.match(agentTest, /healthCheckPath: \/api\/health/);
+  assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.8/);
+  assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
+  assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
+  assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
+  assert.match(agentTest, /HOUSE_CODE\s*\n\s*generateValue: true/);
+  assert.match(agentTest, /PUBLIC_APP_URL[\s\S]*value: https:\/\/waschzeit-agent-test\.onrender\.com/);
+  assert.match(agentTest, /BACKUP_ENABLED[\s\S]*value: false/);
+  assert.match(agentTest, /AUTO_BACKUP[\s\S]*value: false/);
+  assert.match(agentTest, /EMAIL_ENABLED[\s\S]*value: false/);
+  assert.match(agentTest, /PUSH_ENABLED[\s\S]*value: false/);
+  assert.doesNotMatch(agentTest, /\bdisk:/);
+  assert.doesNotMatch(agentTest, /SMTP_|VAPID_|BACKUP_UPLOAD_|envVarGroups/);
 
   assert.match(production, /name: waschplan-app[\s\S]*branch: master/);
   assert.match(production, /buildCommand: npm ci/);
@@ -424,7 +447,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.7');
+    assert.equal(health.body.version, '0.3.0-test.8');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -560,7 +583,7 @@ async function run() {
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.7',
+    version: '0.3.0-test.8',
     unit,
     runtime,
     providersContacted: 0

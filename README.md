@@ -25,9 +25,12 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 
 - Entwicklung: lokaler Server mit lokaler SQLite-Datei unter `data/`.
 - Test: isolierte Server mit temporaeren Datenbanken und lokalem SMTP-Testserver. Eine statische Barrierefreiheitspruefung ist ebenfalls enthalten.
+- Agent-Test: eigener Render-Free-Dienst `waschzeit-agent-test` in Frankfurt mit fluechtiger Datenbank, ohne Disk, E-Mail, Push oder Backup. Der Dienst folgt ausschliesslich dem QA-geprueften Zweig `codex/agent-test`.
 - Produktion: Render mit persistentem Datentraeger unter `/var/data`.
 
 `render.staging.yaml` beschreibt eine getrennte, absichtlich nicht automatisch erzeugte Staging-Instanz. Sie nutzt eine fluechtige Testdatenbank und kann bei Bedarf als zweiter Render-Blueprint angelegt werden, ohne Produktionsdaten zu beruehren.
+
+`render.agent-test.yaml` beschreibt die dauerhaft wiederverwendbare, vollstaendig synthetische Agent-Testumgebung. Nach ihrer einmaligen Anlage deployt Render neue, zuvor vollstaendig gepruefte Pushes auf `codex/agent-test` automatisch. Render erzeugt Sitzungsgeheimnis und Hauscode; nur das synthetische Seed-Admin-Passwort wird ausserhalb des Repositorys im freigegebenen Passwortmanager verwaltet.
 
 ## Lokal starten
 

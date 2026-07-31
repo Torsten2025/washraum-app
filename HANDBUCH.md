@@ -575,6 +575,7 @@ Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID von `22 ·
 | `PRUEFBERICHT_GESAMTAUDIT_2026-07-19.md` | Ausgefuehrte Ergebnisse, behobene Fehler, Restrisiken und priorisierte Anpassungsvorschlaege |
 | `render.yaml` | Produktionsdienst und persistenter Datentraeger auf Render |
 | `render.staging.yaml` | Vorlage fuer eine getrennte Staging-Umgebung |
+| `render.agent-test.yaml` | Wiederverwendbare synthetische Agent-Testumgebung auf Render |
 
 ### Lokale Umgebung
 
@@ -605,6 +606,10 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 `render.staging.yaml` beschreibt einen getrennten kostenlosen Render-Dienst `waschplan-staging-test7` auf dem eindeutigen Zweig `codex/staging`. Auto-Deploy ist aus; der erste Freeze wird bewusst manuell gestartet. Staging installiert mit `npm ci`, prueft `/api/health`, verwendet ausschliesslich die fluechtige Datenbank `/tmp/waschplan-staging.sqlite`, besitzt keine Disk und keine Produktions-Env-Gruppe. `BACKUP_ENABLED`, `EMAIL_ENABLED`, `PUSH_ENABLED` und `AUTO_BACKUP` stehen dort auf `false`; SMTP-, VAPID- und Backup-Upload-Werte werden nicht hinterlegt. Eigene Staging-Geheimnisse wie `SESSION_SECRET`, Seed-Passwort, Hauscode und spaetere Basis-URL bleiben `sync: false`.
 
+`render.agent-test.yaml` beschreibt den dauerhaft wiederverwendbaren Free-Dienst `waschzeit-agent-test` in Frankfurt auf dem eigenen Zweig `codex/agent-test`. Seine Datenbank liegt ausschliesslich unter `/tmp/waschzeit-agent-test.sqlite`; es gibt keine Disk, Produktions-Env-Gruppe, Providerwerte oder reale Daten. Render erzeugt `SESSION_SECRET` und `HOUSE_CODE` bei der Erstanlage. Das einzige separat verwaltete Geheimnis ist das synthetische Seed-Admin-Passwort; es wird einmalig im freigegebenen Passwortmanager gespeichert und nie in Repository, Chat, Log oder Beleg aufgenommen. `PUBLIC_APP_URL` ist fest auf die Agent-Test-URL begrenzt. Backup, automatisches Backup, E-Mail und Push bleiben explizit `false`.
+
+Nach der einmaligen Anlage deployt der Agent-Testdienst jeden Push auf `codex/agent-test` automatisch. Das erweitert keine Releasebefugnis: Ein Push erfolgt weiterhin nur mit sichtbarer neuer Testversionsnummer, bestandenem `npm run check`, eingefrorenem Kandidaten und unabhaengigem Senior-QA-PASS. Die Automatik ersetzt lediglich den wiederholten Render-Login und die erneute Geheimwerteingabe. Produktion und `master` bleiben davon technisch und organisatorisch getrennt.
+
 `render.yaml` beschreibt ausschliesslich einen spaeteren, getrennt freizugebenden Produktionsdeploy auf `master`, installiert ebenfalls mit `npm ci` und behaelt SQLite sowie Backups auf der persistenten Disk unter `/var/data`. `SESSION_SECRET` wird nie im Repository erzeugt oder gespeichert, sondern bleibt im Blueprint `sync: false`. Die drei Integrationsschalter sind dort bewusst explizit auf `true` gesetzt; ohne diese Werte blieben sie deaktiviert. Eine tatsaechliche Mail-, Push- oder externe Backupwirkung verlangt weiterhin die getrennte Providerkonfiguration. Diese Kandidatenpruefung wendet `render.yaml` nicht an und veraendert die laufende Produktion nicht. Der Staging-Blueprint darf niemals eine Produktionsdisk, Produktions-Env-Gruppe oder reale Domain uebernehmen.
 
 Stop-/Ruecksetzregel: Staging wird bei unerwartetem externem Verbindungsversuch, falscher Version, nichtfluechtigem Speicher, fehlgeschlagenem Healthcheck oder nicht exakt deaktiviertem Kill-Switch sofort gestoppt. Ein Ruecksetzen erfolgt durch Stoppen des Dienstes und Verwerfen der fluechtigen `/tmp`-Datenbank; Produktionsdaten werden dafuer niemals kopiert oder veraendert. Der Free-Plan kann schlafen und ist nicht fuer Verfuegbarkeits- oder Lastzusagen geeignet.
@@ -615,6 +620,9 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 
 ### 31. Juli 2026
 
+- Kandidatenstand auf `0.3.0-test.8` angehoben und als `Testversion` belassen. Paket, Health-/Versionsantwort, Assetkennung, Tests und PWA-Cache verwenden denselben Vorabstand.
+- Dedizierte Agent-Testumgebung `waschzeit-agent-test` fuer Frankfurt vorbereitet: Free-Plan, eigener Zweig `codex/agent-test`, `npm ci`, fluechtige `/tmp`-Datenbank, keine Disk und alle Backup-/E-Mail-/Push-Schalter aus. Render erzeugt Sitzungsgeheimnis und Hauscode; das synthetische Seed-Admin-Passwort bleibt ausserhalb des Repositorys im Passwortmanager.
+- Auto-Deploy fuer den Agent-Testzweig dokumentiert und statisch abgesichert. Die Automatik startet erst nach einem nach Projektregel versionierten, vollstaendig geprueften und unabhaengig freigegebenen Push und beruehrt weder `master` noch Produktion.
 - Deaktivierte Backup-, E-Mail- und Push-Kanaele im Adminueberblick und Systemreiter vollstaendig auf Deutsch und Englisch gekennzeichnet. Backup-Providerhinweise werden bei ausgeschaltetem Kanal nicht mehr behauptet; Erstellen, Download, Testversand und backupabhaengiger Wartungsstart sind bereits in der Oberflaeche unbedienbar. Kontrollierte `503`-Antworten bleiben als zweite Schutzschicht lokalisiert und die No-Send-Semantik unveraendert.
 
 ### 30. Juli 2026
