@@ -18,6 +18,13 @@ const {
   parseStrictBooleanFlag,
   publicRuntimeFlags
 } = require('../src/services/runtime-flags');
+const {
+  EXPECTED_NODE_VERSION,
+  EXPECTED_NPM_VERSION,
+  detectNpmVersion,
+  evaluateToolchain,
+  formatGuardOutput
+} = require('./toolchain-guard');
 
 const projectRoot = path.resolve(__dirname, '..');
 const adminPassword = 'Synthetic-Safety-Admin-2026!';
@@ -256,7 +263,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.8',
+      appVersion: '0.3.0-test.9',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -327,10 +334,11 @@ function verifyBlueprintsAndVersion() {
   const agentTest = fs.readFileSync(path.join(projectRoot, 'render.agent-test.yaml'), 'utf8');
   const production = fs.readFileSync(path.join(projectRoot, 'render.yaml'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.8');
-  assert.equal(lock.version, '0.3.0-test.8');
-  assert.equal(lock.packages[''].version, '0.3.0-test.8');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.8';"));
+  assert.equal(packageInfo.version, '0.3.0-test.9');
+  assert.equal(packageInfo.packageManager, 'npm@10.9.8');
+  assert.equal(lock.version, '0.3.0-test.9');
+  assert.equal(lock.packages[''].version, '0.3.0-test.9');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.9';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
@@ -346,6 +354,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(staging, /EMAIL_ENABLED[\s\S]*value: false/);
   assert.match(staging, /PUSH_ENABLED[\s\S]*value: false/);
   assert.match(staging, /SESSION_SECRET\s*\n\s*sync: false/);
+  assert.doesNotMatch(staging, /NODE_VERSION/);
   assert.doesNotMatch(staging, /\bdisk:/);
   assert.doesNotMatch(staging, /SMTP_|VAPID_|BACKUP_UPLOAD_|envVarGroups/);
 
@@ -354,11 +363,15 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /branch: codex\/agent-test/);
   assert.match(agentTest, /autoDeployTrigger: commit/);
   assert.match(agentTest, /plan: free/);
-  assert.match(agentTest, /buildCommand: npm ci/);
+  assert.match(agentTest, /^    buildCommand: node scripts\/toolchain-guard\.js && npm ci$/m);
+  assert.match(agentTest, /- key: NODE_VERSION\s*\n\s*value: 22\.23\.1/);
+  assert.equal((agentTest.match(/^\s*- key: NODE_VERSION$/gm) || []).length, 1);
+  assert.doesNotMatch(agentTest, /\bNPM_VERSION\b/);
+  assert.doesNotMatch(agentTest, /npm (?:install|i) (?:--global|-g)|\bnpx\b|\bcorepack\b/);
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.8/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.9/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -374,11 +387,93 @@ function verifyBlueprintsAndVersion() {
   assert.match(production, /name: waschplan-app[\s\S]*branch: master/);
   assert.match(production, /buildCommand: npm ci/);
   assert.match(production, /SESSION_SECRET\s*\n\s*sync: false/);
+  assert.doesNotMatch(production, /NODE_VERSION/);
   assert.match(production, /DB_PATH[\s\S]*value: \/var\/data\/washraum\.sqlite/);
   assert.match(production, /mountPath: \/var\/data/);
   assert.match(production, /BACKUP_ENABLED[\s\S]*value: true/);
   assert.match(production, /EMAIL_ENABLED[\s\S]*value: true/);
   assert.match(production, /PUSH_ENABLED[\s\S]*value: true/);
+}
+
+function verifyToolchainContract() {
+  const passing = evaluateToolchain({
+    nodeVersion: '22.23.1',
+    npmVersion: '10.9.8'
+  });
+  assert.equal(passing.ok, true);
+  assert.deepEqual(passing.failures, []);
+
+  const failingCases = [
+    { nodeVersion: '24.14.1', npmVersion: '10.9.8', failure: 'NODE_VERSION_MISMATCH' },
+    { nodeVersion: '22.23.0', npmVersion: '10.9.8', failure: 'NODE_VERSION_MISMATCH' },
+    { nodeVersion: '22.23.1', npmVersion: '10.9.7', failure: 'NPM_VERSION_MISMATCH' },
+    { nodeVersion: '22.23.1', npmVersion: '10.9.9', failure: 'NPM_VERSION_MISMATCH' },
+    { nodeVersion: '', npmVersion: '10.9.8', failure: 'NODE_VERSION_MISSING' },
+    { nodeVersion: 'invalid', npmVersion: '10.9.8', failure: 'NODE_VERSION_INVALID' },
+    { nodeVersion: '22.23.1', npmVersion: '', failure: 'NPM_VERSION_MISSING' },
+    { nodeVersion: '22.23.1', npmVersion: 'invalid', failure: 'NPM_VERSION_INVALID' }
+  ];
+  for (const testCase of failingCases) {
+    const result = evaluateToolchain(testCase);
+    assert.equal(result.ok, false);
+    assert.ok(result.failures.includes(testCase.failure));
+  }
+
+  const missingExecutable = detectNpmVersion({
+    platform: 'win32',
+    nodeExecutable: 'C:\\synthetic\\node.exe',
+    existsSync: () => false,
+    spawnSyncImpl() {
+      throw new Error('spawn must not run without an npm CLI');
+    }
+  });
+  assert.deepEqual(missingExecutable, {
+    ok: false,
+    failure: 'NPM_EXECUTABLE_NOT_FOUND',
+    version: ''
+  });
+  const failedDetection = detectNpmVersion({
+    platform: 'linux',
+    spawnSyncImpl: () => ({ status: 1, error: null, stdout: '' })
+  });
+  assert.deepEqual(failedDetection, {
+    ok: false,
+    failure: 'NPM_VERSION_DETECTION_FAILED',
+    version: ''
+  });
+  const negativeOutput = formatGuardOutput(evaluateToolchain({
+    nodeVersion: '24.14.1',
+    npmVersion: '10.9.7'
+  }));
+  assert.match(negativeOutput, /^TOOLCHAIN_GUARD_FAIL classes=/);
+  assert.match(negativeOutput, /NODE_VERSION_MISMATCH/);
+  assert.match(negativeOutput, /NPM_VERSION_MISMATCH/);
+  assert.match(negativeOutput, /expected_node=22\.23\.1 actual_node=24\.14\.1/);
+  assert.match(negativeOutput, /expected_npm=10\.9\.8 actual_npm=10\.9\.7/);
+
+  const guardPath = path.join(projectRoot, 'scripts', 'toolchain-guard.js');
+  const guardSource = fs.readFileSync(guardPath, 'utf8');
+  assert.doesNotMatch(guardSource, /\bnpx\b|\bcorepack\b|npm\s+(?:install|i)\b|https?:\/\//i);
+  const actual = spawnSync(process.execPath, [guardPath], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: { ...process.env, npm_config_update_notifier: 'false' },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  assert.equal(actual.status, 0, actual.stderr || actual.stdout);
+  assert.equal(actual.stderr, '');
+  assert.match(actual.stdout, /^TOOLCHAIN_GUARD_OK /);
+  assert.match(actual.stdout, new RegExp(`expected_node=${EXPECTED_NODE_VERSION}`));
+  assert.match(actual.stdout, new RegExp(`expected_npm=${EXPECTED_NPM_VERSION}`));
+
+  return {
+    expectedNode: EXPECTED_NODE_VERSION,
+    expectedNpm: EXPECTED_NPM_VERSION,
+    positiveCases: 1,
+    negativeCases: failingCases.length + 2,
+    networkAttempts: 0,
+    installationAttempts: 0
+  };
 }
 
 async function verifyRuntimeScenario(flagCase) {
@@ -447,7 +542,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.8');
+    assert.equal(health.body.version, '0.3.0-test.9');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -578,12 +673,14 @@ async function verifyRuntimeRoutes() {
 
 async function run() {
   verifyBlueprintsAndVersion();
+  const toolchain = verifyToolchainContract();
   const unit = await verifyUnitKillSwitches();
   const runtime = await verifyRuntimeRoutes();
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.8',
+    version: '0.3.0-test.9',
+    toolchain,
     unit,
     runtime,
     providersContacted: 0

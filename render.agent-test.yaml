@@ -6,16 +6,18 @@ services:
     region: frankfurt
     branch: codex/agent-test
     autoDeployTrigger: commit
-    buildCommand: npm ci
+    buildCommand: node scripts/toolchain-guard.js && npm ci
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 22.23.1
       - key: APP_ENV
         value: agent-test
       - key: APP_RELEASE
-        value: agent-v0.3.0-test.8
+        value: agent-v0.3.0-test.9
       - key: DB_PATH
         value: /tmp/waschzeit-agent-test.sqlite
       - key: SESSION_SECRET

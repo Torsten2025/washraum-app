@@ -30,7 +30,7 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 
 `render.staging.yaml` beschreibt eine getrennte, absichtlich nicht automatisch erzeugte Staging-Instanz. Sie nutzt eine fluechtige Testdatenbank und kann bei Bedarf als zweiter Render-Blueprint angelegt werden, ohne Produktionsdaten zu beruehren.
 
-`render.agent-test.yaml` beschreibt die dauerhaft wiederverwendbare, vollstaendig synthetische Agent-Testumgebung. Nach ihrer einmaligen Anlage deployt Render neue, zuvor vollstaendig gepruefte Pushes auf `codex/agent-test` automatisch. Render erzeugt Sitzungsgeheimnis und Hauscode; nur das synthetische Seed-Admin-Passwort wird ausserhalb des Repositorys im freigegebenen Passwortmanager verwaltet.
+`render.agent-test.yaml` beschreibt die dauerhaft wiederverwendbare, vollstaendig synthetische Agent-Testumgebung. Nach ihrer einmaligen Anlage deployt Render neue, zuvor vollstaendig gepruefte Pushes auf `codex/agent-test` automatisch. Nur dieser Dienst pinnt Node `22.23.1`; das deklarative `packageManager: npm@10.9.8` wird vor `npm ci` durch `scripts/toolchain-guard.js` offline und ohne Installation geprueft. Der Pin verbessert die Reproduzierbarkeit, beweist aber weder die Node-24-Hypothese noch die weiterhin unbekannte Ursache des vorigen Render-Fehlers. Render erzeugt Sitzungsgeheimnis und Hauscode; nur das synthetische Seed-Admin-Passwort wird ausserhalb des Repositorys im freigegebenen Passwortmanager verwaltet.
 
 ## Lokal starten
 
