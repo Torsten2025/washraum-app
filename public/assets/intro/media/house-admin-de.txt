@@ -14,16 +14,16 @@ Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen vom 
 In der Kontenverwaltung erkennst du aktive, eingeladene oder gesperrte Personen. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet, E-Mail-Adresse und Wohnungszuordnung. Aendere niemals eine fremde E-Mail-Adresse nur, um selbst einen Passwortlink zu erhalten.
 
 5. Geraete und Raeume verwalten [00:01:46.000]
-Unter Haus und Geraete verwaltest du Waschmaschinen, Tumbler und Trockenraeume deines Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource meinen. Eine deaktivierte oder gesperrte Ressource darf nicht mehr buchbar erscheinen.
+Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und Geraetebestand. Als Haus-Admin startest du direkt bei den Geraeten deines eigenen Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource meinen. Gesperrte Ressourcen werden nur ueber den Tagebuchablauf wieder freigegeben.
 
 6. Maschinen- und Raumtagebuch [00:02:12.000]
-Das Maschinen- und Raumtagebuch dokumentiert Meldungen, Entscheidungen und Arbeiten dauerhaft. Formuliere Beobachtungen und Massnahmen sachlich mit Datum und betroffener Ressource. Bestehende Eintraege werden nicht geloescht, sondern durch den naechsten Schritt ergaenzt oder abgeschlossen.
+Das Tagebuch zeigt nur die drei Hauptstatus Neu, In Bearbeitung und Erledigt. Persoenliche Meldungstexte bleiben getrennt und loeschbar. Im neutralen Betriebsnachweis dokumentierst du nur Ressource, Zeiten und sachliche Massnahmen. Bestehende technische Eintraege werden nicht geloescht oder nachtraeglich veraendert.
 
 7. Stoerung bis Freigabe bearbeiten [00:02:40.000]
-Pruefe eine Bewohnermeldung und sperre die Ressource, wenn die sichere Nutzung nicht gewaehrleistet ist. Dokumentiere danach Reparatur und Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt die Freigabe und macht die Ressource wieder buchbar.
+Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du Reparatur und Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt Freigabe und Abschluss.
 
 8. Dauertermine pflegen [00:03:10.000]
-Dauertermine eignen sich fuer wiederkehrende, vom Haus verantwortete Belegungen oder Sperrzeiten. Waehle Ressource, Wochentag, Zeitfenster und Laufzeit bewusst. Pruefe bestehende Eintraege regelmaessig, damit ueberholte Termine keine Kapazitaet blockieren.
+Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen Trockenraum mit passender Nutzungsdauer und einen Tumbler hinzu. Alle Bestandteile werden gemeinsam geprueft und gespeichert. Bei einem Konflikt entsteht kein Teilpaket; entfernt wird spaeter immer das vollstaendige kuenftige Paket.
 
 9. Auswertung verstehen [00:03:36.000]
 Die Auswertung zeigt Nutzung, Auslastung und betriebliche Auffaelligkeiten deines Hauses. Sie hilft bei Kapazitaetsfragen und Wartungsentscheidungen. Verwende Kennzahlen nicht als Rangliste oder zur oeffentlichen Bewertung einzelner Bewohner.

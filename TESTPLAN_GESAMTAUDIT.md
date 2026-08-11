@@ -1,6 +1,6 @@
 # WaschZeit Gesamtaudit
 
-Stand: 31. Juli 2026
+Stand: 10. August 2026
 
 Dieser Testplan prueft die App in einer isolierten lokalen Umgebung. Jeder Lauf verwendet eine eigene SQLite-Datei und veraendert keine Produktionsdaten. Externe Live-Dienste wie Render, echtes SMTP, Betriebssystem-Push und App-Installation werden zusaetzlich manuell abgenommen.
 
@@ -22,7 +22,7 @@ npm run check
 | SEC-03 | JSON groesser als 32 KB | Anfrage wird mit 413 abgelehnt | `test:security` |
 | SEC-04 | Produktionsmodus | HSTS sowie `Secure`, `HttpOnly` und `SameSite=Lax` am Sitzungscookie | `test:security` |
 | SEC-05 | Abhaengigkeiten | Keine bekannte kritische produktive Schwachstelle | `npm audit --omit=dev` |
-| SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `test:roles` |
+| SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; eigene Meldungen hausuebergreifend, aber ohne fremde Reports, Kontakte, Admin-/Audit-/Outboxfelder; Report- oder Kontoloeschung entfernt die persoenliche Meldungsschicht und erhaelt den neutralen Betriebsfall; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:roles` |
 | SEC-07 | Harte Betriebs-Kill-Switches | Nur explizites, trim-/case-insensitives `true` aktiviert Backup, E-Mail oder Push. Pro Kanal bleiben `false`, fehlend, leer, ungueltig und direkte Factory-Nutzung ohne `enabled` trotz gesetzter Providerwerte fail-closed; direkte und indirekte Pfade erzeugen null Dateien, DB-Kopien, Queue-/Token-/Abo-/Auditwirkungen sowie null DNS-, Netzwerk- oder Providerverbindungen. Die Adminoberflaeche zeigt DE/EN eindeutig `Deaktiviert`/`Disabled`, blendet irrefuehrende Providerhinweise aus und macht Backup-Erstellung, Download, Testversand sowie Wartungsstart unbedienbar; direkte API-Pfade bleiben `503` | `test:safety`, `test:i18n`, `test:a11y`, `test:e2e` |
 
 ## B. Anmeldung, Einladung und Sitzungen
@@ -52,7 +52,7 @@ npm run check
 | REG-02 | Freie Registrierung, schwaches Passwort oder falscher Link | Klare 400/404/410-Antwort | `test:security` |
 | REG-03 | Einladungsannahme mit neuer E-Mail | Link erzeugt genau eine persoenliche Identitaet mit fester Wohnungsmitgliedschaft und ist danach verbraucht; SMTP-Versand bestaetigt zusaetzlich die E-Mail | `test:security`, `npm test` |
 | REG-04 | Klingelschildkorrektur | Bewohner beantragt; Admin entscheidet; sichtbarer Name aendert sich nicht direkt | `npm test`, `test:roles` |
-| REG-05 | Alter Zusammenfuehrungsweg | Wird mit 410 abgelehnt; neue Partner verwenden eigene Identitaeten | `npm test` |
+| REG-05 | Alter Zusammenfuehrungsweg | Wird mit 410 abgelehnt; Konto, Sitzung und persoenliche Reports bleiben unveraendert; neue Partner verwenden eigene Identitaeten | `npm test` |
 | REG-06 | Umzug | Nur Superadmin; keine kommenden Buchungen; Rolle wird Bewohner | `npm test`, `test:roles` |
 | REG-07 | Einladung mit bestehender E-Mail | Vorhandenes Passwort wird geprueft; dieselbe Identitaet erhaelt die Wohnung, ohne zweites Konto oder Rollenverlust | `test:roles` |
 
@@ -83,7 +83,7 @@ npm run check
 | BOOK-06 | Fremde Buchung | Bewohner kann sie weder loeschen noch erweitern | `npm test` |
 | BOOK-07 | Freigabe und Absage | Zeitfenster, Mitteilung, Push-/Mailfilter und neutraler Text stimmen | `npm test` |
 | BOOK-08 | Monats-/Wochenkalender | API-Daten, Tagesdetails und eigene Buchungen stimmen ueberein | `npm test`, `test:e2e` |
-| BOOK-09 | Dauertermine | Normale Buchung wird blockiert; Tumblerreserve bleibt bestehen | `npm test`, `test:roles` |
+| BOOK-09 | Dauerpaket | `resourceIds` erzeugt atomar genau eine WM, optional hoechstens einen TR/Tumbler, gemeinsame Gruppenkennung auch WM-only und modellierte Trocknungsdauer; Konflikt/zweite WM/Mischpayload/Fremdhaus/Sonntagsfenster speichert nichts, Tumblerreserve bleibt bestehen | `npm test`, `test:roles` |
 | BOOK-10 | Parallelzugriff | Eindeutige Ressourcenbelegung ohne Teilbuchung | `npm test`, `test:year` |
 | BOOK-11 | Hauswechsel mit leerem Haus | Haus A zeigt nur eigene Ressourcen; Haus B ohne Ressourcen zeigt 0 Kapazitaet, einen DE/EN-Leerzustand und keine Buchungsaktion; Rueckwechsel und Reload erben keine alten Daten | `npm test`, `test:roles`, `test:i18n`, `test:e2e` |
 | BOOK-12 | Bestehende Ressourcen beim Hausanlegen | Vorhandene Ressourcen und ihre IDs bleiben vor, waehrend und nach Anlage sowie Wechsel zu einem leeren Haus unveraendert; es gibt keine heuristische Bestandsbereinigung | `npm test` |
@@ -93,23 +93,34 @@ npm run check
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| LOG-01 | Bewohnermeldung | Ressource, Titel und Beobachtung werden unveraenderbar erfasst | `npm test`, `test:roles` |
-| LOG-02 | Doppelte Meldung | Wird dem offenen Fall angehaengt statt zweiter Parallelfall | `npm test` |
-| LOG-03 | Sperre | Ressource verschwindet aus Buchbarkeit; Grund und Admin werden protokolliert | `npm test`, `test:roles` |
-| LOG-04 | Reparatur | Sachliche Pflichtnotiz und Statusfolge | `npm test`, `test:roles` |
-| LOG-05 | Funktionspruefung | Fehlgeschlagen bleibt gesperrt; erfolgreich erlaubt Freigabe | `npm test`, `test:roles` |
-| LOG-06 | Freigabe | Nur nach erfolgreicher Pruefung und mit Abschlussnotiz | `npm test`, `test:roles` |
+| LOG-01 | Bewohnermeldung | Ressource liegt im neutralen Fall; persoenlicher Titel und Beobachtung liegen getrennt und loeschbar im eigenen Report | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:roles` |
+| LOG-02 | Weitere Meldung | Erzeugt einen eigenen Report am offenen neutralen Fall statt eines zweiten Parallelfalls oder einer vermischten Reporterchronik | `npm test`, `node scripts/maintenance-reporting-test.js` |
+| LOG-03 | Uebernahme/Sperre | Ohne explizite Wahl `sperren`/`verfuegbar lassen` keine Mutation; Wahl und Statuswechsel atomar. `action=block`, allgemeine Ressourcenbearbeitung, fehlende/ungueltige Wahl, Fremdhaus und parallele Uebernahme koennen den ersten Wechsel aus Neu nicht umgehen. Eine Sperre entfernt/verschiebt keine bestehende Buchungszeile und weist Betroffenheit nur lesend aus | `npm test`, `test:roles` |
+| LOG-04 | Reparatur | Sachliche Pflichtnotiz und Statusfolge fuer gesperrte wie verfuegbare Faelle; kein Abschluss direkt aus Bearbeitung | `npm test`, `test:roles` |
+| LOG-05 | Funktionspruefung | Erst nach dokumentierter Reparatur; fehlgeschlagen bleibt in Bearbeitung, erfolgreich erlaubt den passenden Abschluss | `npm test`, `test:roles` |
+| LOG-06 | Freigabe/Abschluss | Nur nach Reparatur, erfolgreicher Pruefung und Abschlussnotiz; fallbezogene Sperre atomar freigeben, sonst Ressource unveraendert aktiv lassen | `npm test`, `test:roles` |
 | LOG-07 | Unveraenderbarkeit | Keine Loeschroute; alte Chronik bleibt erhalten | `npm test` |
-| LOG-08 | Suche und Hausgrenze | Haus-Admin nur eigenes Haus, Superadmin alle Haeuser | `test:roles` |
+| LOG-08 | Suche und Hausgrenze | Haus-Admin nur eigenes Haus; Superadmin ausschliesslich das serverseitig aktiv gewaehlte Haus, Fremdhaus-ID liefert 404 ohne Seiteneffekt | `test:roles` |
+| LOG-09 | Idempotente Erstellung | Gleicher kontogebundener Schluessel und gleiches normalisiertes Payload liefern dieselbe report_id ohne zweite Mutation; abweichendes Payload liefert 409; Pre-Commit-Fehler speichert nichts | `npm test`, `node scripts/maintenance-reporting-test.js` |
+| LOG-10 | Multi-Reporter-Privacy | Zwei Personen am selben Fall sehen jeweils nur eigene Texte, Report-IDs und Opt-ins; Bewohnerantworten enthalten strukturell weder technischen Fallstatus noch gemeinsame Fall-IDs/-zeitpunkte, Admin-, Audit-, Reparatur-, Zustell- oder fremde Reporterfelder. Manipulierte Report-/Fall-/Haus-ID gibt keine Fremddaten oder Existenzinformation preis | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:roles` |
+| LOG-11 | Neutraler Auditkern | Kein Reportername, Kontakt, Freitext oder Adminname/-kontakt in Fallkern, Chronik oder Wartungs-Audit; erlaubt sind neutraler Aktionscode, Statusflag, actorRef und Rolle | `npm test`, `node scripts/maintenance-reporting-test.js` |
+| LOG-12 | Legacy-Migration | Markerbasierte Transaktion verschiebt eindeutig zuordenbare PII in Reports, scrubbt Kern/Chronik/Audit und ist beim zweiten Lauf zaehlerstabil; kein Produktionsvollzug | `node scripts/maintenance-reporting-test.js` |
+| LOG-13 | Reporter-Opt-ins und E-Mail-Verfuegbarkeit | Pro Report standardmaessig Push/E-Mail aus; Push nur bei `active` Subscription desselben Kontos im Meldungshaus. E-Mail nur fuer ein aktives Konto, wenn die normalisierte aktuelle Primaeradresse exakt ihrem dauerhaft gespeicherten Bestaetigungswert entspricht, sonst entsprechend gebundene Zweitadresse als Fallback. Flag ohne Bindungswert, nach Bestaetigung geaenderte nichtleere Adresse, geloeschte, unbestaetigte, fremde oder inaktive Adresse bleibt in Projektion, Erstellung, Praeferenz, Queue und Versand unavailable. Aenderung/Loeschung entfernt Flag und Bindung; Startup-Migration entwertet Legacy-Flags ohne belastbaren Wert; Export und Payloads enthalten keine Bindungswerte. Statusereignis nur bei echtem Statuswechsel; Notiz/Reload/Same-Status erzeugt nichts | `node scripts/maintenance-reporting-test.js`, `npm test`, `test:e2e` |
+| LOG-14 | At-most-one Providerattempt und atomarer Claim | Fachmutation bleibt eindeutig erfolgreich; Zustellfehler ist getrennt. Admin- und Reporter-Outbox werden atomar beansprucht und Versuchsbeginn wird vor dem ersten moeglichen Providerkontakt dauerhaft markiert. Synchron gestartete Worker, Leaseablauf, Timeout, Providerfehler, Prozess-Recovery und Settlement-Token-Drift erzeugen insgesamt hoechstens einen Providerattempt je Ereignis/Empfaenger/Kanal; unklarer Ausgang ist terminal sichtbar und nie automatisch retrybar. Nur sicher vor Providerkontakt gescheiterte Vorbereitung bleibt planbar. `summary.sent` steigt nur nach erfolgreichem claimgebundenem Settlement. Mid-Batch-Revalidierung und getrennte Reminderfenster bleiben erhalten | `node scripts/maintenance-reporting-test.js`, `test:roles` |
+| LOG-15 | Produktionsmigration | Zu migrierende Bestands-PII bleibt bei deaktiviertem Backup oder Backupfehler byte-/feldgleich und der Server startet keinen Listener; erst ein verifiziertes Vor-Migrationsbackup erlaubt die transaktionale Bereinigung | `node scripts/maintenance-reporting-test.js`, `npm test` |
+| LOG-16 | Eigener Export und vollstaendige Ansicht | Export-Allowlist enthaelt nur eigenen Meldungsinhalt, eigenen Zeitpunkt, eigene Push-/E-Mail-Opt-ins, drei Hauptstatus und neutralen Haus-/Ressourcenkontext; keine gemeinsamen Fallzeitpunkte, Admin-, Audit-, Provider-, Queue-, Delivery- oder Outboxfelder. Mehr als acht eigene Meldungen bleiben stabil sortiert vollstaendig erreichbar und zeigen jeweils die eigene Beschreibung; fremde Personen und Haeuser bleiben unsichtbar | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:e2e` |
 
 ## G. Benachrichtigungen, PWA und Bedienung
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
 | NOT-01 | Lokales SMTP | Wohnungseinladung, Bestaetigung, Reset, Admin-Reset und Freigabe-Mail werden zugestellt | `npm test` |
+| NOT-01A | Freigabe-E-Mail-Revalidierung je Empfaenger | Bei mehr als fuenf Zielen werden Aktivstatus, Haus, Opt-in, Filter, aktuelle Adresse, Flag und exakter Bindungswert unmittelbar vor jedem Provideraufruf frisch geprueft. Aendern, Leeren, Deaktivieren, Haus-/Opt-in-/Bindungsentzug oder verschwundene Ziel-ID waehrend Batch 1 ergibt fuer spaetere Batches null Providerattempts; unveraenderte Ziele bleiben dedupliziert zustellbar | `npm test`, `test:safety` |
 | NOT-02 | Push-Abo | Anlegen, gezielter Test, Deaktivierung und ungueltiges Geraet; fehlerhafter Kurvenschluessel wird still deaktiviert | `npm test` |
 | NOT-03 | Freigabe-Mitteilung | Person, Ressource, Datum, Slot und direkte Buchungsfrage | `npm test` |
+| NOT-04 | Adminmeldung und Erinnerung | Je neuer Einzelmeldung genau ein Ereignis pro aktivem Endpoint eines ausdruecklich hauszugeordneten Admins. Vor jedem einzelnen Provideraufruf werden Rolle, Haus, Subscription, Endpoint und Hash frisch validiert; Mid-Batch-Entzug oder Reassignment ergibt null spaetere Versuche. 1:59:59 ohne Erinnerung, 2:00 genau eine, bis unter 4h keine weitere, 4:00 naechstes Fenster; nach Unterbruch keine Nachholflut und nach Statuswechsel keine Erinnerung | `node scripts/maintenance-reporting-test.js`, `test:roles` |
 | PWA-01 | Manifest und Service Worker | Installierbar, Update erst nach Zustimmung, Push-Klick oeffnet Ziel | `test:a11y`, `npm test` |
+| PWA-02 | Test-/Produktname | Missing, leer, unbekannt, lokal, Staging und Agent-Test liefern in HTML, Kopfzeile, Manifest, Health, Version, Offline-Shell und angemeldetem `document.title` `WaschZeit Test`; Login, Reload, Navigation, Sprache, Session- und Hauswechsel verlieren die Kennzeichnung nicht. Nur explizites `APP_ENV=production` plus `NODE_ENV=production` liefert `WaschZeit` | `npm test`, `test:e2e`, `test:media` |
 | UI-01 | Tastatur, Fokus, Dialoge und Untertitel | Zugaengliche Namen, Fokusstatus und reduzierte Bewegung | `test:a11y`, `test:e2e` |
 | UI-02 | Mobile und Desktop | Kein horizontales Ueberlaufen; Screenshots bei 390 x 844, 768 x 1024 und 1440 x 900 | `test:e2e`, manuelle Sichtpruefung der Artefakte |
 | UI-03 | Skript- und HTML-Verknuepfung | Alle statischen `querySelector`-Ziele der Anmelde-, Waschplan- und Reset-Skripte existieren im zugehoerigen HTML | `test:a11y` |
@@ -135,6 +146,10 @@ npm run check
 | DASH-01 | Priorisierung | Aufgaben, Warnungen und Informationen sind getrennt und besitzen konkrete Aktionen | `test:e2e`, Browserreview |
 | DASH-02 | Haus- und Rollenbereich | Haus-Admin bleibt im eigenen Haus; Superadmin sieht bei globalen Tagebuchfaellen den Hausnamen | `test:roles`, `test:e2e` |
 | DASH-03 | Responsive | 390 x 844, 768 x 1024 und 1440 x 900 ohne horizontalen Ueberlauf oder abgeschnittene Aktion | `test:e2e`, Screenshotreview |
+| DASH-04 | Haus/Geraete-Trennung | Haus-Admin startet ausschliesslich bei eigenen Geraeten; Superadmin startet bei Haus und sieht nach Umschaltung nur Geraete des aktiven Hauses. Sprach-/Reloadwechsel erhaelt nur einen zur Rolle und zum Haus passenden Zustand | `test:roles`, `test:e2e`, Screenshotreview |
+| GAME-01 | Uebungsvariation | Zwei abgeschlossene Uebungsrunden wiederholen weder die vollstaendige Aufgabe noch die Ergebnisformulierung unmittelbar; Reload umgeht den serverseitigen Vergleich nicht | `npm test`, `test:e2e` |
+| GAME-02 | Faire Tagesmission | Derselbe Europe/Zurich-Tag liefert fuer alle dieselbe Mission; der Folgetag liefert bei vorhandener Alternative garantiert eine andere vollstaendige Mission | `npm test` |
+| SCOPE-01 | Foto und GBMZ abwesend | Keine Foto-DB, Uploadroute, Foto-UI, EXIF-Pipeline, GBMZ-Schaltflaeche, Attrappe, Verlinkung, Einbettung oder Datenuebertragung im Kandidaten | `npm test`, `test:security`, Quellscan |
 
 Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Buchstabenbezeichnung der bestehenden Abschnitte bleibt fuer historische Pruefverweise erhalten.
 

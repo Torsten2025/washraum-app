@@ -18,14 +18,17 @@ und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst.
 00:00:42.350 --> 00:00:51.350
 Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
 
-00:00:52.350 --> 00:01:01.350
-Superadmins koennen neue Haeuser mit eindeutiger Bezeichnung und Adresse anlegen. Aenderungen
+00:00:52.350 --> 00:00:59.421
+Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl.
 
-00:01:01.350 --> 00:01:10.350
-an Stammdaten wirken auf Verwaltung und Anzeige. Vor einer Deaktivierung pruefst
+00:00:59.421 --> 00:01:06.493
+Der Reiter Haus zeigt Standorte und Stammdaten; der Reiter Geraete zeigt
 
-00:01:10.350 --> 00:01:19.350
-du aktive Bewohner, Buchungen, Ressourcen, offene Vorgaenge und die notwendige Datensicherung.
+00:01:06.493 --> 00:01:13.564
+ausschliesslich Ressourcen des serverseitig aktiven Hauses. Vor einer Deaktivierung pruefst du
+
+00:01:13.564 --> 00:01:19.350
+aktive Bewohner, Buchungen, offene Vorgaenge und die notwendige Datensicherung.
 
 00:01:20.350 --> 00:01:29.350
 Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin

@@ -20,7 +20,7 @@ Bist du frueher fertig, kannst du die nicht mehr benoetigte Maschine oder den Ra
 Das Mitteilungszentrum sammelt aktuelle Hinweise, zum Beispiel eine vorzeitig freigegebene Maschine. Mit deinen persoenlichen Filtern bestimmst du, welche Ressourcentypen und Zeitfenster fuer dich interessant sind. Eigene oder bereits ungueltige Freigaben werden nicht als buchbarer Hinweis angeboten.
 
 7. Stoerung melden [00:02:44.000]
-Wenn eine Maschine oder ein Raum nicht richtig funktioniert, erstellst du eine sachliche Stoerungsmeldung. Waehle die betroffene Ressource und beschreibe kurz, was du beobachtet hast. Der Haus-Admin uebernimmt danach die technische Bearbeitung und entscheidet ueber eine Sperre.
+Wenn eine Maschine oder ein Raum nicht richtig funktioniert, erstellst du eine sachliche Stoerungsmeldung. Dein Text bleibt als persoenliche Meldung getrennt und kann von dir geloescht werden. Statushinweise per Push oder E-Mail sind freiwillig und anfangs ausgeschaltet. Die drei sichtbaren Status sind Neu, In Bearbeitung und Erledigt.
 
 8. Weiteres Haushaltsmitglied verbinden [00:03:10.000]
 Unter App und Geraet kannst du einen kurz gueltigen QR-Code fuer ein weiteres Haushaltsmitglied erzeugen. Die Person erhaelt einen eigenen persoenlichen Zugang, wird aber derselben Wohnung zugeordnet. Adminrechte werden durch den QR-Code niemals uebertragen.

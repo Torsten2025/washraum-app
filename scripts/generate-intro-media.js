@@ -139,7 +139,35 @@ function synthesizeNarration(items, tempDirectory) {
   const input = path.join(tempDirectory, 'speech.json');
   const script = path.join(tempDirectory, 'speech.ps1');
   fs.writeFileSync(input, JSON.stringify(items), 'utf8');
-  fs.writeFileSync(script, `param([string]$InputFile)\nAdd-Type -AssemblyName System.Speech\n$items = Get-Content -Raw -Encoding UTF8 -LiteralPath $InputFile | ConvertFrom-Json\nforeach ($item in $items) {\n  $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer\n  $voice.SelectVoice([string]$item.voice)\n  $voice.Rate = 1\n  $voice.Volume = 100\n  $voice.SetOutputToWaveFile([string]$item.output)\n  $voice.Speak([string]$item.text)\n  $voice.Dispose()\n}\n`, 'utf8');
+  const speechScript = [
+    'param([string]$InputFile)',
+    "$ErrorActionPreference = 'Stop'",
+    '$items = Get-Content -Raw -Encoding UTF8 -LiteralPath $InputFile | ConvertFrom-Json',
+    'foreach ($item in $items) {',
+    '  $voice = $null',
+    '  $stream = $null',
+    '  try {',
+    '    $voice = New-Object -ComObject SAPI.SpVoice',
+    '    $matches = @($voice.GetVoices() | Where-Object { $_.GetDescription() -eq [string]$item.voice })',
+    '    if ($matches.Count -ne 1) { throw \"SAPI voice is missing or ambiguous: $($item.voice)\" }',
+    '    $stream = New-Object -ComObject SAPI.SpFileStream',
+    '    $stream.Format.Type = 22',
+    '    $stream.Open([string]$item.output, 3, $false)',
+    '    $voice.Voice = $matches[0]',
+    '    $voice.Rate = 1',
+    '    $voice.Volume = 100',
+    '    $voice.AudioOutputStream = $stream',
+    '    [void]$voice.Speak([string]$item.text)',
+    '    $stream.Close()',
+    "    if (-not (Test-Path -LiteralPath ([string]$item.output))) { throw 'SAPI did not create the requested WAV file.' }",
+    '  } finally {',
+    '    if ($stream) { try { $stream.Close() } catch {}; [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($stream) }',
+    '    if ($voice) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($voice) }',
+    '  }',
+    '}',
+    ''
+  ].join('\n');
+  fs.writeFileSync(script, speechScript, 'utf8');
   run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-InputFile', input]);
 }
 
@@ -178,7 +206,7 @@ function buildVtt(media) {
       cursor = end;
     }
   }
-  return `${cues.join('\n')}\n`;
+  return `${cues.join('\n').trimEnd()}\n`;
 }
 
 function buildTranscript(media) {
@@ -186,7 +214,7 @@ function buildTranscript(media) {
   media.chapters.forEach((chapter, index) => {
     lines.push(`${index + 1}. ${chapter.title} [${timestamp(chapter.startTime)}]`, chapter.transcript, '');
   });
-  return `${lines.join('\n')}\n`;
+  return `${lines.join('\n').trimEnd()}\n`;
 }
 
 function mediaOutputPath(publicPath) {
@@ -196,7 +224,9 @@ function mediaOutputPath(publicPath) {
 async function generatePackage(browser, ffmpeg, media) {
   const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), `waschzeit-${media.id}-`));
   const page = await browser.newPage({ viewport: { width: media.width, height: media.height } });
-  const voice = media.language === 'en' ? 'Microsoft Zira Desktop' : 'Microsoft Hedda Desktop';
+  const voice = media.language === 'en'
+    ? 'Microsoft Zira Desktop - English (United States)'
+    : 'Microsoft Hedda Desktop - German';
   try {
     const slides = [];
     const wavFiles = [];

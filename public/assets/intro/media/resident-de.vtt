@@ -69,17 +69,20 @@ Ressourcentypen und Zeitfenster fuer dich interessant sind. Eigene oder
 00:02:36.600 --> 00:02:43.350
 bereits ungueltige Freigaben werden nicht als buchbarer Hinweis angeboten.
 
-00:02:44.350 --> 00:02:51.107
+00:02:44.350 --> 00:02:49.669
 Wenn eine Maschine oder ein Raum nicht richtig funktioniert, erstellst
 
-00:02:51.107 --> 00:02:57.864
-du eine sachliche Stoerungsmeldung. Waehle die betroffene Ressource und beschreibe
+00:02:49.669 --> 00:02:54.988
+du eine sachliche Stoerungsmeldung. Dein Text bleibt als persoenliche Meldung
 
-00:02:57.864 --> 00:03:04.620
-kurz, was du beobachtet hast. Der Haus-Admin uebernimmt danach die
+00:02:54.988 --> 00:03:00.307
+getrennt und kann von dir geloescht werden. Statushinweise per Push
 
-00:03:04.620 --> 00:03:09.350
-technische Bearbeitung und entscheidet ueber eine Sperre.
+00:03:00.307 --> 00:03:05.627
+oder E-Mail sind freiwillig und anfangs ausgeschaltet. Die drei sichtbaren
+
+00:03:05.627 --> 00:03:09.350
+Status sind Neu, In Bearbeitung und Erledigt.
 
 00:03:10.350 --> 00:03:16.968
 Unter App und Geraet kannst du einen kurz gueltigen

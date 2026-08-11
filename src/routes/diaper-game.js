@@ -142,6 +142,57 @@ function buildPuzzle(seedText) {
   return { modules: shuffle(modules, random).slice(0, 4), incident };
 }
 
+function puzzleSignature(puzzle) {
+  return crypto.createHash('sha256').update(JSON.stringify(puzzle)).digest('hex');
+}
+
+function resultVariantForPuzzle(puzzle) {
+  return Number.parseInt(puzzleSignature(puzzle).slice(0, 8), 16) % 4;
+}
+
+function challengeDayOrdinal(challengeKey) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(challengeKey || ''));
+  if (!match) throw new Error('Ungueltiger Schweizer Missionstag.');
+  return Math.floor(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86400000);
+}
+
+function rankedPuzzleVariants() {
+  const variants = [];
+  const signatures = new Set();
+  for (let index = 0; index < 128 && variants.length < 16; index += 1) {
+    const puzzle = buildPuzzle(`windel-alarm-ranked-v${DIAPER_GAME_VERSION}:variant:${index}`);
+    const signature = puzzleSignature(puzzle);
+    if (signatures.has(signature)) continue;
+    signatures.add(signature);
+    variants.push(puzzle);
+  }
+  if (variants.length < 2) throw new Error('Zu wenige unterschiedliche Tagesmissionen verfuegbar.');
+  return variants;
+}
+
+const rankedVariants = rankedPuzzleVariants();
+
+function buildRankedPuzzle(challengeKey) {
+  const index = ((challengeDayOrdinal(challengeKey) % rankedVariants.length) + rankedVariants.length) % rankedVariants.length;
+  return rankedVariants[index];
+}
+
+function buildDistinctPracticePuzzle(tokenFactory, previousPuzzle = null) {
+  const previousSignature = previousPuzzle ? puzzleSignature(previousPuzzle) : '';
+  const previousResultVariant = previousPuzzle ? resultVariantForPuzzle(previousPuzzle) : -1;
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    const token = tokenFactory();
+    const puzzle = buildPuzzle(`windel-alarm-practice-v${DIAPER_GAME_VERSION}:${token}`);
+    if (
+      !previousPuzzle
+      || (puzzleSignature(puzzle) !== previousSignature && resultVariantForPuzzle(puzzle) !== previousResultVariant)
+    ) {
+      return { token, puzzle, resultVariant: resultVariantForPuzzle(puzzle) };
+    }
+  }
+  throw new Error('Keine neue Uebungsvariante verfuegbar.');
+}
+
 function publicModule(module) {
   if (module.type === 'wire') {
     return {
@@ -285,12 +336,22 @@ function createDiaperGameRouter({ db, requireAuth, tokenHash }) {
   router.post('/api/diaper-game/start', requireAuth, (req, res) => {
     const now = Date.now();
     const mode = req.body?.mode === 'practice' ? 'practice' : 'ranked';
-    const token = crypto.randomBytes(32).toString('hex');
     const challengeKey = swissChallengeKey(new Date(now));
-    const seedText = mode === 'ranked'
-      ? `windel-alarm-v${DIAPER_GAME_VERSION}:${challengeKey}`
-      : `windel-alarm-practice-v${DIAPER_GAME_VERSION}:${token}`;
-    const puzzle = buildPuzzle(seedText);
+    const previousPractice = mode === 'practice'
+      ? safePuzzle(db.prepare(`
+          SELECT puzzle_json FROM diaper_game_rounds
+          WHERE user_id = ? AND game_version = ? AND mode = 'practice' AND completed_at_ms IS NOT NULL
+          ORDER BY completed_at_ms DESC, id DESC LIMIT 1
+        `).get(req.session.user.id, DIAPER_GAME_VERSION)?.puzzle_json)
+      : null;
+    const generated = mode === 'practice'
+      ? buildDistinctPracticePuzzle(() => crypto.randomBytes(32).toString('hex'), previousPractice)
+      : {
+          token: crypto.randomBytes(32).toString('hex'),
+          puzzle: buildRankedPuzzle(challengeKey),
+          resultVariant: resultVariantForPuzzle(buildRankedPuzzle(challengeKey))
+        };
+    const { token, puzzle, resultVariant } = generated;
     db.prepare('DELETE FROM diaper_game_rounds WHERE expires_at_ms < ?').run(now);
     db.prepare('DELETE FROM diaper_game_rounds WHERE user_id = ? AND completed_at_ms IS NULL').run(req.session.user.id);
     db.prepare(`
@@ -318,6 +379,7 @@ function createDiaperGameRouter({ db, requireAuth, tokenHash }) {
       maxMistakes: DIAPER_GAME_MAX_MISTAKES,
       modules: puzzle.modules.map(publicModule),
       incident: puzzle.incident,
+      resultVariant,
       expiresAt: now + 2 * 60 * 1000
     });
   });
@@ -430,7 +492,8 @@ function createDiaperGameRouter({ db, requireAuth, tokenHash }) {
       practice: round.mode === 'practice',
       elapsedTimeMs: elapsedMs,
       scoreTimeMs,
-      mistakes: round.mistakes
+      mistakes: round.mistakes,
+      resultVariant: resultVariantForPuzzle(puzzle)
     };
     if (round.mode === 'practice') {
       return res.json({ ...diaperGameLeaderboard(req.session.user.id), result });
@@ -455,6 +518,10 @@ module.exports = {
   buildPuzzle,
   moduleAnswerIsCorrect,
   publicModule,
+  puzzleSignature,
+  buildRankedPuzzle,
+  buildDistinctPracticePuzzle,
+  resultVariantForPuzzle,
   DIAPER_GAME_VERSION,
   DIAPER_GAME_ROUND_MS,
   DIAPER_GAME_PENALTY_MS,

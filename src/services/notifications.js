@@ -4,6 +4,7 @@ const {
   translateReleaseSubject,
   translateReleaseText
 } = require('./localization');
+const { verifiedEmailForKind } = require('./email-verification');
 
 function createNotificationService({
   db,
@@ -21,7 +22,7 @@ function createNotificationService({
 }) {
   async function sendEmailVerification(req, user, emailKind = 'primary') {
     const config = smtpConfig();
-    const email = emailKind === 'secondary' ? user.secondary_email : user.email;
+    const email = normalizeEmail(emailKind === 'secondary' ? user.secondary_email : user.email);
     if (!config.host || !config.from || !isValidEmail(email)) {
       return { configured: false, sent: false };
     }
@@ -46,9 +47,8 @@ function createNotificationService({
   async function sendPasswordReset(req, user, deliveryEmail = user.email) {
     const config = smtpConfig();
     const email = normalizeEmail(deliveryEmail);
-    const verified = email === normalizeEmail(user.email)
-      ? Boolean(user.email_verified)
-      : email === normalizeEmail(user.secondary_email) && Boolean(user.secondary_email_verified);
+    const verified = email === verifiedEmailForKind(user, 'primary')
+      || email === verifiedEmailForKind(user, 'secondary');
     if (!config.host || !config.from || !isValidEmail(email) || !verified) {
       return false;
     }
@@ -78,9 +78,10 @@ function createNotificationService({
     }
 
     const recipients = db.prepare(`
-      SELECT u.id, u.username, u.email, u.secondary_email, u.language,
+      SELECT u.id, u.username, u.active, u.email, u.secondary_email, u.language,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS display_name,
-             u.email_verified, u.secondary_email_verified
+             u.email_verified, u.email_verified_value,
+             u.secondary_email_verified, u.secondary_email_verified_value
       FROM users u
       LEFT JOIN apartments a ON a.id = u.apartment_id
       LEFT JOIN notification_preferences np ON np.user_id = u.id
@@ -106,35 +107,68 @@ function createNotificationService({
     }
 
     const deliveries = recipients.flatMap((recipient) => {
-      const emails = [];
-      if (recipient.email_verified && isValidEmail(recipient.email)) emails.push(recipient.email);
-      if (
-        recipient.secondary_email_verified
-        && isValidEmail(recipient.secondary_email)
-        && normalizeEmail(recipient.secondary_email) !== normalizeEmail(recipient.email)
-      ) emails.push(recipient.secondary_email);
+      const emails = [
+        verifiedEmailForKind(recipient, 'primary'),
+        verifiedEmailForKind(recipient, 'secondary')
+      ].filter((email, index, all) => email && all.indexOf(email) === index);
       return emails.map((email) => ({ ...recipient, deliveryEmail: email }));
     });
+    const currentRecipient = db.prepare(`
+      SELECT u.id, u.username, u.active, u.email, u.secondary_email, u.language,
+             COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS display_name,
+             u.email_verified, u.email_verified_value,
+             u.secondary_email_verified, u.secondary_email_verified_value
+      FROM users u
+      LEFT JOIN apartments a ON a.id = u.apartment_id
+      LEFT JOIN notification_preferences np ON np.user_id = u.id
+      WHERE u.id = ?
+        AND u.active = 1
+        AND u.house_id = ?
+        AND u.notify_releases = 1
+        AND u.id != ?
+        AND (np.resource_type IS NULL OR np.resource_type = 'all' OR np.resource_type = ?)
+        AND (np.weekday IS NULL OR np.weekday = ?)
+        AND (np.slot IS NULL OR np.slot = ?)
+    `);
+    const resourceType = booking.resource_type || 'all';
+    const bookingWeekday = weekdayForDate(booking.booking_date);
     const appUrl = `${publicAppUrl(req)}${releaseNoticeUrl(booking)}`;
     let sent = 0;
     for (let start = 0; start < deliveries.length; start += 5) {
       const batch = deliveries.slice(start, start + 5);
-      const results = await Promise.allSettled(batch.map((recipient) => sendMail({
+      const results = await Promise.allSettled(batch.map(async (recipient) => {
+        const current = currentRecipient.get(
+          recipient.id,
+          booking.house_id,
+          booking.user_id,
+          resourceType,
+          bookingWeekday,
+          booking.slot
+        );
+        if (!current) return { attempted: false };
+        const currentEmails = [
+          verifiedEmailForKind(current, 'primary'),
+          verifiedEmailForKind(current, 'secondary')
+        ].filter((email, index, all) => email && all.indexOf(email) === index);
+        if (!currentEmails.includes(recipient.deliveryEmail)) return { attempted: false };
+        await sendMail({
           config,
           to: recipient.deliveryEmail,
-          subject: translateReleaseSubject(subject, recipient.language),
-          text: mailCopy(recipient.language, 'releaseBody', {
-            name: recipient.display_name,
-            message: translateReleaseText(message, recipient.language),
+          subject: translateReleaseSubject(subject, current.language),
+          text: mailCopy(current.language, 'releaseBody', {
+            name: current.display_name,
+            message: translateReleaseText(message, current.language),
             url: appUrl,
             house: booking.house_name || ''
           })
-        })));
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
+        });
+        return { attempted: true };
+      }));
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value.attempted) {
           sent += 1;
-        } else {
-          console.error(`E-Mail an ${batch[index].email} konnte nicht gesendet werden: ${result.reason.message}`);
+        } else if (result.status === 'rejected') {
+          console.error('Freigabe-E-Mail konnte nicht gesendet werden.');
         }
       });
     }

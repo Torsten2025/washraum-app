@@ -10,6 +10,7 @@ function createNotificationRouters({
   slots,
   normalizeEmail,
   isValidEmail,
+  verifiedEmailForKind,
   findEmailOwner,
   emailStatus,
   sendEmailVerification,
@@ -70,7 +71,7 @@ function createNotificationRouters({
         updated_at = CURRENT_TIMESTAMP
     `).run(
       req.session.user.id,
-      req.session.user.houseId,
+      currentHouseId(req),
       endpoint,
       p256dh,
       auth,
@@ -127,27 +128,45 @@ function createNotificationRouters({
 
     try {
       const previous = db.prepare(`
-        SELECT email, email_verified, secondary_email, secondary_email_verified
+        SELECT active, email, email_verified, email_verified_value,
+               secondary_email, secondary_email_verified, secondary_email_verified_value
         FROM users WHERE id = ?
       `).get(req.session.user.id);
       const emailChanged = normalizeEmail(previous?.email) !== email;
       const secondaryEmailChanged = normalizeEmail(previous?.secondary_email) !== secondaryEmail;
-      const emailVerified = emailChanged ? 0 : previous?.email_verified ?? 0;
-      const secondaryEmailVerified = secondaryEmailChanged ? 0 : previous?.secondary_email_verified ?? 0;
+      const emailVerified = emailChanged ? 0 : (verifiedEmailForKind(previous, 'primary') ? 1 : 0);
+      const secondaryEmailVerified = secondaryEmailChanged
+        ? 0
+        : (verifiedEmailForKind(previous, 'secondary') ? 1 : 0);
+      const emailVerifiedValue = emailVerified ? normalizeEmail(previous.email_verified_value) : null;
+      const secondaryEmailVerifiedValue = secondaryEmailVerified
+        ? normalizeEmail(previous.secondary_email_verified_value)
+        : null;
       db.transaction(() => {
         db.prepare(`
           UPDATE users
           SET email = ?, secondary_email = NULLIF(?, ''), notify_releases = ?,
-              email_verified = ?, secondary_email_verified = ?
+              email_verified = ?, email_verified_value = ?,
+              secondary_email_verified = ?, secondary_email_verified_value = ?
           WHERE id = ?
         `).run(
           email,
           secondaryEmail,
           notifyReleases,
           emailVerified,
+          emailVerifiedValue,
           secondaryEmailVerified,
+          secondaryEmailVerifiedValue,
           req.session.user.id
         );
+        if (emailChanged) {
+          db.prepare("DELETE FROM email_verification_tokens WHERE user_id = ? AND email_kind = 'primary'")
+            .run(req.session.user.id);
+        }
+        if (secondaryEmailChanged) {
+          db.prepare("DELETE FROM email_verification_tokens WHERE user_id = ? AND email_kind = 'secondary'")
+            .run(req.session.user.id);
+        }
         db.prepare(`
           INSERT INTO notification_preferences (user_id, resource_type, weekday, slot)
           VALUES (?, ?, ?, ?)

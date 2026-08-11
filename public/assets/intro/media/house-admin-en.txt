@@ -14,16 +14,16 @@ For a new resident, first define the stable apartment label and the name shown o
 Account administration shows active, invited and blocked people. Before helping with recovery, verify the identity, email address and apartment assignment. Never replace another person's email address merely to receive their password reset link yourself.
 
 5. Manage equipment and rooms [00:01:46.000]
-House and Equipment is where you manage washing machines, tumblers and drying rooms for your house. Use clear names so the calendar, issue report and logbook refer to the same resource. A deactivated or blocked resource must no longer appear as bookable.
+In House and Equipment, first switch deliberately between house details and the equipment inventory. As a house administrator, you start directly with equipment from your own house. Use clear names so the calendar, report and logbook refer to the same resource. Blocked resources can only be released through the logbook workflow.
 
 6. Machine and room logbook [00:02:12.000]
-The machine and room logbook preserves reports, decisions and work performed. Record observations and measures factually with the date and affected resource. Existing entries are not deleted; they are extended or completed by the next workflow step.
+The logbook shows only the three main statuses New, In progress and Done. Personal report text stays separate and deletable. The neutral operational record contains only the resource, times and factual measures. Existing technical entries cannot be deleted or changed afterwards.
 
 7. Handle an incident through release [00:02:40.000]
-Review a resident report and block the resource if safe use is not assured. Then document the repair and functional check. Only a successful check with a closing note permits release and makes the resource bookable again.
+When taking over a report, explicitly choose without a preset whether to block the resource or keep it available. Existing bookings are displayed but never deleted automatically. Then document the repair and functional check. Only a successful check with a closing note permits release and closure.
 
 8. Maintain recurring appointments [00:03:10.000]
-Recurring appointments are suitable for repeating house-managed occupancy or blocked times. Choose the resource, weekday, time slot and validity period carefully. Review existing entries regularly so obsolete appointments do not block capacity.
+A recurring package contains exactly one washing machine. You may add one drying room with a suitable duration and one tumbler. Every component is checked and saved together. A conflict creates no partial package, and removal always covers the complete future package.
 
 9. Understand analytics [00:03:36.000]
 Analytics shows usage, utilization and operational patterns for your house. It supports capacity planning and maintenance decisions. Do not use these figures as a ranking or for public evaluation of individual residents.

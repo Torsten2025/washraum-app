@@ -24,14 +24,17 @@ you switch again. Check the house name and target
 00:00:45.791 --> 00:00:51.350
 especially before blocks, invitations or account changes.
 
-00:00:52.350 --> 00:01:01.631
-Super administrators can create houses with a clear name and address.
+00:00:52.350 --> 00:00:59.100
+In House and Equipment, super administrators start with house selection.
 
-00:01:01.631 --> 00:01:10.913
-Master data changes affect administration and display. Before deactivation, review active
+00:00:59.100 --> 00:01:05.850
+The House tab contains locations and master data; Equipment shows
 
-00:01:10.913 --> 00:01:19.350
-residents, bookings, resources, open workflows and the required data backup.
+00:01:05.850 --> 00:01:12.600
+only resources from the server-side active house. Before deactivation, review
+
+00:01:12.600 --> 00:01:19.350
+active residents, bookings, open workflows and the required data backup.
 
 00:01:20.350 --> 00:01:27.100
 A personal identity may be a resident of one house,

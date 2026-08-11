@@ -8,8 +8,19 @@ const net = require('net');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const { releaseWindowStatus } = require('../release-window');
+const { resolveAppEnvironment } = require('../src/services/app-environment');
 const { isDateString, isPastSwissSlot, swissDateString } = require('../swiss-time');
-const { buildPuzzle, moduleAnswerIsCorrect, publicModule } = require('../src/routes/diaper-game');
+const {
+  buildPuzzle,
+  buildRankedPuzzle,
+  buildDistinctPracticePuzzle,
+  puzzleSignature,
+  resultVariantForPuzzle,
+  moduleAnswerIsCorrect,
+  publicModule
+} = require('../src/routes/diaper-game');
+const { createNotificationService } = require('../src/services/notifications');
+const { isValidEmail, normalizeEmail } = require('../src/services/email-verification');
 
 function answerForDiaperModule(module) {
   if (module.type === 'wire') return { choice: module.targetId };
@@ -173,6 +184,304 @@ async function verifyProductionRecoveryStartup() {
   }
 }
 
+const rankedDayOne = buildRankedPuzzle('2026-08-10');
+assert.deepEqual(buildRankedPuzzle('2026-08-10'), rankedDayOne);
+assert.notEqual(puzzleSignature(buildRankedPuzzle('2026-08-11')), puzzleSignature(rankedDayOne));
+const firstPractice = buildDistinctPracticePuzzle(() => 'practice-seed-one');
+let practiceCounter = 0;
+const nextPractice = buildDistinctPracticePuzzle(
+  () => `practice-seed-${++practiceCounter}`,
+  firstPractice.puzzle
+);
+assert.notEqual(puzzleSignature(nextPractice.puzzle), puzzleSignature(firstPractice.puzzle));
+assert.notEqual(resultVariantForPuzzle(nextPractice.puzzle), resultVariantForPuzzle(firstPractice.puzzle));
+
+async function verifyProductionMaintenanceMigrationGate() {
+  const migrationPort = port + 3;
+  const migrationDatabasePath = path.join(os.tmpdir(), `waschplan-migration-gate-${process.pid}.sqlite`);
+  const commonEnv = {
+    ...process.env,
+    PORT: String(migrationPort),
+    DB_PATH: migrationDatabasePath,
+    HOUSE_CODE: 'Migration Gate 18',
+    SEED_ADMIN_NAME: 'migration-admin',
+    SEED_ADMIN_PASSWORD: 'Migration-Admin-2026!',
+    SESSION_SECRET: 'migration-gate-session-secret-at-least-32-characters',
+    BACKUP_ENABLED: 'false',
+    EMAIL_ENABLED: 'false',
+    PUSH_ENABLED: 'false'
+  };
+  const initializerOutput = [];
+  const initializer = spawn(process.execPath, ['server.js'], {
+    cwd: path.resolve(__dirname, '..'),
+    env: { ...commonEnv, NODE_ENV: 'development' },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  initializer.stdout.on('data', (chunk) => initializerOutput.push(chunk.toString()));
+  initializer.stderr.on('data', (chunk) => initializerOutput.push(chunk.toString()));
+
+  try {
+    let initialized = false;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${migrationPort}/api/health`);
+        if (response.ok) {
+          initialized = true;
+          break;
+        }
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(initialized, true, initializerOutput.join(''));
+  } finally {
+    if (initializer.exitCode === null) {
+      initializer.kill();
+      await new Promise((resolve) => initializer.once('exit', resolve));
+    }
+  }
+
+  const fixtureDb = new Database(migrationDatabasePath);
+  const fixture = fixtureDb.prepare(`
+    SELECT u.id AS user_id, r.id AS resource_id, r.house_id
+    FROM users u JOIN resources r ON r.house_id = u.house_id
+    WHERE u.role = 'user' ORDER BY r.id LIMIT 1
+  `).get();
+  assert.ok(fixture);
+  fixtureDb.prepare(`
+    INSERT INTO maintenance_cases
+      (house_id, resource_id, reported_by, title, description, status)
+    VALUES (?, ?, ?, 'PRODUCTION-GATE-PRIVATE', 'PRODUCTION-GATE-CONTACT', 'reported')
+  `).run(fixture.house_id, fixture.resource_id, fixture.user_id);
+  fixtureDb.prepare("DELETE FROM settings WHERE key = 'maintenance_reports_v1_migrated'").run();
+  fixtureDb.close();
+
+  const blockedOutput = [];
+  const blocked = spawn(process.execPath, ['server.js'], {
+    cwd: path.resolve(__dirname, '..'),
+    env: { ...commonEnv, NODE_ENV: 'production' },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  blocked.stdout.on('data', (chunk) => blockedOutput.push(chunk.toString()));
+  blocked.stderr.on('data', (chunk) => blockedOutput.push(chunk.toString()));
+  try {
+    await Promise.race([
+      new Promise((resolve) => blocked.once('exit', resolve)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Migration gate process did not stop.')), 5000))
+    ]);
+    assert.notEqual(blocked.exitCode, 0);
+    assert.ok(blockedOutput.join('').includes('MAINTENANCE_MIGRATION_BACKUP_REQUIRED'));
+    await assert.rejects(fetch(`http://127.0.0.1:${migrationPort}/api/health`));
+    const unchangedDb = new Database(migrationDatabasePath, { readonly: true });
+    assert.equal(
+      unchangedDb.prepare("SELECT title FROM maintenance_cases WHERE title = 'PRODUCTION-GATE-PRIVATE'").get().title,
+      'PRODUCTION-GATE-PRIVATE'
+    );
+    assert.equal(
+      unchangedDb.prepare("SELECT value FROM settings WHERE key = 'maintenance_reports_v1_migrated'").get(),
+      undefined
+    );
+    unchangedDb.close();
+  } finally {
+    if (blocked.exitCode === null) {
+      blocked.kill();
+      await new Promise((resolve) => blocked.once('exit', resolve));
+    }
+    for (const suffix of ['', '-wal', '-shm']) {
+      fs.rmSync(`${migrationDatabasePath}${suffix}`, { force: true });
+    }
+  }
+}
+
+async function verifyEmailVerificationBindingMigration() {
+  const migrationPort = port + 4;
+  const migrationDatabasePath = path.join(os.tmpdir(), `waschplan-email-binding-${process.pid}.sqlite`);
+  const commonEnv = {
+    ...process.env,
+    NODE_ENV: 'development',
+    PORT: String(migrationPort),
+    DB_PATH: migrationDatabasePath,
+    HOUSE_CODE: 'Email Binding Gate',
+    SEED_ADMIN_NAME: 'email-binding-admin',
+    SEED_ADMIN_PASSWORD: 'Email-Binding-Admin-2026!',
+    SESSION_SECRET: 'email-binding-session-secret-at-least-32-characters',
+    BACKUP_ENABLED: 'false',
+    EMAIL_ENABLED: 'false',
+    PUSH_ENABLED: 'false'
+  };
+
+  async function runServerToHealth() {
+    const output = [];
+    const child = spawn(process.execPath, ['server.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      env: commonEnv,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    child.stdout.on('data', (chunk) => output.push(chunk.toString()));
+    child.stderr.on('data', (chunk) => output.push(chunk.toString()));
+    try {
+      let healthy = false;
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        try {
+          const response = await fetch(`http://127.0.0.1:${migrationPort}/api/health`);
+          if (response.ok) {
+            healthy = true;
+            break;
+          }
+        } catch {}
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert.equal(healthy, true, output.join(''));
+    } finally {
+      if (child.exitCode === null) {
+        child.kill();
+        await new Promise((resolve) => child.once('exit', resolve));
+      }
+    }
+  }
+
+  try {
+    await runServerToHealth();
+    const fixtureDb = new Database(migrationDatabasePath);
+    fixtureDb.prepare(`
+      UPDATE users
+      SET email = 'legacy-primary@example.test', email_verified = 1,
+          email_verified_value = NULL,
+          secondary_email = 'legacy-secondary@example.test', secondary_email_verified = 1,
+          secondary_email_verified_value = 'old-secondary@example.test'
+      WHERE username = 'email-binding-admin'
+    `).run();
+    fixtureDb.close();
+
+    await runServerToHealth();
+    const migratedDb = new Database(migrationDatabasePath, { readonly: true });
+    const migrated = migratedDb.prepare(`
+      SELECT email, email_verified, email_verified_value,
+             secondary_email, secondary_email_verified, secondary_email_verified_value
+      FROM users WHERE username = 'email-binding-admin'
+    `).get();
+    migratedDb.close();
+    assert.equal(migrated.email, 'legacy-primary@example.test');
+    assert.equal(migrated.email_verified, 0);
+    assert.equal(migrated.email_verified_value, null);
+    assert.equal(migrated.secondary_email, 'legacy-secondary@example.test');
+    assert.equal(migrated.secondary_email_verified, 0);
+    assert.equal(migrated.secondary_email_verified_value, null);
+  } finally {
+    for (const suffix of ['', '-wal', '-shm']) {
+      fs.rmSync(`${migrationDatabasePath}${suffix}`, { force: true });
+    }
+  }
+}
+
+async function verifyReleaseEmailRecipientRevalidation() {
+  const fixtureDb = new Database(':memory:');
+  fixtureDb.exec(`
+    CREATE TABLE apartments (
+      id INTEGER PRIMARY KEY,
+      label TEXT,
+      display_name TEXT
+    );
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY,
+      username TEXT NOT NULL,
+      active INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      apartment_id INTEGER,
+      notify_releases INTEGER NOT NULL,
+      language TEXT NOT NULL,
+      email TEXT,
+      email_verified INTEGER NOT NULL,
+      email_verified_value TEXT,
+      secondary_email TEXT,
+      secondary_email_verified INTEGER NOT NULL,
+      secondary_email_verified_value TEXT
+    );
+    CREATE TABLE notification_preferences (
+      user_id INTEGER PRIMARY KEY,
+      resource_type TEXT,
+      weekday INTEGER,
+      slot TEXT
+    );
+  `);
+  const insertUser = fixtureDb.prepare(`
+    INSERT INTO users
+      (id, username, active, house_id, notify_releases, language,
+       email, email_verified, email_verified_value,
+       secondary_email_verified)
+    VALUES (?, ?, 1, 1, 1, 'de', ?, 1, ?, 0)
+  `);
+  for (let id = 1; id <= 13; id += 1) {
+    const username = `recipient-${String(id).padStart(2, '0')}`;
+    const email = `${username}@example.test`;
+    insertUser.run(id, username, email, email);
+    fixtureDb.prepare(`
+      INSERT INTO notification_preferences (user_id, resource_type, weekday, slot)
+      VALUES (?, 'all', NULL, NULL)
+    `).run(id);
+  }
+
+  const providerPayloads = [];
+  let mutated = false;
+  const service = createNotificationService({
+    db: fixtureDb,
+    crypto,
+    smtpConfig: () => ({ host: 'local-sink', from: 'local@example.test' }),
+    sendMail: async (payload) => {
+      providerPayloads.push(payload);
+      if (!mutated) {
+        mutated = true;
+        fixtureDb.transaction(() => {
+          fixtureDb.prepare("UPDATE users SET email = 'changed-06@example.test' WHERE id = 6").run();
+          fixtureDb.prepare('UPDATE users SET email = NULL WHERE id = 7').run();
+          fixtureDb.prepare('UPDATE users SET active = 0 WHERE id = 8').run();
+          fixtureDb.prepare('UPDATE users SET house_id = 2 WHERE id = 9').run();
+          fixtureDb.prepare('UPDATE users SET notify_releases = 0 WHERE id = 10').run();
+          fixtureDb.prepare("UPDATE users SET email_verified_value = 'drift-11@example.test' WHERE id = 11").run();
+          fixtureDb.prepare('DELETE FROM users WHERE id = 12').run();
+        })();
+      }
+    },
+    isValidEmail,
+    normalizeEmail,
+    tokenHash: (value) => value,
+    publicAppUrl: () => 'http://127.0.0.1',
+    apartmentAccountLabel: (_id, username) => username,
+    weekdayForDate: () => 2,
+    notifyPushSubscribers: async () => ({ configured: false, sent: 0 }),
+    releaseNoticeUrl: () => '/index.html'
+  });
+
+  try {
+    const result = await service.notifyReleaseSubscribers({}, {
+      house_id: 1,
+      user_id: 999,
+      resource_type: 'washer',
+      resource_name: 'Waschmaschine Test',
+      booking_date: '2026-08-11',
+      slot: '07:00-12:00',
+      house_name: 'Synthetisches Haus'
+    }, 'Ein Zeitfenster ist frei.');
+    assert.equal(result.configured, true);
+    assert.equal(result.sent, 6);
+    assert.deepEqual(providerPayloads.map((payload) => payload.to), [
+      'recipient-01@example.test',
+      'recipient-02@example.test',
+      'recipient-03@example.test',
+      'recipient-04@example.test',
+      'recipient-05@example.test',
+      'recipient-13@example.test'
+    ]);
+    const providerOutput = JSON.stringify(providerPayloads);
+    for (let id = 6; id <= 12; id += 1) {
+      assert.equal(providerOutput.includes(`recipient-${String(id).padStart(2, '0')}@example.test`), false);
+    }
+    assert.equal(providerOutput.includes('changed-06@example.test'), false);
+    assert.equal(providerOutput.includes('drift-11@example.test'), false);
+  } finally {
+    fixtureDb.close();
+  }
+}
+
 async function verifySmtpDelivery() {
   const messages = [];
   const smtpServer = net.createServer((socket) => {
@@ -264,6 +573,16 @@ async function verifySmtpDelivery() {
     const verificationLink = messages[0].match(/http:\/\/[^\s]+\/api\/email-verification\/confirm\?token=[a-f0-9]+/)[0];
     const verification = await fetch(verificationLink, { redirect: 'manual' });
     assert.equal(verification.status, 302);
+    const verifiedDatabase = new Database(smtpDatabasePath, { readonly: true });
+    const verifiedAccount = verifiedDatabase.prepare(`
+      SELECT email_verified, email_verified_value
+      FROM users WHERE email = 'smtp-person@example.com'
+    `).get();
+    verifiedDatabase.close();
+    assert.deepEqual(verifiedAccount, {
+      email_verified: 1,
+      email_verified_value: 'smtp-person@example.com'
+    });
 
     const resetRequest = await fetch(`http://127.0.0.1:${appPort}/api/password-reset/request`, {
       method: 'POST',
@@ -409,6 +728,15 @@ function verifyReleaseWindow() {
 
 async function run() {
   verifyReleaseWindow();
+  await verifyReleaseEmailRecipientRevalidation();
+  for (const value of [undefined, '', 'unknown', 'staging', 'agent-test', 'PRODUCTION ']) {
+    const environment = resolveAppEnvironment({ NODE_ENV: value === 'PRODUCTION ' ? 'development' : 'production', APP_ENV: value });
+    assert.deepEqual(environment, { environment: 'test', displayName: 'WaschZeit Test' });
+  }
+  assert.deepEqual(
+    resolveAppEnvironment({ NODE_ENV: 'production', APP_ENV: ' production ' }),
+    { environment: 'production', displayName: 'WaschZeit' }
+  );
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -440,12 +768,16 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.9');
+    assert.equal(health.body.version, '0.3.0-test.10');
+    assert.equal(health.body.environment, 'test');
+    assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.9');
+    assert.equal(versionStatus.body.version, '0.3.0-test.10');
+    assert.equal(versionStatus.body.environment, 'test');
+    assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
     await expectStatus(guest, '/api/login', 403, {
       method: 'POST',
@@ -1174,7 +1506,9 @@ async function run() {
     beforeRecoveryDatabase.prepare(`
       UPDATE users
       SET email = NULL, secondary_email = NULL,
-          email_verified = 1, secondary_email_verified = 1
+          email_verified = 1, email_verified_value = 'old-primary@example.test',
+          secondary_email_verified = 1,
+          secondary_email_verified_value = 'old-secondary@example.test'
       WHERE id = ?
     `).run(recoveryUserId);
     beforeRecoveryDatabase.close();
@@ -1227,6 +1561,19 @@ async function run() {
     const recoveredMe = await expectStatus(recoveredAccount, '/api/me', 200);
     assert.equal(recoveredMe.body.user.apartmentLabel, '1. OG rechts');
     assert.equal(recoveredMe.body.user.emailVerified, false);
+    const recoveredBindingDatabase = new Database(databasePath, { readonly: true });
+    const recoveredBinding = recoveredBindingDatabase.prepare(`
+      SELECT email_verified, email_verified_value,
+             secondary_email_verified, secondary_email_verified_value
+      FROM users WHERE id = ?
+    `).get(recoveryUserId);
+    recoveredBindingDatabase.close();
+    assert.deepEqual(recoveredBinding, {
+      email_verified: 0,
+      email_verified_value: null,
+      secondary_email_verified: 0,
+      secondary_email_verified_value: null
+    });
 
     const existingApartment = await expectStatus(admin, '/api/admin/apartments', 201, {
       method: 'POST',
@@ -1373,18 +1720,250 @@ async function run() {
     });
     const reportableResources = await expectStatus(user, '/api/maintenance-resources', 200);
     assert.ok(reportableResources.body.resources.some((resource) => resource.id === addedResource.body.id));
+    const maintenancePushEndpoint = `https://push.example.test/maintenance-${crypto.randomUUID()}`;
+    await expectStatus(user, '/api/push/subscriptions', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: {
+          endpoint: maintenancePushEndpoint,
+          keys: {
+            p256dh: Buffer.from(crypto.randomBytes(65)).toString('base64url'),
+            auth: Buffer.from(crypto.randomBytes(16)).toString('base64url')
+          }
+        }
+      })
+    });
     const reportedIssue = await expectStatus(user, '/api/maintenance-cases', 201, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-0001' },
       body: JSON.stringify({
         resourceId: addedResource.body.id,
         title: 'Ablauf pruefen',
         description: 'Nach dem Trocknen steht Wasser unter dem Geraet.'
       })
     });
+    const pushBindingInspection = new Database(databasePath, { readonly: true });
+    const activePushBindings = pushBindingInspection.prepare(`
+      SELECT user_id, house_id, endpoint, active FROM push_subscriptions
+      WHERE user_id = ? ORDER BY id
+    `).all(registration.body.user.id);
+    pushBindingInspection.close();
+    assert.ok(activePushBindings.some((binding) => (
+      binding.active === 1 && Number(binding.house_id) === Number(defaultHouseId)
+    )), `Aktives Push-Geraet ist nicht an das Meldungshaus gebunden: ${JSON.stringify(activePushBindings)}`);
     const ownIssues = await expectStatus(user, '/api/maintenance-cases', 200);
-    assert.ok(ownIssues.body.cases.some((item) => item.id === reportedIssue.body.id && item.status === 'reported'));
+    assert.deepEqual(ownIssues.body.notificationAvailability, { push: true, email: false });
+    assert.ok(ownIssues.body.cases.some((item) => (
+      item.report_id === reportedIssue.body.reportId
+      && item.status === 'new'
+    )));
+    assert.deepEqual(Object.keys(ownIssues.body.cases[0]).sort(), [
+      'description', 'notificationAvailability', 'notificationPreferences', 'report_id', 'reported_at',
+      'resource_name', 'resource_type', 'status', 'title'
+    ]);
+    assert.equal(Object.hasOwn(ownIssues.body.cases[0], 'technical_status'), false);
+    const emailContractDb = new Database(databasePath);
+    const originalReporterEmail = emailContractDb.prepare(`
+      SELECT email, email_verified, email_verified_value,
+             secondary_email, secondary_email_verified, secondary_email_verified_value
+      FROM users WHERE id = ?
+    `).get(registration.body.user.id);
+    emailContractDb.prepare(`
+      UPDATE users
+      SET email_verified = 1, email_verified_value = lower(trim(email)),
+          secondary_email_verified = 1,
+          secondary_email_verified_value = lower(trim(secondary_email))
+      WHERE id = ?
+    `).run(registration.body.user.id);
+    emailContractDb.close();
+    await expectStatus(user, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: 'changed-by-preferences@example.test',
+        secondaryEmail: originalReporterEmail.secondary_email || '',
+        notifyReleases: true,
+        resourceType: 'drying_room',
+        weekday: 2,
+        slot: '12:00-17:00'
+      })
+    });
+    const changedPrimaryDb = new Database(databasePath, { readonly: true });
+    const changedPrimary = changedPrimaryDb.prepare(`
+      SELECT email_verified, email_verified_value FROM users WHERE id = ?
+    `).get(registration.body.user.id);
+    changedPrimaryDb.close();
+    assert.deepEqual(changedPrimary, { email_verified: 0, email_verified_value: null });
+    await expectStatus(user, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: originalReporterEmail.email,
+        secondaryEmail: '',
+        notifyReleases: true,
+        resourceType: 'drying_room',
+        weekday: 2,
+        slot: '12:00-17:00'
+      })
+    });
+    const clearedSecondaryDb = new Database(databasePath, { readonly: true });
+    const clearedSecondary = clearedSecondaryDb.prepare(`
+      SELECT secondary_email, secondary_email_verified, secondary_email_verified_value
+      FROM users WHERE id = ?
+    `).get(registration.body.user.id);
+    clearedSecondaryDb.close();
+    assert.deepEqual(clearedSecondary, {
+      secondary_email: null,
+      secondary_email_verified: 0,
+      secondary_email_verified_value: null
+    });
+    await expectStatus(user, '/api/me/notifications', 200, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email: originalReporterEmail.email,
+        secondaryEmail: originalReporterEmail.secondary_email || '',
+        notifyReleases: true,
+        resourceType: 'drying_room',
+        weekday: 2,
+        slot: '12:00-17:00'
+      })
+    });
+    const restoreProfileBindingDb = new Database(databasePath);
+    restoreProfileBindingDb.prepare(`
+      UPDATE users
+      SET email = ?, email_verified = ?, email_verified_value = ?,
+          secondary_email = ?, secondary_email_verified = ?, secondary_email_verified_value = ?
+      WHERE id = ?
+    `).run(
+      originalReporterEmail.email,
+      originalReporterEmail.email_verified,
+      originalReporterEmail.email_verified_value,
+      originalReporterEmail.secondary_email,
+      originalReporterEmail.secondary_email_verified,
+      originalReporterEmail.secondary_email_verified_value,
+      registration.body.user.id
+    );
+    restoreProfileBindingDb.prepare(`
+      UPDATE users
+      SET email = 'changed-primary@example.test', email_verified = 1,
+          email_verified_value = 'old-primary@example.test',
+          secondary_email = NULL, secondary_email_verified = 0,
+          secondary_email_verified_value = NULL
+      WHERE id = ?
+    `).run(registration.body.user.id);
+    restoreProfileBindingDb.close();
+    assert.equal((await expectStatus(user, '/api/maintenance-cases', 200)).body.notificationAvailability.email, false);
+    const staleEmailExport = await expectStatus(user, '/api/me/export', 200);
+    assert.equal(staleEmailExport.body.account.email_verified, 0);
+    assert.equal(Object.hasOwn(staleEmailExport.body.account, 'email_verified_value'), false);
+    assert.equal(Object.hasOwn(staleEmailExport.body.account, 'secondary_email_verified_value'), false);
+    await expectStatus(user, `/api/maintenance-reports/${reportedIssue.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: false, email: true })
+    });
+    await expectStatus(user, '/api/maintenance-cases', 409, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-email-stale-primary' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'E-Mail nicht verfuegbar',
+        description: 'Ein veraltetes Bestaetigungsflag darf keine geaenderte Adresse aktivieren.',
+        notifyEmail: true
+      })
+    });
+    const legacyEmailDb = new Database(databasePath);
+    legacyEmailDb.prepare(`
+      UPDATE users
+      SET email = 'legacy-primary@example.test', email_verified = 1,
+          email_verified_value = NULL
+      WHERE id = ?
+    `).run(registration.body.user.id);
+    legacyEmailDb.close();
+    assert.equal((await expectStatus(user, '/api/maintenance-cases', 200)).body.notificationAvailability.email, false);
+    await expectStatus(user, `/api/maintenance-reports/${reportedIssue.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: false, email: true })
+    });
+    const secondaryEmailDb = new Database(databasePath);
+    secondaryEmailDb.prepare(`
+      UPDATE users
+      SET email = 'changed-primary@example.test', email_verified = 1,
+          email_verified_value = 'old-primary@example.test',
+          secondary_email = 'reporter-secondary@example.test',
+          secondary_email_verified = 1,
+          secondary_email_verified_value = 'reporter-secondary@example.test'
+      WHERE id = ?
+    `).run(registration.body.user.id);
+    secondaryEmailDb.close();
+    assert.equal((await expectStatus(user, '/api/maintenance-cases', 200)).body.notificationAvailability.email, true);
+    await expectStatus(user, `/api/maintenance-reports/${reportedIssue.body.reportId}/preferences`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ push: false, email: true })
+    });
+    const secondaryEmailReport = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-email-secondary-fallback' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Bestaetigte Zweitadresse',
+        description: 'Die bestaetigte Zweitadresse ist der einzige zulaessige E-Mail-Empfaenger.',
+        notifyEmail: true
+      })
+    });
+    const staleSecondaryDb = new Database(databasePath);
+    staleSecondaryDb.prepare(`
+      UPDATE users
+      SET secondary_email = 'changed-secondary@example.test',
+          secondary_email_verified = 1,
+          secondary_email_verified_value = 'reporter-secondary@example.test'
+      WHERE id = ?
+    `).run(registration.body.user.id);
+    staleSecondaryDb.close();
+    assert.equal((await expectStatus(user, '/api/maintenance-cases', 200)).body.notificationAvailability.email, false);
+    await expectStatus(user, `/api/maintenance-reports/${reportedIssue.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: false, email: true })
+    });
+    const restoreEmailContractDb = new Database(databasePath);
+    restoreEmailContractDb.prepare(`
+      UPDATE users
+      SET email = ?, email_verified = ?, email_verified_value = ?,
+          secondary_email = ?, secondary_email_verified = ?, secondary_email_verified_value = ?
+      WHERE id = ?
+    `).run(
+      originalReporterEmail.email,
+      originalReporterEmail.email_verified,
+      originalReporterEmail.email_verified_value,
+      originalReporterEmail.secondary_email,
+      originalReporterEmail.secondary_email_verified,
+      originalReporterEmail.secondary_email_verified_value,
+      registration.body.user.id
+    );
+    restoreEmailContractDb.close();
+    await expectStatus(user, `/api/maintenance-reports/${secondaryEmailReport.body.reportId}`, 200, {
+      method: 'DELETE'
+    });
+    const replayedIssue = await expectStatus(user, '/api/maintenance-cases', 200, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-0001' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Ablauf pruefen',
+        description: 'Nach dem Trocknen steht Wasser unter dem Geraet.'
+      })
+    });
+    assert.equal(replayedIssue.body.reportId, reportedIssue.body.reportId);
+    assert.equal(replayedIssue.body.replayed, true);
+    await expectStatus(user, '/api/maintenance-cases', 409, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-0001' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Ablauf pruefen',
+        description: 'Abweichender Inhalt muss abgewiesen werden.'
+      })
+    });
     const additionalObservation = await expectStatus(user, '/api/maintenance-cases', 201, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-0002' },
       body: JSON.stringify({
         resourceId: addedResource.body.id,
         title: 'Zweite Beobachtung',
@@ -1393,24 +1972,196 @@ async function run() {
     });
     assert.equal(additionalObservation.body.id, reportedIssue.body.id);
     assert.equal(additionalObservation.body.addedToExisting, true);
+    const secondReporter = new ApiClient();
+    await expectStatus(secondReporter, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Zweite Meldeperson',
+        email: 'zweite-meldeperson@example.test',
+        password: 'Zweite-Meldeperson-2026!',
+        houseCode: 'Testhaus 18'
+      })
+    });
+    const secondReport = await expectStatus(secondReporter, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-second-0001' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Nur zweite Person',
+        description: 'FREMDREPORT-SENTINEL darf die erste Person niemals sehen.'
+      })
+    });
+    assert.equal(secondReport.body.id, reportedIssue.body.id);
+    const firstReporterProjection = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.equal(firstReporterProjection.body.cases.length, 2);
+    assert.ok(!JSON.stringify(firstReporterProjection.body).includes('FREMDREPORT-SENTINEL'));
+    assert.ok(!JSON.stringify(firstReporterProjection.body).includes('Zweite Meldeperson'));
+    assert.ok(firstReporterProjection.body.cases.every((item) => (
+      ['new', 'in_progress', 'done'].includes(item.status)
+      && Object.keys(item).sort().join('|') === [
+        'description', 'notificationAvailability', 'notificationPreferences', 'report_id', 'reported_at',
+        'resource_name', 'resource_type', 'status', 'title'
+      ].join('|')
+    )));
+    const ownReportIdsBeforeLegacyJoin = firstReporterProjection.body.cases
+      .map((item) => item.report_id).sort();
+    await expectStatus(user, '/api/me/apartment/join', 410, {
+      method: 'POST',
+      body: JSON.stringify({ deviceCode: 'LEGACY-MERGE-MUST-STAY-DISABLED' })
+    });
+    const firstReporterAfterLegacyJoin = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.deepEqual(
+      firstReporterAfterLegacyJoin.body.cases.map((item) => item.report_id).sort(),
+      ownReportIdsBeforeLegacyJoin
+    );
+    assert.equal((await expectStatus(user, '/api/me', 200)).body.user.id, registration.body.user.id);
+    const secondReporterProjection = await expectStatus(secondReporter, '/api/maintenance-cases', 200);
+    assert.equal(secondReporterProjection.body.cases.length, 1);
+    assert.equal(secondReporterProjection.body.cases[0].report_id, secondReport.body.reportId);
+    assert.ok(JSON.stringify(secondReporterProjection.body).includes('FREMDREPORT-SENTINEL'));
+    assert.ok(!JSON.stringify(secondReporterProjection.body).includes('Nach dem Trocknen'));
+    const firstReporterExport = await expectStatus(user, '/api/me/export', 200);
+    assert.equal(firstReporterExport.body.maintenanceReports.length, 2);
+    assert.ok(!JSON.stringify(firstReporterExport.body.maintenanceReports).includes('FREMDREPORT-SENTINEL'));
+    assert.ok(firstReporterExport.body.maintenanceReports.every((report) => (
+      Object.keys(report).sort().join('|') === [
+        'context', 'description', 'notificationPreferences', 'reportId', 'reportedAt', 'status', 'title'
+      ].join('|')
+      && Object.keys(report.context).sort().join('|') === ['houseName', 'resourceName', 'resourceType'].join('|')
+      && !Object.hasOwn(report, 'case')
+      && !Object.hasOwn(report, 'notificationDeliveries')
+    )));
+    await expectStatus(user, `/api/maintenance-reports/${secondReport.body.reportId}`, 404, { method: 'DELETE' });
+    await expectStatus(secondReporter, `/api/maintenance-reports/${secondReport.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: true, email: false })
+    });
+    await expectStatus(secondReporter, `/api/maintenance-reports/${secondReport.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: false, email: true })
+    });
+    const pushIsolationDatabase = new Database(databasePath);
+    const foreignPushHouse = pushIsolationDatabase.prepare(`
+      INSERT INTO houses (name, code) VALUES ('Push-Isolationshaus', 'PUSH-ISOLATION-HOUSE')
+    `).run();
+    pushIsolationDatabase.prepare(`
+      UPDATE push_subscriptions SET house_id = ?
+      WHERE user_id = ? AND active = 1
+    `).run(foreignPushHouse.lastInsertRowid, registration.body.user.id);
+    pushIsolationDatabase.close();
+    const foreignHousePushState = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.deepEqual(foreignHousePushState.body.notificationAvailability, { push: false, email: false });
+    assert.ok(foreignHousePushState.body.cases.every((item) => item.notificationAvailability.push === false));
+    await expectStatus(user, `/api/maintenance-reports/${reportedIssue.body.reportId}/preferences`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ push: true, email: false })
+    });
+    await expectStatus(user, '/api/maintenance-cases', 409, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-push-foreign-house' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Push fremdes Haus',
+        description: 'Diese Meldung darf mit fremdem Pushgeraet nicht angelegt werden.',
+        notifyPush: true
+      })
+    });
+    const restorePushDatabase = new Database(databasePath);
+    restorePushDatabase.prepare(`
+      UPDATE push_subscriptions SET house_id = ?, active = 0 WHERE user_id = ?
+    `).run(defaultHouseId, registration.body.user.id);
+    const inactivePushState = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.deepEqual(inactivePushState.body.notificationAvailability, { push: false, email: false });
+    restorePushDatabase.prepare('UPDATE push_subscriptions SET active = 1 WHERE user_id = ?')
+      .run(registration.body.user.id);
+    restorePushDatabase.prepare('DELETE FROM houses WHERE id = ?').run(foreignPushHouse.lastInsertRowid);
+    restorePushDatabase.close();
+    const restoredPushState = await expectStatus(user, '/api/maintenance-cases', 200);
+    assert.deepEqual(restoredPushState.body.notificationAvailability, { push: true, email: false });
+    const pushEnabledReport = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-push-current-house' },
+      body: JSON.stringify({
+        resourceId: addedResource.body.id,
+        title: 'Push im Meldungshaus',
+        description: 'Aktives Pushgeraet im Meldungshaus ist ausdruecklich waehlbar.',
+        notifyPush: true
+      })
+    });
+    await expectStatus(user, `/api/maintenance-reports/${pushEnabledReport.body.reportId}`, 200, {
+      method: 'DELETE'
+    });
     await expectStatus(user, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 403, {
       method: 'POST',
       body: JSON.stringify({ action: 'block', note: 'Bewohner darf nicht sperren.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 400, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'takeover', note: 'Erste Einschaetzung dokumentiert.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'takeover',
+        blockDecision: 'automatic',
+        note: 'Eine ungueltige Entscheidung darf nichts veraendern.'
+      })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 409, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'block', note: 'Direkte Sperre darf neuen Fall nicht uebernehmen.' })
     });
     await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 409, {
       method: 'POST',
       body: JSON.stringify({ action: 'release', note: 'Zu frueh.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'block', note: 'Wegen moeglichem Wasseraustritt gesperrt.' })
+    const maintenanceBookingDate = addDays(nextWeekday(4), 70);
+    const maintenanceBookingDatabase = new Database(databasePath);
+    const maintenanceBooking = maintenanceBookingDatabase.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+      VALUES (?, ?, ?, '12:00-17:00')
+    `).run(registration.body.user.id, addedResource.body.id, maintenanceBookingDate);
+    const maintenanceBookingBeforeBlock = maintenanceBookingDatabase.prepare('SELECT * FROM bookings WHERE id = ?')
+      .get(maintenanceBooking.lastInsertRowid);
+    maintenanceBookingDatabase.close();
+    await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 409, {
+      method: 'PUT',
+      body: JSON.stringify({ active: false, blockReason: 'API-Bypass muss scheitern' })
     });
+    const bypassInspection = new Database(databasePath, { readonly: true });
+    assert.equal(bypassInspection.prepare('SELECT status FROM maintenance_cases WHERE id = ?').get(reportedIssue.body.id).status, 'reported');
+    assert.equal(bypassInspection.prepare('SELECT active FROM resources WHERE id = ?').get(addedResource.body.id).active, 1);
+    assert.deepEqual(
+      bypassInspection.prepare('SELECT * FROM bookings WHERE id = ?').get(maintenanceBooking.lastInsertRowid),
+      maintenanceBookingBeforeBlock
+    );
+    assert.equal(bypassInspection.prepare('SELECT COUNT(*) AS count FROM maintenance_entries WHERE case_id = ?').get(reportedIssue.body.id).count, 0);
+    bypassInspection.close();
+    const takeoverWithBlock = await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'takeover',
+        blockDecision: 'block',
+        note: 'Wegen moeglichem Wasseraustritt gesperrt.'
+      })
+    });
+    assert.equal(takeoverWithBlock.body.visibleStatus, 'in_progress');
+    assert.ok(takeoverWithBlock.body.affectedBookings.some((booking) => booking.id === maintenanceBooking.lastInsertRowid));
+    const maintenanceBookingAfterBlockDatabase = new Database(databasePath);
+    assert.deepEqual(
+      maintenanceBookingAfterBlockDatabase.prepare('SELECT * FROM bookings WHERE id = ?').get(maintenanceBooking.lastInsertRowid),
+      maintenanceBookingBeforeBlock
+    );
+    maintenanceBookingAfterBlockDatabase.close();
     const adminResources = await expectStatus(admin, '/api/admin/resources', 200);
-    assert.ok(adminResources.body.resources.some((resource) => (
+    const blockedAdminResource = adminResources.body.resources.find((resource) => (
       resource.id === addedResource.body.id
         && resource.active === 0
         && resource.blocked_reason === 'Wegen moeglichem Wasseraustritt gesperrt.'
-    )));
+    ));
+    assert.ok(blockedAdminResource);
+    assert.equal(Object.hasOwn(blockedAdminResource, 'blocked_by'), false);
+    assert.match(blockedAdminResource.blocked_by_actor, /^actor-[a-f0-9]{16}$/);
     await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 409, {
       method: 'PUT',
       body: JSON.stringify({ name: 'Trockenraum Reserve', active: true })
@@ -1439,11 +2190,72 @@ async function run() {
     const closedIssue = closedIssues.body.cases.find((item) => item.id === reportedIssue.body.id);
     assert.equal(closedIssue.status, 'closed');
     assert.deepEqual(closedIssue.entries.map((entry) => entry.entry_type), [
-      'report', 'report', 'block', 'repair', 'test_failed', 'test_passed', 'release'
+      'block', 'repair', 'test_failed', 'test_passed', 'release'
     ]);
+    assert.equal(closedIssue.reports.length, 3);
+    assert.ok(closedIssue.reports.some((report) => report.description.includes('FREMDREPORT-SENTINEL')));
+    await expectStatus(secondReporter, `/api/maintenance-reports/${secondReport.body.reportId}`, 200, { method: 'DELETE' });
+    const secondReporterAfterDelete = await expectStatus(secondReporter, '/api/maintenance-cases', 200);
+    assert.equal(secondReporterAfterDelete.body.cases.length, 0);
     await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}`, 404, { method: 'DELETE' });
     const releasedResources = await expectStatus(admin, '/api/admin/resources', 200);
     assert.ok(releasedResources.body.resources.some((resource) => resource.id === addedResource.body.id && resource.active === 1));
+
+    const availableResource = await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Waschmaschine Beobachtung', type: 'washer' })
+    });
+    const availableCase = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-available-0001' },
+      body: JSON.stringify({
+        resourceId: availableResource.body.id,
+        title: 'Ungewoehnliches Geraeusch',
+        description: 'Beim Schleudern ist ein ungewoehnliches Geraeusch hoerbar.'
+      })
+    });
+    const takeoverPayload = {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'takeover',
+        blockDecision: 'keep_available',
+        note: 'Geraet bleibt bis zur technischen Kontrolle verfuegbar.'
+      })
+    };
+    const concurrentTakeovers = await Promise.all([
+      admin.request(`/api/admin/maintenance-cases/${availableCase.body.id}/actions`, takeoverPayload),
+      admin.request(`/api/admin/maintenance-cases/${availableCase.body.id}/actions`, takeoverPayload)
+    ]);
+    assert.deepEqual(concurrentTakeovers.map((item) => item.response.status).sort(), [200, 409]);
+    const takeoverAvailable = concurrentTakeovers.find((item) => item.response.status === 200);
+    assert.equal(takeoverAvailable.body.status, 'repairing');
+    assert.equal(takeoverAvailable.body.visibleStatus, 'in_progress');
+    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 409, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: true, note: 'Pruefung ohne dokumentierte Reparatur.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'repair', note: 'Lockere Abdeckung befestigt.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 409, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'close', note: 'Abschluss vor Funktionspruefung.' })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', successful: true, note: 'Probelauf ohne Auffaelligkeit.' })
+    });
+    const closeAvailable = await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'close', note: 'Abdeckung befestigt und Probelauf erfolgreich.' })
+    });
+    assert.equal(closeAvailable.body.status, 'closed');
+    assert.equal(closeAvailable.body.visibleStatus, 'done');
+    const availableResourcesAfterClose = await expectStatus(admin, '/api/admin/resources', 200);
+    assert.ok(availableResourcesAfterClose.body.resources.some((resource) => (
+      resource.id === availableResource.body.id && resource.active === 1
+    )));
 
     await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
       method: 'PUT',
@@ -1454,7 +2266,9 @@ async function run() {
       item.resource_id === addedResource.body.id && item.status === 'blocked'
     ));
     assert.ok(directBlockCase);
-    assert.deepEqual(directBlockCase.entries.map((entry) => entry.entry_type), ['report', 'block']);
+    assert.deepEqual(directBlockCase.entries.map((entry) => entry.entry_type), ['block']);
+    assert.equal(directBlockCase.title, 'Betriebsfall');
+    assert.equal(directBlockCase.description, '');
     await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'repair', note: 'Sichtkontrolle und Reinigung abgeschlossen.' })
@@ -1467,6 +2281,33 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'release', note: 'Reinigung abgeschlossen, Testbetrieb erfolgreich.' })
     });
+
+    const privacyInspection = new Database(databasePath, { readonly: true });
+    const neutralCases = privacyInspection.prepare(`
+      SELECT reported_by, title, description FROM maintenance_cases
+    `).all();
+    assert.ok(neutralCases.every((item) => (
+      item.reported_by === null && item.title === 'Betriebsfall' && item.description === ''
+    )));
+    const neutralEntryText = JSON.stringify(privacyInspection.prepare(`
+      SELECT entry_type, note FROM maintenance_entries ORDER BY id
+    `).all());
+    assert.ok(!neutralEntryText.includes('Nach dem Trocknen'));
+    assert.ok(!neutralEntryText.includes('FREMDREPORT-SENTINEL'));
+    const maintenanceAudits = privacyInspection.prepare(`
+      SELECT user_id, action, details FROM audit_log
+      WHERE action LIKE 'maintenance_case.%' OR action = 'resource.block'
+      ORDER BY id
+    `).all();
+    privacyInspection.close();
+    assert.ok(maintenanceAudits.length > 0);
+    assert.ok(maintenanceAudits.every((entry) => entry.user_id === null));
+    const maintenanceAuditText = JSON.stringify(maintenanceAudits);
+    assert.ok(!maintenanceAuditText.includes('Nach dem Trocknen'));
+    assert.ok(!maintenanceAuditText.includes('FREMDREPORT-SENTINEL'));
+    assert.ok(!maintenanceAuditText.includes('zweite-meldeperson@example.test'));
+    assert.ok(!maintenanceAuditText.includes('Wegen moeglichem Wasseraustritt'));
+    assert.ok(maintenanceAudits.some((entry) => JSON.parse(entry.details).actorRef));
 
     const defaultResourcesBeforeHouseCreate = await expectStatus(admin, '/api/resources', 200);
     const preservedDefaultResourceIds = defaultResourcesBeforeHouseCreate.body.resources
@@ -1613,7 +2454,7 @@ async function run() {
       body: JSON.stringify({ houseId: defaultHouseId })
     });
 
-    await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+    const legacyFixedBooking = await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
       method: 'POST',
       body: JSON.stringify({
         label: 'Frau Meier',
@@ -1622,10 +2463,185 @@ async function run() {
         slot: '12:00-17:00'
       })
     });
+    assert.equal(legacyFixedBooking.body.legacy, true);
     await expectStatus(user, '/api/bookings', 409, {
       method: 'POST',
       body: JSON.stringify({ resourceId: washers[2].id, date: fixedDate, slot: '12:00-17:00' })
     });
+
+    const fixedPackageDatabase = new Database(databasePath);
+    const fixedPackageResources = [washers[0], washers[1], dryingRooms[0], tumblers[0], tumblers[1]];
+    const fixedPackageCandidate = [1, 2, 3, 4, 5, 6].find((weekday) => {
+      const plannedRows = [
+        [washers[0].id, weekday, '07:00-12:00'],
+        [dryingRooms[0].id, weekday, '07:00-12:00'],
+        [dryingRooms[0].id, weekday, '12:00-17:00'],
+        [tumblers[0].id, weekday, '07:00-12:00'],
+        [washers[1].id, weekday, '07:00-12:00'],
+        [tumblers[1].id, weekday, '07:00-12:00']
+      ];
+      return plannedRows.every(([resourceId, rowWeekday, rowSlot]) => (
+        !fixedPackageDatabase.prepare(`
+          SELECT 1 FROM bookings
+          WHERE resource_id = ? AND slot = ? AND booking_date >= ?
+            AND CAST(strftime('%w', booking_date) AS INTEGER) = ?
+          LIMIT 1
+        `).get(resourceId, rowSlot, swissDateString(), rowWeekday)
+        && !fixedPackageDatabase.prepare(`
+          SELECT 1 FROM fixed_bookings
+          WHERE active = 1 AND resource_id = ? AND weekday = ? AND slot = ?
+          LIMIT 1
+        `).get(resourceId, rowWeekday, rowSlot)
+      ));
+    });
+    fixedPackageDatabase.close();
+    assert.ok(fixedPackageCandidate, `Kein freier synthetischer Dauerpaket-Slot fuer ${fixedPackageResources.length} Ressourcen`);
+
+    const fixedRowsBeforeInvalid = (await expectStatus(admin, '/api/admin/fixed-bookings', 200)).body.fixedBookings.length;
+    const blockedFixedResource = await expectStatus(admin, '/api/admin/resources', 201, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Trockenraum Dauerpaket gesperrt', type: 'drying_room' })
+    });
+    await expectStatus(admin, `/api/admin/resources/${blockedFixedResource.body.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ active: false, blockReason: 'Synthetische Dauerpaket-Pruefung' })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Gemischter Vertrag',
+        resourceId: washers[0].id,
+        resourceIds: [washers[0].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00'
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Zwei Waschmaschinen',
+        resourceIds: [washers[0].id, washers[1].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00'
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Ohne Waschmaschine',
+        resourceIds: [dryingRooms[0].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00',
+        dryingDurationSlots: 1
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 404, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Fremdes Haus',
+        resourceIds: [secondWasher.id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00'
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 404, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Gesperrte Ressource',
+        resourceIds: [washers[0].id, blockedFixedResource.body.id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00',
+        dryingDurationSlots: 1
+      })
+    });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 400, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Sonntagsfenster',
+        resourceIds: [washers[0].id, dryingRooms[0].id],
+        weekday: 6,
+        slot: '12:00-17:00',
+        dryingDurationSlots: 3
+      })
+    });
+    assert.equal((await expectStatus(admin, '/api/admin/fixed-bookings', 200)).body.fixedBookings.length, fixedRowsBeforeInvalid);
+
+    const fixedPackage = await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Dauerpaket Test',
+        resourceIds: [washers[0].id, dryingRooms[0].id, tumblers[0].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00',
+        dryingDurationSlots: 2
+      })
+    });
+    assert.equal(fixedPackage.body.legacy, false);
+    assert.ok(fixedPackage.body.groupId);
+    assert.equal(fixedPackage.body.created.length, 4);
+    assert.equal(fixedPackage.body.created.filter((item) => item.type === 'washer').length, 1);
+    assert.equal(fixedPackage.body.created.filter((item) => item.type === 'drying_room').length, 2);
+    const fixedPackageList = await expectStatus(admin, '/api/admin/fixed-bookings', 200);
+    const listedFixedPackage = fixedPackageList.body.fixedBookings.filter((item) => item.group_id === fixedPackage.body.groupId);
+    assert.equal(listedFixedPackage.length, 4);
+    assert.ok(listedFixedPackage.filter((item) => item.resource_type === 'drying_room')
+      .every((item) => item.drying_duration_slots === 2));
+    await expectStatus(admin, '/api/admin/fixed-bookings', 409, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Tumblerreserve Test',
+        resourceIds: [washers[1].id, tumblers[1].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00'
+      })
+    });
+
+    const crossHouseGroupDatabase = new Database(databasePath);
+    const crossHouseGroupRow = crossHouseGroupDatabase.prepare(`
+      INSERT INTO fixed_bookings (resource_id, weekday, slot, label, group_id, created_by)
+      VALUES (?, ?, '17:00-21:00', 'Fremdhaus-Kollision', ?, ?)
+    `).run(secondWasher.id, fixedPackageCandidate, fixedPackage.body.groupId, adminUser.id);
+    crossHouseGroupDatabase.close();
+    await expectStatus(admin, `/api/admin/fixed-bookings/${fixedPackage.body.id}`, 409, { method: 'DELETE' });
+    const collisionInspection = new Database(databasePath);
+    assert.equal(
+      collisionInspection.prepare('SELECT COUNT(*) AS count FROM fixed_bookings WHERE group_id = ? AND active = 1')
+        .get(fixedPackage.body.groupId).count,
+      5
+    );
+    collisionInspection.prepare('DELETE FROM fixed_bookings WHERE id = ?').run(crossHouseGroupRow.lastInsertRowid);
+    collisionInspection.close();
+    const deletedFixedPackage = await expectStatus(
+      admin,
+      `/api/admin/fixed-bookings/${fixedPackage.body.id}`,
+      200,
+      { method: 'DELETE' }
+    );
+    assert.equal(deletedFixedPackage.body.deleted, 4);
+    const deletedFixedPackageInspection = new Database(databasePath);
+    assert.equal(
+      deletedFixedPackageInspection.prepare('SELECT COUNT(*) AS count FROM fixed_bookings WHERE group_id = ? AND active = 1')
+        .get(fixedPackage.body.groupId).count,
+      0
+    );
+    deletedFixedPackageInspection.close();
+
+    const washerOnlyFixedPackage = await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Nur Waschmaschine',
+        resourceIds: [washers[1].id],
+        weekday: fixedPackageCandidate,
+        slot: '07:00-12:00'
+      })
+    });
+    assert.ok(washerOnlyFixedPackage.body.groupId);
+    assert.equal(washerOnlyFixedPackage.body.created.length, 1);
+    await expectStatus(admin, `/api/admin/fixed-bookings/${washerOnlyFixedPackage.body.id}`, 200, { method: 'DELETE' });
+    const legacyFixedDelete = await expectStatus(admin, `/api/admin/fixed-bookings/${legacyFixedBooking.body.id}`, 200, {
+      method: 'DELETE'
+    });
+    assert.equal(legacyFixedDelete.body.deleted, 1);
 
     await expectStatus(admin, `/api/admin/users/${adminUser.id}/status`, 400, {
       method: 'PUT',
@@ -1748,12 +2764,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.9'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.10'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.9"'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.9'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.9'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.10"'));
+    assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
+    assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
+    assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.10'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.10'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -1773,6 +2792,10 @@ async function run() {
     assert.ok(indexHtml.includes('Vier Module aus acht Systemen. Ein unvorhersehbarer Zwischenfall.'));
     assert.ok(indexHtml.includes('id="diaperStrikeLights"'));
     assert.ok(indexHtml.includes('id="rankedDiaperModeButton"'));
+    const manifestPage = await expectStatus(guest, '/manifest.webmanifest', 200);
+    const manifest = JSON.parse(manifestPage.body.toString());
+    assert.equal(manifest.name, 'WaschZeit Test');
+    assert.equal(manifest.short_name, 'WaschZeit Test');
     assert.ok(indexHtml.includes('id="practiceDiaperModeButton"'));
     assert.ok(indexHtml.includes('id="diaperSoundButton"'));
     assert.ok(indexHtml.includes('data-settings-target="profile"'));
@@ -1924,8 +2947,11 @@ async function run() {
     assert.ok(appScriptText.includes('filterAdminPeople'));
     assert.ok(appScriptText.includes('resource-admin-group'));
     assert.ok(appScriptText.includes('Tagebuch öffnen'));
-    assert.ok(appScriptText.includes('statusPriority'));
-    assert.match(appScriptText, /function renderFixedBookings\(items\)[\s\S]*?const sortedItems = \[\.\.\.items\]\.sort/);
+    assert.ok(appScriptText.includes('visibleMaintenanceStatus'));
+    assert.match(indexHtml, /id="maintenanceStatusFilter"[\s\S]*?value="new"[\s\S]*?value="in_progress"[\s\S]*?value="done"/);
+    assert.doesNotMatch(indexHtml, /id="maintenanceStatusFilter"[\s\S]*?value="(?:reported|blocked|repairing|tested|closed)"/);
+    assert.match(appScriptText, /function renderFixedBookings\(items\)[\s\S]*?booking\.group_id[\s\S]*?const sortedItems = \[\.\.\.groups\.values\(\)\]\.sort/);
+    assert.ok(appScriptText.includes('resourcesInPackage'));
     assert.doesNotMatch(
       appScriptText.match(/function renderMyBookings\(items\)[\s\S]*?function renderReleaseNoticeDetail/)?.[0] || '',
       /left\.weekday/
@@ -1972,7 +2998,9 @@ async function run() {
     assert.ok(!appScriptText.includes('/new-code'));
     assert.ok(!appScriptText.includes('input name="secondaryEmail" type="email"'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
-    assert.ok(appScriptText.includes('document.title = `WaschZeit | ${currentUser.houseName}`'));
+    assert.ok(appScriptText.includes('document.title = `${loadedAppName} | ${currentUser.houseName}`'));
+    assert.ok(appScriptText.includes("meta[name=\"waschzeit-app-name\"]"));
+    assert.ok(!appScriptText.includes("currentPushState !== 'enabled'"));
     assert.ok(appScriptText.includes('openSettings(!settingsCompleted())'));
     assert.ok(appScriptText.includes('renderSettingsSummary'));
     assert.ok(appScriptText.includes("version.includes('-test.') ? 'Testversion' : 'Version'"));
@@ -2016,7 +3044,8 @@ async function run() {
     assert.ok(captionText.includes('Willkommen bei WaschZeit'));
     assert.ok(captionText.includes('Im Wochenkalender findest du schnell'));
     assert.ok(captionText.includes('Fuer ein Waschpaket waehlst du zuerst'));
-    assert.ok(captionText.includes('Der Haus-Admin uebernimmt danach'));
+    assert.ok(captionText.includes('Dein Text bleibt als persoenliche Meldung'));
+    assert.ok(captionText.includes('Status sind Neu, In Bearbeitung und Erledigt.'));
     assert.ok(captionText.includes('00:04:'));
     for (const sceneAsset of [
       'app-overview.png',
@@ -2041,12 +3070,15 @@ async function run() {
     assert.ok(privacyHtml.includes('Die GBMZ ist nicht Betreiberin dieser App'));
     assert.ok(!privacyHtml.includes('/assets/gbmz-logo.svg'));
     const loginPage = await expectStatus(guest, '/login.html', 200);
-    assert.ok(loginPage.body.toString().includes('Wasch<strong>Zeit</strong>'));
-    assert.ok(!loginPage.body.toString().includes('/assets/gbmz-logo.svg'));
-    assert.ok(loginPage.body.toString().includes('accountRecoveryForm'));
-    assert.ok(loginPage.body.toString().includes('Wiederherstellungscode'));
-    assert.ok(loginPage.body.toString().includes('invitationSummary'));
-    assert.ok(!loginPage.body.toString().includes('name="apartmentCode"'));
+    const loginHtml = loginPage.body.toString();
+    assert.ok(loginHtml.includes('<title>WaschZeit Test | Anmelden</title>'));
+    assert.ok(loginHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
+    assert.ok(!loginHtml.includes('__WASCHZEIT_APP_NAME__'));
+    assert.ok(!loginHtml.includes('/assets/gbmz-logo.svg'));
+    assert.ok(loginHtml.includes('accountRecoveryForm'));
+    assert.ok(loginHtml.includes('Wiederherstellungscode'));
+    assert.ok(loginHtml.includes('invitationSummary'));
+    assert.ok(!loginHtml.includes('name="apartmentCode"'));
     const loginScript = await expectStatus(guest, '/login.js', 200);
     assert.ok(loginScript.body.toString().includes('/api/account-recovery/confirm'));
     assert.ok(loginScript.body.toString().includes('/api/invitations/accept'));
@@ -2055,6 +3087,8 @@ async function run() {
 
     await verifySmtpDelivery();
     await verifyProductionRecoveryStartup();
+    await verifyProductionMaintenanceMigrationGate();
+    await verifyEmailVerificationBindingMigration();
 
     const pilotAdmin = new ApiClient();
     await expectStatus(pilotAdmin, '/api/login', 200, {
@@ -2112,10 +3146,12 @@ async function run() {
         narratedVideo: true,
         releaseWindow: true,
         cancellationNotifications: true,
+        releaseEmailRecipientRevalidation: true,
         filteredInAppNotifications: true,
         concurrentBookingProtection: true,
         smtpDelivery: true,
         productionRecovery: true,
+        productionMaintenanceMigrationGate: true,
         securityHeaders: true
       },
       firstBookingId: firstWasher.body.id

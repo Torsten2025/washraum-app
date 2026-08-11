@@ -422,7 +422,9 @@ accountsRouter.put('/api/admin/users/:id/status', requireAdmin, (req, res) => {
 accountsRouter.post('/api/admin/users/:id/password-reset', requireAdmin, adminRecoveryRateLimit, async (req, res, next) => {
   const userId = Number(req.params.id);
   const user = db.prepare(`
-    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified, role, is_superadmin FROM users
+    SELECT id, username, active, email, email_verified, email_verified_value,
+           secondary_email, secondary_email_verified, secondary_email_verified_value,
+           role, is_superadmin FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));
 
@@ -456,8 +458,9 @@ accountsRouter.post('/api/admin/users/:id/password-reset', requireAdmin, adminRe
 accountsRouter.post('/api/admin/users/:id/recovery-code', requireAdmin, adminRecoveryRateLimit, (req, res) => {
   const userId = Number(req.params.id);
   const user = db.prepare(`
-    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified, role, is_superadmin,
-           active, merged_into_user_id, house_id, apartment_id
+    SELECT id, username, email, email_verified, email_verified_value,
+           secondary_email, secondary_email_verified, secondary_email_verified_value,
+           role, is_superadmin, active, merged_into_user_id, house_id, apartment_id
     FROM users
     WHERE id = ? AND house_id = ?
   `).get(userId, currentHouseId(req));

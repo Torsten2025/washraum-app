@@ -14,6 +14,7 @@ function createAccountRouters({
   clearAuthRateLimit,
   normalizeEmail,
   isValidEmail,
+  verifiedEmailForKind,
   verifiedEmailForUser,
   normalizeAccessCode,
   generateReadableCode,
@@ -38,6 +39,7 @@ function createAccountRouters({
   tokenHash,
   sendEmailVerification,
   sendPasswordReset,
+  maintenanceReporting,
   writeAudit,
   writeAuditForHouse,
   pushStatus,
@@ -229,21 +231,37 @@ primaryRouter.post('/api/invitations/accept', registrationRateLimit, authRateLim
       let identityId = existingUser?.id;
       if (existingUser) {
         const normalizedInvitationEmail = normalizeEmail(current.email);
-        const verifiesPrimary = normalizeEmail(existingUser.email) === normalizedInvitationEmail;
-        const verifiesSecondary = normalizeEmail(existingUser.secondary_email) === normalizedInvitationEmail;
+        const invitationVerified = Boolean(current.email_sent_at);
+        const verifiesPrimary = invitationVerified
+          && normalizeEmail(existingUser.email) === normalizedInvitationEmail;
+        const verifiesSecondary = invitationVerified
+          && normalizeEmail(existingUser.secondary_email) === normalizedInvitationEmail;
         db.prepare(`
           UPDATE users
           SET apartment_id = ?, notify_releases = ?,
               email_verified = CASE WHEN ? THEN 1 ELSE email_verified END,
-              secondary_email_verified = CASE WHEN ? THEN 1 ELSE secondary_email_verified END
+              email_verified_value = CASE WHEN ? THEN ? ELSE email_verified_value END,
+              secondary_email_verified = CASE WHEN ? THEN 1 ELSE secondary_email_verified END,
+              secondary_email_verified_value = CASE WHEN ? THEN ? ELSE secondary_email_verified_value END
           WHERE id = ?
-        `).run(current.apartment_id, notifyReleases, verifiesPrimary ? 1 : 0, verifiesSecondary ? 1 : 0, identityId);
+        `).run(
+          current.apartment_id,
+          notifyReleases,
+          verifiesPrimary ? 1 : 0,
+          verifiesPrimary ? 1 : 0,
+          normalizedInvitationEmail,
+          verifiesSecondary ? 1 : 0,
+          verifiesSecondary ? 1 : 0,
+          normalizedInvitationEmail,
+          identityId
+        );
       } else {
+        const verifiedInvitationEmail = current.email_sent_at ? normalizeEmail(current.email) : null;
         const inserted = db.prepare(`
           INSERT INTO users
             (username, email, password_hash, role, house_id, active, notify_releases,
-             email_verified, apartment_id)
-          VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?)
+             email_verified, email_verified_value, apartment_id)
+          VALUES (?, ?, ?, 'user', ?, 1, ?, ?, ?, ?)
         `).run(
           personalAccountUsername(current.email),
           normalizeEmail(current.email),
@@ -251,6 +269,7 @@ primaryRouter.post('/api/invitations/accept', registrationRateLimit, authRateLim
           current.house_id,
           notifyReleases,
           current.email_sent_at ? 1 : 0,
+          verifiedInvitationEmail,
           current.apartment_id
         );
         identityId = inserted.lastInsertRowid;
@@ -421,15 +440,24 @@ primaryRouter.get('/api/email-verification/confirm', (req, res) => {
     return res.redirect('/login.html?verification=invalid');
   }
   const currentEmail = record.email_kind === 'secondary' ? record.secondary_email : record.email;
-  if (record.email_value && normalizeEmail(currentEmail) !== normalizeEmail(record.email_value)) {
+  const confirmedEmail = normalizeEmail(record.email_value);
+  if (!confirmedEmail || normalizeEmail(currentEmail) !== confirmedEmail) {
     db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').run(record.id);
     return res.redirect('/login.html?verification=invalid');
   }
-  db.transaction(() => {
-    const column = record.email_kind === 'secondary' ? 'secondary_email_verified' : 'email_verified';
-    db.prepare(`UPDATE users SET ${column} = 1 WHERE id = ?`).run(record.user_id);
+  const confirmed = db.transaction(() => {
+    const secondary = record.email_kind === 'secondary';
+    const verifiedColumn = secondary ? 'secondary_email_verified' : 'email_verified';
+    const valueColumn = secondary ? 'secondary_email_verified_value' : 'email_verified_value';
+    const addressColumn = secondary ? 'secondary_email' : 'email';
+    const updated = db.prepare(`
+      UPDATE users SET ${verifiedColumn} = 1, ${valueColumn} = ?
+      WHERE id = ? AND lower(trim(${addressColumn})) = ?
+    `).run(confirmedEmail, record.user_id, confirmedEmail);
     db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').run(record.id);
+    return updated.changes === 1;
   })();
+  if (!confirmed) return res.redirect('/login.html?verification=invalid');
   if (Number(req.session.user?.id) === Number(record.user_id)) {
     if (record.email_kind === 'secondary') req.session.user.secondaryEmailVerified = true;
     else req.session.user.emailVerified = true;
@@ -440,11 +468,12 @@ primaryRouter.get('/api/email-verification/confirm', (req, res) => {
 primaryRouter.post('/api/email-verification/resend', requireAuth, recoveryRateLimit, async (req, res) => {
   const emailKind = req.body?.emailKind === 'secondary' ? 'secondary' : 'primary';
   const user = db.prepare(`
-    SELECT id, username, email, email_verified, secondary_email, secondary_email_verified
+    SELECT id, username, active, email, email_verified, email_verified_value,
+           secondary_email, secondary_email_verified, secondary_email_verified_value
     FROM users WHERE id = ?
   `)
     .get(req.session.user.id);
-  const alreadyVerified = emailKind === 'secondary' ? user?.secondary_email_verified : user?.email_verified;
+  const alreadyVerified = Boolean(verifiedEmailForKind(user, emailKind));
   if (!user || alreadyVerified) {
     return res.json({ ok: true, message: 'Die E-Mail-Adresse ist bereits best\u00e4tigt.' });
   }
@@ -464,7 +493,8 @@ primaryRouter.post('/api/password-reset/request', recoveryRateLimit, async (req,
   const email = normalizeEmail(req.body?.email);
   const user = isValidEmail(email)
     ? db.prepare(`
-        SELECT id, username, email, email_verified, secondary_email, secondary_email_verified
+        SELECT id, username, active, email, email_verified, email_verified_value,
+               secondary_email, secondary_email_verified, secondary_email_verified_value
         FROM users
         WHERE (lower(email) = ? OR lower(secondary_email) = ?) AND active = 1
       `).get(email, email)
@@ -536,8 +566,9 @@ primaryRouter.post('/api/account-recovery/confirm', recoveryRateLimit, async (re
     db.transaction(() => {
       db.prepare(`
         UPDATE users
-        SET email = ?, email_verified = 0,
+        SET email = ?, email_verified = 0, email_verified_value = NULL,
             secondary_email = NULL, secondary_email_verified = 0,
+            secondary_email_verified_value = NULL,
             password_hash = ?
         WHERE id = ?
       `).run(email, bcrypt.hashSync(newPassword, 10), record.user_id);
@@ -760,86 +791,10 @@ primaryRouter.post('/api/me/device-code', requireAuth, requireApartmentAccount, 
   }
 });
 
-primaryRouter.post('/api/me/apartment/join', requireAuth, async (req, res, next) => {
+primaryRouter.post('/api/me/apartment/join', requireAuth, (req, res) => {
   return res.status(410).json({
     error: 'Konten werden nicht mehr zusammengefuehrt. Nutze die QR-Einladung auf der Loginseite mit deiner eigenen E-Mail-Adresse.'
   });
-  /* Alte Zusammenfuehrung bleibt nur waehrend der Datenmigration im Quelltext dokumentiert. */
-  if (req.session.user.role !== 'user' || req.session.user.apartmentId) {
-    return res.status(409).json({ error: 'Dieses Konto ist bereits einer Wohnung zugeordnet.' });
-  }
-  const code = normalizeAccessCode(req.body?.deviceCode);
-  const pairing = code ? db.prepare(`
-    SELECT dpc.id, dpc.user_id, u.house_id, u.apartment_id, u.active
-    FROM device_pairing_codes dpc
-    JOIN users u ON u.id = dpc.user_id
-    WHERE dpc.code_hash = ? AND dpc.used_at IS NULL
-      AND CAST(dpc.expires_at AS INTEGER) > ? AND u.active = 1
-  `).get(tokenHash(code), Date.now()) : null;
-  if (!pairing || !pairing.apartment_id || pairing.house_id !== req.session.user.houseId) {
-    return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig, abgelaufen oder geh\u00f6rt zu einem anderen Haus.' });
-  }
-  if (Number(pairing.user_id) === Number(req.session.user.id)) {
-    return res.status(400).json({ error: 'Dieser Ger\u00e4tecode geh\u00f6rt bereits zu deinem Konto.' });
-  }
-
-  try {
-    const source = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
-    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(pairing.user_id);
-    const targetEmails = new Set([target.email, target.secondary_email].map(normalizeEmail).filter(Boolean));
-    const sourceEmails = [
-      { email: source.email, verified: source.email_verified },
-      { email: source.secondary_email, verified: source.secondary_email_verified }
-    ].filter((entry, index, entries) => (
-      isValidEmail(entry.email)
-      && !targetEmails.has(normalizeEmail(entry.email))
-      && entries.findIndex((candidate) => normalizeEmail(candidate.email) === normalizeEmail(entry.email)) === index
-    ));
-    const availableEmailSlots = target.secondary_email ? 0 : 1;
-    if (sourceEmails.length > availableEmailSlots) {
-      return res.status(409).json({
-        error: 'Das gemeinsame Wohnungskonto hat bereits zwei E-Mail-Adressen. Bitte dort zuerst eine Adresse anpassen und danach erneut verbinden.'
-      });
-    }
-    db.transaction(() => {
-      db.prepare('UPDATE bookings SET user_id = ? WHERE user_id = ?').run(target.id, source.id);
-      db.prepare('UPDATE push_subscriptions SET user_id = ?, house_id = ? WHERE user_id = ?')
-        .run(target.id, target.house_id, source.id);
-      const targetPreferences = db.prepare('SELECT user_id FROM notification_preferences WHERE user_id = ?').get(target.id);
-      if (!targetPreferences) {
-        db.prepare('UPDATE notification_preferences SET user_id = ? WHERE user_id = ?').run(target.id, source.id);
-      } else {
-        db.prepare('DELETE FROM notification_preferences WHERE user_id = ?').run(source.id);
-      }
-      if (!target.secondary_email && sourceEmails[0]) {
-        db.prepare(`
-          UPDATE users SET secondary_email = ?, secondary_email_verified = ? WHERE id = ?
-        `).run(sourceEmails[0].email, sourceEmails[0].verified, target.id);
-      }
-      db.prepare(`
-        UPDATE users
-        SET active = 0, apartment_id = NULL, merged_into_user_id = ?,
-            email = NULL, secondary_email = NULL,
-            email_verified = 0, secondary_email_verified = 0
-        WHERE id = ?
-      `).run(target.id, source.id);
-      db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').run(source.id);
-      db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(source.id);
-      db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(pairing.id);
-    })();
-
-    destroyUserSessions(source.id, req.sessionID);
-    req.session.user = sessionUserFromRow(db.prepare('SELECT * FROM users WHERE id = ?').get(target.id));
-    req.session.activeHouseId = target.house_id;
-    req.session.lastActivityAt = Date.now();
-    writeAudit(req, 'apartment.account_merge', 'user', source.id, { targetUserId: target.id });
-    res.json({
-      user: req.session.user,
-      message: `Dieses Ger\u00e4t nutzt jetzt das gemeinsame Konto ${req.session.user.apartmentLabel}.`
-    });
-  } catch (error) {
-    next(error);
-  }
 });
 
 primaryRouter.post('/api/session/keepalive', requireAuth, (req, res) => {
@@ -878,12 +833,20 @@ personalRouter.put('/api/me/password', requireAuth, (req, res) => {
 personalRouter.get('/api/me/export', requireAuth, (req, res) => {
   const user = db.prepare(`
     SELECT u.id, u.username, u.email, u.secondary_email, u.role, u.active,
-           u.notify_releases, u.email_verified, u.secondary_email_verified,
+           u.notify_releases, u.email_verified, u.email_verified_value,
+           u.secondary_email_verified, u.secondary_email_verified_value,
            u.booking_mode, u.created_at, a.label AS apartment,
            a.display_name AS apartment_display_name
     FROM users u LEFT JOIN apartments a ON a.id = u.apartment_id
     WHERE u.id = ?
   `).get(req.session.user.id);
+  const account = {
+    ...user,
+    email_verified: verifiedEmailForKind(user, 'primary') ? 1 : 0,
+    secondary_email_verified: verifiedEmailForKind(user, 'secondary') ? 1 : 0
+  };
+  delete account.email_verified_value;
+  delete account.secondary_email_verified_value;
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(req.session.user.houseId);
   const bookings = db.prepare(`
     SELECT b.booking_date, b.slot, b.group_id, b.created_at, r.name AS resource, r.type AS resource_type
@@ -893,11 +856,13 @@ personalRouter.get('/api/me/export', requireAuth, (req, res) => {
   const notificationPreferences = db.prepare(`
     SELECT resource_type, weekday, slot FROM notification_preferences WHERE user_id = ?
   `).get(req.session.user.id) || null;
+  const maintenanceReports = maintenanceReporting.reportsForExport(req.session.user.id);
   const payload = {
     exportedAt: new Date().toISOString(),
-    account: user,
+    account,
     house,
     notificationPreferences,
+    maintenanceReports,
     bookings
   };
   res.setHeader('Content-Disposition', 'attachment; filename="waschplan-meine-daten.json"');

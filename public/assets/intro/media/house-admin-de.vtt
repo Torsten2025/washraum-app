@@ -39,44 +39,53 @@ Wiederherstellungsbedarf pruefst du zuerst Identitaet, E-Mail-Adresse und Wohnun
 00:01:37.511 --> 00:01:45.350
 fremde E-Mail-Adresse nur, um selbst einen Passwortlink zu erhalten.
 
-00:01:46.350 --> 00:01:54.683
-Unter Haus und Geraete verwaltest du Waschmaschinen, Tumbler und Trockenraeume deines
+00:01:46.350 --> 00:01:52.745
+Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und
 
-00:01:54.683 --> 00:02:03.017
+00:01:52.745 --> 00:01:59.141
+Geraetebestand. Als Haus-Admin startest du direkt bei den Geraeten deines eigenen
+
+00:01:59.141 --> 00:02:05.536
 Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource
 
-00:02:03.017 --> 00:02:11.350
-meinen. Eine deaktivierte oder gesperrte Ressource darf nicht mehr buchbar erscheinen.
+00:02:05.536 --> 00:02:11.350
+meinen. Gesperrte Ressourcen werden nur ueber den Tagebuchablauf wieder freigegeben.
 
-00:02:12.350 --> 00:02:21.350
-Das Maschinen- und Raumtagebuch dokumentiert Meldungen, Entscheidungen und Arbeiten dauerhaft. Formuliere
+00:02:12.350 --> 00:02:19.455
+Das Tagebuch zeigt nur die drei Hauptstatus Neu, In Bearbeitung
 
-00:02:21.350 --> 00:02:30.350
-Beobachtungen und Massnahmen sachlich mit Datum und betroffener Ressource. Bestehende Eintraege
+00:02:19.455 --> 00:02:26.561
+und Erledigt. Persoenliche Meldungstexte bleiben getrennt und loeschbar. Im neutralen
 
-00:02:30.350 --> 00:02:39.350
-werden nicht geloescht, sondern durch den naechsten Schritt ergaenzt oder abgeschlossen.
+00:02:26.561 --> 00:02:33.666
+Betriebsnachweis dokumentierst du nur Ressource, Zeiten und sachliche Massnahmen. Bestehende
 
-00:02:40.350 --> 00:02:48.026
-Pruefe eine Bewohnermeldung und sperre die Ressource, wenn die
+00:02:33.666 --> 00:02:39.350
+technische Eintraege werden nicht geloescht oder nachtraeglich veraendert.
 
-00:02:48.026 --> 00:02:55.703
-sichere Nutzung nicht gewaehrleistet ist. Dokumentiere danach Reparatur und
+00:02:40.350 --> 00:02:48.130
+Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource
 
-00:02:55.703 --> 00:03:03.379
-Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt die
+00:02:48.130 --> 00:02:55.911
+gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und
 
-00:03:03.379 --> 00:03:09.350
-Freigabe und macht die Ressource wieder buchbar.
+00:02:55.911 --> 00:03:03.691
+niemals automatisch geloescht. Danach dokumentierst du Reparatur und Funktionspruefung. Erst eine
 
-00:03:10.350 --> 00:03:19.279
-Dauertermine eignen sich fuer wiederkehrende, vom Haus verantwortete Belegungen oder
+00:03:03.691 --> 00:03:09.350
+erfolgreiche Pruefung mit Abschlussnotiz erlaubt Freigabe und Abschluss.
 
-00:03:19.279 --> 00:03:28.207
-Sperrzeiten. Waehle Ressource, Wochentag, Zeitfenster und Laufzeit bewusst. Pruefe bestehende
+00:03:10.350 --> 00:03:16.760
+Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen
 
-00:03:28.207 --> 00:03:35.350
-Eintraege regelmaessig, damit ueberholte Termine keine Kapazitaet blockieren.
+00:03:16.760 --> 00:03:23.171
+Trockenraum mit passender Nutzungsdauer und einen Tumbler hinzu. Alle Bestandteile
+
+00:03:23.171 --> 00:03:29.581
+werden gemeinsam geprueft und gespeichert. Bei einem Konflikt entsteht kein
+
+00:03:29.581 --> 00:03:35.350
+Teilpaket; entfernt wird spaeter immer das vollstaendige kuenftige Paket.
 
 00:03:36.350 --> 00:03:44.683
 Die Auswertung zeigt Nutzung, Auslastung und betriebliche Auffaelligkeiten deines

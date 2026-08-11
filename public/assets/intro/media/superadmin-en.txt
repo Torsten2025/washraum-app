@@ -8,7 +8,7 @@ As a super administrator, you can see the condition of multiple houses. Start wi
 The house selector changes the active administration context. The following views and actions refer to that house until you switch again. Check the house name and target especially before blocks, invitations or account changes.
 
 3. Manage houses [00:00:52.000]
-Super administrators can create houses with a clear name and address. Master data changes affect administration and display. Before deactivation, review active residents, bookings, resources, open workflows and the required data backup.
+In House and Equipment, super administrators start with house selection. The House tab contains locations and master data; Equipment shows only resources from the server-side active house. Before deactivation, review active residents, bookings, open workflows and the required data backup.
 
 4. Manage roles safely [00:01:20.000]
 A personal identity may be a resident of one house, a house administrator and additionally a super administrator. Resident bookings remain assigned to the apartment, while administrative actions are logged personally. Grant only the permissions required for the specific responsibility.

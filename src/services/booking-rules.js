@@ -18,7 +18,7 @@ function createBookingRules({
     return db.prepare(`
       SELECT 'fixed-' || fb.id AS id, ? AS booking_date, fb.slot, r.id AS resource_id, r.name AS resource_name,
              r.type AS resource_type, NULL AS user_id, fb.label AS username,
-             1 AS is_fixed, fb.weekday
+             1 AS is_fixed, fb.weekday, fb.group_id, fb.drying_duration_slots
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1

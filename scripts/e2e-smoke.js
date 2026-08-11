@@ -706,6 +706,7 @@ async function run() {
     assert.equal(await page.locator('#settingsTitle').innerText(), 'A quick setup.');
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
+    assert.match(await page.title(), /^WaschZeit Test \| /);
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
@@ -724,6 +725,7 @@ async function run() {
     await assertEnglishResidentPage(page, 'resident/de-to-en-without-reload');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.match(await page.title(), /^WaschZeit Test \| /);
     assert.equal(await page.locator('#settingsLanguage').inputValue(), 'en');
     assert.equal(await page.locator('#bookingPanelTitle').innerText(), 'Book');
     assert.ok(await page.locator('#bookingFlow').isVisible());
@@ -910,6 +912,114 @@ async function run() {
     assert.ok(await page.locator('#passwordForm').isVisible());
     await page.click('#closeSettingsButton');
     await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
+
+    const syntheticOwnReports = Array.from({ length: 10 }, (_, index) => ({
+      report_id: 9000 + index,
+      title: `Eigene Meldung ${index + 1}`,
+      description: `EIGENE-BESCHREIBUNG-${index + 1}`,
+      reported_at: `2026-07-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+      status: index === 0 ? 'done' : index === 1 ? 'in_progress' : 'new',
+      resource_name: `Testressource ${index + 1}`,
+      resource_type: 'washer',
+      notificationPreferences: { push: false, email: false },
+      notificationAvailability: { push: true, email: false }
+    }));
+    let syntheticPushAvailable = true;
+    let syntheticEmailAvailable = false;
+    const ownReportsHandler = async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          cases: syntheticOwnReports.map((report) => ({
+            ...report,
+            notificationAvailability: {
+              push: syntheticPushAvailable,
+              email: syntheticEmailAvailable,
+              enabled: true
+            }
+          })),
+          notificationAvailability: {
+            push: syntheticPushAvailable,
+            email: syntheticEmailAvailable,
+            enabled: true
+          }
+        })
+      });
+    };
+    await page.route('**/api/maintenance-cases', ownReportsHandler);
+    await page.click('#reportIssueButton');
+    await page.waitForSelector('#reportIssueOverlay:not([hidden])');
+    assert.equal(await page.locator('#reportNotifyPush').isDisabled(), false);
+    assert.equal(await page.locator('#reportNotifyPush').isChecked(), false);
+    assert.equal(await page.locator('#reportNotifyEmail').isDisabled(), true);
+    assert.equal(await page.locator('#ownMaintenanceCases input[type="checkbox"]').first().isDisabled(), false);
+    assert.equal(await page.locator('#ownMaintenanceCases .own-maintenance-item').count(), 10);
+    assert.match(await page.locator('#ownMaintenanceCases').innerText(), /EIGENE-BESCHREIBUNG-1/);
+    assert.match(await page.locator('#ownMaintenanceCases').innerText(), /EIGENE-BESCHREIBUNG-10/);
+    assert.doesNotMatch(await page.locator('#ownMaintenanceCases').innerText(), /FREMDREPORT-SENTINEL/);
+    await page.click('#closeReportIssueButton');
+    syntheticPushAvailable = false;
+    await page.click('#reportIssueButton');
+    await page.waitForSelector('#reportIssueOverlay:not([hidden])');
+    assert.equal(await page.locator('#reportNotifyPush').isDisabled(), true);
+    assert.equal(await page.locator('#ownMaintenanceCases input[type="checkbox"]').first().isDisabled(), true);
+    assert.match(await page.locator('#reportNotificationHint').innerText(), /kein aktives Push-Geraet/i);
+    await page.click('#closeReportIssueButton');
+    syntheticPushAvailable = true;
+    syntheticEmailAvailable = true;
+    await page.click('#reportIssueButton');
+    await page.waitForSelector('#reportIssueOverlay:not([hidden])');
+    assert.equal(await page.locator('#reportNotifyPush').isDisabled(), false);
+    assert.equal(await page.locator('#reportNotifyPush').isChecked(), false);
+    assert.equal(await page.locator('#reportNotifyEmail').isDisabled(), false);
+    assert.equal(await page.locator('#reportNotifyEmail').isChecked(), false);
+    assert.equal(await page.locator('#ownMaintenanceCases .own-maintenance-item').first()
+      .locator('input[type="checkbox"]').nth(1).isDisabled(), false);
+    await page.click('#closeReportIssueButton');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#reportIssueButton');
+    assert.match(await page.title(), /^WaschZeit Test \| /);
+    await page.click('#reportIssueButton');
+    await page.waitForSelector('#reportIssueOverlay:not([hidden])');
+    assert.equal(await page.locator('#reportNotifyPush').isDisabled(), false);
+    assert.equal(await page.locator('#reportNotifyPush').isChecked(), false);
+    assert.equal(await page.locator('#reportNotifyEmail').isDisabled(), false);
+    assert.equal(await page.locator('#reportNotifyEmail').isChecked(), false);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.locator('#reportIssueOverlay').evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+    await page.screenshot({
+      path: path.join(screenshotDirectory, 'own-reports-de-mobile-390x844.png'),
+      fullPage: false,
+      animations: 'disabled'
+    });
+    await page.evaluate(() => WZ_I18N.setLanguage('en', { persist: false }));
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.match(await page.title(), /^WaschZeit Test \| /);
+    assert.equal(await page.locator('#ownMaintenanceCases .own-maintenance-item').count(), 10);
+    const englishReportDialog = await page.locator('#reportIssueOverlay').innerText();
+    assert.match(englishReportDialog, /Report a problem/);
+    assert.match(englishReportDialog, /Equipment or room/);
+    assert.match(englishReportDialog, /What did you observe\?/);
+    assert.match(englishReportDialog, /Send report/);
+    assert.match(englishReportDialog, /My reports/);
+    assert.match(englishReportDialog, /EIGENE-BESCHREIBUNG-10/);
+    assert.doesNotMatch(englishReportDialog, /St\u00f6rung melden|Ger\u00e4t oder Raum|Kurzer Titel|Was hast du beobachtet|Meldung senden|Meine (?:letzten )?Meldungen/);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    assert.ok(await page.locator('#reportIssueOverlay').evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+    await page.screenshot({
+      path: path.join(screenshotDirectory, 'own-reports-en-desktop-1440x900.png'),
+      fullPage: false,
+      animations: 'disabled'
+    });
+    await page.evaluate(() => WZ_I18N.setLanguage('de', { persist: false }));
+    await page.waitForFunction(() => document.documentElement.lang === 'de');
+    assert.match(await page.title(), /^WaschZeit Test \| /);
+    await page.click('#closeReportIssueButton');
+    await page.waitForFunction(() => document.querySelector('#reportIssueOverlay')?.hidden === true);
+    await page.unroute('**/api/maintenance-cases', ownReportsHandler);
+
     await page.click('#accountMenuButton');
     await page.click('#openDiaperGameButton');
     await page.waitForSelector('#diaperGameOverlay:not([hidden])');
@@ -935,7 +1045,7 @@ async function run() {
       throw new Error(`Windel-Alarm konnte nicht starten: ${JSON.stringify(gameStartState)} Browser: ${diaperPageErrors.join(' | ')} Netzwerk: ${diaperNetwork.join(' | ')} Server: ${output.join('')} (${error.message})`);
     }
     const firstGameModule = await page.locator('#diaperGameActions [data-game-module]').getAttribute('data-game-module');
-    assert.ok(['wire', 'signal', 'valve', 'code', 'temperature', 'leak'].includes(firstGameModule));
+    assert.ok(['wire', 'signal', 'valve', 'code', 'temperature', 'leak', 'circuit', 'locks'].includes(firstGameModule));
     await page.waitForTimeout(250);
     assert.notEqual(await page.locator('#diaperCountdown').innerText(), '00:60.0');
     await captureVisualChecks(page, screenshotDirectory, 'game-');
@@ -1171,6 +1281,7 @@ async function run() {
       && document.querySelector('#houseSelect')?.disabled === false
       && document.querySelector('#statusText')?.textContent.includes('E2E Haus ohne Ressourcen')
     ), zeroHouse.id);
+    assert.match(await adminPage.title(), /^WaschZeit Test \| E2E Haus ohne Ressourcen$/);
     await adminPage.locator('#houseSelect').focus();
     const houseBAfterSwitch = await readHouseState();
     staleSuccessGate.release();
@@ -1186,6 +1297,7 @@ async function run() {
       && document.querySelector('#houseSelect')?.disabled === false
       && document.querySelector('#statusText')?.textContent.includes(expectedHouseName)
     ), { expectedHouseId: defaultHouseId, expectedHouseName: defaultHouseName });
+    assert.equal(await adminPage.title(), `WaschZeit Test | ${defaultHouseName}`);
     const staleRejectGate = await gateNextRequest(adminPage, '**/api/my-bookings');
     await adminPage.evaluate(() => {
       window.__e2eStaleReject = loadMyBookings()
@@ -1286,8 +1398,24 @@ async function run() {
     await adminPage.waitForSelector('body.admin-view');
 
     await adminPage.click('[data-admin-target="house"]');
+    await adminPage.waitForFunction(() => (
+      document.querySelector('#houseManagementViewButton')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#houseManagementPanel')?.hidden === false
+      && document.querySelector('#equipmentManagementPanel')?.hidden === true
+    ));
+    await adminPage.click('#equipmentManagementViewButton');
+    await adminPage.waitForFunction(() => (
+      document.querySelector('#equipmentManagementViewButton')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#houseManagementPanel')?.hidden === true
+      && document.querySelector('#equipmentManagementPanel')?.hidden === false
+    ));
     await adminPage.waitForSelector('.resource-admin-group');
     assert.equal(await adminPage.locator('.resource-admin-group').count(), 3);
+    await adminPage.click('#houseManagementViewButton');
+    await adminPage.waitForFunction(() => (
+      document.querySelector('#houseManagementPanel')?.hidden === false
+      && document.querySelector('#equipmentManagementPanel')?.hidden === true
+    ));
     const createHouseThroughAdmin = async (name, expectedHint, expectedMessage) => {
       const createPanel = adminPage.locator('#houseForm').locator('..');
       if ((await createPanel.getAttribute('open')) === null) {

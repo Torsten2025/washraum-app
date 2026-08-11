@@ -8,7 +8,7 @@ Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit kritischen Pr
 Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
 
 3. Haeuser verwalten [00:00:52.000]
-Superadmins koennen neue Haeuser mit eindeutiger Bezeichnung und Adresse anlegen. Aenderungen an Stammdaten wirken auf Verwaltung und Anzeige. Vor einer Deaktivierung pruefst du aktive Bewohner, Buchungen, Ressourcen, offene Vorgaenge und die notwendige Datensicherung.
+Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl. Der Reiter Haus zeigt Standorte und Stammdaten; der Reiter Geraete zeigt ausschliesslich Ressourcen des serverseitig aktiven Hauses. Vor einer Deaktivierung pruefst du aktive Bewohner, Buchungen, offene Vorgaenge und die notwendige Datensicherung.
 
 4. Rollen sicher verwalten [00:01:20.000]
 Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin sein. Bewohnerbuchungen bleiben der Wohnung zugeordnet, waehrend Adminaktionen persoenlich protokolliert werden. Vergib nur die Rechte, die fuer die konkrete Aufgabe erforderlich sind.

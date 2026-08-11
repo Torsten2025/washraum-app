@@ -1,5 +1,12 @@
 'use strict';
 
+const {
+  isValidEmail,
+  normalizeEmail,
+  verifiedEmailForKind,
+  verifiedEmailForUser
+} = require('./email-verification');
+
 function createAccountSecurity({ bcrypt, crypto }) {
   function isBcryptHash(hash) {
     return /^\$2[aby]\$\d{2}\$/.test(String(hash || ''));
@@ -23,42 +30,6 @@ function createAccountSecurity({ bcrypt, crypto }) {
     } catch {
       return false;
     }
-  }
-
-  function normalizeEmail(value) {
-    return String(value || '').trim().toLowerCase();
-  }
-
-  function isValidEmail(value) {
-    const email = String(value || '').trim();
-    if (!email || email.length > 254 || /[\s\u0000-\u001f\u007f<>"\\]/.test(email)) return false;
-    const parts = email.split('@');
-    if (parts.length !== 2) return false;
-    const [localPart, domain] = parts;
-    if (
-      !localPart
-      || localPart.length > 64
-      || localPart.startsWith('.')
-      || localPart.endsWith('.')
-      || localPart.includes('..')
-      || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)
-    ) return false;
-    const labels = domain.split('.');
-    return labels.length >= 2 && labels.every((label) => (
-      label.length >= 1
-      && label.length <= 63
-      && /^[A-Za-z0-9-]+$/.test(label)
-      && !label.startsWith('-')
-      && !label.endsWith('-')
-    ));
-  }
-
-  function verifiedEmailForUser(user) {
-    if (user?.email_verified && isValidEmail(user.email)) return normalizeEmail(user.email);
-    if (user?.secondary_email_verified && isValidEmail(user.secondary_email)) {
-      return normalizeEmail(user.secondary_email);
-    }
-    return '';
   }
 
   function normalizeAccessCode(value) {
@@ -174,6 +145,7 @@ function createAccountSecurity({ bcrypt, crypto }) {
     clearAuthRateLimit,
     normalizeEmail,
     isValidEmail,
+    verifiedEmailForKind,
     verifiedEmailForUser,
     normalizeAccessCode,
     generateReadableCode,

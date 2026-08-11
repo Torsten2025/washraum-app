@@ -48,50 +48,59 @@ apartment assignment. Never replace another person's email address merely
 00:01:39.791 --> 00:01:45.350
 to receive their password reset link yourself.
 
-00:01:46.350 --> 00:01:52.898
-House and Equipment is where you manage washing machines, tumblers and
+00:01:46.350 --> 00:01:51.742
+In House and Equipment, first switch deliberately between house details and
 
-00:01:52.898 --> 00:01:59.445
-drying rooms for your house. Use clear names so the calendar,
+00:01:51.742 --> 00:01:57.134
+the equipment inventory. As a house administrator, you start directly with
 
-00:01:59.445 --> 00:02:05.993
-issue report and logbook refer to the same resource. A deactivated
+00:01:57.134 --> 00:02:02.526
+equipment from your own house. Use clear names so the calendar,
 
-00:02:05.993 --> 00:02:11.350
-or blocked resource must no longer appear as bookable.
+00:02:02.526 --> 00:02:07.919
+report and logbook refer to the same resource. Blocked resources can
 
-00:02:12.350 --> 00:02:19.647
-The machine and room logbook preserves reports, decisions and work
+00:02:07.919 --> 00:02:11.350
+only be released through the logbook workflow.
 
-00:02:19.647 --> 00:02:26.945
-performed. Record observations and measures factually with the date and
+00:02:12.350 --> 00:02:19.594
+The logbook shows only the three main statuses New, In progress
 
-00:02:26.945 --> 00:02:34.242
-affected resource. Existing entries are not deleted; they are extended
+00:02:19.594 --> 00:02:26.838
+and Done. Personal report text stays separate and deletable. The neutral
 
-00:02:34.242 --> 00:02:39.350
-or completed by the next workflow step.
+00:02:26.838 --> 00:02:34.082
+operational record contains only the resource, times and factual measures. Existing
 
-00:02:40.350 --> 00:02:48.188
-Review a resident report and block the resource if safe
+00:02:34.082 --> 00:02:39.350
+technical entries cannot be deleted or changed afterwards.
 
-00:02:48.188 --> 00:02:56.026
-use is not assured. Then document the repair and functional
+00:02:40.350 --> 00:02:46.654
+When taking over a report, explicitly choose without a preset
 
-00:02:56.026 --> 00:03:03.864
-check. Only a successful check with a closing note permits
+00:02:46.654 --> 00:02:52.959
+whether to block the resource or keep it available. Existing
 
-00:03:03.864 --> 00:03:09.350
-release and makes the resource bookable again.
+00:02:52.959 --> 00:02:59.263
+bookings are displayed but never deleted automatically. Then document the
 
-00:03:10.350 --> 00:03:18.944
-Recurring appointments are suitable for repeating house-managed occupancy or blocked times.
+00:02:59.263 --> 00:03:05.567
+repair and functional check. Only a successful check with a
 
-00:03:18.944 --> 00:03:27.538
-Choose the resource, weekday, time slot and validity period carefully. Review
+00:03:05.567 --> 00:03:09.350
+closing note permits release and closure.
 
-00:03:27.538 --> 00:03:35.350
-existing entries regularly so obsolete appointments do not block capacity.
+00:03:10.350 --> 00:03:16.898
+A recurring package contains exactly one washing machine. You may add
+
+00:03:16.898 --> 00:03:23.445
+one drying room with a suitable duration and one tumbler. Every
+
+00:03:23.445 --> 00:03:29.993
+component is checked and saved together. A conflict creates no partial
+
+00:03:29.993 --> 00:03:35.350
+package, and removal always covers the complete future package.
 
 00:03:36.350 --> 00:03:44.944
 Analytics shows usage, utilization and operational patterns for your house. It

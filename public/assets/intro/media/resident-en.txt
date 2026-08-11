@@ -20,7 +20,7 @@ If you finish early, release the machine or room you no longer need. Other resid
 The notification center collects current information, such as a washing machine released early. Your personal filters determine which resource types and time slots interest you. Your own releases and notices that are no longer valid are not offered as bookable opportunities.
 
 7. Report a problem [00:02:44.000]
-If a machine or room does not work correctly, create a factual issue report. Select the affected resource and briefly describe what you observed. The house administrator then handles the technical process and decides whether the resource must be blocked.
+If a machine or room does not work correctly, create a factual issue report. Your text remains a separate personal report that you can delete. Push and email status updates are optional and initially switched off. The three visible statuses are New, In progress and Done.
 
 8. Connect another household member [00:03:10.000]
 In App and Device, you can create a short-lived QR code for another household member. That person receives an individual sign-in but is assigned to the same apartment. Administrator permissions are never transferred through this QR code.

@@ -11,6 +11,8 @@ function createOperationsRouters({
   dbPath,
   appVersion,
   appRelease,
+  appEnvironment,
+  appDisplayName,
   requireAdmin,
   requireSuperadmin,
   currentHouseId,
@@ -61,6 +63,8 @@ publicRouter.get(['/health', '/api/health'], (req, res) => {
     revision: String(env.RENDER_GIT_COMMIT || '').trim() || null,
     version: appVersion,
     release: appRelease,
+    environment: appEnvironment,
+    appName: appDisplayName,
     maintenanceMode: maintenanceStatus().active,
     features: {
       backup: { enabled: backupEnabled },
@@ -197,8 +201,16 @@ adminRouter.get('/api/admin/overview', requireAdmin, (req, res) => {
     FROM users
     WHERE active = 1
       AND house_id = ?
-      AND NOT (email_verified = 1 AND email IS NOT NULL AND trim(email) != '')
-      AND NOT (secondary_email_verified = 1 AND secondary_email IS NOT NULL AND trim(secondary_email) != '')
+      AND NOT (
+        email_verified = 1 AND email IS NOT NULL AND trim(email) != ''
+        AND email_verified_value IS NOT NULL
+        AND lower(trim(email)) = lower(trim(email_verified_value))
+      )
+      AND NOT (
+        secondary_email_verified = 1 AND secondary_email IS NOT NULL AND trim(secondary_email) != ''
+        AND secondary_email_verified_value IS NOT NULL
+        AND lower(trim(secondary_email)) = lower(trim(secondary_email_verified_value))
+      )
   `).get(houseId).count;
   const todayBookings = db.prepare(`
     SELECT COUNT(*) AS count

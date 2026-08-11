@@ -33,6 +33,9 @@ const reportIssueForm = document.querySelector('#reportIssueForm');
 const reportIssueResource = document.querySelector('#reportIssueResource');
 const reportIssueSubject = document.querySelector('#reportIssueSubject');
 const reportIssueDescription = document.querySelector('#reportIssueDescription');
+const reportNotifyPush = document.querySelector('#reportNotifyPush');
+const reportNotifyEmail = document.querySelector('#reportNotifyEmail');
+const reportNotificationHint = document.querySelector('#reportNotificationHint');
 const ownMaintenanceCases = document.querySelector('#ownMaintenanceCases');
 const releaseSpotlight = document.querySelector('#releaseSpotlight');
 const releaseSpotlightContent = document.querySelector('#releaseSpotlightContent');
@@ -121,6 +124,12 @@ const apartmentInvitationResult = document.querySelector('#apartmentInvitationRe
 const adminPeopleSearch = document.querySelector('#adminPeopleSearch');
 const apartmentList = document.querySelector('#apartmentList');
 const superadminBox = document.querySelector('#superadminBox');
+const houseEquipmentViewSwitcher = document.querySelector('#houseEquipmentViewSwitcher');
+const houseManagementViewButton = document.querySelector('#houseManagementViewButton');
+const equipmentManagementViewButton = document.querySelector('#equipmentManagementViewButton');
+const houseManagementPanel = document.querySelector('#houseManagementPanel');
+const equipmentManagementPanel = document.querySelector('#equipmentManagementPanel');
+const ownHouseSummary = document.querySelector('#ownHouseSummary');
 const houseForm = document.querySelector('#houseForm');
 const houseNameInput = document.querySelector('#houseNameInput');
 const houseList = document.querySelector('#houseList');
@@ -131,6 +140,7 @@ const resourceAdminList = document.querySelector('#resourceAdminList');
 const resourceOverview = document.querySelector('#resourceOverview');
 const maintenanceSearch = document.querySelector('#maintenanceSearch');
 const maintenanceStatusFilter = document.querySelector('#maintenanceStatusFilter');
+const maintenanceStatusSummary = document.querySelector('#maintenanceStatusSummary');
 const maintenanceCaseList = document.querySelector('#maintenanceCaseList');
 const auditLog = document.querySelector('#auditLog');
 const appUpdateNotice = document.querySelector('#appUpdateNotice');
@@ -223,7 +233,11 @@ const deleteAccountForm = document.querySelector('#deleteAccountForm');
 const deleteAccountPassword = document.querySelector('#deleteAccountPassword');
 const fixedBookingForm = document.querySelector('#fixedBookingForm');
 const fixedBookingLabel = document.querySelector('#fixedBookingLabel');
-const fixedBookingResource = document.querySelector('#fixedBookingResource');
+const fixedBookingWasher = document.querySelector('#fixedBookingWasher');
+const fixedBookingDryingRoom = document.querySelector('#fixedBookingDryingRoom');
+const fixedBookingDryingDurationWrap = document.querySelector('#fixedBookingDryingDurationWrap');
+const fixedBookingDryingDurationSlots = document.querySelector('#fixedBookingDryingDurationSlots');
+const fixedBookingTumbler = document.querySelector('#fixedBookingTumbler');
 const fixedBookingWeekday = document.querySelector('#fixedBookingWeekday');
 const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
 const fixedBookingList = document.querySelector('#fixedBookingList');
@@ -288,6 +302,8 @@ let slots = [];
 let releaseNoticeItems = [];
 let activeReleaseNotice = null;
 let maintenanceCases = [];
+let pendingReportSubmissionKey = '';
+let houseManagementView = '';
 let activeType = 'washer';
 let deferredInstallPrompt = null;
 let calendarView = (() => {
@@ -322,6 +338,7 @@ let appVersionPollTimer = null;
 const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]')?.content || 'unbekannt';
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
+const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -708,13 +725,22 @@ function closeMessageCenter() {
 
 function maintenanceStatusLabel(status) {
   const labels = {
-    reported: ['admin.statusReported', 'Neu gemeldet'],
-    blocked: ['admin.statusBlocked', 'Gesperrt'],
-    repairing: ['admin.statusRepairing', 'In Reparatur'],
-    tested: ['admin.statusTested', 'Pruefung bestanden'],
-    closed: ['admin.statusClosed', 'Abgeschlossen']
+    new: ['maintenance.statusNew', 'Neu'],
+    reported: ['maintenance.statusNew', 'Neu'],
+    in_progress: ['maintenance.statusInProgress', 'In Bearbeitung'],
+    blocked: ['maintenance.statusInProgress', 'In Bearbeitung'],
+    repairing: ['maintenance.statusInProgress', 'In Bearbeitung'],
+    tested: ['maintenance.statusInProgress', 'In Bearbeitung'],
+    done: ['maintenance.statusDone', 'Erledigt'],
+    closed: ['maintenance.statusDone', 'Erledigt']
   };
   return labels[status] ? translate(...labels[status]) : status;
+}
+
+function visibleMaintenanceStatus(status) {
+  if (status === 'reported' || status === 'new') return 'new';
+  if (status === 'closed' || status === 'done') return 'done';
+  return 'in_progress';
 }
 
 function maintenanceEntryLabel(entryType) {
@@ -733,21 +759,82 @@ function maintenanceEntryLabel(entryType) {
 function renderOwnMaintenanceCases(cases) {
   ownMaintenanceCases.innerHTML = '';
   if (!cases.length) {
-    ownMaintenanceCases.innerHTML = '<p class="muted">Du hast noch keine St\u00f6rung gemeldet.</p>';
+    ownMaintenanceCases.innerHTML = `<p class="muted">${escapeHtml(translate('maintenance.noOwnReports', 'Du hast noch keine Stoerung gemeldet.'))}</p>`;
     return;
   }
-  for (const item of cases.slice(0, 8)) {
-    const row = document.createElement('div');
+  for (const item of cases) {
+    const row = document.createElement('article');
     row.className = 'own-maintenance-item';
+    const preferences = item.notificationPreferences || {};
     row.innerHTML = `
       <div>
-        <strong>${escapeHtml(item.resource_name || 'Nicht mehr vorhandene Ressource')}</strong>
+        <strong>${escapeHtml(item.resource_name || translate('maintenance.resourceRemoved', 'Nicht mehr vorhandene Ressource'))}</strong>
         <span>${escapeHtml(item.title)}</span>
+        <p class="own-maintenance-description">${escapeHtml(item.description)}</p>
+        <small>${escapeHtml(new Date(item.reported_at || item.created_at).toLocaleString(activeLocale()))}</small>
       </div>
-      <span class="maintenance-status status-${escapeHtml(item.status)}">${escapeHtml(maintenanceStatusLabel(item.status))}</span>
+      <span class="maintenance-status status-${escapeHtml(visibleMaintenanceStatus(item.status))}">${escapeHtml(maintenanceStatusLabel(item.status))}</span>
     `;
+    const settings = document.createElement('div');
+    settings.className = 'own-maintenance-actions';
+    const pushLabel = document.createElement('label');
+    const pushInput = document.createElement('input');
+    pushInput.type = 'checkbox';
+    pushInput.checked = Boolean(preferences.push);
+    pushInput.disabled = item.notificationAvailability?.push !== true;
+    pushLabel.append(pushInput, document.createTextNode(translate('maintenance.pushUpdates', 'Push')));
+    const emailLabel = document.createElement('label');
+    const emailInput = document.createElement('input');
+    emailInput.type = 'checkbox';
+    emailInput.checked = Boolean(preferences.email);
+    emailInput.disabled = item.notificationAvailability?.email !== true;
+    emailLabel.append(emailInput, document.createTextNode(translate('maintenance.emailUpdates', 'E-Mail')));
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'secondary';
+    save.textContent = translate('maintenance.saveUpdates', 'Hinweise speichern');
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      try {
+        await api(`/api/maintenance-reports/${item.report_id}/preferences`, {
+          method: 'PUT',
+          body: JSON.stringify({ push: pushInput.checked, email: emailInput.checked })
+        });
+        showStatus(translate('maintenance.preferencesSaved', 'Benachrichtigungen gespeichert.'));
+      } catch (error) {
+        showStatus(localizedSystemText(error.message), 'error');
+      } finally {
+        save.disabled = false;
+      }
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'secondary danger';
+    remove.textContent = translate('maintenance.deletePersonalReport', 'Persoenliche Meldung loeschen');
+    remove.addEventListener('click', async () => {
+      if (!window.confirm(translate('maintenance.deleteConfirm', 'Persoenliche Meldungsdaten wirklich loeschen? Der neutrale Betriebsfall bleibt erhalten.'))) return;
+      remove.disabled = true;
+      try {
+        const data = await api(`/api/maintenance-reports/${item.report_id}`, { method: 'DELETE' });
+        showStatus(localizedSystemText(data.message));
+        const refreshed = await api('/api/maintenance-cases');
+        renderOwnMaintenanceCases(refreshed.cases);
+      } catch (error) {
+        showStatus(localizedSystemText(error.message), 'error');
+        remove.disabled = false;
+      }
+    });
+    settings.append(pushLabel, emailLabel, save, remove);
+    row.append(settings);
     ownMaintenanceCases.append(row);
   }
+}
+
+function createReportSubmissionKey() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const bytes = new Uint8Array(24);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 async function openReportIssue() {
@@ -761,9 +848,18 @@ async function openReportIssue() {
     for (const resource of resourceData.resources) {
       const option = document.createElement('option');
       option.value = String(resource.id);
-      option.textContent = `${resource.name}${resource.active ? '' : ' (bereits gesperrt)'}`;
+      option.textContent = `${resource.name}${resource.active ? '' : translate('maintenance.alreadyBlockedSuffix', ' (bereits gesperrt)')}`;
       reportIssueResource.append(option);
     }
+    reportNotifyPush.disabled = caseData.notificationAvailability?.push !== true;
+    reportNotifyEmail.disabled = caseData.notificationAvailability?.email !== true;
+    reportNotifyPush.checked = false;
+    reportNotifyEmail.checked = false;
+    reportNotificationHint.textContent = [
+      reportNotifyPush.disabled ? translate('maintenance.pushUnavailable', 'Fuer dieses Haus ist kein aktives Push-Geraet verfuegbar.') : '',
+      reportNotifyEmail.disabled ? translate('maintenance.emailUnavailable', 'Keine bestaetigte E-Mail-Adresse verfuegbar.') : ''
+    ].filter(Boolean).join(' ');
+    pendingReportSubmissionKey = '';
     renderOwnMaintenanceCases(caseData.cases);
     reportIssueOverlay.hidden = false;
     document.body.classList.add('modal-open');
@@ -783,14 +879,19 @@ async function submitIssueReport() {
   const submitButton = reportIssueForm.querySelector('button[type="submit"]');
   submitButton.disabled = true;
   try {
+    if (!pendingReportSubmissionKey) pendingReportSubmissionKey = createReportSubmissionKey();
     const data = await api('/api/maintenance-cases', {
       method: 'POST',
+      headers: { 'Idempotency-Key': pendingReportSubmissionKey },
       body: JSON.stringify({
         resourceId: Number(reportIssueResource.value),
         title: reportIssueSubject.value,
-        description: reportIssueDescription.value
+        description: reportIssueDescription.value,
+        notifyPush: reportNotifyPush.checked,
+        notifyEmail: reportNotifyEmail.checked
       })
     });
+    pendingReportSubmissionKey = '';
     reportIssueForm.reset();
     closeReportIssue();
     showStatus(data.message);
@@ -1733,8 +1834,8 @@ async function api(path, options = {}) {
   let response;
   try {
     response = await fetch(path, {
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      ...options
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
     });
   } catch {
     throw new Error(translate('app.noConnection', 'Keine Verbindung zur App. Bitte pruefe deine Internetverbindung und versuche es erneut.'));
@@ -1752,7 +1853,9 @@ async function api(path, options = {}) {
     const controlledErrors = {
       BACKUP_DISABLED: translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'),
       EMAIL_DISABLED: translate('admin.errorEmailDisabled', 'E-Mail ist in dieser Umgebung deaktiviert.'),
-      PUSH_DISABLED: translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.')
+      PUSH_DISABLED: translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'),
+      EMAIL_UNAVAILABLE: translate('maintenance.emailUnavailable', 'Keine bestaetigte E-Mail-Adresse verfuegbar.'),
+      PUSH_UNAVAILABLE: translate('maintenance.pushUnavailable', 'Fuer dieses Haus ist kein aktives Push-Geraet verfuegbar.')
     };
     throw new Error(controlledErrors[data.code] || localizedSystemText(data.error, translate('auth.requestFailed', 'Die Anfrage konnte nicht abgeschlossen werden.')));
   }
@@ -1844,6 +1947,39 @@ function setAdminSection(sectionName) {
   for (const section of adminSections) {
     section.hidden = section.dataset.adminSection !== sectionName;
   }
+}
+
+function houseManagementStorageKey() {
+  const role = currentUser?.isSuperadmin ? 'superadmin' : 'house-admin';
+  return `waschzeit-house-management-view:${role}:${currentUser?.activeHouseId || currentUser?.houseId || 'none'}`;
+}
+
+function preferredHouseManagementView() {
+  const fallback = currentUser?.isSuperadmin ? 'house' : 'equipment';
+  try {
+    const stored = window.localStorage.getItem(houseManagementStorageKey());
+    return ['house', 'equipment'].includes(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setHouseManagementView(view, { focus = false, persist = true } = {}) {
+  const next = ['house', 'equipment'].includes(view) ? view : preferredHouseManagementView();
+  houseManagementView = next;
+  const houseActive = next === 'house';
+  houseManagementPanel.hidden = !houseActive;
+  equipmentManagementPanel.hidden = houseActive;
+  houseManagementViewButton.classList.toggle('active', houseActive);
+  equipmentManagementViewButton.classList.toggle('active', !houseActive);
+  houseManagementViewButton.setAttribute('aria-selected', String(houseActive));
+  equipmentManagementViewButton.setAttribute('aria-selected', String(!houseActive));
+  houseManagementViewButton.tabIndex = houseActive ? 0 : -1;
+  equipmentManagementViewButton.tabIndex = houseActive ? -1 : 0;
+  if (persist) {
+    try { window.localStorage.setItem(houseManagementStorageKey(), next); } catch {}
+  }
+  if (focus) (houseActive ? houseManagementViewButton : equipmentManagementViewButton).focus({ preventScroll: true });
 }
 
 function setAdminTabCount(element, count) {
@@ -2374,7 +2510,7 @@ function renderHouseContext() {
   settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
   brandHouseName.title = translate('app.currentHouse', `Aktuelles Haus: ${currentUser.houseName}`, { house: currentUser.houseName });
-  document.title = `WaschZeit | ${currentUser.houseName}`;
+  document.title = `${loadedAppName} | ${currentUser.houseName}`;
   introHouseName.textContent = translate('app.laundryRoomHouse', `Waschraum ${currentUser.houseName}`, { house: currentUser.houseName });
   adminTitle.textContent = `Verwaltung ${currentUser.houseName}`;
   bookingViewButton.textContent = isAdmin
@@ -2459,6 +2595,7 @@ async function switchHouse(houseId) {
     });
     if (revision !== houseContextRevision) return;
     currentUser = data.user;
+    houseManagementView = '';
     renderHouseContext();
     clearHouseScopedState();
     const resourceData = await api('/api/resources');
@@ -4630,11 +4767,18 @@ async function loadAdmin() {
   backupOperation.hidden = !currentUser.isSuperadmin;
   maintenanceOperation.hidden = !currentUser.isSuperadmin;
   superadminBox.hidden = !currentUser.isSuperadmin;
+  ownHouseSummary.innerHTML = `
+    <strong>${escapeHtml(settingsData.houseName)}</strong>
+    <span>${escapeHtml(currentUser.isSuperadmin
+      ? translate('admin.selectedHouseContext', 'Aktuell ausgewaehltes Haus')
+      : translate('admin.ownHouseContext', 'Dein verwaltetes Haus'))}</span>
+  `;
   if (currentUser.isSuperadmin) {
     availableHouses = housesData.houses.filter((house) => house.active);
     renderHouseContext();
     renderHouses(housesData.houses);
   }
+  setHouseManagementView(houseManagementView || preferredHouseManagementView(), { persist: false });
   populateFixedBookingControls();
   renderFixedBookings(fixedData.fixedBookings);
   renderAdminResources(adminResources.resources);
@@ -5258,68 +5402,126 @@ async function updateHouse(houseId, changes) {
   }
 }
 
-function maintenanceActionOptions(status) {
-  const options = [{ value: 'note', label: translate('admin.addNote', 'Notiz ergaenzen') }];
-  if (status === 'reported') options.unshift({ value: 'block', label: translate('admin.blockResource', 'Ressource sperren') });
-  if (status === 'blocked') options.unshift({ value: 'repair', label: translate('admin.documentRepair', 'Reparatur dokumentieren') });
-  if (status === 'repairing') {
-    options.unshift({ value: 'test', label: translate('admin.documentTest', 'Funktionspruefung dokumentieren') });
-    options.unshift({ value: 'repair', label: translate('admin.documentMoreRepair', 'Weitere Reparatur dokumentieren') });
+function maintenanceActionOptions(maintenanceCase) {
+  if (maintenanceCase.status === 'closed') return [];
+  if (maintenanceCase.status === 'reported') {
+    return [{ value: 'takeover', label: translate('maintenance.takeOver', 'Bearbeitung uebernehmen') }];
   }
-  if (status === 'tested') options.unshift({ value: 'release', label: translate('admin.release', 'Freigeben und abschliessen') });
+  const options = [{ value: 'note', label: translate('admin.addNote', 'Notiz ergaenzen') }];
+  if (['blocked', 'repairing', 'tested'].includes(maintenanceCase.status)) {
+    options.unshift({ value: 'repair', label: translate('admin.documentRepair', 'Reparatur dokumentieren') });
+  }
+  if (maintenanceCase.status === 'repairing') {
+    options.unshift({ value: 'test', label: translate('admin.documentTest', 'Funktionspruefung dokumentieren') });
+  }
+  if (maintenanceCase.status === 'tested') {
+    const wasBlocked = (maintenanceCase.entries || []).some((entry) => entry.entry_type === 'block');
+    options.unshift({
+      value: wasBlocked ? 'release' : 'close',
+      label: wasBlocked
+        ? translate('maintenance.releaseAndClose', 'Freigeben und abschliessen')
+        : translate('maintenance.closeCase', 'Fall abschliessen')
+    });
+  }
   return options;
 }
 
 function renderMaintenanceCases() {
-  const search = maintenanceSearch.value.trim().toLocaleLowerCase('de-CH');
-  const status = maintenanceStatusFilter.value;
+  const search = maintenanceSearch.value.trim().toLocaleLowerCase(activeLocale());
+  const selectedStatus = maintenanceStatusFilter.value;
+  const counts = { new: 0, in_progress: 0, done: 0 };
+  for (const item of maintenanceCases) counts[visibleMaintenanceStatus(item.status)] += 1;
+  maintenanceStatusSummary.innerHTML = '';
+  for (const status of ['new', 'in_progress', 'done']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = status === selectedStatus ? 'active' : '';
+    button.setAttribute('aria-pressed', String(status === selectedStatus));
+    button.innerHTML = `<strong>${counts[status]}</strong><span>${escapeHtml(maintenanceStatusLabel(status))}</span>`;
+    button.addEventListener('click', () => {
+      maintenanceStatusFilter.value = status;
+      renderMaintenanceCases();
+      maintenanceCaseList.focus?.({ preventScroll: true });
+    });
+    maintenanceStatusSummary.append(button);
+  }
+
   const filtered = maintenanceCases.filter((item) => {
-    if (status === 'open' && item.status === 'closed') return false;
-    if (!['open', 'all'].includes(status) && item.status !== status) return false;
+    if (visibleMaintenanceStatus(item.status) !== selectedStatus) return false;
     if (!search) return true;
     const searchable = [
       item.resource_name,
-      item.title,
-      item.description,
-      item.reported_by_name,
       item.house_name,
-      ...(item.entries || []).flatMap((entry) => [entry.note, entry.created_by_name])
-    ].filter(Boolean).join(' ').toLocaleLowerCase('de-CH');
+      ...(item.reports || []).flatMap((report) => [report.title, report.description, report.reporter_name]),
+      ...(item.entries || []).flatMap((entry) => [entry.note, entry.actor_ref, entry.actor_role])
+    ].filter(Boolean).join(' ').toLocaleLowerCase(activeLocale());
     return searchable.includes(search);
   });
 
   maintenanceCaseList.innerHTML = '';
+  maintenanceCaseList.tabIndex = -1;
   if (!filtered.length) {
     maintenanceCaseList.innerHTML = `<div class="maintenance-empty"><strong>${escapeHtml(translate('admin.noLogCases', 'Keine passenden Tagebuchfaelle.'))}</strong><span>${escapeHtml(translate('admin.adjustLogFilter', 'Suche oder Statusfilter anpassen.'))}</span></div>`;
     return;
   }
 
-  const statusPriority = { reported: 0, blocked: 1, repairing: 2, tested: 3, closed: 4 };
-  const orderedCases = [...filtered].sort((left, right) => (
-    (statusPriority[left.status] ?? 9) - (statusPriority[right.status] ?? 9)
-    || new Date(right.created_at) - new Date(left.created_at)
-  ));
-
+  const orderedCases = [...filtered].sort((left, right) => new Date(right.created_at) - new Date(left.created_at));
   for (const maintenanceCase of orderedCases) {
+    const visibleStatus = visibleMaintenanceStatus(maintenanceCase.status);
     const article = document.createElement('article');
-    article.className = `maintenance-case status-${maintenanceCase.status}`;
+    article.className = `maintenance-case status-${visibleStatus}`;
     const heading = document.createElement('header');
     heading.className = 'maintenance-case-head';
     heading.innerHTML = `
       <div>
         <span class="maintenance-resource">${escapeHtml(maintenanceCase.resource_name || translate('admin.resourceRemoved', 'Ressource entfernt'))}</span>
-        <h4>${escapeHtml(maintenanceCase.title)}</h4>
-        <p>${escapeHtml(maintenanceCase.description)}</p>
+        <h4>${escapeHtml(translate('maintenance.caseTitle', 'Stoerungsfall'))}</h4>
       </div>
-      <span class="maintenance-status status-${escapeHtml(maintenanceCase.status)}">${escapeHtml(maintenanceStatusLabel(maintenanceCase.status))}</span>
+      <span class="maintenance-status status-${visibleStatus}">${escapeHtml(maintenanceStatusLabel(visibleStatus))}</span>
     `;
     const meta = document.createElement('div');
     meta.className = 'maintenance-case-meta';
     meta.innerHTML = `
-      <span>${escapeHtml(translate('admin.reportedBy', 'Gemeldet von {name}', { name: maintenanceCase.reported_by_name }))}</span>
       <span>${escapeHtml(new Date(maintenanceCase.created_at).toLocaleString(activeLocale()))}</span>
       ${currentUser.isSuperadmin ? `<span>${escapeHtml(maintenanceCase.house_name)}</span>` : ''}
     `;
+
+    const reports = document.createElement('details');
+    reports.className = 'maintenance-reports';
+    const reportSummary = document.createElement('summary');
+    reportSummary.textContent = translate('maintenance.reportDetails', 'Meldungen ({count})', { count: maintenanceCase.reports?.length || 0 });
+    const reportList = document.createElement('div');
+    reportList.className = 'maintenance-report-list';
+    for (const report of maintenanceCase.reports || []) {
+      const reportItem = document.createElement('article');
+      reportItem.innerHTML = `
+        <strong>${escapeHtml(report.title)}</strong>
+        <p>${escapeHtml(report.description)}</p>
+        <small>${escapeHtml(report.reporter_name)} · ${escapeHtml(new Date(report.created_at).toLocaleString(activeLocale()))}</small>
+        ${Number(report.adminDelivery?.unknown || 0) > 0
+          ? `<small class="maintenance-delivery-unknown">${escapeHtml(translate('maintenance.deliveryUnknown', 'Zustellausgang unklar. Der In-App-Status bleibt massgebend.'))}</small>`
+          : ''}
+      `;
+      reportList.append(reportItem);
+    }
+    reports.append(reportSummary, reportList);
+
+    const upcoming = document.createElement('details');
+    upcoming.className = 'maintenance-upcoming-bookings';
+    const upcomingSummary = document.createElement('summary');
+    upcomingSummary.textContent = translate('maintenance.affectedBookings', 'Kommende Buchungen ({count})', { count: maintenanceCase.upcoming_bookings?.length || 0 });
+    const upcomingList = document.createElement('ul');
+    for (const booking of maintenanceCase.upcoming_bookings || []) {
+      const row = document.createElement('li');
+      row.textContent = `${booking.booking_date} · ${booking.slot} · ${booking.booking_name}`;
+      upcomingList.append(row);
+    }
+    if (!upcomingList.children.length) {
+      const row = document.createElement('li');
+      row.textContent = translate('maintenance.noAffectedBookings', 'Keine kommenden Buchungen betroffen.');
+      upcomingList.append(row);
+    }
+    upcoming.append(upcomingSummary, upcomingList);
 
     const history = document.createElement('details');
     history.className = 'maintenance-history';
@@ -5333,11 +5535,18 @@ function renderMaintenanceCases() {
       row.innerHTML = `
         <div><strong>${escapeHtml(maintenanceEntryLabel(entry.entry_type))}</strong><span>${escapeHtml(new Date(entry.created_at).toLocaleString(activeLocale()))}</span></div>
         <p>${escapeHtml(entry.note)}</p>
-        <small>${escapeHtml(entry.created_by_name)}</small>
+        <small>${escapeHtml(entry.actor_ref || entry.actor_role || translate('maintenance.systemActor', 'System'))}</small>
       `;
       timeline.append(row);
     }
     history.append(summary, timeline);
+
+    const actions = maintenanceActionOptions(maintenanceCase);
+    article.append(heading, meta, reports, upcoming, history);
+    if (!actions.length) {
+      maintenanceCaseList.append(article);
+      continue;
+    }
 
     const actionForm = document.createElement('form');
     actionForm.className = 'maintenance-action-form';
@@ -5345,21 +5554,27 @@ function renderMaintenanceCases() {
     actionLabel.className = 'maintenance-step-field';
     actionLabel.textContent = translate('admin.nextStep', 'Naechster Schritt');
     const actionSelect = document.createElement('select');
-    for (const optionData of maintenanceActionOptions(maintenanceCase.status)) {
+    for (const optionData of actions) {
       const option = document.createElement('option');
       option.value = optionData.value;
       option.textContent = optionData.label;
       actionSelect.append(option);
     }
     actionLabel.append(actionSelect);
+
+    const decisionField = document.createElement('fieldset');
+    decisionField.className = 'maintenance-block-decision';
+    decisionField.innerHTML = `
+      <legend>${escapeHtml(translate('maintenance.blockDecision', 'Was soll mit der Ressource passieren?'))}</legend>
+      <label><input type="radio" name="blockDecision-${maintenanceCase.id}" value="block"> ${escapeHtml(translate('maintenance.blockResource', 'Ressource sperren'))}</label>
+      <label><input type="radio" name="blockDecision-${maintenanceCase.id}" value="keep_available"> ${escapeHtml(translate('maintenance.keepAvailable', 'Ressource nicht sperren'))}</label>
+    `;
     const testLabel = document.createElement('label');
     testLabel.className = 'maintenance-test-field';
     testLabel.textContent = translate('admin.testResult', 'Pruefergebnis');
     const testResult = document.createElement('select');
     testResult.innerHTML = `<option value="true">${escapeHtml(translate('admin.successful', 'Erfolgreich'))}</option><option value="false">${escapeHtml(translate('admin.unsuccessful', 'Nicht erfolgreich'))}</option>`;
     testLabel.append(testResult);
-    testLabel.hidden = actionSelect.value !== 'test';
-    actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
     const noteLabel = document.createElement('label');
     noteLabel.className = 'maintenance-note-field';
     noteLabel.textContent = translate('admin.documentation', 'Dokumentation');
@@ -5367,44 +5582,50 @@ function renderMaintenanceCases() {
     note.rows = 3;
     note.maxLength = 1000;
     note.required = true;
-    note.placeholder = maintenanceCase.status === 'tested'
-      ? translate('admin.releaseNotePlaceholder', 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.')
-      : translate('admin.notePlaceholder', 'Sachlich festhalten, was gemacht oder festgestellt wurde.');
     noteLabel.append(note);
     const submit = document.createElement('button');
     submit.type = 'submit';
     submit.textContent = translate('admin.saveEntry', 'Eintrag speichern');
-    actionSelect.addEventListener('change', () => {
+    const syncActionFields = () => {
+      decisionField.hidden = actionSelect.value !== 'takeover';
       testLabel.hidden = actionSelect.value !== 'test';
       actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
-      note.placeholder = actionSelect.value === 'release'
+      note.placeholder = ['release', 'close'].includes(actionSelect.value)
         ? translate('admin.releaseNotePlaceholder', 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.')
         : translate('admin.notePlaceholder', 'Sachlich festhalten, was gemacht oder festgestellt wurde.');
-    });
-    actionForm.append(actionLabel, testLabel, noteLabel, submit);
+    };
+    actionSelect.addEventListener('change', syncActionFields);
+    actionForm.append(actionLabel, decisionField, testLabel, noteLabel, submit);
+    syncActionFields();
     actionForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const blockDecision = decisionField.querySelector('input:checked')?.value;
+      if (actionSelect.value === 'takeover' && !blockDecision) {
+        showStatus(translate('maintenance.chooseBlockDecision', 'Bitte ausdruecklich waehlen, ob die Ressource gesperrt wird.'), 'error');
+        decisionField.querySelector('input')?.focus();
+        return;
+      }
       submit.disabled = true;
       try {
         const data = await api(`/api/admin/maintenance-cases/${maintenanceCase.id}/actions`, {
           method: 'POST',
           body: JSON.stringify({
             action: actionSelect.value,
+            blockDecision,
             note: note.value,
             successful: actionSelect.value === 'test' ? testResult.value === 'true' : undefined
           })
         });
         const resourceData = await api('/api/resources');
         resources = resourceData.resources;
-        showStatus(data.message);
+        showStatus(localizedSystemText(data.message));
         await Promise.all([loadAdmin(), refreshAll()]);
       } catch (error) {
-        showStatus(error.message, 'error');
+        showStatus(localizedSystemText(error.message), 'error');
         submit.disabled = false;
       }
     });
-
-    article.append(heading, meta, history, actionForm);
+    article.append(actionForm);
     maintenanceCaseList.append(article);
   }
 }
@@ -5489,7 +5710,7 @@ function renderAdminResources(items) {
           return;
         }
         maintenanceSearch.value = resource.name;
-        maintenanceStatusFilter.value = 'open';
+        maintenanceStatusFilter.value = 'in_progress';
         setAdminSection('logbook');
         renderMaintenanceCases();
       });
@@ -5676,13 +5897,42 @@ async function requestUserRecoveryCode(user, visibleName, button) {
 }
 
 function populateFixedBookingControls() {
-  fixedBookingResource.innerHTML = resources.map((resource) => (
-    `<option value="${resource.id}">${escapeHtml(resource.name)} - ${escapeHtml(typeLabel(resource.type))}</option>`
-  )).join('');
+  const optionMarkup = (items, optionalLabel = '') => [
+    optionalLabel ? `<option value="">${escapeHtml(optionalLabel)}</option>` : '',
+    ...items.map((resource) => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`)
+  ].join('');
+  fixedBookingWasher.innerHTML = optionMarkup(resources.filter((resource) => resource.type === 'washer' && resource.active));
+  fixedBookingDryingRoom.innerHTML = optionMarkup(
+    resources.filter((resource) => resource.type === 'drying_room' && resource.active),
+    translate('admin.noDryingRoom', 'Kein Trockenraum')
+  );
+  fixedBookingTumbler.innerHTML = optionMarkup(
+    resources.filter((resource) => resource.type === 'tumbler' && resource.active),
+    translate('admin.noTumbler', 'Kein Tumbler')
+  );
 
   fixedBookingSlot.innerHTML = slots.map((slot) => (
     `<option value="${slot}">${slot}</option>`
   )).join('');
+  syncFixedBookingDuration();
+}
+
+function syncFixedBookingDuration() {
+  const hasDryingRoom = Boolean(fixedBookingDryingRoom.value);
+  fixedBookingDryingDurationWrap.hidden = !hasDryingRoom;
+  fixedBookingDryingDurationSlots.disabled = !hasDryingRoom;
+  if (!hasDryingRoom) return;
+  const slot = fixedBookingSlot.value;
+  const weekday = Number(fixedBookingWeekday.value);
+  let maximum = slot === '17:00-21:00' ? 2 : 3;
+  if (weekday === 6 && slot === '12:00-17:00') maximum = 2;
+  if (weekday === 6 && slot === '17:00-21:00') maximum = 1;
+  for (const option of fixedBookingDryingDurationSlots.options) {
+    option.disabled = Number(option.value) > maximum;
+  }
+  if (Number(fixedBookingDryingDurationSlots.value) > maximum) {
+    fixedBookingDryingDurationSlots.value = String(maximum);
+  }
 }
 
 function renderFixedBookings(items) {
@@ -5692,20 +5942,34 @@ function renderFixedBookings(items) {
     return;
   }
 
-  const sortedItems = [...items].sort((left, right) => (
+  const groups = new Map();
+  for (const booking of items) {
+    const key = booking.group_id ? `group:${booking.group_id}` : `legacy:${booking.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(booking);
+  }
+  const sortedItems = [...groups.values()].sort((leftGroup, rightGroup) => {
+    const left = leftGroup[0];
+    const right = rightGroup[0];
+    return (
     Number(left.weekday) - Number(right.weekday)
     || String(left.slot).localeCompare(String(right.slot), 'de-CH')
     || String(left.resource_name).localeCompare(String(right.resource_name), 'de-CH')
-  ));
+    );
+  });
 
-  for (const booking of sortedItems) {
+  for (const group of sortedItems) {
+    const booking = group[0];
+    const resourcesInPackage = [...new Map(group.map((entry) => [entry.resource_id, entry])).values()];
+    const duration = Math.max(...group.map((entry) => Number(entry.drying_duration_slots || 0)));
     const item = document.createElement('article');
     item.className = 'fixed-booking-item';
     item.innerHTML = `
       <div>
         <strong>${escapeHtml(booking.label)}</strong>
         <span>${escapeHtml(weekdayLabel(booking.weekday))} - ${escapeHtml(booking.slot)}</span>
-        <span>${escapeHtml(booking.resource_name)}</span>
+        <span>${escapeHtml(resourcesInPackage.map((entry) => entry.resource_name).join(', '))}</span>
+        ${duration ? `<small>${escapeHtml(translate('admin.dryingDurationSummary', 'Trockenraum: {count} Zeitfenster', { count: duration }))}</small>` : ''}
       </div>
     `;
 
@@ -5722,17 +5986,26 @@ function renderFixedBookings(items) {
 
 async function createFixedBooking() {
   try {
+    const resourceIds = [
+      Number(fixedBookingWasher.value),
+      fixedBookingDryingRoom.value ? Number(fixedBookingDryingRoom.value) : null,
+      fixedBookingTumbler.value ? Number(fixedBookingTumbler.value) : null
+    ].filter(Number.isInteger);
     const data = await api('/api/admin/fixed-bookings', {
       method: 'POST',
       body: JSON.stringify({
         label: fixedBookingLabel.value,
-        resourceId: Number(fixedBookingResource.value),
+        resourceIds,
         weekday: Number(fixedBookingWeekday.value),
-        slot: fixedBookingSlot.value
+        slot: fixedBookingSlot.value,
+        dryingDurationSlots: fixedBookingDryingRoom.value
+          ? Number(fixedBookingDryingDurationSlots.value)
+          : undefined
       })
     });
     fixedBookingForm.reset();
-    showStatus(data.message || 'Feste Buchung gespeichert.');
+    syncFixedBookingDuration();
+    showStatus(localizedSystemText(data.message, translate('admin.fixedSaved', 'Dauerpaket gespeichert.')));
     await Promise.all([loadAdmin(), loadBookings()]);
   } catch (error) {
     showStatus(error.message, 'error');
@@ -6067,13 +6340,28 @@ async function winDiaperGame(holdMs) {
     diaperMissionLabel.textContent = leaderboard.result.practice ? '\u00dcbung geschafft' : 'Tagesmission geschafft';
     diaperToolTitle.textContent = 'Z\u00fcndkreis getrennt';
     diaperModuleCounter.textContent = 'Windel sicher';
+    const practiceVariant = Math.max(0, Math.min(3, Number(leaderboard.result.resultVariant || 0)));
+    const practiceBriefs = [
+      translate('game.practiceBriefOne', 'Trainingsrunde abgeschlossen. Der Lauf wurde nicht in die Tageswertung eingetragen.'),
+      translate('game.practiceBriefTwo', 'Uebung beendet. Die Sicherungskette ist stabil und die Tageswertung bleibt unveraendert.'),
+      translate('game.practiceBriefThree', 'Sauber trainiert. Diese Runde zaehlt nur fuer deine Uebung.'),
+      translate('game.practiceBriefFour', 'Probe erfolgreich. Dein Tagesrang wird durch diese Runde nicht veraendert.')
+    ];
     diaperMissionBrief.textContent = leaderboard.result.practice
-      ? 'Trainingsrunde abgeschlossen. Der Lauf wurde nicht in die Tageswertung eingetragen.'
+      ? practiceBriefs[practiceVariant]
       : 'Alle Sicherungen sind gr\u00fcn. Deine gewertete Zeit enth\u00e4lt jede Fehlerstrafe.';
     diaperGameActions.innerHTML = '<div class="diaper-defused-seal" aria-hidden="true"><span>ENTSCH\u00c4RFT</span><i></i></div>';
     renderDiaperLeaderboard(leaderboard);
+    const practiceResults = [
+      'game.practiceResultOne',
+      'game.practiceResultTwo',
+      'game.practiceResultThree',
+      'game.practiceResultFour'
+    ];
     diaperGameStatus.textContent = leaderboard.result.practice
-      ? `Training geschafft in ${(leaderboard.result.elapsedTimeMs / 1000).toFixed(1)} Sekunden.`
+      ? translate(practiceResults[practiceVariant], 'Training geschafft in {seconds} Sekunden.', {
+          seconds: (leaderboard.result.elapsedTimeMs / 1000).toFixed(1)
+        })
       : `Tagesmission: ${(leaderboard.result.scoreTimeMs / 1000).toFixed(1)} Sekunden inklusive ${leaderboard.result.mistakes} Fehler.`;
     playDiaperTone(660, 120);
     scheduleDiaperGameTask(() => playDiaperTone(880, 220), 100);
@@ -6841,6 +7129,9 @@ fixedBookingForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await createFixedBooking();
 });
+fixedBookingDryingRoom.addEventListener('change', syncFixedBookingDuration);
+fixedBookingWeekday.addEventListener('change', syncFixedBookingDuration);
+fixedBookingSlot.addEventListener('change', syncFixedBookingDuration);
 
 filterButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -6877,6 +7168,9 @@ reportIssueForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await submitIssueReport();
 });
+reportIssueForm.addEventListener('input', () => {
+  pendingReportSubmissionKey = '';
+});
 accountMenuButton.addEventListener('click', openAccountMenu);
 openSettingsButton.addEventListener('click', () => openSettings(false));
 openApartmentSetupButton.addEventListener('click', () => {
@@ -6897,6 +7191,13 @@ settingsOverlay.addEventListener('click', (event) => {
 });
 
 houseSelect.addEventListener('change', () => switchHouse(houseSelect.value));
+houseManagementViewButton.addEventListener('click', () => setHouseManagementView('house', { focus: true }));
+equipmentManagementViewButton.addEventListener('click', () => setHouseManagementView('equipment', { focus: true }));
+houseEquipmentViewSwitcher.addEventListener('keydown', (event) => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  setHouseManagementView(['ArrowRight', 'End'].includes(event.key) ? 'equipment' : 'house', { focus: true });
+});
 
 houseForm.addEventListener('submit', async (event) => {
   event.preventDefault();

@@ -8009,11 +8009,115 @@ body.admin-view .user-admin-actions button {
   font-size: 13px;
 }
 
+.own-maintenance-description {
+  margin: 3px 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.own-maintenance-item {
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.own-maintenance-actions {
+  align-items: center;
+  display: flex !important;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px 14px !important;
+}
+
+.own-maintenance-actions label,
+.report-notification-options label,
+.maintenance-block-decision label {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.report-notification-options,
+.maintenance-block-decision {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 14px;
+}
+
+.report-notification-options legend,
+.maintenance-block-decision legend {
+  font-weight: 850;
+  padding: 0 5px;
+}
+
+.report-notification-options p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.maintenance-disclaimer {
+  background: #f3f6f5;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 .logbook-toolbar {
   align-items: end;
   display: grid;
   gap: 14px;
   grid-template-columns: minmax(240px, 1fr) minmax(180px, 0.35fr);
+}
+
+.maintenance-status-summary,
+.admin-subview-switcher {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 14px 0 18px;
+}
+
+.admin-subview-switcher {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.maintenance-status-summary button,
+.admin-subview-switcher button {
+  background: #f3f6f5;
+  border-color: var(--line);
+  color: var(--text);
+  min-height: 48px;
+}
+
+.maintenance-status-summary button {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.maintenance-status-summary button.active,
+.admin-subview-switcher button.active {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
+}
+
+.admin-house-summary {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  margin-bottom: 16px;
+  padding: 4px 0 16px;
+}
+
+.admin-house-summary span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .maintenance-case-list {
@@ -8031,12 +8135,11 @@ body.admin-view .user-admin-actions button {
   padding: 20px;
 }
 
-.maintenance-case.status-tested,
-.maintenance-case.status-closed {
+.maintenance-case.status-done {
   border-left-color: var(--accent);
 }
 
-.maintenance-case.status-repairing {
+.maintenance-case.status-in_progress {
   border-left-color: #2f6882;
 }
 
@@ -8077,14 +8180,13 @@ body.admin-view .user-admin-actions button {
   white-space: nowrap;
 }
 
-.maintenance-status.status-tested,
-.maintenance-status.status-closed {
+.maintenance-status.status-done {
   background: #e6f4ee;
   border-color: #9acdb7;
   color: #155944;
 }
 
-.maintenance-status.status-repairing {
+.maintenance-status.status-in_progress {
   background: #e7f1f6;
   border-color: #9fc0d0;
   color: #24566d;
@@ -8101,6 +8203,42 @@ body.admin-view .user-admin-actions button {
 .maintenance-history {
   border-block: 1px solid var(--line);
   padding: 12px 0;
+}
+
+.maintenance-reports,
+.maintenance-upcoming-bookings {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.maintenance-reports summary,
+.maintenance-upcoming-bookings summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.maintenance-report-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.maintenance-report-list article {
+  border-left: 3px solid var(--line);
+  padding-left: 12px;
+}
+
+.maintenance-report-list p,
+.maintenance-report-list small,
+.maintenance-upcoming-bookings ul {
+  margin-bottom: 0;
+  white-space: pre-wrap;
+}
+
+.maintenance-report-list small,
+.maintenance-upcoming-bookings li {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .maintenance-history summary {
@@ -8166,6 +8304,10 @@ body.admin-view .user-admin-actions button {
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(210px, 0.42fr) minmax(340px, 1fr) auto;
+}
+
+.maintenance-action-form .maintenance-block-decision {
+  grid-column: 1 / -1;
 }
 
 .maintenance-action-form.has-test-result {

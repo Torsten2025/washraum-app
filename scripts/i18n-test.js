@@ -203,7 +203,26 @@ for (const requiredAdminKey of [
 ]) {
   assert.ok(appSource.includes(`'${requiredAdminKey}'`), `${requiredAdminKey} must be used by dynamic admin rendering`);
 }
-assert.ok(appSource.includes('maintenanceStatusLabel(maintenanceCase.status)'));
+for (const requiredMaintenanceKey of [
+  'maintenance.statusNew',
+  'maintenance.statusInProgress',
+  'maintenance.statusDone',
+  'maintenance.notificationLegend',
+  'maintenance.disclaimer',
+  'maintenance.blockDecision',
+  'maintenance.keepAvailable'
+]) {
+  assert.ok(i18n.messages[requiredMaintenanceKey], `${requiredMaintenanceKey} must be part of the maintenance contract`);
+  assert.ok(
+    appSource.includes(`'${requiredMaintenanceKey}'`) || indexHtml.includes(`data-i18n="${requiredMaintenanceKey}"`),
+    `${requiredMaintenanceKey} must be used by the maintenance UI`
+  );
+}
+assert.ok(appSource.includes('maintenanceStatusLabel(visibleStatus)'));
+assert.ok(appSource.includes("visibleMaintenanceStatus(item.status)"));
+assert.ok(indexHtml.includes('value="new" data-i18n="maintenance.statusNew"'));
+assert.ok(indexHtml.includes('value="in_progress" data-i18n="maintenance.statusInProgress"'));
+assert.ok(indexHtml.includes('value="done" data-i18n="maintenance.statusDone"'));
 assert.ok(appSource.includes('weekdayLabel(booking.weekday)'));
 
 assert.match(mailCopy('en', 'verifySubject'), /Confirm your email/);

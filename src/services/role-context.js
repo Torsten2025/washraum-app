@@ -1,5 +1,7 @@
 'use strict';
 
+const { verifiedEmailForKind } = require('./email-verification');
+
 function createRoleContext({ db, env }) {
   function currentHouseId(req) {
     return Number(req.session.activeHouseId || req.session.user?.activeHouseId || req.session.user?.houseId || 0);
@@ -55,9 +57,9 @@ function createRoleContext({ db, env }) {
       canManage,
       email: user.email || '',
       notifyReleases: Boolean(user.notify_releases),
-      emailVerified: Boolean(user.email_verified),
+      emailVerified: Boolean(verifiedEmailForKind(user, 'primary')),
       secondaryEmail: user.secondary_email || '',
-      secondaryEmailVerified: Boolean(user.secondary_email_verified),
+      secondaryEmailVerified: Boolean(verifiedEmailForKind(user, 'secondary')),
       language: user.language === 'en' ? 'en' : 'de',
       bookingMode: user.booking_mode === 'machine' ? 'machine' : 'time',
       apartmentId: apartment?.id || null,

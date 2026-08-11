@@ -22,11 +22,13 @@ const { createOperationsRouters } = require('./src/routes/operations');
 const { createBackupService } = require('./src/services/backup');
 const { createAccountSecurity } = require('./src/services/account-security');
 const { createAccountService } = require('./src/services/account-service');
+const { resolveAppEnvironment } = require('./src/services/app-environment');
 const { createBookingRules } = require('./src/services/booking-rules');
 const { createMailTransport } = require('./src/services/mail-transport');
 const { createNotificationService } = require('./src/services/notifications');
 const { createOperationsService } = require('./src/services/operations');
 const { createPushService } = require('./src/services/push');
+const { createMaintenanceReporting } = require('./src/services/maintenance-reporting');
 const { createRoleContext } = require('./src/services/role-context');
 const { createRuntimeFlags } = require('./src/services/runtime-flags');
 const {
@@ -41,6 +43,7 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
+const { environment: appEnvironment, displayName: appDisplayName } = resolveAppEnvironment(process.env);
 const serverStartedAt = new Date().toISOString();
 const appVersion = String(packageInfo.version || '0.0.0');
 const appRelease = String(
@@ -170,10 +173,12 @@ function createCurrentTables() {
       active INTEGER NOT NULL DEFAULT 1,
       notify_releases INTEGER NOT NULL DEFAULT 1,
       email_verified INTEGER NOT NULL DEFAULT 0,
+      email_verified_value TEXT,
       booking_mode TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine')),
       apartment_id INTEGER,
       secondary_email TEXT,
       secondary_email_verified INTEGER NOT NULL DEFAULT 0,
+      secondary_email_verified_value TEXT,
       language TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en')),
       merged_into_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -325,6 +330,8 @@ function createCurrentTables() {
       weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
       slot TEXT NOT NULL,
       label TEXT NOT NULL,
+      group_id TEXT,
+      drying_duration_slots INTEGER,
       active INTEGER NOT NULL DEFAULT 1,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -455,12 +462,14 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'email', 'TEXT');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'email_verified_value', 'TEXT');
   ensureColumn('users', 'booking_mode', "TEXT NOT NULL DEFAULT 'time' CHECK (booking_mode IN ('time', 'machine'))");
   ensureColumn('users', 'house_id', 'INTEGER');
   ensureColumn('users', 'is_superadmin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'apartment_id', 'INTEGER');
   ensureColumn('users', 'secondary_email', 'TEXT');
   ensureColumn('users', 'secondary_email_verified', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'secondary_email_verified_value', 'TEXT');
   ensureColumn('users', 'language', "TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en'))");
   ensureColumn('users', 'merged_into_user_id', 'INTEGER');
   ensureColumn('device_pairing_codes', 'apartment_id', 'INTEGER');
@@ -470,6 +479,8 @@ function seedCurrentDefaults() {
   ensureColumn('resources', 'blocked_at', 'TEXT');
   ensureColumn('resources', 'blocked_by', 'INTEGER');
   ensureColumn('bookings', 'group_id', 'TEXT');
+  ensureColumn('fixed_bookings', 'group_id', 'TEXT');
+  ensureColumn('fixed_bookings', 'drying_duration_slots', 'INTEGER');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
   ensureColumn('release_notices', 'resource_id', 'INTEGER');
@@ -486,16 +497,21 @@ function seedCurrentDefaults() {
   ensureColumn('diaper_game_rounds', 'failed_at_ms', 'INTEGER');
   ensureColumn('diaper_game_scores', 'game_version', 'INTEGER NOT NULL DEFAULT 1');
   db.exec(`
-    UPDATE users SET email_verified = 0
-    WHERE email IS NULL OR trim(email) = '';
-    UPDATE users SET secondary_email_verified = 0
-    WHERE secondary_email IS NULL OR trim(secondary_email) = '';
+    UPDATE users SET email_verified = 0, email_verified_value = NULL
+    WHERE email IS NULL OR trim(email) = ''
+       OR email_verified_value IS NULL OR trim(email_verified_value) = ''
+       OR lower(trim(email)) != lower(trim(email_verified_value));
+    UPDATE users SET secondary_email_verified = 0, secondary_email_verified_value = NULL
+    WHERE secondary_email IS NULL OR trim(secondary_email) = ''
+       OR secondary_email_verified_value IS NULL OR trim(secondary_email_verified_value) = ''
+       OR lower(trim(secondary_email)) != lower(trim(secondary_email_verified_value));
     UPDATE users SET language = 'de'
     WHERE language IS NULL OR language NOT IN ('de', 'en');
   `);
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email)) WHERE email IS NOT NULL AND email != ''");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_fixed_bookings_group_id ON fixed_bookings (group_id) WHERE group_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
   db.exec('CREATE INDEX IF NOT EXISTS idx_diaper_game_scores_version_best ON diaper_game_scores (game_version, best_time_ms, achieved_at)');
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
@@ -844,6 +860,18 @@ function setSetting(key, value) {
   `).run(key, String(value));
 }
 
+const { backupDirectory, createVerifiedBackup } = createBackupService({
+  db,
+  Database,
+  fs,
+  path,
+  env: process.env,
+  dbDir,
+  setSetting,
+  fetchImpl: fetch,
+  enabled: runtimeFlags.backup.enabled === true
+});
+
 const {
   maintenanceStatus,
   publicReleaseStatus,
@@ -859,6 +887,8 @@ const {
   appVersion,
   appRelease,
   appReleasedAt,
+  appEnvironment,
+  appDisplayName,
   runtimeFlags
 });
 
@@ -872,6 +902,7 @@ const {
   clearAuthRateLimit,
   normalizeEmail,
   isValidEmail,
+  verifiedEmailForKind,
   verifiedEmailForUser,
   normalizeAccessCode,
   generateReadableCode,
@@ -1181,6 +1212,33 @@ const {
   enabled: runtimeFlags.push.enabled === true
 });
 
+const maintenanceReporting = createMaintenanceReporting({
+  db,
+  crypto,
+  pushStatus,
+  applyPushConfig,
+  pushPayload,
+  subscriptionForRow,
+  sendPushNotification,
+  smtpConfig,
+  sendMail,
+  publicAppUrl
+});
+maintenanceReporting.installSchema();
+
+async function runMaintenanceReminderSweep() {
+  try {
+    maintenanceReporting.queueDueReminders();
+    await maintenanceReporting.deliverAdminNotifications({
+      headers: {},
+      protocol: isProduction ? 'https' : 'http',
+      get: (name) => String(name || '').toLowerCase() === 'host' ? `localhost:${port}` : ''
+    });
+  } catch {
+    console.error('Admin-Erinnerungen konnten nicht vollstaendig verarbeitet werden.');
+  }
+}
+
 function writeAudit(req, action, targetType, targetId = '', details = {}) {
   writeAuditForHouse(req, currentHouseId(req) || null, action, targetType, targetId, details);
 }
@@ -1250,19 +1308,6 @@ const {
   releaseNoticeUrl
 });
 
-
-const { backupDirectory, createVerifiedBackup } = createBackupService({
-  db,
-  Database,
-  fs,
-  path,
-  env: process.env,
-  dbDir,
-  setSetting,
-  fetchImpl: fetch,
-  enabled: runtimeFlags.backup.enabled === true
-});
-
 const operationsRouters = createOperationsRouters({
   express,
   db,
@@ -1274,6 +1319,8 @@ const operationsRouters = createOperationsRouters({
   dbPath,
   appVersion,
   appRelease,
+  appEnvironment,
+  appDisplayName,
   requireAdmin,
   requireSuperadmin,
   currentHouseId,
@@ -1309,6 +1356,7 @@ const accountRouters = createAccountRouters({
   clearAuthRateLimit,
   normalizeEmail,
   isValidEmail,
+  verifiedEmailForKind,
   verifiedEmailForUser,
   normalizeAccessCode,
   generateReadableCode,
@@ -1333,6 +1381,7 @@ const accountRouters = createAccountRouters({
   tokenHash,
   sendEmailVerification,
   sendPasswordReset,
+  maintenanceReporting,
   writeAudit,
   writeAuditForHouse,
   pushStatus,
@@ -1352,6 +1401,7 @@ const notificationRouters = createNotificationRouters({
   slots,
   normalizeEmail,
   isValidEmail,
+  verifiedEmailForKind,
   findEmailOwner,
   emailStatus,
   sendEmailVerification,
@@ -1439,9 +1489,11 @@ app.use(createEquipmentLogbookRouter({
   requireApartmentAccount,
   requireAdmin,
   currentHouseId,
+  todayStringLocal,
   isSuperadmin,
   isValidPlainText,
   isValidMaintenanceText,
+  maintenanceReporting,
   writeAudit,
   writeAuditForHouse
 }));
@@ -1483,13 +1535,22 @@ function sendVersionedPage(res, filename) {
   const html = template
     .replaceAll('__WASCHZEIT_VERSION__', escapeHtmlAttribute(appVersion))
     .replaceAll('__WASCHZEIT_RELEASE__', escapeHtmlAttribute(appRelease))
-    .replaceAll('__WASCHZEIT_RELEASED_AT__', escapeHtmlAttribute(appReleasedAt));
+    .replaceAll('__WASCHZEIT_RELEASED_AT__', escapeHtmlAttribute(appReleasedAt))
+    .replaceAll('__WASCHZEIT_APP_NAME__', escapeHtmlAttribute(appDisplayName));
   res.setHeader('Cache-Control', 'no-cache');
   res.type('html').send(html);
 }
 
+function sendVersionedManifest(res) {
+  const template = fs.readFileSync(path.join(__dirname, 'public', 'manifest.webmanifest'), 'utf8');
+  const manifest = template.replaceAll('__WASCHZEIT_APP_NAME__', appDisplayName);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.type('application/manifest+json').send(manifest);
+}
+
 app.get('/index.html', (req, res) => sendVersionedPage(res, 'index.html'));
 app.get('/login.html', (req, res) => sendVersionedPage(res, 'login.html'));
+app.get('/manifest.webmanifest', (req, res) => sendVersionedManifest(res));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -1508,25 +1569,45 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Interner Serverfehler' });
 });
 
-cleanupExpiredData();
-const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
-cleanupTimer.unref();
-if (
-  runtimeFlags.backup.enabled === true
-  && (isProduction || String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true')
-) {
-  const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
-  initialBackupTimer.unref();
-  const backupTimer = setInterval(runScheduledBackup, 24 * 60 * 60 * 1000);
-  backupTimer.unref();
+async function startServer() {
+  await maintenanceReporting.prepareLegacyMigration({
+    production: isProduction,
+    backupEnabled: runtimeFlags.backup.enabled === true,
+    createVerifiedBackup
+  });
+
+  cleanupExpiredData();
+  const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
+  cleanupTimer.unref();
+  if (runtimeFlags.push.enabled === true) {
+    const initialMaintenanceReminderTimer = setTimeout(runMaintenanceReminderSweep, 60 * 1000);
+    initialMaintenanceReminderTimer.unref();
+    const maintenanceReminderTimer = setInterval(runMaintenanceReminderSweep, 5 * 60 * 1000);
+    maintenanceReminderTimer.unref();
+  }
+  if (
+    runtimeFlags.backup.enabled === true
+    && (isProduction || String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true')
+  ) {
+    const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
+    initialBackupTimer.unref();
+    const backupTimer = setInterval(runScheduledBackup, 24 * 60 * 60 * 1000);
+    backupTimer.unref();
+  }
+
+  app.listen(port, () => {
+    console.log(`Waschplan App laeuft auf http://localhost:${port}`);
+    console.log(`SQLite: ${dbPath}`);
+    console.log(
+      `Integrationen: Backup=${runtimeFlags.backup.enabled === true ? 'aktiv' : 'deaktiviert'}, `
+      + `E-Mail=${runtimeFlags.email.enabled === true ? 'aktiv' : 'deaktiviert'}, `
+      + `Push=${runtimeFlags.push.enabled === true ? 'aktiv' : 'deaktiviert'}`
+    );
+  });
 }
 
-app.listen(port, () => {
-  console.log(`Waschplan App laeuft auf http://localhost:${port}`);
-  console.log(`SQLite: ${dbPath}`);
-  console.log(
-    `Integrationen: Backup=${runtimeFlags.backup.enabled === true ? 'aktiv' : 'deaktiviert'}, `
-    + `E-Mail=${runtimeFlags.email.enabled === true ? 'aktiv' : 'deaktiviert'}, `
-    + `Push=${runtimeFlags.push.enabled === true ? 'aktiv' : 'deaktiviert'}`
-  );
+startServer().catch((error) => {
+  const code = error?.code || 'STARTUP_PREPARATION_FAILED';
+  console.error(`Serverstart abgebrochen (${code}).`);
+  process.exitCode = 1;
 });

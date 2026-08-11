@@ -63,6 +63,7 @@ function parseTimestamp(value) {
 function parseVtt(filename) {
   const source = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
   assert.ok(source.startsWith('WEBVTT\n'), `${path.basename(filename)}: WEBVTT-Kopf fehlt`);
+  assert.ok(!source.endsWith('\n\n'), `${path.basename(filename)}: zusaetzliche Leerzeile am Dateiende`);
   const cues = [];
   const lines = source.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
@@ -117,7 +118,9 @@ for (const media of catalog.packages) {
     previousEnd = cue.end;
   }
   const captionText = normalize(cues.map((cue) => cue.text).join(' '));
-  const transcriptText = normalize(fs.readFileSync(localPath(media.transcript), 'utf8'));
+  const transcriptSource = fs.readFileSync(localPath(media.transcript), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(!transcriptSource.endsWith('\n\n'), `${media.id}: zusaetzliche Leerzeile im Transkript`);
+  const transcriptText = normalize(transcriptSource);
   for (const chapter of media.chapters) {
     assert.ok(captionText.includes(normalize(chapter.transcript)), `${media.id}/${chapter.id}: Untertitel unvollstaendig`);
     assert.ok(transcriptText.includes(normalize(chapter.transcript)), `${media.id}/${chapter.id}: Transkript unvollstaendig`);

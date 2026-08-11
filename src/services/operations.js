@@ -9,6 +9,8 @@ function createOperationsService({
   appVersion,
   appRelease,
   appReleasedAt,
+  appEnvironment,
+  appDisplayName,
   runtimeFlags
 }) {
   function maintenanceStatus() {
@@ -36,6 +38,8 @@ function createOperationsService({
       version: appVersion,
       release: appRelease,
       releasedAt: appReleasedAt,
+      environment: appEnvironment,
+      appName: appDisplayName,
       features: {
         backup: { enabled: runtimeFlags?.backup?.enabled === true },
         email: { enabled: runtimeFlags?.email?.enabled === true },

@@ -17,7 +17,7 @@ services:
       - key: APP_ENV
         value: agent-test
       - key: APP_RELEASE
-        value: agent-v0.3.0-test.9
+        value: agent-v0.3.0-test.10
       - key: DB_PATH
         value: /tmp/waschzeit-agent-test.sqlite
       - key: SESSION_SECRET

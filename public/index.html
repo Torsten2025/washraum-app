@@ -7,7 +7,8 @@
     <meta name="waschzeit-version" content="__WASCHZEIT_VERSION__">
     <meta name="waschzeit-release" content="__WASCHZEIT_RELEASE__">
     <meta name="waschzeit-released-at" content="__WASCHZEIT_RELEASED_AT__">
-    <title>WaschZeit | Waschplan</title>
+    <meta name="waschzeit-app-name" content="__WASCHZEIT_APP_NAME__">
+    <title>__WASCHZEIT_APP_NAME__ | Waschplan</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css?v=__WASCHZEIT_RELEASE__">
@@ -15,7 +16,7 @@
   <body>
     <header class="topbar">
       <div class="brand-lockup app-brand">
-        <span class="app-wordmark">Wasch<strong>Zeit</strong></span>
+        <span class="app-wordmark">__WASCHZEIT_APP_NAME__</span>
         <span id="brandHouseName" class="brand-address">Maneggplatz 18</span>
       </div>
       <div class="topbar-title">
@@ -234,31 +235,40 @@
               <h3>Haus &amp; Ger&auml;te</h3>
               <span>Bestand pr&uuml;fen, Ger&auml;te verwalten und St&ouml;rungen weiterbearbeiten</span>
             </div>
-            <div id="resourceOverview" class="admin-inventory-summary" aria-live="polite"></div>
-            <details class="admin-create-panel">
-              <summary>
-                <span>Ger&auml;t oder Raum hinzuf&uuml;gen</span>
-                <small>Neue Waschmaschine, neuen Trockenraum oder Tumbler anlegen</small>
-              </summary>
-              <form id="resourceForm" class="stack compact-form admin-inline-form">
-                <label>
-                  Name
-                  <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
-                </label>
-                <label>
-                  Bereich
-                  <select id="resourceTypeInput" name="type" required>
-                    <option value="washer">Waschmaschine</option>
-                    <option value="drying_room">Trockenraum</option>
-                    <option value="tumbler">Tumbler</option>
-                  </select>
-                </label>
-                <button type="submit">Hinzuf&uuml;gen</button>
-              </form>
-            </details>
-            <div id="resourceAdminList" class="resource-admin-list"></div>
+            <div id="houseEquipmentViewSwitcher" class="admin-subview-switcher" role="tablist" aria-label="Haus oder Geraete anzeigen" data-i18n-aria-label="admin.houseEquipmentChoice">
+              <button id="houseManagementViewButton" type="button" role="tab" data-house-admin-view="house" aria-controls="houseManagementPanel" data-i18n="admin.houseView">Haus</button>
+              <button id="equipmentManagementViewButton" type="button" role="tab" data-house-admin-view="equipment" aria-controls="equipmentManagementPanel" data-i18n="admin.equipmentView">Ger&auml;te</button>
+            </div>
 
-            <section id="superadminBox" class="superadmin-box" hidden>
+            <section id="equipmentManagementPanel" role="tabpanel" aria-labelledby="equipmentManagementViewButton">
+              <div id="resourceOverview" class="admin-inventory-summary" aria-live="polite"></div>
+              <details class="admin-create-panel">
+                <summary>
+                  <span>Ger&auml;t oder Raum hinzuf&uuml;gen</span>
+                  <small>Neue Waschmaschine, neuen Trockenraum oder Tumbler anlegen</small>
+                </summary>
+                <form id="resourceForm" class="stack compact-form admin-inline-form">
+                  <label>
+                    Name
+                    <input id="resourceNameInput" name="name" maxlength="80" placeholder="z.B. Trockenraum 4" required>
+                  </label>
+                  <label>
+                    Bereich
+                    <select id="resourceTypeInput" name="type" required>
+                      <option value="washer">Waschmaschine</option>
+                      <option value="drying_room">Trockenraum</option>
+                      <option value="tumbler">Tumbler</option>
+                    </select>
+                  </label>
+                  <button type="submit">Hinzuf&uuml;gen</button>
+                </form>
+              </details>
+              <div id="resourceAdminList" class="resource-admin-list"></div>
+            </section>
+
+            <section id="houseManagementPanel" role="tabpanel" aria-labelledby="houseManagementViewButton" hidden>
+              <div id="ownHouseSummary" class="admin-house-summary"></div>
+              <section id="superadminBox" class="superadmin-box" hidden>
               <div class="admin-section-heading">
                 <h3>H&auml;user</h3>
                 <span>Haus&uuml;bergreifende Standortverwaltung f&uuml;r Superadmins</span>
@@ -277,6 +287,7 @@
                 </form>
               </details>
               <div id="houseList" class="house-admin-list"></div>
+              </section>
             </section>
           </section>
 
@@ -288,21 +299,18 @@
             <div class="logbook-toolbar">
               <label>
                 Suchen
-                <input id="maintenanceSearch" type="search" placeholder="Ger&auml;t, Meldung oder Person">
+                <input id="maintenanceSearch" type="search" placeholder="Geraet, Meldung oder Haus" data-i18n-placeholder="admin.logbookSearchPlaceholder">
               </label>
               <label>
                 Status
                 <select id="maintenanceStatusFilter">
-                  <option value="open">Offene F&auml;lle</option>
-                  <option value="all">Alle F&auml;lle</option>
-                  <option value="reported">Neu gemeldet</option>
-                  <option value="blocked">Gesperrt</option>
-                  <option value="repairing">In Reparatur</option>
-                  <option value="tested">Gepr&uuml;ft</option>
-                  <option value="closed">Abgeschlossen</option>
+                  <option value="new" data-i18n="maintenance.statusNew">Neu</option>
+                  <option value="in_progress" data-i18n="maintenance.statusInProgress">In Bearbeitung</option>
+                  <option value="done" data-i18n="maintenance.statusDone">Erledigt</option>
                 </select>
               </label>
             </div>
+            <div id="maintenanceStatusSummary" class="maintenance-status-summary" aria-live="polite"></div>
             <div id="maintenanceCaseList" class="maintenance-case-list" aria-live="polite"></div>
           </section>
 
@@ -322,8 +330,24 @@
                   <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
                 </label>
                 <label>
-                  Ger&auml;t
-                  <select id="fixedBookingResource" name="resourceId" required></select>
+                  <span data-i18n="admin.fixedWasher">Waschmaschine</span>
+                  <select id="fixedBookingWasher" required></select>
+                </label>
+                <label>
+                  <span data-i18n="admin.fixedDryingRoom">Trockenraum (optional)</span>
+                  <select id="fixedBookingDryingRoom"></select>
+                </label>
+                <label id="fixedBookingDryingDurationWrap" hidden>
+                  <span data-i18n="admin.fixedDryingDuration">Nutzungsdauer Trockenraum</span>
+                  <select id="fixedBookingDryingDurationSlots">
+                    <option value="1" data-i18n="admin.timeSlotOne">1 Zeitfenster</option>
+                    <option value="2" data-i18n="admin.timeSlotTwo">2 Zeitfenster</option>
+                    <option value="3" data-i18n="admin.timeSlotThree">3 Zeitfenster</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-i18n="admin.fixedTumbler">Tumbler (optional)</span>
+                  <select id="fixedBookingTumbler"></select>
                 </label>
                 <label>
                   Wochentag
@@ -633,32 +657,45 @@
 
     <div id="reportIssueOverlay" class="intro-overlay" hidden>
       <section class="intro-modal report-issue-modal" role="dialog" aria-modal="true" aria-labelledby="reportIssueTitle">
-        <button id="closeReportIssueButton" class="icon-close" type="button" aria-label="St&ouml;rungsmeldung schliessen">x</button>
+        <button id="closeReportIssueButton" class="icon-close" type="button" aria-label="St&ouml;rungsmeldung schliessen" data-i18n-aria-label="maintenance.closeReport">x</button>
         <div class="intro-copy">
-          <p class="eyebrow">Direkt an den Haus-Admin</p>
-          <h2 id="reportIssueTitle">St&ouml;rung melden</h2>
-          <p>Beschreibe kurz, was nicht funktioniert. Der Haus-Admin entscheidet danach &uuml;ber Sperre, Reparatur und Freigabe.</p>
+          <p class="eyebrow" data-i18n="maintenance.adminEyebrow">Direkt an den Haus-Admin</p>
+          <h2 id="reportIssueTitle" data-i18n="app.reportIssue">St&ouml;rung melden</h2>
+          <p data-i18n="maintenance.reportIntro">Beschreibe kurz, was nicht funktioniert. Der Haus-Admin entscheidet danach &uuml;ber Sperre, Reparatur und Freigabe.</p>
         </div>
         <form id="reportIssueForm" class="stack compact-form">
           <label>
-            Ger&auml;t oder Raum
+            <span data-i18n="maintenance.resourceLabel">Ger&auml;t oder Raum</span>
             <select id="reportIssueResource" required></select>
           </label>
           <label>
-            Kurzer Titel
-            <input id="reportIssueSubject" maxlength="120" placeholder="z.B. Wasser l&auml;uft nicht ab" required>
+            <span data-i18n="maintenance.shortTitle">Kurzer Titel</span>
+            <input id="reportIssueSubject" maxlength="120" placeholder="z.B. Wasser l&auml;uft nicht ab" data-i18n-placeholder="maintenance.titlePlaceholder" required>
           </label>
           <label>
-            Was hast du beobachtet?
-            <textarea id="reportIssueDescription" rows="4" maxlength="1000" placeholder="Bitte nur sachlich beschreiben, ohne Vermutungen." required></textarea>
+            <span data-i18n="maintenance.observationLabel">Was hast du beobachtet?</span>
+            <textarea id="reportIssueDescription" rows="4" maxlength="1000" placeholder="Bitte nur sachlich beschreiben, ohne Vermutungen." data-i18n-placeholder="maintenance.observationPlaceholder" required></textarea>
           </label>
+          <fieldset class="report-notification-options">
+            <legend data-i18n="maintenance.notificationLegend">Status&auml;nderungen erhalten (freiwillig)</legend>
+            <label>
+              <input id="reportNotifyPush" type="checkbox">
+              <span data-i18n="maintenance.pushStatusChanges">Push bei In Bearbeitung und Erledigt</span>
+            </label>
+            <label>
+              <input id="reportNotifyEmail" type="checkbox">
+              <span data-i18n="maintenance.emailStatusChanges">E-Mail bei In Bearbeitung und Erledigt</span>
+            </label>
+            <p id="reportNotificationHint" class="muted"></p>
+          </fieldset>
+          <p class="maintenance-disclaimer" data-i18n="maintenance.disclaimer">Die Statusanzeige ist keine Zusage zu Bearbeitungsfrist, Haftung oder Kosten. WaschZeit ist kein Notfallkanal.</p>
           <div class="settings-actions">
-            <button type="submit">Meldung senden</button>
-            <button id="cancelReportIssueButton" class="secondary" type="button">Abbrechen</button>
+            <button type="submit" data-i18n="maintenance.sendReport">Meldung senden</button>
+            <button id="cancelReportIssueButton" class="secondary" type="button" data-i18n="common.cancel">Abbrechen</button>
           </div>
         </form>
         <section class="own-maintenance-section">
-          <h3>Meine letzten Meldungen</h3>
+          <h3 data-i18n="maintenance.ownReportsTitle">Meine Meldungen</h3>
           <div id="ownMaintenanceCases" class="own-maintenance-list"></div>
         </section>
       </section>

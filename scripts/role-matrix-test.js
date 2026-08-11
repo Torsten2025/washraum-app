@@ -235,6 +235,7 @@ async function run() {
     });
     const firstHouseIssue = await expectStatus(firstResident, '/api/maintenance-cases', 201, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'roles-house-18-report-0001' },
       body: JSON.stringify({
         resourceId: firstWasher.id,
         title: 'Rollenpruefung Haus 18',
@@ -448,6 +449,7 @@ async function run() {
     });
     const secondHouseIssue = await expectStatus(resident, '/api/maintenance-cases', 201, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'roles-house-20-report-0001' },
       body: JSON.stringify({
         resourceId: createdResource.body.id,
         title: 'Rollenpruefung Haus 20',
@@ -461,9 +463,27 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'note', note: 'Fremdes Haus darf nicht bearbeitet werden.' })
     });
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/notifications/retry`, 404, {
+      method: 'POST'
+    });
+    const emptyHouseAdminRetry = await expectStatus(
+      houseAdmin,
+      `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/notifications/retry`,
+      200,
+      { method: 'POST' }
+    );
+    assert.equal(emptyHouseAdminRetry.body.reset, 0);
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 400, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'takeover', note: 'Sperrentscheidung fehlt absichtlich.' })
+    });
     await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
       method: 'POST',
-      body: JSON.stringify({ action: 'block', note: 'Haus-Admin sperrt nach Pruefung.' })
+      body: JSON.stringify({
+        action: 'takeover',
+        blockDecision: 'block',
+        note: 'Haus-Admin sperrt nach Pruefung.'
+      })
     });
     await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
       method: 'POST',
@@ -478,11 +498,29 @@ async function run() {
       body: JSON.stringify({ action: 'release', note: 'Reparatur abgeschlossen und Probelauf erfolgreich.' })
     });
     const superadminCases = await expectStatus(superadmin, '/api/admin/maintenance-cases', 200);
-    assert.ok(superadminCases.body.cases.some((item) => item.id === firstHouseIssue.body.id));
     assert.ok(superadminCases.body.cases.some((item) => item.id === secondHouseIssue.body.id));
+    assert.ok(!superadminCases.body.cases.some((item) => item.id === firstHouseIssue.body.id));
+    await expectStatus(superadmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/actions`, 404, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'note', note: 'Fremder aktiver Hauskontext bleibt gesperrt.' })
+    });
+    await expectStatus(superadmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/notifications/retry`, 404, {
+      method: 'POST'
+    });
+    await expectStatus(superadmin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: firstHouseId })
+    });
+    const firstHouseSuperadminCases = await expectStatus(superadmin, '/api/admin/maintenance-cases', 200);
+    assert.ok(firstHouseSuperadminCases.body.cases.some((item) => item.id === firstHouseIssue.body.id));
+    assert.ok(!firstHouseSuperadminCases.body.cases.some((item) => item.id === secondHouseIssue.body.id));
     await expectStatus(superadmin, `/api/admin/maintenance-cases/${firstHouseIssue.body.id}/actions`, 200, {
       method: 'POST',
-      body: JSON.stringify({ action: 'note', note: 'Hausuebergreifende Sicht und Bedarfseingriff bestaetigt.' })
+      body: JSON.stringify({ action: 'note', note: 'Eingriff im bewusst ausgewaehlten Haus bestaetigt.' })
+    });
+    await expectStatus(superadmin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: secondHouseId })
     });
 
     const secondResources = await expectStatus(houseAdmin, '/api/resources', 200);
@@ -521,6 +559,29 @@ async function run() {
       })
     });
     await expectStatus(houseAdmin, `/api/admin/fixed-bookings/${fixedBooking.body.id}`, 200, {
+      method: 'DELETE'
+    });
+    await expectStatus(houseAdmin, '/api/admin/fixed-bookings', 404, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Fremdhaus Dauerpaket',
+        resourceIds: [firstWasher.id],
+        weekday: 4,
+        slot: '17:00-21:00'
+      })
+    });
+    const fixedPackage = await expectStatus(houseAdmin, '/api/admin/fixed-bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Rollen Dauerpaket',
+        resourceIds: [secondWasher.id],
+        weekday: 4,
+        slot: '17:00-21:00'
+      })
+    });
+    assert.ok(fixedPackage.body.groupId);
+    assert.equal(fixedPackage.body.created.length, 1);
+    await expectStatus(houseAdmin, `/api/admin/fixed-bookings/${fixedPackage.body.id}`, 200, {
       method: 'DELETE'
     });
 

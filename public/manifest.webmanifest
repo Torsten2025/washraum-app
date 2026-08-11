@@ -1,6 +1,6 @@
 {
-  "name": "WaschZeit Maneggplatz",
-  "short_name": "WaschZeit",
+  "name": "__WASCHZEIT_APP_NAME__",
+  "short_name": "__WASCHZEIT_APP_NAME__",
   "description": "Der Waschplan fuer dein Haus.",
   "start_url": "/index.html",
   "scope": "/",
