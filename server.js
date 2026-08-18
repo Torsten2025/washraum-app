@@ -31,6 +31,7 @@ const { createPushService } = require('./src/services/push');
 const { createMaintenanceReporting } = require('./src/services/maintenance-reporting');
 const { createRoleContext } = require('./src/services/role-context');
 const { createRuntimeFlags } = require('./src/services/runtime-flags');
+const { reportStartupFailure } = require('./src/services/startup-diagnostics');
 const { createRemainingSlotService } = require('./src/services/remaining-slots');
 const {
   createAgentTestProviderBoundary,
@@ -829,20 +830,19 @@ function seedUser(username, password, role, houseId, isSuperadmin = false, force
     db.prepare('INSERT INTO users (username, password_hash, role, house_id, is_superadmin) VALUES (?, ?, ?, ?, ?)')
       .run(username, bcrypt.hashSync(password, 10), role, houseId, isSuperadmin ? 1 : 0);
   } else if (isSuperadmin) {
-    db.prepare(`
-      UPDATE users
-      SET password_hash = CASE WHEN ? THEN ? ELSE password_hash END,
-          house_id = COALESCE(house_id, ?),
-          role = 'admin',
-          active = 1,
-          is_superadmin = 1
-      WHERE id = ?
-    `).run(
-      forcePasswordReset ? 1 : 0,
-      bcrypt.hashSync(password, 10),
-      houseId,
-      exists.id
-    );
+    if (forcePasswordReset) {
+      db.prepare(`
+        UPDATE users
+        SET password_hash = ?, house_id = COALESCE(house_id, ?), role = 'admin', active = 1, is_superadmin = 1
+        WHERE id = ?
+      `).run(bcrypt.hashSync(password, 10), houseId, exists.id);
+    } else {
+      db.prepare(`
+        UPDATE users
+        SET house_id = COALESCE(house_id, ?), role = 'admin', active = 1, is_superadmin = 1
+        WHERE id = ?
+      `).run(houseId, exists.id);
+    }
   } else {
     db.prepare('UPDATE users SET house_id = COALESCE(house_id, ?) WHERE id = ?')
       .run(houseId, exists.id);
@@ -1279,6 +1279,7 @@ agentTestFixtureStatus = initializeDatabaseWithAgentTestFixture({
   initDatabase: initDb,
   installServiceSchemas: () => maintenanceReporting.installSchema()
 });
+agentTestProviderBoundary.assertNoExternalAttempts();
 
 const activeAdminAtStartup = db.prepare(`
   SELECT u.id
@@ -1665,7 +1666,7 @@ async function startServer() {
     backupTimer.unref();
   }
 
-  app.listen(port, () => {
+  const httpServer = app.listen(port, () => {
     console.log(`Waschplan App laeuft auf http://localhost:${port}`);
     console.log(`SQLite: ${dbPath}`);
     console.log(
@@ -1674,10 +1675,13 @@ async function startServer() {
       + `Push=${runtimeFlags.push.enabled === true ? 'aktiv' : 'deaktiviert'}`
     );
   });
+  httpServer.once('error', (error) => {
+    reportStartupFailure(error);
+    process.exitCode = 1;
+  });
 }
 
 startServer().catch((error) => {
-  const code = error?.code || 'STARTUP_PREPARATION_FAILED';
-  console.error(`Serverstart abgebrochen (${code}).`);
+  reportStartupFailure(error);
   process.exitCode = 1;
 });

@@ -46,6 +46,11 @@ function exact(env, key, expected) {
   return String(env[key] || '').trim() === expected;
 }
 
+function missingOrFalse(env, key) {
+  const value = String(env[key] || '').trim().toLowerCase();
+  return value === '' || value === 'false';
+}
+
 function validCredential(value) {
   if (typeof value !== 'string' || value.length < 24 || value.length > 256) return false;
   const characterClasses = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/]
@@ -89,6 +94,16 @@ function evaluateAgentTestFixtureGate({ env = {}, appVersion = '' } = {}) {
   ];
   if (identityMatches.some((matches) => !matches)) {
     throw fixtureError('AGENT_TEST_FIXTURE_IDENTITY_MISMATCH');
+  }
+
+  for (const key of [
+    'ALLOW_LEGACY_HOUSE_REGISTRATION',
+    'ALLOW_TEST_INVITATION_LINK',
+    'SEED_ADMIN_FORCE_PASSWORD_RESET'
+  ]) {
+    if (!missingOrFalse(env, key)) {
+      throw fixtureError('AGENT_TEST_FIXTURE_UNSAFE_MODE');
+    }
   }
 
   for (const key of ['BACKUP_ENABLED', 'AUTO_BACKUP', 'EMAIL_ENABLED', 'PUSH_ENABLED']) {
@@ -154,31 +169,22 @@ function installFixtureTables(db) {
   `);
 }
 
-function fixtureResult(db, mode = 'rebuilt') {
-  const counts = Object.fromEntries(['house', 'apartment', 'resource', 'user'].map((type) => [
-    type,
-    db.prepare('SELECT COUNT(*) AS count FROM agent_test_fixture_objects WHERE object_type = ?').get(type).count
-  ]));
+function fixtureResult(db, env, mode = 'rebuilt') {
+  const counts = assertGlobalFixtureInvariants(db, env);
   const simulatedEvents = db.prepare('SELECT COUNT(*) AS count FROM agent_test_fixture_sink').get().count;
-  if (counts.house !== 1 || counts.apartment !== 1 || counts.resource !== FIXTURE.resources.length || counts.user !== 3) {
-    throw fixtureError('AGENT_TEST_FIXTURE_COUNT_MISMATCH');
-  }
   return {
     enabled: true,
     ready: true,
     version: FIXTURE_VERSION,
     mode,
-    houses: 2,
-    resources: counts.resource,
-    residents: 1,
-    houseAdmins: 1,
-    superadmins: 1,
-    simulatedEvents,
-    externalAttempts: 0
+    ...counts,
+    simulatedEvents
   };
 }
 
 function createAgentTestProviderBoundary({ db, gate }) {
+  let externalAttempts = 0;
+
   function record(channel) {
     if (!gate || gate.enabled !== true) return;
     const sequence = db.prepare('SELECT COUNT(*) AS count FROM agent_test_fixture_sink').get().count + 1;
@@ -194,6 +200,7 @@ function createAgentTestProviderBoundary({ db, gate }) {
         record(channel);
         return { simulated: true };
       }
+      externalAttempts += 1;
       return provider(...args);
     };
   }
@@ -203,11 +210,23 @@ function createAgentTestProviderBoundary({ db, gate }) {
       simulatedEvents: gate?.enabled === true
         ? db.prepare('SELECT COUNT(*) AS count FROM agent_test_fixture_sink').get().count
         : 0,
-      externalAttempts: 0
+      externalAttempts
     };
   }
 
-  return Object.freeze({ wrapMail: (provider) => wrap('email', provider), wrapPush: (provider) => wrap('push', provider), status });
+  function assertNoExternalAttempts() {
+    if (externalAttempts !== 0) {
+      throw fixtureError('AGENT_TEST_FIXTURE_EXTERNAL_ATTEMPT');
+    }
+    return status();
+  }
+
+  return Object.freeze({
+    assertNoExternalAttempts,
+    wrapMail: (provider) => wrap('email', provider),
+    wrapPush: (provider) => wrap('push', provider),
+    status
+  });
 }
 
 function registeredIds(db, type) {
@@ -231,27 +250,11 @@ function matchingIds(db, sql, values) {
     .map((row) => Number(row.id));
 }
 
-function deleteFixtureSessions(db, userIds) {
-  if (!userIds.length) return;
-  const fixtureUsers = new Set(userIds.map(Number));
-  const remove = db.prepare('DELETE FROM sessions WHERE sid = ?');
-  for (const row of db.prepare('SELECT sid, sess FROM sessions').all()) {
-    try {
-      const userId = Number(JSON.parse(row.sess)?.user?.id || 0);
-      if (fixtureUsers.has(userId)) remove.run(row.sid);
-    } catch {
-      // Unlesbare fremde Sitzungen lassen sich nicht sicher der Fixture zuordnen.
-    }
-  }
-}
-
 function cleanupRegisteredFixture(db) {
   const userIds = registeredIds(db, 'user');
   const apartmentIds = registeredIds(db, 'apartment');
   const resourceIds = registeredIds(db, 'resource');
   const ownedHouseIds = registeredIds(db, 'house');
-
-  deleteFixtureSessions(db, userIds);
 
   const caseIds = [
     ...matchingIds(db, `SELECT id FROM maintenance_cases WHERE house_id IN (__IDS__)`, ownedHouseIds),
@@ -332,6 +335,156 @@ function stableAccountSnapshot(db, username) {
   return JSON.stringify({ account, roles });
 }
 
+function sameRows(actual, expected) {
+  return JSON.stringify(actual) === JSON.stringify(expected);
+}
+
+function tableExists(db, table) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+
+function assertGlobalFixtureInvariants(db, env) {
+  const counts = Object.fromEntries(['houses', 'users', 'resources', 'apartments', 'sessions'].map((table) => [
+    table,
+    Number(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count)
+  ]));
+  const roleCount = Number(db.prepare('SELECT COUNT(*) AS count FROM user_house_roles').get().count);
+  if (counts.houses !== 2 || counts.users !== 4 || counts.resources !== FIXTURE.resources.length
+      || counts.apartments !== 1 || counts.sessions !== 0 || roleCount !== 2) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+  const globallyEmptyTables = [
+    'account_recovery_codes',
+    'apartment_invitations',
+    'apartment_name_requests',
+    'audit_log',
+    'booking_day_usage',
+    'bookings',
+    'device_pairing_codes',
+    'diaper_game_challenge_scores',
+    'diaper_game_rounds',
+    'diaper_game_scores',
+    'email_verification_tokens',
+    'fixed_bookings',
+    'maintenance_admin_notifications',
+    'maintenance_cases',
+    'maintenance_entries',
+    'maintenance_report_deliveries',
+    'maintenance_report_notifications',
+    'maintenance_report_preferences',
+    'maintenance_reports',
+    'notification_preferences',
+    'password_reset_tokens',
+    'push_subscriptions',
+    'release_notices',
+    'remaining_slot_requests'
+  ];
+  if (globallyEmptyTables.some((table) => (
+    tableExists(db, table) && Number(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count) !== 0
+  ))) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const houses = db.prepare('SELECT id, name, code, active FROM houses ORDER BY name').all();
+  const houseA = houses.find((house) => house.name === EXPECTED.houseAName);
+  const houseB = houses.find((house) => house.name === FIXTURE.houseBName);
+  if (!houseA || !houseB || houseA.active !== 1 || houseB.active !== 1 || houseB.code !== FIXTURE.houseBCode) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const apartment = db.prepare(`
+    SELECT id, house_id, label, display_name, active FROM apartments
+  `).get();
+  if (!apartment || Number(apartment.house_id) !== Number(houseA.id)
+      || apartment.label !== FIXTURE.apartmentLabel || apartment.display_name !== FIXTURE.apartmentLabel
+      || apartment.active !== 1) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const combinedUsername = String(env.SEED_ADMIN_NAME || '').trim();
+  const users = db.prepare(`
+    SELECT username, role, house_id, apartment_id, is_superadmin, active, email, secondary_email
+    FROM users ORDER BY username
+  `).all();
+  const expectedUsers = [
+    { username: combinedUsername, role: 'admin', house_id: houseA.id, apartment_id: null, is_superadmin: 1, active: 1, email: null, secondary_email: null },
+    { username: FIXTURE.houseAdminUsername, role: 'admin', house_id: houseA.id, apartment_id: null, is_superadmin: 0, active: 1, email: null, secondary_email: null },
+    { username: FIXTURE.residentUsername, role: 'user', house_id: houseA.id, apartment_id: apartment.id, is_superadmin: 0, active: 1, email: null, secondary_email: null },
+    { username: FIXTURE.superadminUsername, role: 'admin', house_id: null, apartment_id: null, is_superadmin: 1, active: 1, email: null, secondary_email: null }
+  ].sort((a, b) => a.username.localeCompare(b.username));
+  if (!combinedUsername || !sameRows(users, expectedUsers)) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const roles = db.prepare(`
+    SELECT u.username, h.name AS house, uhr.role
+    FROM user_house_roles uhr
+    JOIN users u ON u.id = uhr.user_id
+    JOIN houses h ON h.id = uhr.house_id
+    ORDER BY u.username, h.name, uhr.role
+  `).all();
+  const expectedRoles = [
+    { username: combinedUsername, house: EXPECTED.houseAName, role: 'house_admin' },
+    { username: FIXTURE.houseAdminUsername, house: EXPECTED.houseAName, role: 'house_admin' }
+  ].sort((a, b) => a.username.localeCompare(b.username));
+  if (!sameRows(roles, expectedRoles)) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const resources = db.prepare(`
+    SELECT r.id, r.name, r.type, h.name AS house, r.active
+    FROM resources r JOIN houses h ON h.id = r.house_id
+    ORDER BY r.name
+  `).all();
+  const expectedResources = FIXTURE.resources.map((resource) => ({
+    name: resource.name,
+    type: resource.type,
+    house: resource.house === 'a' ? EXPECTED.houseAName : FIXTURE.houseBName,
+    active: 1
+  })).sort((a, b) => a.name.localeCompare(b.name));
+  if (!sameRows(resources.map(({ id, ...resource }) => resource), expectedResources)) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const usersByName = new Map(db.prepare('SELECT id, username FROM users').all().map((row) => [row.username, row.id]));
+  const resourcesByName = new Map(resources.map((row) => [row.name, row.id]));
+  const registry = db.prepare(`
+    SELECT object_type, object_key, object_id
+    FROM agent_test_fixture_objects ORDER BY object_type, object_key
+  `).all();
+  const expectedRegistry = [
+    { object_type: 'house', object_key: 'house-b', object_id: houseB.id },
+    { object_type: 'apartment', object_key: 'house-a-apartment', object_id: apartment.id },
+    { object_type: 'user', object_key: 'resident', object_id: usersByName.get(FIXTURE.residentUsername) },
+    { object_type: 'user', object_key: 'houseadmin', object_id: usersByName.get(FIXTURE.houseAdminUsername) },
+    { object_type: 'user', object_key: 'superadmin', object_id: usersByName.get(FIXTURE.superadminUsername) },
+    ...FIXTURE.resources.map((resource) => ({
+      object_type: 'resource', object_key: resource.key, object_id: resourcesByName.get(resource.name)
+    }))
+  ].sort((a, b) => `${a.object_type}:${a.object_key}`.localeCompare(`${b.object_type}:${b.object_key}`));
+  if (!sameRows(registry, expectedRegistry)) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  const states = db.prepare('SELECT fixture_key, fixture_version FROM agent_test_fixture_state').all();
+  const sink = db.prepare('SELECT event_key, status FROM agent_test_fixture_sink ORDER BY event_key').all();
+  if (!sameRows(states, [{ fixture_key: 'baseline', fixture_version: FIXTURE_VERSION }])
+      || !sameRows(sink, [{ event_key: 'baseline.ready', status: 'simulated' }])) {
+    throw fixtureError('AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID');
+  }
+
+  return {
+    houses: counts.houses,
+    accounts: counts.users,
+    resources: counts.resources,
+    apartments: counts.apartments,
+    sessions: counts.sessions,
+    residents: users.filter((user) => user.role === 'user').length,
+    houseAdmins: roles.length,
+    superadmins: users.filter((user) => user.is_superadmin === 1).length
+  };
+}
+
 function fixtureCanNoop(db, bcrypt, env, combinedUsername) {
   const state = db.prepare(`
     SELECT fixture_version FROM agent_test_fixture_state WHERE fixture_key = 'baseline'
@@ -408,13 +561,7 @@ function fixtureCanNoop(db, bcrypt, env, combinedUsername) {
   `).get(houseBId, ...resourceIds, ...userIds);
   if (dependentCase) return false;
   if (db.prepare(`SELECT 1 FROM audit_log WHERE user_id IN (${placeholders(userIds)}) LIMIT 1`).get(...userIds)) return false;
-  for (const row of db.prepare('SELECT sess FROM sessions').all()) {
-    try {
-      if (userIds.includes(Number(JSON.parse(row.sess)?.user?.id || 0))) return false;
-    } catch {
-      // Fremde unlesbare Sitzungen beeinflussen den Fixture-Sollzustand nicht.
-    }
-  }
+  if (db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count !== 0) return false;
 
   const combined = db.prepare(`
     SELECT u.id FROM users u
@@ -431,13 +578,14 @@ function rebuildAgentTestFixture({ db, bcrypt, env, gate }) {
 
   const result = db.transaction(() => {
     installFixtureTables(db);
+    db.prepare('DELETE FROM sessions').run();
 
     const combinedUsername = String(env.SEED_ADMIN_NAME || '').trim();
     const combinedBefore = stableAccountSnapshot(db, combinedUsername);
     if (!combinedBefore) throw fixtureError('AGENT_TEST_FIXTURE_COMBINED_ACCOUNT_MISSING');
 
     if (fixtureCanNoop(db, bcrypt, env, combinedUsername)) {
-      return fixtureResult(db, 'noop');
+      return fixtureResult(db, env, 'noop');
     }
 
     cleanupRegisteredFixture(db);
@@ -528,7 +676,7 @@ function rebuildAgentTestFixture({ db, bcrypt, env, gate }) {
       throw fixtureError('AGENT_TEST_FIXTURE_COMBINED_ACCOUNT_CHANGED');
     }
 
-    return fixtureResult(db);
+    return fixtureResult(db, env);
   })();
 
   return Object.freeze(result);

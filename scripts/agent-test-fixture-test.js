@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -18,6 +19,11 @@ const {
   initializeDatabaseWithAgentTestFixture,
   rebuildAgentTestFixture
 } = require('../src/services/agent-test-fixture');
+const {
+  classifyStartupFailure,
+  createStartupFailureReporter,
+  formatStartupFailure
+} = require('../src/services/startup-diagnostics');
 
 const projectRoot = path.resolve(__dirname, '..');
 
@@ -192,17 +198,23 @@ function abstractSnapshot(db) {
       ORDER BY r.name
     `).all(),
     state: db.prepare('SELECT fixture_key, fixture_version FROM agent_test_fixture_state').all(),
-    sink: db.prepare('SELECT event_key, status FROM agent_test_fixture_sink').all()
+    sink: db.prepare('SELECT event_key, status FROM agent_test_fixture_sink').all(),
+    sessions: db.prepare('SELECT sid, sess FROM sessions ORDER BY sid').all()
   };
 }
 
-async function runRejectedServer(env, databasePath) {
-  const child = spawn(process.execPath, ['server.js'], {
+async function runRejectedServer(env) {
+  const bootstrap = [
+    "const fs = require('node:fs');",
+    "fs.mkdirSync = () => { const error = new Error('FILESYSTEM_TOUCHED'); error.code = 'FILESYSTEM_TOUCHED'; throw error; };",
+    `require(${JSON.stringify(path.join(projectRoot, 'startup.js'))});`
+  ].join(' ');
+  const child = spawn(process.execPath, ['-e', bootstrap], {
     cwd: projectRoot,
     env: {
       ...process.env,
       ...env,
-      DB_PATH: databasePath,
+      DB_PATH: EXPECTED.databasePath,
       PORT: '0'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -212,6 +224,79 @@ async function runRejectedServer(env, databasePath) {
   child.stderr.on('data', (chunk) => output.push(chunk.toString()));
   const exitCode = await new Promise((resolve) => child.once('exit', resolve));
   return { exitCode, output: output.join('') };
+}
+
+function requestHealth(port) {
+  return new Promise((resolve, reject) => {
+    const request = http.get({ hostname: '127.0.0.1', port, path: '/api/health', timeout: 1000 }, (response) => {
+      response.resume();
+      response.once('end', () => resolve(response.statusCode));
+    });
+    request.once('timeout', () => request.destroy(new Error('HEALTH_TIMEOUT')));
+    request.once('error', reject);
+  });
+}
+
+async function runFatalListenerRegression(eventName, { writeFailure = false } = {}) {
+  const bootstrap = [
+    "const fs = require('node:fs');",
+    "const http = require('node:http');",
+    `const serverPath = require.resolve(${JSON.stringify(path.join(projectRoot, 'server.js'))});`,
+    "require.cache[serverPath] = { id: serverPath, filename: serverPath, loaded: true, exports: {} };",
+    `require(${JSON.stringify(path.join(projectRoot, 'startup.js'))});`,
+    writeFailure
+      ? "fs.writeSync = () => { const error = new Error('CANARY_WRITE_FAILURE'); error.code = 'EIO'; throw error; };"
+      : '',
+    "const listener = http.createServer((request, response) => { response.writeHead(200); response.end('ok'); });",
+    "listener.listen(0, '127.0.0.1', () => process.send({ type: 'ready', port: listener.address().port }));",
+    "process.once('message', () => {",
+    "  const error = new Error('canary-secret C:\\\\private\\\\credential.env');",
+    "  error.code = 'AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID';",
+    eventName === 'uncaughtException'
+      ? "  setImmediate(() => { throw error; });"
+      : "  Promise.reject(error);",
+    "});"
+  ].join(' ');
+  const child = spawn(process.execPath, ['-e', bootstrap], {
+    cwd: projectRoot,
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
+  });
+  const output = [];
+  child.stdout.on('data', (chunk) => output.push(chunk.toString()));
+  child.stderr.on('data', (chunk) => output.push(chunk.toString()));
+
+  let timeout;
+  try {
+    const port = await new Promise((resolve, reject) => {
+      timeout = setTimeout(() => reject(new Error(`${eventName.toUpperCase()}_READY_TIMEOUT`)), 3000);
+      child.once('error', reject);
+      child.once('exit', (code) => reject(new Error(`${eventName.toUpperCase()}_EARLY_EXIT_${code}`)));
+      child.once('message', (message) => {
+        if (message?.type === 'ready') resolve(message.port);
+      });
+    });
+    clearTimeout(timeout);
+    assert.equal(await requestHealth(port), 200, `${eventName}: Listener muss vor dem Fatalereignis erreichbar sein`);
+
+    child.send('trigger');
+    const exit = await new Promise((resolve, reject) => {
+      timeout = setTimeout(() => reject(new Error(`${eventName.toUpperCase()}_EXIT_TIMEOUT`)), 3000);
+      child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+    clearTimeout(timeout);
+    assert.notEqual(exit.code, 0, `${eventName}: Fatalereignis muss mit Nichtnullcode beenden`);
+    assert.equal(exit.signal, null, `${eventName}: kontrollierter Fatalexit darf kein externes Kill-Signal brauchen`);
+    assert.equal(child.exitCode, exit.code, `${eventName}: Kindprozess muss terminal beendet sein`);
+    await assert.rejects(requestHealth(port), `${eventName}: Health darf nach Fatalexit nicht erreichbar sein`);
+
+    const lines = output.join('').trim().split(/\r?\n/).filter(Boolean);
+    assert.deepEqual(lines, writeFailure ? [] : ['WASCHZEIT_STARTFAIL class=FIXTURE_STATE']);
+    assert.doesNotMatch(output.join(''), /Error:|at\s|canary-secret|private|credential|\\|\/[^/]/i);
+  } finally {
+    clearTimeout(timeout);
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+  }
 }
 
 async function main() {
@@ -272,6 +357,43 @@ async function main() {
     env: fixtureEnv({ AGENT_TEST_RESIDENT_PASSWORD: '' }),
     appVersion: EXPECTED.appVersion
   }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
+  for (const key of [
+    'ALLOW_LEGACY_HOUSE_REGISTRATION',
+    'ALLOW_TEST_INVITATION_LINK',
+    'SEED_ADMIN_FORCE_PASSWORD_RESET'
+  ]) {
+    assert.equal(evaluateAgentTestFixtureGate({
+      env: fixtureEnv({ [key]: '' }),
+      appVersion: EXPECTED.appVersion
+    }).enabled, true, `${key} darf fehlen`);
+    assert.equal(evaluateAgentTestFixtureGate({
+      env: fixtureEnv({ [key]: 'false' }),
+      appVersion: EXPECTED.appVersion
+    }).enabled, true, `${key}=false muss erlaubt sein`);
+    for (const value of ['true', 'invalid']) {
+      assert.throws(() => evaluateAgentTestFixtureGate({
+        env: fixtureEnv({ [key]: value }),
+        appVersion: EXPECTED.appVersion
+      }), { code: 'AGENT_TEST_FIXTURE_UNSAFE_MODE' }, `${key}/${value}`);
+    }
+  }
+
+  assert.equal(classifyStartupFailure({ code: 'AGENT_TEST_FIXTURE_IDENTITY_MISMATCH' }), 'GUARD_IDENTITY');
+  assert.equal(classifyStartupFailure({ code: 'AGENT_TEST_FIXTURE_UNSAFE_MODE' }), 'GUARD_MODE');
+  assert.equal(classifyStartupFailure({ code: 'AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID' }), 'FIXTURE_STATE');
+  assert.equal(classifyStartupFailure({ code: 'SQLITE_CANTOPEN' }), 'STORAGE');
+  assert.equal(classifyStartupFailure({ code: 'MAINTENANCE_MIGRATION_BACKUP_REQUIRED' }), 'MIGRATION_BACKUP');
+  assert.equal(classifyStartupFailure({ code: 'EADDRINUSE' }), 'LISTENER');
+  assert.equal(classifyStartupFailure({ code: 'MODULE_NOT_FOUND' }), 'BOOTSTRAP');
+  assert.equal(formatStartupFailure({
+    code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID',
+    message: 'canary-secret C:\\private\\credential.env'
+  }), 'WASCHZEIT_STARTFAIL class=GUARD_CREDENTIALS');
+  const diagnosticLines = [];
+  const reportDiagnostic = createStartupFailureReporter((line) => diagnosticLines.push(line));
+  assert.equal(reportDiagnostic({ code: 'AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID' }), true);
+  assert.equal(reportDiagnostic({ code: 'SQLITE_CANTOPEN' }), false, 'Pro Start darf nur ein Marker entstehen');
+  assert.deepEqual(diagnosticLines, ['WASCHZEIT_STARTFAIL class=FIXTURE_STATE']);
   assert.throws(() => evaluateAgentTestFixtureGate({
     env: fixtureEnv({ AGENT_TEST_RESIDENT_PASSWORD: 'a'.repeat(24) }),
     appVersion: EXPECTED.appVersion
@@ -287,19 +409,22 @@ async function main() {
     appVersion: EXPECTED.appVersion
   }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
 
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-fixture-gate-'));
-  const rejectedDb = path.join(tempRoot, 'must-not-exist.sqlite');
-  try {
-    const rejected = await runRejectedServer(
-      fixtureEnv({ RENDER_SERVICE_NAME: 'wrong-service' }),
-      rejectedDb
-    );
+  const rejectedCases = [
+    { className: 'GUARD_IDENTITY', override: { RENDER_SERVICE_NAME: 'wrong-service' } },
+    { className: 'GUARD_MODE', override: { ALLOW_TEST_INVITATION_LINK: 'true' } },
+    { className: 'GUARD_NO_SEND', override: { PUSH_ENABLED: 'true' } },
+    { className: 'GUARD_PROVIDER', override: { SMTP_HOST: 'forbidden.invalid' } },
+    { className: 'GUARD_CREDENTIALS', override: { AGENT_TEST_RESIDENT_PASSWORD: '' } }
+  ];
+  for (const rejectedCase of rejectedCases) {
+    const rejected = await runRejectedServer(fixtureEnv(rejectedCase.override));
     assert.notEqual(rejected.exitCode, 0);
-    assert.match(rejected.output, /AGENT_TEST_FIXTURE_IDENTITY_MISMATCH/);
-    assert.equal(fs.existsSync(rejectedDb), false, 'Guard muss vor SQLite-Dateianlage abbrechen');
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    assert.equal(rejected.output.trim(), `WASCHZEIT_STARTFAIL class=${rejectedCase.className}`);
+    assert.doesNotMatch(rejected.output, /Error:|at\s|FILESYSTEM_TOUCHED|RENDER_|AGENT_TEST_|Password/i);
   }
+  await runFatalListenerRegression('uncaughtException');
+  await runFatalListenerRegression('unhandledRejection');
+  await runFatalListenerRegression('uncaughtException', { writeFailure: true });
 
   const db = createTestDatabase();
   const gate = evaluateAgentTestFixtureGate({ env: validEnv, appVersion: EXPECTED.appVersion });
@@ -315,12 +440,14 @@ async function main() {
       version: FIXTURE_VERSION,
       mode: 'rebuilt',
       houses: 2,
+      accounts: 4,
       resources: 5,
+      apartments: 1,
+      sessions: 0,
       residents: 1,
-      houseAdmins: 1,
-      superadmins: 1,
-      simulatedEvents: 1,
-      externalAttempts: 0
+      houseAdmins: 2,
+      superadmins: 2,
+      simulatedEvents: 1
     });
     const firstSnapshot = abstractSnapshot(db);
     assert.equal(firstSnapshot.houses.length, 2);
@@ -388,6 +515,8 @@ async function main() {
     db.prepare('INSERT INTO sessions (sid, sess) VALUES (?, ?)')
       .run('fixture-session', JSON.stringify({ user: { id: fixtureResident.id } }));
     db.prepare('INSERT INTO sessions (sid, sess) VALUES (?, ?)')
+      .run('combined-session', JSON.stringify({ user: { id: combinedBefore.id } }));
+    db.prepare('INSERT INTO sessions (sid, sess) VALUES (?, ?)')
       .run('unrelated-unreadable-session', '{not-json');
     db.prepare(`
       INSERT INTO audit_log (house_id, user_id, target_type, target_id) VALUES (?, ?, 'resource', ?)
@@ -397,12 +526,8 @@ async function main() {
     assert.equal(second.ready, true);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM maintenance_cases').get().count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM maintenance_reports').get().count, 0);
-    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE sid = ?').get('fixture-session').count, 0);
-    assert.equal(
-      db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE sid = ?').get('unrelated-unreadable-session').count,
-      1,
-      'Nicht eindeutig zuordenbare Sitzungen duerfen nicht als Fixture-Daten geloescht werden'
-    );
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 0,
+      'Ein Agent-Test-Neustart darf keine kombinierte, Fixture- oder unlesbare Sitzung behalten');
     assert.deepEqual(abstractSnapshot(db), firstSnapshot, 'Wiederaufbau muss semantisch idempotent sein');
     assert.deepEqual(db.prepare('SELECT * FROM users WHERE username = ?').get('agent-test-admin'), combinedBefore);
     assert.deepEqual(
@@ -410,14 +535,56 @@ async function main() {
       combinedRoleBefore
     );
 
-    const foreignHouseId = Number(db.prepare('INSERT INTO houses (name, code) VALUES (?, ?)')
-      .run('Fremder synthetischer Bestand', 'FOREIGN-SYNTHETIC').lastInsertRowid);
-    db.prepare('INSERT INTO resources (name, type, house_id) VALUES (?, ?, ?)')
-      .run('Fremde Waschmaschine', 'washer', foreignHouseId);
-    const foreignBefore = {
-      houses: db.prepare("SELECT COUNT(*) AS count FROM houses WHERE code = 'FOREIGN-SYNTHETIC'").get().count,
-      resources: db.prepare("SELECT COUNT(*) AS count FROM resources WHERE name = 'Fremde Waschmaschine'").get().count
+    const assertForeignStateRejected = (label, mutate) => {
+      const dirtyDb = createTestDatabase();
+      try {
+        rebuildAgentTestFixture({ db: dirtyDb, bcrypt, env: validEnv, gate });
+        mutate(dirtyDb);
+        const before = abstractSnapshot(dirtyDb);
+        assert.throws(
+          () => rebuildAgentTestFixture({ db: dirtyDb, bcrypt, env: validEnv, gate }),
+          { code: 'AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID' },
+          label
+        );
+        assert.deepEqual(abstractSnapshot(dirtyDb), before, `${label} muss nach dem Rollback erhalten bleiben`);
+      } finally {
+        dirtyDb.close();
+      }
     };
+    assertForeignStateRejected('fremdes Haus', (dirtyDb) => {
+      dirtyDb.prepare('INSERT INTO houses (name, code) VALUES (?, ?)')
+        .run('Fremder synthetischer Bestand', 'FOREIGN-SYNTHETIC');
+    });
+    assertForeignStateRejected('fremder Nutzer', (dirtyDb) => {
+      const houseId = dirtyDb.prepare('SELECT id FROM houses WHERE name = ?').get(EXPECTED.houseAName).id;
+      dirtyDb.prepare(`
+        INSERT INTO users (username, password_hash, role, house_id) VALUES (?, ?, 'user', ?)
+      `).run('foreign-user', bcrypt.hashSync('Foreign-Password-Only-Test-2026', 10), houseId);
+    });
+    assertForeignStateRejected('fremde Ressource', (dirtyDb) => {
+      const houseId = dirtyDb.prepare('SELECT id FROM houses WHERE name = ?').get(EXPECTED.houseAName).id;
+      dirtyDb.prepare('INSERT INTO resources (name, type, house_id) VALUES (?, ?, ?)')
+        .run('Fremde Waschmaschine', 'washer', houseId);
+    });
+    assertForeignStateRejected('fremde Wohnung', (dirtyDb) => {
+      const houseId = dirtyDb.prepare('SELECT id FROM houses WHERE name = ?').get(EXPECTED.houseAName).id;
+      dirtyDb.prepare('INSERT INTO apartments (house_id, label, display_name) VALUES (?, ?, ?)')
+        .run(houseId, 'Fremde Wohnung', 'Fremde Wohnung');
+    });
+    assertForeignStateRejected('fremde Rollenbindung', (dirtyDb) => {
+      const combined = dirtyDb.prepare('SELECT id FROM users WHERE username = ?').get('agent-test-admin');
+      const houseB = dirtyDb.prepare('SELECT id FROM houses WHERE name = ?').get(FIXTURE.houseBName);
+      dirtyDb.prepare(`
+        INSERT INTO user_house_roles (user_id, house_id, role, granted_by)
+        VALUES (?, ?, 'house_admin', NULL)
+      `).run(combined.id, houseB.id);
+    });
+    assertForeignStateRejected('fremder Auditbestand', (dirtyDb) => {
+      dirtyDb.prepare(`
+        INSERT INTO audit_log (target_type, target_id) VALUES ('foreign', 'retained')
+      `).run();
+    });
+
     const missingFixtureResourceId = db.prepare(`
       SELECT object_id FROM agent_test_fixture_objects
       WHERE object_type = 'resource' AND object_key = 'house-b-washer'
@@ -425,10 +592,6 @@ async function main() {
     db.prepare('DELETE FROM resources WHERE id = ?').run(missingFixtureResourceId);
     const repaired = rebuildAgentTestFixture({ db, bcrypt, env: validEnv, gate });
     assert.equal(repaired.mode, 'rebuilt');
-    assert.deepEqual({
-      houses: db.prepare("SELECT COUNT(*) AS count FROM houses WHERE code = 'FOREIGN-SYNTHETIC'").get().count,
-      resources: db.prepare("SELECT COUNT(*) AS count FROM resources WHERE name = 'Fremde Waschmaschine'").get().count
-    }, foreignBefore, 'Fremde Daten muessen beim Reparieren eines markierten Teilzustands unveraendert bleiben');
 
     db.prepare(`
       DELETE FROM resources WHERE id = (
@@ -519,14 +682,31 @@ async function main() {
     await pushService.sendPushNotification({ endpoint: 'https://must-not-leave.invalid' }, 'payload');
     assert.deepEqual(providerCalls, { email: 0, push: 0, network: 0 });
     assert.deepEqual(boundary.status(), { simulatedEvents: 3, externalAttempts: 0 });
+    let measuredProviderCalls = 0;
+    const measuredBoundary = createAgentTestProviderBoundary({ db, gate: { enabled: false } });
+    await measuredBoundary.wrapMail(async () => { measuredProviderCalls += 1; })();
+    assert.equal(measuredProviderCalls, 1);
+    assert.equal(measuredBoundary.status().externalAttempts, 1,
+      'externalAttempts muss am tatsaechlich betretenen Providerpfad gemessen werden');
+    assert.throws(() => measuredBoundary.assertNoExternalAttempts(), {
+      code: 'AGENT_TEST_FIXTURE_EXTERNAL_ATTEMPT'
+    });
 
     const fixtureSource = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'agent-test-fixture.js'), 'utf8');
     const serverSource = fs.readFileSync(path.join(projectRoot, 'server.js'), 'utf8');
+    const operationsSource = fs.readFileSync(path.join(projectRoot, 'src', 'routes', 'operations.js'), 'utf8');
     assert.doesNotMatch(fixtureSource, /\bfetch\s*\(|https?\.request|net\.connect|tls\.connect|sendMail|sendNotification|webPush/);
     assert.match(serverSource, /const sendMail = agentTestProviderBoundary\.wrapMail\(sendMailProvider\)/);
     assert.match(serverSource, /providerSendNotification: agentTestProviderBoundary\.wrapPush\(/);
     assert.match(serverSource, /createMaintenanceReporting\([\s\S]*sendPushNotification,[\s\S]*sendMail,/);
     assert.match(serverSource, /createNotificationService\([\s\S]*sendMail,/);
+    assert.doesNotMatch(serverSource, /password_hash = CASE WHEN/,
+      'Ein vorhandenes Seed-Konto darf ohne Reset keinen ungenutzten Legacy-Hash berechnen');
+    assert.match(serverSource, /if \(forcePasswordReset\) \{[\s\S]*bcrypt\.hashSync\(password, 10\)/);
+    for (const field of ['accounts', 'apartments', 'sessions']) {
+      assert.match(operationsSource, new RegExp(`${field}: fixtureStatus\\.${field}`));
+    }
+    assert.match(operationsSource, /ready: fixtureStatus\.ready === true && fixtureStatus\.externalAttempts === 0/);
   } finally {
     db.close();
   }

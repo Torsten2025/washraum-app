@@ -334,12 +334,15 @@ function verifyBlueprintsAndVersion() {
   const agentTest = fs.readFileSync(path.join(projectRoot, 'render.agent-test.yaml'), 'utf8');
   const production = fs.readFileSync(path.join(projectRoot, 'render.yaml'), 'utf8');
   const fixtureSource = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'agent-test-fixture.js'), 'utf8');
+  const startupSource = fs.readFileSync(path.join(projectRoot, 'startup.js'), 'utf8');
+  const startupDiagnostics = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'startup-diagnostics.js'), 'utf8');
   const handbook = fs.readFileSync(path.join(projectRoot, 'HANDBUCH.md'), 'utf8');
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
   assert.equal(packageInfo.version, '0.3.0-test.11');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
+  assert.equal(packageInfo.scripts.start, 'node startup.js');
   assert.equal(lock.version, '0.3.0-test.11');
   assert.equal(lock.packages[''].version, '0.3.0-test.11');
   assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.11';"));
@@ -406,6 +409,25 @@ function verifyBlueprintsAndVersion() {
   assert.match(fixtureSource, /exact\(env, 'DB_PATH', EXPECTED\.databasePath\)/);
   assert.match(fixtureSource, /AGENT_TEST_FIXTURE_PROVIDER_BINDING_FORBIDDEN/);
   assert.match(fixtureSource, /credentials\.includes\(env\.SEED_ADMIN_PASSWORD\)/);
+  for (const key of [
+    'ALLOW_LEGACY_HOUSE_REGISTRATION',
+    'ALLOW_TEST_INVITATION_LINK',
+    'SEED_ADMIN_FORCE_PASSWORD_RESET'
+  ]) {
+    assert.match(fixtureSource, new RegExp(`missingOrFalse\\(env, key\\)`));
+    assert.match(fixtureSource, new RegExp(key));
+  }
+  assert.match(fixtureSource, /externalAttempts \+= 1/);
+  assert.match(fixtureSource, /AGENT_TEST_FIXTURE_EXTERNAL_ATTEMPT/);
+  assert.match(fixtureSource, /AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID/);
+  assert.match(startupSource, /process\.once\('uncaughtException', fail\)/);
+  assert.match(startupSource, /process\.once\('unhandledRejection', fail\)/);
+  assert.match(startupSource, /finally \{\s*process\.exit\(1\);\s*\}/);
+  assert.doesNotMatch(startupSource, /process\.exitCode\s*=/);
+  assert.match(startupDiagnostics, /WASCHZEIT_STARTFAIL class=/);
+  assert.match(startupDiagnostics, /fs\.writeSync\(2, output, offset, output\.length - offset\)/);
+  assert.doesNotMatch(startupDiagnostics, /process\.stderr\.write/);
+  assert.doesNotMatch(startupDiagnostics, /error\?\.message|error\?\.stack|JSON\.stringify\(error/);
   for (const document of [handbook, readme, testPlan]) {
     assert.doesNotMatch(document, /codex\/agent-test11/);
   }

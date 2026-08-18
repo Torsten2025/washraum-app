@@ -78,10 +78,13 @@ publicRouter.get(['/health', '/api/health'], (req, res) => {
     fixture: fixtureStatus?.enabled === true
       ? {
           enabled: true,
-          ready: fixtureStatus.ready === true,
+          ready: fixtureStatus.ready === true && fixtureStatus.externalAttempts === 0,
           version: fixtureStatus.version,
           houses: fixtureStatus.houses,
+          accounts: fixtureStatus.accounts,
           resources: fixtureStatus.resources,
+          apartments: fixtureStatus.apartments,
+          sessions: fixtureStatus.sessions,
           roles: {
             residents: fixtureStatus.residents,
             houseAdmins: fixtureStatus.houseAdmins,

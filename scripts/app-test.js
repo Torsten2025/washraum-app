@@ -269,7 +269,9 @@ async function verifyProductionMaintenanceMigrationGate() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Migration gate process did not stop.')), 5000))
     ]);
     assert.notEqual(blocked.exitCode, 0);
-    assert.ok(blockedOutput.join('').includes('MAINTENANCE_MIGRATION_BACKUP_REQUIRED'));
+    const startupDiagnostic = blockedOutput.join('').trim();
+    assert.equal(startupDiagnostic, 'WASCHZEIT_STARTFAIL class=MIGRATION_BACKUP');
+    assert.doesNotMatch(startupDiagnostic, /PRODUCTION-GATE|Error:|\sat\s|\\|\/[^/]/);
     await assert.rejects(fetch(`http://127.0.0.1:${migrationPort}/api/health`));
     const unchangedDb = new Database(migrationDatabasePath, { readonly: true });
     assert.equal(

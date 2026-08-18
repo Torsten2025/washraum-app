@@ -125,16 +125,18 @@ npm run check
 | --- | --- | --- | --- |
 | FA-01 | Zieldienst | Exakt `waschzeit-agent-test` im Free-/ephemeral-Vertrag | `test:fixture`, `test:safety` |
 | FA-02 | Infrastruktur | Keine Disk, kein Planwechsel, kein Infrastruktur-Backup/Restore | `test:safety`, Blueprintreview |
-| FA-03 | Persistenzgrenze | `/tmp`-Verlust dokumentiert; Neustart baut markierte Baseline reproduzierbar neu | `test:fixture`, Handbuchreview |
-| FA-04 | Fail-closed Identitaet | NODE_ENV, APP_ENV, Service-ID/-Name, Host, HTTPS-Origin, Release/Paket, Branch, erwarteter=tatsaechlicher Commit, DB-Pfad und Renderkontext vor DB-Anlage exakt | `test:fixture`, `test:safety` |
-| FA-05 | Synthetischer Umfang | Zwei Haeuser und ausschliesslich minimale markierte Ressourcen | `test:fixture` |
+| FA-03 | Persistenzgrenze | `/tmp`-Verlust dokumentiert; Neustart baut markierte Baseline reproduzierbar neu und entfernt innerhalb derselben Transaktion alle kombinierten, Fixture- und unlesbaren Sitzungen | `test:fixture`, Handbuchreview |
+| FA-04 | Fail-closed Identitaet | NODE_ENV, APP_ENV, Service-ID/-Name, Host, HTTPS-Origin, Release/Paket, Branch, erwarteter=tatsaechlicher Commit, DB-Pfad und Renderkontext vor DB-Anlage exakt; Legacy-Registrierung, Test-Einladungslink und Seed-Passwortreset fehlen oder sind exakt false | `test:fixture`, `test:safety` |
+| FA-05 | Synthetischer Umfang | Globale DB-Invariante mit exakt zwei Haeusern, vier Konten, fuenf Ressourcen, einer Wohnung und zwei erlaubten Hausadminbindungen; jedes unmarkierte weitere Fixture-relevante Objekt stoppt `ready` | `test:fixture` |
 | FA-06 | Exklusive Rollen | Bewohner, Haus-Admin und Superadmin jeweils exklusiv; kombiniertes Bestandskonto unveraendert | `test:fixture`, `test:roles` |
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
-| FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts sind null | `test:fixture`, `test:safety` |
+| FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
 | FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.0-test.11` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
+
+Startupdiagnose: Guard-, Storage-, Fixture-, Migrations- und Listenerfehler muessen ueber `startup.js` in genau eine allowlistete Zeile `WASCHZEIT_STARTFAIL class=...` abgebildet werden. Die Einzeile muss vor dem Fatalexit vollstaendig ueber einen synchronen FD-2-Schreibpfad ausgegeben werden. Canaries pruefen, dass weder Stack noch Pfad, Env-Name/-Wert, Secretmerkmal, Hook, ID oder PII ausgegeben werden. Fuer `uncaughtException` und `unhandledRejection` prueft je ein echter Node-22.23.1-Kindprozess mit gepipetem stdout/stderr einen vor dem Ereignis erreichbaren HTTP-Listener, den vollstaendig empfangenen Einzelmarker, Nichtnull-Exit innerhalb der Frist, terminales Prozessende und danach fehlende Health-Erreichbarkeit. Ein erzwungener synchroner Schreibfehler muss ebenfalls terminal und ohne erreichbaren Health-Endpunkt enden. Das verdeckte `SEED_ADMIN_PASSWORD` wird ohne Readback und ohne Hashausgabe nur intern gegen den unveraenderten Staerke-/Distinctness-Vertrag geprueft.
 
 Das Releasegate prueft zusaetzlich die einzige erlaubte Choreografie: ein gemeinsames Render-Environment-`Save only` fuer drei Owner-Fixturesecrets, erwarteten Commit und Guardwerte muss null Deploys erzeugen; danach darf genau ein Fast-forward-Push auf `refs/heads/codex/agent-test` genau eine AutoDeploy-ID ausloesen. AutoDeploy-Umschaltung, Manual Deploy, Restart, Hook, Blueprint-Sync, zweiter Push oder Retry sind ausgeschlossen. Diese Schritte sind kein Bestandteil lokaler Tests und werden erst nach Freeze, CTO-, QA- und Owner-GO durch DevOps nachgewiesen.
 
