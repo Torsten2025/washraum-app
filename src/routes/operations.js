@@ -30,7 +30,8 @@ function createOperationsRouters({
   todayStringLocal,
   addDays,
   destroyUserSessions,
-  runtimeFlags
+  runtimeFlags,
+  agentTestFixtureStatus
 }) {
   const publicRouter = express.Router();
   const adminRouter = express.Router();
@@ -46,6 +47,9 @@ function createOperationsRouters({
   }
 
 publicRouter.get(['/health', '/api/health'], (req, res) => {
+  const fixtureStatus = typeof agentTestFixtureStatus === 'function'
+    ? agentTestFixtureStatus()
+    : agentTestFixtureStatus;
   const storage = env.RENDER === 'true'
     ? (dbPath.startsWith('/var/data') ? 'persistent' : 'ephemeral')
     : 'local';
@@ -70,7 +74,23 @@ publicRouter.get(['/health', '/api/health'], (req, res) => {
       backup: { enabled: backupEnabled },
       email: { enabled: runtimeFlags?.email?.enabled === true },
       push: { enabled: runtimeFlags?.push?.enabled === true }
-    }
+    },
+    fixture: fixtureStatus?.enabled === true
+      ? {
+          enabled: true,
+          ready: fixtureStatus.ready === true,
+          version: fixtureStatus.version,
+          houses: fixtureStatus.houses,
+          resources: fixtureStatus.resources,
+          roles: {
+            residents: fixtureStatus.residents,
+            houseAdmins: fixtureStatus.houseAdmins,
+            superadmins: fixtureStatus.superadmins
+          },
+          simulatedEvents: fixtureStatus.simulatedEvents,
+          externalAttempts: fixtureStatus.externalAttempts
+        }
+      : { enabled: false, ready: false }
   });
 });
 

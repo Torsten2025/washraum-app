@@ -82,6 +82,12 @@ function isPastSwissSlot(dateString, slot, now = new Date()) {
   return endsAt === null || swissClockTimestamp(now) >= endsAt;
 }
 
+function isSwissSlotStarted(dateString, slot, now = new Date()) {
+  const startTime = String(slot || '').split('-')[0];
+  const startsAt = dateClockTimestamp(dateString, startTime);
+  return startsAt === null || swissClockTimestamp(now) >= startsAt;
+}
+
 module.exports = {
   SWISS_TIME_ZONE,
   addDays,
@@ -89,6 +95,7 @@ module.exports = {
   isDateString,
   isPastSwissDate,
   isPastSwissSlot,
+  isSwissSlotStarted,
   swissClockTimestamp,
   swissDateString,
   weekdayForDate

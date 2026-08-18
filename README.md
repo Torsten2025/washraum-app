@@ -8,6 +8,7 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 
 - Wochenkalender mit Einzelbuchung und persoenlichen Waschpaketen aus Waschrhythmus und aktuell freien Geraeten.
 - Waschpakete reservieren per Schnellwahl eine bis drei Waschmaschinen im gleichen Slot, eine waehlbare Trockenraumdauer und den Tumbler gemeinsam und atomar. Alle Bestandteile koennen gemeinsam verwaltet werden.
+- Restplaetze buchen fuer einen freien, noch nicht begonnenen Slot am heutigen Schweizer Tag exakt eine Waschmaschine und optional einen Tumbler; Trockenraum und neue Benachrichtigungen bleiben ausgeschlossen.
 - Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
 - Jede Person verwendet genau eine eindeutige E-Mail-Identitaet. Diese kann Bewohner einer Wohnung, Haus-Admin und zusaetzlich Superadmin sein; `Mein Waschplan` und `Verwalten` bleiben dabei klar getrennt.
 - Zentrale deutsche und englische Oberflaeche mit lokaler Sprachwahl vor Login und kontobezogener Persistenz nach Login; Deutsch bleibt der sichere Rueckfall.
@@ -25,12 +26,14 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 
 - Entwicklung: lokaler Server mit lokaler SQLite-Datei unter `data/`.
 - Test: isolierte Server mit temporaeren Datenbanken und lokalem SMTP-Testserver. Eine statische Barrierefreiheitspruefung ist ebenfalls enthalten.
-- Agent-Test: eigener Render-Free-Dienst `waschzeit-agent-test` in Frankfurt mit fluechtiger Datenbank, ohne Disk, E-Mail, Push oder Backup. Der Dienst folgt ausschliesslich dem QA-geprueften Zweig `codex/agent-test`.
+- Agent-Test: eigener Render-Free-Dienst `waschzeit-agent-test` in Frankfurt mit fluechtiger Datenbank, ohne Disk, E-Mail, Push oder Backup. Der gepruefte Releasecommit wird ausschliesslich per Fast-forward auf `codex/agent-test` veroeffentlicht.
 - Produktion: Render mit persistentem Datentraeger unter `/var/data`.
 
 `render.staging.yaml` beschreibt eine getrennte, absichtlich nicht automatisch erzeugte Staging-Instanz. Sie nutzt eine fluechtige Testdatenbank und kann bei Bedarf als zweiter Render-Blueprint angelegt werden, ohne Produktionsdaten zu beruehren.
 
-`render.agent-test.yaml` beschreibt die dauerhaft wiederverwendbare, vollstaendig synthetische Agent-Testumgebung. Nach ihrer einmaligen Anlage deployt Render neue, zuvor vollstaendig gepruefte Pushes auf `codex/agent-test` automatisch. Nur dieser Dienst pinnt Node `22.23.1`; das deklarative `packageManager: npm@10.9.8` wird vor `npm ci` durch `scripts/toolchain-guard.js` offline und ohne Installation geprueft. Der Pin verbessert die Reproduzierbarkeit, beweist aber weder die Node-24-Hypothese noch die weiterhin unbekannte Ursache des vorigen Render-Fehlers. Render erzeugt Sitzungsgeheimnis und Hauscode; nur das synthetische Seed-Admin-Passwort wird ausserhalb des Repositorys im freigegebenen Passwortmanager verwaltet.
+`render.agent-test.yaml` beschreibt die dauerhaft wiederverwendbare, vollstaendig synthetische Agent-Testumgebung. Nur ein zuvor vollstaendig gepruefter Fast-forward-Push auf `codex/agent-test` darf den AutoDeploy ausloesen. Unmittelbar davor werden die drei Owner-Fixturesecrets, der erwartete Commit und die gefrorenen Guardwerte in genau einem Render-Environment-Vorgang mit `Save only` vorgemerkt; dieser Vorgang darf keinen Deploy ausloesen. Nur dieser Dienst pinnt Node `22.23.1`; das deklarative `packageManager: npm@10.9.8` wird vor `npm ci` durch `scripts/toolchain-guard.js` offline und ohne Installation geprueft. Der Pin verbessert die Reproduzierbarkeit, beweist aber weder die Node-24-Hypothese noch die weiterhin unbekannte Ursache des vorigen Render-Fehlers.
+
+Die test.11-Fixture ist vor jedem Datenbankzugriff an die exakte Agent-Test-Identitaet gebunden. Sie baut im fluechtigen `/tmp`-Speicher zwei synthetische Haeuser, minimale Ressourcen und je ein exklusives Bewohner-, Haus-Admin- und Superadminkonto deterministisch neu auf. Das kombinierte Seed-Admin-Konto bleibt unveraendert. Alle vier Passwoerter sind getrennte Owner-Runtimewerte ausserhalb des Repositorys; E-Mail, Push, Backup und externe Provider bleiben ausgeschaltet. Ein Neustart kann alle fluechtigen Daten verlieren und erstellt danach die Fixture neu. Dieser Testvertrag ist kein Produktions-Persistenz- oder Backupkonzept.
 
 ## Lokal starten
 

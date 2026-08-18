@@ -529,6 +529,126 @@ button.calendar-resource {
   }
 }
 
+.remaining-slot-panel {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.remaining-slot-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.remaining-slot-heading h3 {
+  font-size: 19px;
+  margin: 3px 0 0;
+}
+
+.remaining-slot-heading button {
+  flex: 0 0 auto;
+}
+
+.remaining-slot-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.remaining-slot-form[hidden] {
+  display: none;
+}
+
+.remaining-slot-form > label,
+.remaining-slot-drying {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.remaining-slot-drying {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  grid-column: 1 / -1;
+  padding: 12px;
+}
+
+.remaining-slot-drying label {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.remaining-slot-drying input[type="radio"] {
+  flex: 0 0 auto;
+  height: 20px;
+  width: 20px;
+}
+
+.remaining-slot-review {
+  background: var(--surface-soft, #f4f7f6);
+  border-left: 4px solid var(--accent);
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+}
+
+.remaining-slot-review:empty {
+  display: none;
+}
+
+.remaining-slot-review dl {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+}
+
+.remaining-slot-review dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+}
+
+.remaining-slot-review dt {
+  color: var(--muted);
+}
+
+.remaining-slot-review dd {
+  font-weight: 750;
+  margin: 0;
+}
+
+.remaining-slot-form > .inline-actions {
+  grid-column: 1 / -1;
+}
+
+.remaining-slot-booking-item {
+  border-left: 4px solid var(--accent);
+}
+
+@media (max-width: 760px) {
+  .remaining-slot-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .remaining-slot-heading button,
+  .remaining-slot-form > .inline-actions button {
+    width: 100%;
+  }
+
+  .remaining-slot-form {
+    grid-template-columns: 1fr;
+  }
+
+  .remaining-slot-review dl div {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Windel-Alarm: eigenstaendige, animierte Arcade-Oberflaeche. */
 .intro-modal.diaper-game-modal {
   --game-coral: #ff735c;

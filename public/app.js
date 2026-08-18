@@ -50,6 +50,18 @@ const bookingDate = document.querySelector('#bookingDate');
 const bookingPanelTitle = document.querySelector('#bookingPanelTitle');
 const bookingPanelIntro = document.querySelector('#bookingPanelIntro');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
+const remainingSlotPanel = document.querySelector('#remainingSlotPanel');
+const openRemainingSlotButton = document.querySelector('#openRemainingSlotButton');
+const remainingSlotStatus = document.querySelector('#remainingSlotStatus');
+const remainingSlotForm = document.querySelector('#remainingSlotForm');
+const remainingSlotTime = document.querySelector('#remainingSlotTime');
+const remainingSlotWasher = document.querySelector('#remainingSlotWasher');
+const remainingSlotUseTumbler = document.querySelector('#remainingSlotUseTumbler');
+const remainingSlotTumbler = document.querySelector('#remainingSlotTumbler');
+const remainingSlotSelfDrying = document.querySelector('#remainingSlotSelfDrying');
+const remainingSlotReview = document.querySelector('#remainingSlotReview');
+const bookRemainingSlotButton = document.querySelector('#bookRemainingSlotButton');
+const cancelRemainingSlotButton = document.querySelector('#cancelRemainingSlotButton');
 const bookingFlow = document.querySelector('#bookingFlow');
 const singleBookingDetails = document.querySelector('#singleBookingDetails');
 const bookingFlowContent = document.querySelector('#bookingFlowContent');
@@ -233,6 +245,7 @@ const deleteAccountForm = document.querySelector('#deleteAccountForm');
 const deleteAccountPassword = document.querySelector('#deleteAccountPassword');
 const fixedBookingForm = document.querySelector('#fixedBookingForm');
 const fixedBookingLabel = document.querySelector('#fixedBookingLabel');
+const fixedBookingApartment = document.querySelector('#fixedBookingApartment');
 const fixedBookingWasher = document.querySelector('#fixedBookingWasher');
 const fixedBookingDryingRoom = document.querySelector('#fixedBookingDryingRoom');
 const fixedBookingDryingDurationWrap = document.querySelector('#fixedBookingDryingDurationWrap');
@@ -331,6 +344,10 @@ let calendarSheetDragStart = null;
 let statusTimer = null;
 let currentRecommendation = null;
 let bookingFlowOptions = null;
+let remainingSlotOptions = null;
+let remainingSlotOpen = false;
+let remainingSlotRequestKey = '';
+let remainingSlotLoading = false;
 let bookingMode = 'time';
 let latestReleaseStatus = null;
 let updateReloadApproved = false;
@@ -372,6 +389,7 @@ let currentPushState = 'checking';
 let currentPushError = '';
 let activeAdminSection = 'overview';
 let adminUserDirectory = [];
+let adminApartmentDirectory = [];
 let adminIntegrationState = { backup: false, email: false, push: false };
 let logoutInProgress = false;
 let sessionIdleTimeoutMs = 0;
@@ -1855,7 +1873,25 @@ async function api(path, options = {}) {
       EMAIL_DISABLED: translate('admin.errorEmailDisabled', 'E-Mail ist in dieser Umgebung deaktiviert.'),
       PUSH_DISABLED: translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'),
       EMAIL_UNAVAILABLE: translate('maintenance.emailUnavailable', 'Keine bestaetigte E-Mail-Adresse verfuegbar.'),
-      PUSH_UNAVAILABLE: translate('maintenance.pushUnavailable', 'Fuer dieses Haus ist kein aktives Push-Geraet verfuegbar.')
+      PUSH_UNAVAILABLE: translate('maintenance.pushUnavailable', 'Fuer dieses Haus ist kein aktives Push-Geraet verfuegbar.'),
+      REMAINING_SLOT_PARTY_UNAVAILABLE: translate('remainingSlot.partyUnavailable', 'Restplaetze sind nur fuer eine aktive Wohnung im aktuellen Haus verfuegbar.'),
+      TODAY_WASH_SLOT_EXISTS: translate('remainingSlot.alreadyUsed', 'Deine Wohnung hat heute bereits einen Waschslot.'),
+      REMAINING_SLOT_STARTED: translate('remainingSlot.started', 'Dieser Restplatz kann nicht mehr abgeschlossen werden.'),
+      WASHER_REQUIRED: translate('remainingSlot.washerRequired', 'Bitte genau eine Waschmaschine waehlen.'),
+      WASHER_UNAVAILABLE: translate('remainingSlot.washerUnavailable', 'Die Waschmaschine ist nicht verfuegbar.'),
+      WASHER_CONFLICT: translate('remainingSlot.washerConflict', 'Die Waschmaschine wurde inzwischen gebucht.'),
+      TUMBLER_INVALID: translate('remainingSlot.tumblerInvalid', 'Bitte hoechstens einen gueltigen Tumbler waehlen.'),
+      TUMBLER_UNAVAILABLE: translate('remainingSlot.tumblerUnavailable', 'Der Tumbler ist nicht verfuegbar.'),
+      TUMBLER_CONFLICT: translate('remainingSlot.tumblerConflict', 'Der Tumbler wurde inzwischen gebucht.'),
+      TUMBLER_RESERVE: translate('remainingSlot.tumblerReserve', 'Mindestens ein Tumbler muss frei bleiben.'),
+      DRYING_CHOICE_INVALID: translate('remainingSlot.dryingChoiceInvalid', 'Bitte genau eine Trocknungsart waehlen.'),
+      SELF_DRYING_CONFIRMATION_REQUIRED: translate('remainingSlot.selfDryingRequired', 'Bitte bestaetigen, dass du die Trocknung selbst organisierst.'),
+      IDEMPOTENCY_KEY_INVALID: translate('remainingSlot.requestInvalid', 'Die Buchungsanfrage ist ungueltig. Bitte neu pruefen.'),
+      IDEMPOTENCY_CONFLICT: translate('remainingSlot.requestConflict', 'Die Angaben haben sich geaendert. Bitte neu pruefen.'),
+      REMAINING_SLOT_REQUEST_FINAL: translate('remainingSlot.requestFinal', 'Diese Buchungsanfrage ist nicht mehr aktiv. Bitte neu pruefen.'),
+      REMAINING_SLOT_NOT_FOUND: translate('remainingSlot.notFound', 'Restplatz nicht gefunden.'),
+      TUMBLER_NOT_BOOKED: translate('remainingSlot.tumblerNotBooked', 'Dieses Restplatzpaket enthaelt keinen Tumbler.'),
+      REMAINING_SLOT_EXTENSION_FORBIDDEN: translate('remainingSlot.extensionForbidden', 'Ein Restplatz kann nicht ueber den normalen Buchungsweg erweitert werden.')
     };
     throw new Error(controlledErrors[data.code] || localizedSystemText(data.error, translate('auth.requestFailed', 'Die Anfrage konnte nicht abgeschlossen werden.')));
   }
@@ -1875,6 +1911,7 @@ async function init() {
   if (i18n) await i18n.syncAccount(me.user);
   currentUser = me.user;
   reportIssueButton.hidden = !currentUser.canBook;
+  remainingSlotPanel.hidden = !currentUser.canBook;
   await checkAppVersion();
   scheduleAppVersionChecks();
   configureSessionTimeout(me.session);
@@ -2571,6 +2608,7 @@ function clearHouseScopedState() {
   calendarResourceCount = null;
   currentRecommendation = null;
   bookingFlowOptions = null;
+  clearRemainingSlotDraft();
   resetBookingFlowState(bookingDate.value);
   closeCalendarPreview();
   weekCalendar.innerHTML = '';
@@ -2642,6 +2680,198 @@ async function loadMyBookings() {
   if (data === staleHouseRequest) return;
   myBookingItems = data.bookings;
   renderMyBookings(myBookingItems);
+}
+
+function setRemainingSlotStatus(message = '', type = 'info') {
+  remainingSlotStatus.hidden = !message;
+  remainingSlotStatus.textContent = message;
+  remainingSlotStatus.className = `notice ${type === 'error' ? 'error' : 'muted'}`;
+}
+
+function newRemainingSlotRequestKey() {
+  if (window.crypto?.randomUUID) return `remaining-slot:${window.crypto.randomUUID()}`;
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return `remaining-slot:${[...bytes].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function resetRemainingSlotRequestKey() {
+  remainingSlotRequestKey = '';
+}
+
+function selectedRemainingSlot() {
+  return remainingSlotOptions?.slots?.find((item) => item.slot === remainingSlotTime.value) || null;
+}
+
+function renderRemainingSlotReview() {
+  if (!remainingSlotOptions?.eligible) {
+    remainingSlotReview.innerHTML = '';
+    bookRemainingSlotButton.disabled = true;
+    return;
+  }
+  const option = selectedRemainingSlot();
+  const washer = option?.washers?.find((item) => Number(item.id) === Number(remainingSlotWasher.value));
+  const tumbler = option?.tumblers?.find((item) => Number(item.id) === Number(remainingSlotTumbler.value));
+  const useTumbler = remainingSlotUseTumbler.checked;
+  const selfDrying = remainingSlotSelfDrying.checked;
+  bookRemainingSlotButton.disabled = remainingSlotLoading || !option || !washer || (!useTumbler && !selfDrying) || (useTumbler && !tumbler);
+  remainingSlotReview.innerHTML = `
+    <strong>${escapeHtml(translate('remainingSlot.review', 'Zusammenfassung'))}</strong>
+    <dl>
+      <div><dt>${escapeHtml(translate('app.date', 'Termin'))}</dt><dd>${escapeHtml(formatShortDate(remainingSlotOptions.date))} - ${escapeHtml(option?.slot || '-')}</dd></div>
+      <div><dt>${escapeHtml(translate('remainingSlot.washer', 'Waschmaschine'))}</dt><dd>${escapeHtml(washer?.name || '-')}</dd></div>
+      <div><dt>${escapeHtml(translate('app.dryingRoom', 'Trockenraum'))}</dt><dd>${escapeHtml(translate('remainingSlot.none', 'Nicht enthalten'))}</dd></div>
+      <div><dt>${escapeHtml(translate('remainingSlot.drying', 'Trocknung'))}</dt><dd>${escapeHtml(useTumbler && tumbler ? tumbler.name : selfDrying ? translate('remainingSlot.selfDryingShort', 'Selbst organisiert') : translate('remainingSlot.chooseDrying', 'Noch auswaehlen'))}</dd></div>
+    </dl>
+  `;
+}
+
+function populateRemainingSlotSelection({ preserveDrying = false } = {}) {
+  const option = selectedRemainingSlot() || remainingSlotOptions?.slots?.[0] || null;
+  if (option && remainingSlotTime.value !== option.slot) remainingSlotTime.value = option.slot;
+  remainingSlotWasher.innerHTML = (option?.washers || []).map((item) => (
+    `<option value="${item.id}">${escapeHtml(item.name)}</option>`
+  )).join('');
+  remainingSlotTumbler.innerHTML = [
+    `<option value="">${escapeHtml(translate('remainingSlot.chooseTumbler', 'Tumbler auswaehlen'))}</option>`,
+    ...(option?.tumblers || []).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`)
+  ].join('');
+  const hasTumbler = Boolean(option?.tumblers?.length);
+  remainingSlotUseTumbler.disabled = !hasTumbler;
+  remainingSlotTumbler.disabled = !hasTumbler || !remainingSlotUseTumbler.checked;
+  if (!hasTumbler || !preserveDrying) {
+    remainingSlotUseTumbler.checked = false;
+    remainingSlotSelfDrying.checked = false;
+    remainingSlotTumbler.value = '';
+  }
+  renderRemainingSlotReview();
+}
+
+function renderRemainingSlot() {
+  remainingSlotPanel.hidden = !currentUser?.canBook;
+  openRemainingSlotButton.textContent = remainingSlotOpen
+    ? translate('remainingSlot.refresh', 'Neu pruefen')
+    : translate('remainingSlot.open', 'Restplaetze pruefen');
+  if (!remainingSlotOpen || !remainingSlotOptions?.eligible) {
+    remainingSlotForm.hidden = true;
+    return;
+  }
+  remainingSlotForm.hidden = false;
+  const currentSlot = remainingSlotTime.value;
+  remainingSlotTime.innerHTML = remainingSlotOptions.slots.map((item) => (
+    `<option value="${escapeHtml(item.slot)}">${escapeHtml(item.slot)}</option>`
+  )).join('');
+  if (remainingSlotOptions.slots.some((item) => item.slot === currentSlot)) remainingSlotTime.value = currentSlot;
+  populateRemainingSlotSelection({ preserveDrying: true });
+}
+
+function clearRemainingSlotDraft({ close = true } = {}) {
+  remainingSlotOptions = null;
+  remainingSlotOpen = close ? false : remainingSlotOpen;
+  remainingSlotLoading = false;
+  remainingSlotRequestKey = '';
+  remainingSlotForm.reset();
+  remainingSlotForm.hidden = true;
+  remainingSlotReview.innerHTML = '';
+  setRemainingSlotStatus();
+  renderRemainingSlot();
+}
+
+async function loadRemainingSlots() {
+  const revision = houseContextRevision;
+  remainingSlotOpen = true;
+  remainingSlotLoading = true;
+  remainingSlotRequestKey = '';
+  remainingSlotForm.hidden = true;
+  openRemainingSlotButton.disabled = true;
+  setRemainingSlotStatus(translate('remainingSlot.loading', 'Heutige Restplaetze werden geprueft...'));
+  try {
+    const data = await resolveHouseScopedRequest(revision, api('/api/remaining-slots/options'));
+    if (data === staleHouseRequest || revision !== houseContextRevision) return;
+    remainingSlotOptions = data;
+    remainingSlotForm.reset();
+    if (!data.eligible) {
+      const message = data.code === 'TODAY_WASH_SLOT_EXISTS'
+        ? translate('remainingSlot.alreadyUsed', 'Deine Wohnung hat heute bereits einen Waschslot.')
+        : translate('remainingSlot.empty', 'Heute ist kein kuenftiger Restplatz verfuegbar.');
+      setRemainingSlotStatus(message);
+    } else {
+      setRemainingSlotStatus(translate('remainingSlot.ready', 'Waehle einen Waschslot und danach die Trocknung.'));
+    }
+    renderRemainingSlot();
+  } catch (error) {
+    if (revision !== houseContextRevision) return;
+    remainingSlotOptions = null;
+    setRemainingSlotStatus(error.message, 'error');
+  } finally {
+    if (revision === houseContextRevision) {
+      remainingSlotLoading = false;
+      openRemainingSlotButton.disabled = false;
+      renderRemainingSlotReview();
+    }
+  }
+}
+
+async function submitRemainingSlot() {
+  const revision = houseContextRevision;
+  const option = selectedRemainingSlot();
+  if (!option) {
+    setRemainingSlotStatus(translate('remainingSlot.requestInvalid', 'Die Buchungsanfrage ist ungueltig. Bitte neu pruefen.'), 'error');
+    return;
+  }
+  remainingSlotLoading = true;
+  bookRemainingSlotButton.disabled = true;
+  if (!remainingSlotRequestKey) remainingSlotRequestKey = newRemainingSlotRequestKey();
+  try {
+    const data = await api('/api/remaining-slots', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': remainingSlotRequestKey },
+      body: JSON.stringify({
+        slot: option.slot,
+        washerId: Number(remainingSlotWasher.value),
+        tumblerId: remainingSlotUseTumbler.checked ? Number(remainingSlotTumbler.value) : null,
+        selfDryingConfirmed: remainingSlotSelfDrying.checked
+      })
+    });
+    if (revision !== houseContextRevision) return;
+    const message = localizedSystemText(data.message, translate('remainingSlot.booked', 'Der Restplatz wurde verbindlich gebucht.'));
+    clearRemainingSlotDraft();
+    showStatus(message);
+    await refreshAll();
+  } catch (error) {
+    if (revision !== houseContextRevision) return;
+    setRemainingSlotStatus(error.message, 'error');
+  } finally {
+    if (revision === houseContextRevision) {
+      remainingSlotLoading = false;
+      renderRemainingSlotReview();
+    }
+  }
+}
+
+async function cancelRemainingSlotGroup(groupId) {
+  if (!window.confirm(translate('remainingSlot.cancelConfirm', 'Restplatzpaket vor Beginn vollstaendig stornieren?'))) return;
+  try {
+    const data = await api(`/api/remaining-slots/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
+    showStatus(localizedSystemText(data.message, translate('remainingSlot.cancelled', 'Das Restplatzpaket wurde storniert.')));
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
+async function removeRemainingSlotTumbler(groupId) {
+  if (!window.confirm(translate('remainingSlot.removeTumblerConfirm', 'Tumbler entfernen und die Trocknung selbst organisieren?'))) return;
+  try {
+    const data = await api(`/api/remaining-slots/${encodeURIComponent(groupId)}/tumbler`, {
+      method: 'DELETE',
+      body: JSON.stringify({ selfDryingConfirmed: true })
+    });
+    showStatus(localizedSystemText(data.message, translate('remainingSlot.tumblerRemoved', 'Der Tumbler wurde entfernt. Die Trocknung organisierst du selbst.')));
+    await refreshAll();
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
 }
 
 async function loadReleaseNotices() {
@@ -4127,13 +4357,14 @@ function renderMyBookings(items) {
 
   for (const group of groups.values()) {
     const isPackage = Boolean(group[0].group_id);
+    const isRemainingSlot = group.every((booking) => booking.booking_kind === 'remaining_slot');
     const primary = group.find((booking) => booking.resource_type === 'washer') || group[0];
     const item = document.createElement('article');
-    item.className = `booking-list-item${isPackage ? ' booking-package-item' : ''}`;
+    item.className = `booking-list-item${isPackage ? ' booking-package-item' : ''}${isRemainingSlot ? ' remaining-slot-booking-item' : ''}`;
     const status = dateStatus(primary.booking_date);
     item.innerHTML = `
       <div>
-        <strong>${isPackage ? escapeHtml(translate('app.laundryPackage', 'Waschpaket')) : escapeHtml(primary.resource_name)}</strong>
+        <strong>${isRemainingSlot ? escapeHtml(translate('remainingSlot.bookingType', 'Restplatz')) : isPackage ? escapeHtml(translate('app.laundryPackage', 'Waschpaket')) : escapeHtml(primary.resource_name)}</strong>
         <span>${escapeHtml(primary.booking_date)} - ${escapeHtml(primary.slot)}</span>
       </div>
       <span class="status-chip">${escapeHtml(status)}</span>
@@ -4147,7 +4378,7 @@ function renderMyBookings(items) {
       line.innerHTML = `<span><strong>${escapeHtml(booking.resource_name)}</strong><small>${escapeHtml(booking.booking_date)} - ${escapeHtml(booking.slot)}</small></span>`;
       const lineActions = document.createElement('div');
       lineActions.className = 'inline-actions compact-actions';
-      if (booking.releaseEligible) {
+      if (booking.releaseEligible && !isRemainingSlot) {
         const releaseButton = document.createElement('button');
         releaseButton.type = 'button';
         releaseButton.className = 'secondary';
@@ -4155,7 +4386,7 @@ function renderMyBookings(items) {
         releaseButton.addEventListener('click', () => releaseBooking(booking.id));
         lineActions.append(releaseButton);
       }
-      if (booking.cancellationNoticeEligible && !isPackage) {
+      if (booking.cancellationNoticeEligible && !isPackage && !isRemainingSlot) {
         const notifyButton = document.createElement('button');
         notifyButton.type = 'button';
         notifyButton.className = 'secondary';
@@ -4170,7 +4401,7 @@ function renderMyBookings(items) {
 
     const actions = document.createElement('div');
     actions.className = 'inline-actions';
-    if (isPackage && primary.cancellationNoticeEligible) {
+    if (isPackage && primary.cancellationNoticeEligible && !isRemainingSlot) {
       const notifyButton = document.createElement('button');
       notifyButton.type = 'button';
       notifyButton.className = 'secondary';
@@ -4178,14 +4409,26 @@ function renderMyBookings(items) {
       notifyButton.addEventListener('click', () => cancelBookingGroupAndNotify(primary.group_id));
       actions.append(notifyButton);
     }
+    if (isRemainingSlot && primary.cancellationNoticeEligible && group.some((booking) => booking.resource_type === 'tumbler')) {
+      const removeTumblerButton = document.createElement('button');
+      removeTumblerButton.type = 'button';
+      removeTumblerButton.className = 'secondary';
+      removeTumblerButton.textContent = translate('remainingSlot.removeTumbler', 'Tumbler entfernen');
+      removeTumblerButton.addEventListener('click', () => removeRemainingSlotTumbler(primary.group_id));
+      actions.append(removeTumblerButton);
+    }
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary danger';
-    deleteButton.textContent = isPackage
+    deleteButton.textContent = isRemainingSlot
+      ? translate('remainingSlot.cancel', 'Restplatz stornieren')
+      : isPackage
       ? translate('app.deleteWholePackage', 'Ganzes Paket l\u00f6schen')
       : translate('app.delete', 'L\u00f6schen');
     deleteButton.addEventListener('click', () => (
-      isPackage ? deleteBookingGroup(primary.group_id) : deleteBooking(primary.id)
+      isRemainingSlot
+        ? cancelRemainingSlotGroup(primary.group_id)
+        : isPackage ? deleteBookingGroup(primary.group_id) : deleteBooking(primary.id)
     ));
     actions.append(deleteButton);
     item.append(actions);
@@ -4748,6 +4991,7 @@ async function loadAdmin() {
   ]));
   if (adminData === staleHouseRequest) return;
   const [usersData, overviewData, recoveryData, settingsData, fixedData, housesData, adminResources, auditData, pushDevicesData, analyticsData, apartmentsData, maintenanceData] = adminData;
+  adminApartmentDirectory = apartmentsData.apartments;
   adminIntegrationState = {
     backup: overviewData.backupEnabled === true,
     email: integrationEnabled(overviewData.email),
@@ -5910,6 +6154,14 @@ function populateFixedBookingControls() {
     resources.filter((resource) => resource.type === 'tumbler' && resource.active),
     translate('admin.noTumbler', 'Kein Tumbler')
   );
+  fixedBookingApartment.innerHTML = [
+    `<option value="">${escapeHtml(translate('admin.noFixedApartment', 'Keine Wohnungszuordnung'))}</option>`,
+    ...adminApartmentDirectory
+      .filter((apartment) => apartment.active !== false)
+      .map((apartment) => (
+        `<option value="${apartment.id}">${escapeHtml(apartment.display_name || apartment.label)}</option>`
+      ))
+  ].join('');
 
   fixedBookingSlot.innerHTML = slots.map((slot) => (
     `<option value="${slot}">${slot}</option>`
@@ -5969,6 +6221,7 @@ function renderFixedBookings(items) {
         <strong>${escapeHtml(booking.label)}</strong>
         <span>${escapeHtml(weekdayLabel(booking.weekday))} - ${escapeHtml(booking.slot)}</span>
         <span>${escapeHtml(resourcesInPackage.map((entry) => entry.resource_name).join(', '))}</span>
+        ${booking.apartment_name ? `<small>${escapeHtml(translate('admin.fixedApartmentSummary', 'Wohnung: {apartment}', { apartment: booking.apartment_name }))}</small>` : ''}
         ${duration ? `<small>${escapeHtml(translate('admin.dryingDurationSummary', 'Trockenraum: {count} Zeitfenster', { count: duration }))}</small>` : ''}
       </div>
     `;
@@ -6000,7 +6253,8 @@ async function createFixedBooking() {
         slot: fixedBookingSlot.value,
         dryingDurationSlots: fixedBookingDryingRoom.value
           ? Number(fixedBookingDryingDurationSlots.value)
-          : undefined
+          : undefined,
+        apartmentId: fixedBookingApartment.value ? Number(fixedBookingApartment.value) : undefined
       })
     });
     fixedBookingForm.reset();
@@ -7114,6 +7368,37 @@ todayButton.addEventListener('click', () => {
   selectBookingDate(todayString());
 });
 
+openRemainingSlotButton.addEventListener('click', loadRemainingSlots);
+cancelRemainingSlotButton.addEventListener('click', () => clearRemainingSlotDraft());
+remainingSlotForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await submitRemainingSlot();
+});
+remainingSlotTime.addEventListener('change', () => {
+  resetRemainingSlotRequestKey();
+  populateRemainingSlotSelection();
+});
+remainingSlotWasher.addEventListener('change', () => {
+  resetRemainingSlotRequestKey();
+  renderRemainingSlotReview();
+});
+remainingSlotUseTumbler.addEventListener('change', () => {
+  resetRemainingSlotRequestKey();
+  remainingSlotTumbler.disabled = !remainingSlotUseTumbler.checked;
+  if (!remainingSlotUseTumbler.checked) remainingSlotTumbler.value = '';
+  renderRemainingSlotReview();
+});
+remainingSlotSelfDrying.addEventListener('change', () => {
+  resetRemainingSlotRequestKey();
+  if (remainingSlotSelfDrying.checked) remainingSlotTumbler.value = '';
+  remainingSlotTumbler.disabled = true;
+  renderRemainingSlotReview();
+});
+remainingSlotTumbler.addEventListener('change', () => {
+  resetRemainingSlotRequestKey();
+  renderRemainingSlotReview();
+});
+
 apartmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await createApartment();
@@ -7490,6 +7775,7 @@ async function refreshLocalizedDynamicViews() {
   renderRecommendation();
   renderSchedule();
   renderMyBookings(myBookingItems);
+  renderRemainingSlot();
   renderBookingFlow();
   renderReleaseStatus();
   if (activeReleaseNotice) renderReleaseNoticeDetail(activeReleaseNotice);
@@ -7517,6 +7803,7 @@ window.addEventListener('waschzeit:languagechange', () => {
 window.addEventListener('waschzeit:i18nerror', (event) => {
   showStatus(event.detail?.message || translate('app.noConnection', 'Keine Verbindung zur App.'), 'error');
 });
+
 
 if (introVideoSpeechSupported) {
   window.speechSynthesis.addEventListener('voiceschanged', refreshIntroVideoVoice);

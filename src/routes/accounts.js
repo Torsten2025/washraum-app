@@ -848,11 +848,26 @@ personalRouter.get('/api/me/export', requireAuth, (req, res) => {
   delete account.email_verified_value;
   delete account.secondary_email_verified_value;
   const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(req.session.user.houseId);
-  const bookings = db.prepare(`
-    SELECT b.booking_date, b.slot, b.group_id, b.created_at, r.name AS resource, r.type AS resource_type
-    FROM bookings b JOIN resources r ON r.id = b.resource_id
+  const bookingRows = db.prepare(`
+    SELECT b.booking_date, b.slot, b.group_id, b.booking_kind, b.created_at,
+           r.name AS resource, r.type AS resource_type, h.name AS house
+    FROM bookings b
+    JOIN resources r ON r.id = b.resource_id
+    JOIN houses h ON h.id = r.house_id
     WHERE b.user_id = ? ORDER BY b.booking_date, b.slot
   `).all(req.session.user.bookingUserId);
+  const bookings = bookingRows.map((booking) => (
+    booking.booking_kind === 'remaining_slot'
+      ? {
+          bookingKind: 'remaining_slot',
+          house: booking.house,
+          date: booking.booking_date,
+          slot: booking.slot,
+          resource: booking.resource,
+          resourceType: booking.resource_type
+        }
+      : booking
+  ));
   const notificationPreferences = db.prepare(`
     SELECT resource_type, weekday, slot FROM notification_preferences WHERE user_id = ?
   `).get(req.session.user.id) || null;

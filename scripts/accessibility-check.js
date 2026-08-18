@@ -53,6 +53,12 @@ assert.match(indexHtml, /id="bookingFlowSteps"[^>]*aria-label="Buchungsschritte"
 assert.match(indexHtml, /class="booking-mode-switch"[^>]*role="group"[^>]*aria-label="Buchungsweg"/, 'Buchungsweg ohne Gruppenbeschriftung');
 assert.match(indexHtml, /id="bookingFlowContent"[^>]*aria-live="polite"/, 'Buchungsstatus ohne Live-Region');
 assert.match(indexHtml, /id="bookingDate"[^>]*aria-label="Buchungsdatum"/, 'Buchungsdatum ohne Beschriftung');
+assert.match(indexHtml, /id="remainingSlotPanel"[^>]*aria-labelledby="remainingSlotTitle"/, 'Restplatzbereich ohne zugaenglichen Namen');
+assert.match(indexHtml, /id="remainingSlotForm"[^>]*aria-describedby="remainingSlotRequiredText remainingSlotStatus"/, 'Restplatzformular ohne Pflichttext und Statusbeschreibung');
+assert.match(indexHtml, /id="remainingSlotStatus"[^>]*role="status"[^>]*aria-live="polite"/, 'Restplatzstatus ohne Live-Semantik');
+assert.match(indexHtml, /class="remaining-slot-drying"[\s\S]*?<legend[^>]*data-i18n="remainingSlot\.drying"/, 'Restplatztrocknung ohne Fieldset-Legende');
+assert.match(indexHtml, /id="remainingSlotUseTumbler"[^>]*type="radio"[^>]*name="remainingSlotDrying"/, 'Tumblerwahl ist nicht als exklusive Option markiert');
+assert.match(indexHtml, /id="remainingSlotSelfDrying"[^>]*type="radio"[^>]*name="remainingSlotDrying"/, 'Selbsttrocknung ist nicht als exklusive Option markiert');
 assert.match(indexHtml, /id="installTitle"/, 'Installationshinweis fuer PWA fehlt');
 assert.match(indexHtml, /id="installHelpText"/, 'Installationshilfe ohne Status-Text');
 assert.match(indexHtml, /id="appUpdateNotice"[^>]*role="status"[^>]*aria-live="polite"/, 'Updatehinweis ohne Live-Status');

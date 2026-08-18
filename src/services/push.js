@@ -10,6 +10,7 @@ function createPushService({
   extractEmailAddress,
   publicAppUrl,
   weekdayForDate,
+  providerSendNotification = (subscription, payload) => webPush.sendNotification(subscription, payload),
   enabled = false
 }) {
   const integrationEnabled = enabled === true;
@@ -24,7 +25,7 @@ function createPushService({
     if (!integrationEnabled) {
       throw disabledError();
     }
-    return webPush.sendNotification(subscription, payload);
+    return providerSendNotification(subscription, payload);
   }
 
   function configuredVapidKeys() {

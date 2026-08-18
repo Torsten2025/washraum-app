@@ -17,9 +17,11 @@ services:
       - key: APP_ENV
         value: agent-test
       - key: APP_RELEASE
-        value: agent-v0.3.0-test.10
+        value: agent-v0.3.0-test.11
       - key: DB_PATH
         value: /tmp/waschzeit-agent-test.sqlite
+      - key: HOUSE_NAME
+        value: Agent-Test Haus A
       - key: SESSION_SECRET
         generateValue: true
       - key: SESSION_IDLE_MINUTES
@@ -34,6 +36,18 @@ services:
         generateValue: true
       - key: PUBLIC_APP_URL
         value: https://waschzeit-agent-test.onrender.com
+      - key: AGENT_TEST_FIXTURE_ENABLED
+        value: true
+      - key: AGENT_TEST_FIXTURE_ORIGIN
+        value: https://waschzeit-agent-test.onrender.com
+      - key: AGENT_TEST_EXPECTED_COMMIT
+        sync: false
+      - key: AGENT_TEST_RESIDENT_PASSWORD
+        sync: false
+      - key: AGENT_TEST_HOUSEADMIN_PASSWORD
+        sync: false
+      - key: AGENT_TEST_SUPERADMIN_PASSWORD
+        sync: false
       - key: BACKUP_ENABLED
         value: false
       - key: AUTO_BACKUP

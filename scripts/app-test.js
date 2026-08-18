@@ -768,14 +768,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.10');
+    assert.equal(health.body.version, '0.3.0-test.11');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.10');
+    assert.equal(versionStatus.body.version, '0.3.0-test.11');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -785,6 +785,7 @@ async function run() {
       body: JSON.stringify({ username: 'admin', password: 'wrong' })
     });
     await expectStatus(guest, `/api/bookings?date=${bookingDate}`, 401);
+    await expectStatus(guest, '/api/remaining-slots/options', 401);
 
     await expectStatus(guest, '/api/register', 400, {
       method: 'POST',
@@ -815,6 +816,7 @@ async function run() {
       })
     });
     assert.equal(registration.body.user.username, 'Bewohner Test');
+    await expectStatus(user, '/api/remaining-slots/options', 403);
     await expectStatus(new ApiClient(), '/api/login', 401, {
       method: 'POST',
       body: JSON.stringify({ username: 'Bewohner Test', password: 'Bewohner-2026!' })
@@ -1451,6 +1453,7 @@ async function run() {
       body: JSON.stringify({ username: 'admin', password: 'Admin-Test-2026!' })
     });
     assert.equal(adminLogin.body.user.isSuperadmin, true);
+    await expectStatus(admin, '/api/remaining-slots/options', 403);
     const users = await expectStatus(admin, '/api/admin/users', 200);
     const resident = users.body.users.find((item) => item.username === 'Bewohner Test');
     const adminUser = users.body.users.find((item) => item.username === 'admin');
@@ -1587,6 +1590,72 @@ async function run() {
     assert.equal(claimedApartment.body.user.apartmentLabel, '2. OG links');
     assert.equal(claimedApartment.body.user.displayName, 'Meier / Keller');
     assert.equal(claimedApartment.body.user.apartmentSetupRequired, false);
+    const remainingSlotOptions = await expectStatus(user, '/api/remaining-slots/options', 200);
+    assert.equal(typeof remainingSlotOptions.body.eligible, 'boolean');
+    assert.ok(Array.isArray(remainingSlotOptions.body.slots));
+    assert.ok(remainingSlotOptions.body.slots.every((item) => !Object.hasOwn(item, 'dryingRooms')));
+    await expectStatus(user, '/api/remaining-slots', 400, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'remaining-slot-route-test-0001' },
+      body: JSON.stringify({ houseId: 999999, slot: '12:00-17:00', washerId: 1, selfDryingConfirmed: true })
+    });
+    await expectStatus(user, '/api/remaining-slots', 400, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'remaining-slot-route-test-0002' },
+      body: JSON.stringify({ date: '2099-01-01', slot: '12:00-17:00', washerId: 1, selfDryingConfirmed: true })
+    });
+    await expectStatus(user, '/api/remaining-slots', 400, {
+      method: 'POST',
+      body: JSON.stringify({ slot: '12:00-17:00', washerId: 1, selfDryingConfirmed: true })
+    });
+
+    const remainingExportDatabase = new Database(databasePath);
+    const exportDate = addDays(bookingDate, 60);
+    const exportGroupId = crypto.randomUUID();
+    const remainingExportInsert = remainingExportDatabase.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot, group_id, booking_kind)
+      VALUES (?, ?, ?, '17:00-21:00', ?, 'remaining_slot')
+    `).run(registration.body.user.id, washers[0].id, exportDate, exportGroupId);
+    remainingExportDatabase.close();
+    await expectStatus(user, '/api/bookings', 409, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: washers[1].id, date: exportDate, slot: '17:00-21:00' })
+    });
+    await expectStatus(user, '/api/booking-package', 409, {
+      method: 'POST',
+      body: JSON.stringify({
+        washerBookingId: Number(remainingExportInsert.lastInsertRowid),
+        items: [{ resourceId: tumblers[0].id, date: exportDate, slot: '17:00-21:00' }]
+      })
+    });
+    await expectStatus(user, '/api/booking-package', 409, {
+      method: 'POST',
+      body: JSON.stringify({
+        items: [{ resourceId: washers[1].id, date: exportDate, slot: '17:00-21:00' }]
+      })
+    });
+    await expectStatus(user, `/api/booking-groups/${exportGroupId}`, 409, { method: 'DELETE' });
+    await expectStatus(user, `/api/booking-groups/${exportGroupId}/cancel-notify`, 409, { method: 'POST' });
+    await expectStatus(user, `/api/bookings/${remainingExportInsert.lastInsertRowid}`, 409, { method: 'DELETE' });
+    await expectStatus(user, `/api/bookings/${remainingExportInsert.lastInsertRowid}/cancel-notify`, 409, { method: 'POST' });
+    await expectStatus(user, `/api/bookings/${remainingExportInsert.lastInsertRowid}/release`, 409, { method: 'POST' });
+    const remainingBypassDatabase = new Database(databasePath, { readonly: true });
+    assert.equal(
+      remainingBypassDatabase.prepare('SELECT COUNT(*) AS count FROM bookings WHERE group_id = ?').get(exportGroupId).count,
+      1
+    );
+    remainingBypassDatabase.close();
+    const remainingExport = await expectStatus(user, '/api/me/export', 200);
+    const exportedRemainingSlot = remainingExport.body.bookings.find((item) => item.bookingKind === 'remaining_slot');
+    assert.deepEqual(Object.keys(exportedRemainingSlot).sort(), [
+      'bookingKind', 'date', 'house', 'resource', 'resourceType', 'slot'
+    ]);
+    assert.equal(exportedRemainingSlot.house, 'Maneggplatz 18');
+    assert.equal(exportedRemainingSlot.resourceType, 'washer');
+    assert.equal(JSON.stringify(exportedRemainingSlot).includes('selfDrying'), false);
+    const remainingExportCleanup = new Database(databasePath);
+    remainingExportCleanup.prepare('DELETE FROM bookings WHERE group_id = ?').run(exportGroupId);
+    remainingExportCleanup.close();
     const bookingWithDoorbellName = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
     assert.ok(bookingWithDoorbellName.body.bookings.some((booking) => booking.username === 'Meier / Keller'));
     await expectStatus(user, '/api/me/apartment-name-request', 201, {
@@ -2573,7 +2642,8 @@ async function run() {
         resourceIds: [washers[0].id, dryingRooms[0].id, tumblers[0].id],
         weekday: fixedPackageCandidate,
         slot: '07:00-12:00',
-        dryingDurationSlots: 2
+        dryingDurationSlots: 2,
+        apartmentId: existingApartment.body.apartment.id
       })
     });
     assert.equal(fixedPackage.body.legacy, false);
@@ -2586,6 +2656,8 @@ async function run() {
     assert.equal(listedFixedPackage.length, 4);
     assert.ok(listedFixedPackage.filter((item) => item.resource_type === 'drying_room')
       .every((item) => item.drying_duration_slots === 2));
+    assert.ok(listedFixedPackage.every((item) => item.apartment_id === existingApartment.body.apartment.id));
+    assert.ok(listedFixedPackage.every((item) => item.apartment_name === 'Meier-Keller'));
     await expectStatus(admin, '/api/admin/fixed-bookings', 409, {
       method: 'POST',
       body: JSON.stringify({
@@ -2745,6 +2817,7 @@ async function run() {
 
     const indexPage = await expectStatus(guest, '/index.html', 200);
     const indexHtml = indexPage.body.toString();
+    const appJs = fs.readFileSync(path.resolve(__dirname, '..', 'public', 'app.js'), 'utf8');
     const rolesDocument = fs.readFileSync(path.resolve(__dirname, '..', '.agents', 'ROLES.md'), 'utf8');
     const handbookDocument = fs.readFileSync(path.resolve(__dirname, '..', 'HANDBUCH.md'), 'utf8');
     const roleMatrixTestDocument = fs.readFileSync(path.resolve(__dirname, 'role-matrix-test.js'), 'utf8');
@@ -2764,15 +2837,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.10'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.11'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.10"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.11"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.10'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.10'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.11'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.11'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -2824,6 +2897,16 @@ async function run() {
     assert.ok(indexHtml.includes('calendarDayDetailsBackdrop'));
     assert.ok(indexHtml.includes('calendarDayDetailsActions'));
     assert.ok(indexHtml.includes('id="bookingPanelTitle"'));
+    assert.ok(indexHtml.includes('id="remainingSlotPanel"'));
+    assert.ok(indexHtml.includes('id="remainingSlotForm"'));
+    assert.ok(indexHtml.includes('id="remainingSlotSelfDrying"'));
+    assert.ok(indexHtml.includes('id="remainingSlotTumbler"'));
+    assert.ok(indexHtml.includes('Restplatz f&uuml;r eine kleine W&auml;sche. Es ist kein Trockenraum enthalten.'));
+    assert.ok(!appJs.includes('remainingSlotOptions?.date !== todayString()'),
+      'Die Clientuhr darf einen serverseitig angebotenen Restplatz nicht autorisieren oder sperren');
+    assert.ok(!appJs.includes('expireRemainingSlotDraftIfDayChanged'),
+      'Tageswechsel wird beim Abschluss ausschliesslich serverseitig revalidiert');
+    assert.ok(indexHtml.includes('id="fixedBookingApartment"'));
     assert.ok(indexHtml.includes('id="singleBookingDetails"'));
     assert.ok(indexHtml.includes('bookingFlowContent'));
     assert.ok(indexHtml.includes('bookingFlowSteps'));

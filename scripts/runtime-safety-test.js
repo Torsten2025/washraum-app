@@ -263,7 +263,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.10',
+      appVersion: '0.3.0-test.11',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -333,12 +333,16 @@ function verifyBlueprintsAndVersion() {
   const staging = fs.readFileSync(path.join(projectRoot, 'render.staging.yaml'), 'utf8');
   const agentTest = fs.readFileSync(path.join(projectRoot, 'render.agent-test.yaml'), 'utf8');
   const production = fs.readFileSync(path.join(projectRoot, 'render.yaml'), 'utf8');
+  const fixtureSource = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'agent-test-fixture.js'), 'utf8');
+  const handbook = fs.readFileSync(path.join(projectRoot, 'HANDBUCH.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
+  const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.10');
+  assert.equal(packageInfo.version, '0.3.0-test.11');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
-  assert.equal(lock.version, '0.3.0-test.10');
-  assert.equal(lock.packages[''].version, '0.3.0-test.10');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.10';"));
+  assert.equal(lock.version, '0.3.0-test.11');
+  assert.equal(lock.packages[''].version, '0.3.0-test.11');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.11';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
@@ -360,7 +364,7 @@ function verifyBlueprintsAndVersion() {
 
   assert.match(agentTest, /name: waschzeit-agent-test/);
   assert.match(agentTest, /region: frankfurt/);
-  assert.match(agentTest, /branch: codex\/agent-test/);
+  assert.match(agentTest, /^    branch: codex\/agent-test$/m);
   assert.match(agentTest, /autoDeployTrigger: commit/);
   assert.match(agentTest, /plan: free/);
   assert.match(agentTest, /^    buildCommand: node scripts\/toolchain-guard\.js && npm ci$/m);
@@ -371,18 +375,47 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.10/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.11/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
   assert.match(agentTest, /HOUSE_CODE\s*\n\s*generateValue: true/);
   assert.match(agentTest, /PUBLIC_APP_URL[\s\S]*value: https:\/\/waschzeit-agent-test\.onrender\.com/);
+  assert.match(agentTest, /AGENT_TEST_FIXTURE_ENABLED\s*\n\s*value: true/);
+  assert.equal((agentTest.match(/^\s*- key: AGENT_TEST_FIXTURE_ENABLED$/gm) || []).length, 1);
+  assert.match(agentTest, /AGENT_TEST_FIXTURE_ORIGIN[\s\S]*value: https:\/\/waschzeit-agent-test\.onrender\.com/);
+  assert.match(agentTest, /AGENT_TEST_EXPECTED_COMMIT\s*\n\s*sync: false/);
+  for (const key of [
+    'AGENT_TEST_RESIDENT_PASSWORD',
+    'AGENT_TEST_HOUSEADMIN_PASSWORD',
+    'AGENT_TEST_SUPERADMIN_PASSWORD'
+  ]) {
+    assert.match(agentTest, new RegExp(`${key}\\s*\\n\\s*sync: false`));
+    assert.equal((agentTest.match(new RegExp(`^\\s*- key: ${key}$`, 'gm')) || []).length, 1);
+  }
+  assert.equal((agentTest.match(/^\s*sync: false$/gm) || []).length, 5);
   assert.match(agentTest, /BACKUP_ENABLED[\s\S]*value: false/);
   assert.match(agentTest, /AUTO_BACKUP[\s\S]*value: false/);
   assert.match(agentTest, /EMAIL_ENABLED[\s\S]*value: false/);
   assert.match(agentTest, /PUSH_ENABLED[\s\S]*value: false/);
   assert.doesNotMatch(agentTest, /\bdisk:/);
   assert.doesNotMatch(agentTest, /SMTP_|VAPID_|BACKUP_UPLOAD_|envVarGroups/);
+  assert.match(fixtureSource, /serviceId: 'srv-d9m4majm8hqs739ssq20'/);
+  assert.match(fixtureSource, /exact\(env, 'NODE_ENV', 'production'\)/);
+  assert.match(fixtureSource, /runtimeCommit === expectedCommit/);
+  assert.match(fixtureSource, /exact\(env, 'DB_PATH', EXPECTED\.databasePath\)/);
+  assert.match(fixtureSource, /AGENT_TEST_FIXTURE_PROVIDER_BINDING_FORBIDDEN/);
+  assert.match(fixtureSource, /credentials\.includes\(env\.SEED_ADMIN_PASSWORD\)/);
+  for (const document of [handbook, readme, testPlan]) {
+    assert.doesNotMatch(document, /codex\/agent-test11/);
+  }
+  assert.match(handbook, /Save only/);
+  assert.match(handbook, /refs\/heads\/codex\/agent-test/);
+  assert.match(handbook, /genau eine neue AutoDeploy-ID/);
+  assert.match(testPlan, /AutoDeploy-Umschaltung, Manual Deploy, Restart, Hook, Blueprint-Sync, zweiter Push oder Retry sind ausgeschlossen/);
+  assert.doesNotMatch(staging, /AGENT_TEST_FIXTURE_|AGENT_TEST_(?:RESIDENT|HOUSEADMIN|SUPERADMIN)_PASSWORD/);
+  assert.doesNotMatch(production, /AGENT_TEST_FIXTURE_|AGENT_TEST_(?:RESIDENT|HOUSEADMIN|SUPERADMIN)_PASSWORD/);
+  assert.doesNotMatch(envExample, /AGENT_TEST_FIXTURE_|AGENT_TEST_(?:RESIDENT|HOUSEADMIN|SUPERADMIN)_PASSWORD/);
 
   assert.match(production, /name: waschplan-app[\s\S]*branch: master/);
   assert.match(production, /buildCommand: npm ci/);
@@ -542,7 +575,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.10');
+    assert.equal(health.body.version, '0.3.0-test.11');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -679,7 +712,7 @@ async function run() {
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.10',
+    version: '0.3.0-test.11',
     toolchain,
     unit,
     runtime,

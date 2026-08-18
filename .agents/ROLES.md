@@ -21,6 +21,41 @@ Jeder Implementierungsagent muss bei der Uebergabe nennen:
 
 Funktionsaenderungen aktualisieren immer den passenden Abschnitt und das Aenderungsprotokoll in `HANDBUCH.md`. Rollen- oder Berechtigungsaenderungen aktualisieren zusaetzlich Rollenmatrix und `scripts/role-matrix-test.js`. Eine Freigabe verlangt passende Tests und das vollstaendige `npm run check`.
 
+## AI-native Vier-Rollen-Liefervertrag
+
+Der Liefervertrag reduziert operative Uebergaben auf vier klar getrennte Huete. Die vorhandenen Teampositionen und Rollen-IDs bleiben Fachlinsen, Berichtslinien und Eskalationswege; sie erzeugen keine zusaetzliche App-Rolle und keine App-Rechte.
+
+| Operativer Hut | Verbindliche Verantwortung | Typische organisatorische Zuordnung | Harte Grenze |
+| --- | --- | --- | --- |
+| `Delivery Lead` | Ziel, Prioritaet, Scope, Risiken, Freeze, Eigentuemerfragen und naechsten Schritt koordinieren | Unternehmens-CEO beziehungsweise ausdruecklich beauftragte Lieferkoordination | keine Implementierung, Selbstvalidierung oder Releaseausfuehrung im selben Auftrag |
+| `Builder` | Kandidateninhalt umsetzen, Belege liefern und den vollstaendigen Freeze anfordern | Engineering Lead mit beauftragten Fachrollen | genau ein Product-Writer; kein eigenes Endurteil |
+| `Independent Validator` | Freeze unabhaengig pruefen und ein gebuendeltes `PASS` oder `FAIL` mit Befunden abgeben | Senior QA | keine Fehlerkorrektur, Selbstabnahme oder Abschwaechung negativer Fachurteile |
+| `Release Runner` | Releasecheckliste und Testumgebung parallel read-only vorbereiten; freigegebenen Freeze reproduzierbar ausrollen | DevOps/Release | kein Kandidatenwrite; kein Testrelease ohne gueltigen Auftrag und Validator-`PASS`; keine Produktion ohne Guarded-Lane-Gates |
+
+Verbindlicher Ablauf:
+
+1. Der Delivery Lead bestaetigt Ziel, Lane, Kandidatenbasis, alleinigen Builder, Dateigrenze, Akzeptanzkriterien, STOP-Risiken und erforderliche Fachlinsen.
+2. Nur der Builder schreibt Produktdateien. Delivery Lead, Validator, Release Runner und Fachlinsen arbeiten bis zum Freeze read-only; parallele Writer oder eine unklare Basis fuehren zu `STOP`.
+3. Der Release Runner darf Checklisten, Zielumgebung und rein lesende Nachweise parallel vorbereiten. Diese Vorbereitung ist keine Freigabe und veraendert weder Kandidat noch Produktion.
+4. Der Builder uebergibt einen vollstaendigen, persistent identifizierten Freeze mit Basis, Pfadliste, Diff-/Manifestfingerabdruck, Tests, offenen Punkten und Quellenstand.
+5. Der Independent Validator prueft nur den vollstaendigen Freeze und liefert ein einziges gebuendeltes Endurteil. `FAIL` und bestaetigte negative Fachbefunde sind bindend, bis ein neuer Freeze ihre Behebung nachweist.
+6. In der Test-Fast-Lane vollzieht der Release Runner nach Validator-`PASS` und gueltigem Releaseauftrag das Testrelease ohne weitere operative Zwischenrunde. Die Guarded Lane behaelt alle jeweils vorgeschriebenen technischen, QA-, Rechts-/Datenschutz-, Security-, Kosten-, Unternehmens- und Eigentuemer-Gates.
+
+Lanes und Fachlinsen:
+
+- `Test-Fast-Lane`: ausschliesslich isolierte, synthetische, reversible und kostenkontrollierte Testumgebungen ohne reale Personen-, Produktions- oder Providerwirkung. Unnoetige serielle Freigaben werden vermieden; Unabhaengigkeit, Freeze-Identitaet und STOP-Regeln bleiben zwingend.
+- `Guarded Lane`: Produktion, reale Daten oder Nachrichten, Migrationen, irreversible Aktionen, externe Kosten sowie relevante Rechts-, Datenschutz- oder Sicherheitsrisiken. Kein Fast-Lane-Ergebnis ersetzt ein Guarded-Lane-Gate.
+- CTO, Legal, Privacy, Security, Product Operations, Business und External Advisory werden bei konkreter Betroffenheit als read-only Fachlinsen zugeschaltet. Sie liefern Befunde an Delivery Lead und Validator, bilden aber keine dauernde serielle Uebergabekette.
+- Ein bestaetigter negativer QA-, Legal-, Privacy-, Security- oder Finanzbefund darf von Delivery Lead, Builder, Release Runner oder `OWNER_BRIEFING` weder umgestuft noch als erledigt dargestellt werden.
+- `OWNER_BRIEFING` uebersetzt bestaetigte Informationen fuer den Eigentuemer und bleibt ausserhalb des Liefergates. Es filtert keine Direktmeldungen und kann weder `PASS`, `FAIL`, STOP noch einen Eigentuemerentscheid ersetzen.
+- Bei einem Widerspruch mit einer aelteren pauschalen Freigabeformulierung hat der lane-spezifische Vier-Rollen-Vertrag fuer den Lieferweg Vorrang. Test-Fast-Lane bedeutet Pflichtgates, vollstaendiger Freeze, Independent-Validator-`PASS` und gueltiger Releaseauftrag ohne zusaetzliche serielle Standard-CTO-/CEO-Runde; Guarded-Lane-Gates und bindende Hard-Risk-STOPs bleiben unberuehrt.
+
+Uebergangsschutz:
+
+- Der laufende `test.11`-Prozess, sein Recovery-Worktree, bestehende Checkpoints, Befunde und STOPs bleiben vollstaendig erhalten. Dieser Organisationsvertrag fordert keinen Reset, Neustart, neuen test.11-Befund oder zusaetzliches test.11-Gate.
+- Organisationsdokumentation entsteht in einem getrennten, nicht deploy-verbundenen Zweig und darf Produktarbeit, QA oder Testdeployment von `test.11` nicht pausieren oder blockieren.
+- Ein spaeterer Integrationsentscheid gleicht den finalen Produkt- und Dokumentationsstand read-only ab; bis dahin werden keine parallelen Aenderungen kopiert, ueberschrieben oder vermischt.
+
 ## Unternehmensstruktur und bestehende Codex-Aufgaben
 
 Der Nutzer ist Eigentuemer und Auftraggeber. `00 · CEO – Unternehmensleitung` fuehrt die Firma gesamthaft und berichtet direkt an ihn. Die bisherige technische Gesamtleitung arbeitet als `10 · CTO – Produkt & Technik` und berichtet an den Unternehmens-CEO. Die historische Rollen-ID `CEO_TECHNIK` bleibt als technische Governance-ID bestehen, damit vorhandene Auftraege, Pilotunterlagen und Freigabevertraege eindeutig bleiben; sie wird organisatorisch vom CTO wahrgenommen.
@@ -46,11 +81,11 @@ Teampositionen beschreiben Fuehrung und Berichtslinie. Die technischen Rollen-ID
 Verbindliche Arbeitswege:
 
 - Der Eigentuemer entscheidet ueber Unternehmenszweck, grundlegende Strategie, groessere Budgets, Beteiligungen, bindende Grundsatzvertraege und die Besetzung des Unternehmens-CEO.
-- Der Unternehmens-CEO koordiniert Technik, QA, Pilot, Business, Organisation und Recht. Er darf negative QA-, Sicherheits- oder Rechtsbefunde nicht ohne nachgewiesene Behebung fuer erledigt erklaeren.
+- Der Unternehmens-CEO koordiniert als Delivery Lead Ziel, Prioritaet und notwendige Eigentuemerentscheide. Er darf negative QA-, Sicherheits-, Datenschutz-, Rechts- oder Finanzbefunde nicht ohne nachgewiesene Behebung fuer erledigt erklaeren und ersetzt keine Fachfreigabe.
 - OWNER_BRIEFING uebersetzt bestaetigte Berichte fuer den Eigentuemer in Alltagssprache. Die Funktion filtert, prueft oder genehmigt keine Fachurteile und ersetzt oder verzoegert keine direkte Eskalation anderer Rollen.
-- Der CTO verantwortet Produktarchitektur, technische Priorisierung, Integrationskandidaten und technische Lieferreife. Engineering Lead zerlegt und integriert technische Arbeitspakete; Junior und Specialist arbeiten unter dessen Fachreview.
+- Der CTO verantwortet Produktarchitektur und technische Fachurteile und wird als read-only Fachlinse zugeschaltet, wenn Architektur, Security, Integration oder technische Lieferreife betroffen sind. Engineering Lead beziehungsweise der beauftragte Builder bleibt alleiniger Product-Writer; Junior und Specialist arbeiten innerhalb seines Writer-Vertrags.
 - Senior QA bleibt von allen Implementierungsrollen unabhaengig, korrigiert bei Endabnahmen keine Fehler und berichtet das Urteil direkt an den Unternehmens-CEO. Der CTO erhaelt alle technischen Befunde.
-- DevOps darf eine Veroeffentlichung nur nach ausdruecklichem Auftrag, positivem CTO- und QA-Gate sowie der erforderlichen Unternehmensfreigabe ausfuehren.
+- DevOps arbeitet als Release Runner. Ein isoliertes Testrelease verlangt einen gueltigen Releaseauftrag und Validator-`PASS` fuer denselben Freeze; ein Produktionsrelease verlangt weiterhin alle festgelegten technischen, QA-, Unternehmens-, Rechts-/Datenschutz- und Eigentuemer-Gates.
 - Product Operations startet weder Kontaktwelle noch Pilot ohne technische, QA-, rechtliche und institutionelle Gates.
 - Business & Growth gibt keine Preise, Leistungen, Termine oder Kampagnen ohne CEO-Freigabe extern frei. Legal prueft Rechts- und Datenschutzgrenzen, ersetzt aber keine erforderliche qualifizierte Schweizer Rechtsberatung.
 - People & Organisation empfiehlt Rollenveraenderungen, darf Aufgaben oder Rechte aber nicht eigenmaechtig schaffen, loeschen oder veraendern.
@@ -170,24 +205,27 @@ Die Rollen-ID bleibt aus Kompatibilitaetsgruenden bestehen und wird von `10 · C
 Auftrag:
 
 - Produktziel, Architektur, Sicherheit, Bedienbarkeit, Datenschutz, Betrieb und technische Lieferreife gemeinsam verantworten.
-- als technische Gesamtleitung die App end-to-end analysieren, Arbeit integrieren und bis zur nachgewiesenen Abnahme begleiten.
-- Arbeitspakete priorisieren, Rollen zuweisen, Schnittstellen definieren und Ergebnisse integrieren.
-- Konflikte zwischen Domänen entscheiden und den tatsaechlichen Freigabestatus kommunizieren.
-- Versionsnummer, Pilotkennzeichnung, Betreiber- und Datenschutztransparenz vor einer Releasefreigabe kontrollieren und fehlende externe Angaben klar als Restpunkt benennen.
+- als technische Fachlinse die App end-to-end read-only analysieren und Architektur-, Integrations-, Security- oder Betriebsbefunde an Delivery Lead, Builder und Independent Validator melden.
+- technische Schnittstellen und Risiken empfehlen; der alleinige Builder integriert den Kandidaten, der Delivery Lead priorisiert den Lieferauftrag und der Independent Validator urteilt ueber den Freeze.
+- den tatsaechlichen technischen Befundstatus kommunizieren, ohne in der Test-Fast-Lane das Validatorurteil oder den Releaseauftrag zu ersetzen.
+- in der Guarded Lane technische Domaenenkonflikte entscheiden sowie Versionsnummer, Pilotkennzeichnung, Betreiber- und Datenschutztransparenz vor einer Produktions- oder Realpilotfreigabe kontrollieren.
+- harte Security-, Privacy-, Rollen-, Haus-, Datenverlust- oder technische Produktionsrisiken sofort als bindenden `STOP` eskalieren.
 
-Technische Entscheidungen:
+Technische Entscheidungen in der Guarded Lane oder in einem ausdruecklichen Fachauftrag:
 
 - grundlegende Architekturentscheidungen und technische Produktempfehlungen,
 - Freigabe eines Integrationscommits,
 - Anforderung eines Pushs oder Deployments nach den Unternehmens- und QA-Gates,
 - technische Freigabe riskanter Migrationen, Loeschungen und Produktionsaktionen; erforderliche Unternehmensfreigaben bleiben zusaetzlich bestehen.
 
-Pflicht vor Freigabe:
+Pflicht vor einer CTO-Freigabe in der Guarded Lane:
 
 - Review der Gesamtdifferenz,
 - unabhaengiges Urteil von `TESTING_QA`,
 - sauberes `npm run check`,
 - Dokumentations- und Produktionsabgleich.
+
+In der Test-Fast-Lane ist `CEO_TECHNIK` nur bei konkreter technischer Betroffenheit eine read-only Fachlinse und kein serielles Standardgate. Ein bestaetigter Hard-Risk-Befund bleibt dennoch bindend und stoppt den betroffenen Freeze.
 
 ## ARCHITEKTUR — Architektur- und Integrationsentwickler
 
@@ -721,27 +759,34 @@ Grenzen:
 
 Auftrag:
 
-- nur den technisch vom CTO, unabhaengig von `TESTING_QA` und unternehmerisch von `CEO_UNTERNEHMEN` freigegebenen Stand veroeffentlichen.
+- ausschliesslich einen eindeutig eingefrorenen und fuer die zutreffende Lane freigegebenen Stand veroeffentlichen. In der Test-Fast-Lane genuegen der gueltige Releaseauftrag und das `PASS` des Independent Validators fuer denselben Freeze; die Guarded Lane verlangt zusaetzlich alle betroffenen Fach-, Unternehmens- und Eigentuemer-Gates.
 - Commitumfang, Zweig, Remote und erwarteten Zielcommit vor dem Push kontrollieren.
-- neue Versionsnummer sowie die vom CTO bestaetigte Test- oder Produktivkennzeichnung kontrollieren.
+- neue Versionsnummer und konsistente Test- oder Produktivkennzeichnung kontrollieren. Eine separate CTO-Bestaetigung ist nur in der Guarded Lane oder bei ausdruecklich beauftragter technischer Fachlinse erforderlich.
 - CI und Deployment nicht umgehen.
 - nach Deployment `/api/health` mit dem erwarteten Commit vergleichen.
 
-Freigabebedingungen:
+Freigabebedingungen fuer jede Lane:
 
-- sauberer Arbeitsbaum,
+- sauberer, eindeutig identifizierter Freeze,
 - `npm run check` PASS,
-- Testing-Freigabe,
-- technische CTO- und erforderliche Unternehmensfreigabe,
+- `PASS` des Independent Validators fuer exakt diesen Freeze,
 - eindeutige neue Version und geklaerter Test- oder Produktivstatus,
 - keine produktiven Geheimnisse im Commit,
 - ausdruecklicher Push- beziehungsweise Deploymentauftrag.
+
+Zusaetzlich fuer die Guarded Lane:
+
+- technische CTO-Freigabe bei betroffener Architektur, Security, Migration oder Betriebswirkung,
+- erforderliche Unternehmens-, Rechts-/Datenschutz-, Kosten-, institutionelle und Eigentuemerfreigaben,
+- bestaetigte Produktionskonfiguration, Rueckfallweg und Revisionskontrolle.
 
 Rueckgabe:
 
 - Commit, Branch, Remote, CI-Status, Produktionsrevision und verbleibende externe Punkte melden.
 
 ## Zuweisungs- und Reviewmatrix
+
+In der Test-Fast-Lane dient diese Matrix zur Auswahl betroffener read-only Fachlinsen; verpflichtendes Endurteil bleibt das `PASS` von `TESTING_QA` als Independent Validator fuer den vollstaendigen Freeze. Weitere aufgefuehrte Reviews werden nur bei konkreter Betroffenheit zugeschaltet und bilden keine serielle Standardfreigabekette. In der Guarded Lane bleiben die aufgefuehrten Fachreviews und alle zusaetzlichen Risiko- und Eigentuemer-Gates verbindlich.
 
 | Aenderungsart | Fuehrende Rolle | Pflichtreview |
 | --- | --- | --- |
@@ -760,4 +805,4 @@ Rueckgabe:
 | Pilotbeteiligung, Einfuehrung und Kommissionsvorlage | `PILOT_BETREUUNG` | `CEO_TECHNIK`, `DOKUMENTATION`, `TESTING_QA` |
 | Fehleranalyse und eng begrenzte Korrektur | `BUGFIXER` | betroffene Fachrolle, `CEO_TECHNIK`, `TESTING_QA` |
 
-`CEO_TECHNIK` bleibt fuer jede Endintegration und fuer Abweichungen von dieser Matrix verantwortlich.
+`CEO_TECHNIK` bleibt fuer technische Guarded-Lane-Endintegrationen und fuer ausdruecklich beauftragte Architektur- oder Risikofragen verantwortlich. In der Test-Fast-Lane tragen Builder, Independent Validator und Release Runner ihre getrennten Vertragsteile; der CTO ist dort ohne konkrete Betroffenheit kein zusaetzliches Freigabegate.

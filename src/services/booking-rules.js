@@ -80,7 +80,7 @@ function createBookingRules({
   function hasAllowedDryingRoomWindow(userId, date, slot, houseId) {
     const previousDate = addDays(date, -1);
     const washerBookings = db.prepare(`
-      SELECT b.booking_date, b.slot
+      SELECT b.booking_date, b.slot, b.booking_kind
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE b.user_id = ?
@@ -98,7 +98,7 @@ function createBookingRules({
   function validateWasherBooking(userId, date, slot, houseId) {
     const today = todayStringLocal();
     const washerBookings = db.prepare(`
-      SELECT b.booking_date, b.slot
+      SELECT b.booking_date, b.slot, b.booking_kind
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE b.user_id = ?
@@ -106,6 +106,12 @@ function createBookingRules({
         AND r.house_id = ?
         AND b.booking_date >= ?
     `).all(userId, houseId, today);
+
+    if (washerBookings.some((booking) => (
+      booking.booking_date === date && booking.booking_kind === 'remaining_slot'
+    ))) {
+      return 'Ein Restplatz kann nicht ueber den normalen Buchungsweg erweitert werden.';
+    }
 
     const sameDayDifferentSlot = washerBookings.find((booking) => (
       booking.booking_date === date && booking.slot !== slot

@@ -19,7 +19,8 @@ function createBookingRouters({
   writeAudit,
   isValidPlainText,
   confirmCurrentAdminPassword,
-  bookingRules
+  bookingRules,
+  remainingSlotService
 }) {
   const preferencesRouter = express.Router();
   const planningRouter = express.Router();
@@ -168,9 +169,27 @@ function createBookingRouters({
     res.json({ slots });
   });
 
+  planningRouter.get(
+    '/api/remaining-slots/options',
+    requireAuth,
+    requireResident,
+    requireApartmentAccount,
+    (req, res) => {
+      try {
+        res.json(remainingSlotService.options({
+          apartmentId: req.session.user.apartmentId,
+          bookingUserId: req.session.user.bookingUserId,
+          houseId: currentHouseId(req)
+        }));
+      } catch (error) {
+        res.status(error.status || 500).json({ code: error.code || 'REMAINING_SLOT_FAILED', error: error.message });
+      }
+    }
+  );
+
   bookingsRouter.get('/api/my-bookings', requireAuth, (req, res) => {
     const bookings = db.prepare(`
-      SELECT b.id, b.booking_date, b.slot, b.group_id, r.id AS resource_id, r.name AS resource_name,
+      SELECT b.id, b.booking_date, b.slot, b.group_id, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
              r.type AS resource_type, u.id AS user_id,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username
       FROM bookings b
@@ -204,7 +223,7 @@ function createBookingRouters({
     }
 
     const bookings = db.prepare(`
-      SELECT b.id, b.booking_date, b.slot, r.id AS resource_id, r.name AS resource_name,
+      SELECT b.id, b.booking_date, b.slot, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
              r.type AS resource_type, u.id AS user_id,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username, 0 AS is_fixed
       FROM bookings b
@@ -245,6 +264,12 @@ function createBookingRouters({
     `).get(Number(resourceId), houseId);
     if (!resource) {
       return res.status(404).json({ error: 'Ger\u00e4t nicht gefunden' });
+    }
+    if (remainingSlotService.partyHasRemainingSlot(req.session.user.bookingUserId, houseId, date)) {
+      return res.status(409).json({
+        code: 'REMAINING_SLOT_EXTENSION_FORBIDDEN',
+        error: 'Ein Restplatz kann nicht ueber den normalen Buchungsweg erweitert werden.'
+      });
     }
 
     const fixedConflict = fixedBookingConflict(resource.id, date, slot, houseId);
@@ -292,6 +317,87 @@ function createBookingRouters({
     }
   });
 
+  bookingsRouter.post(
+    '/api/remaining-slots',
+    requireAuth,
+    requireResident,
+    requireApartmentAccount,
+    (req, res) => {
+      if (Object.hasOwn(req.body || {}, 'houseId') || Object.hasOwn(req.body || {}, 'date')) {
+        return res.status(400).json({ code: 'SERVER_CONTEXT_REQUIRED', error: 'Haus und Datum werden serverseitig bestimmt.' });
+      }
+      try {
+        const result = remainingSlotService.create({
+          apartmentId: req.session.user.apartmentId,
+          bookingUserId: req.session.user.bookingUserId,
+          houseId: currentHouseId(req),
+          idempotencyKey: req.get('Idempotency-Key'),
+          slot: String(req.body?.slot || ''),
+          washerId: req.body?.washerId,
+          tumblerId: req.body?.tumblerId == null ? null : req.body.tumblerId,
+          selfDryingConfirmed: req.body?.selfDryingConfirmed === true
+        });
+        return res.status(result.idempotent ? 200 : 201).json({
+          ok: true,
+          idempotent: result.idempotent,
+          bookings: result.bookings,
+          message: result.idempotent
+            ? 'Dieser Restplatz war bereits gebucht.'
+            : 'Der Restplatz wurde verbindlich gebucht.'
+        });
+      } catch (error) {
+        return res.status(error.status || 500).json({
+          code: error.code || 'REMAINING_SLOT_FAILED',
+          error: error.message
+        });
+      }
+    }
+  );
+
+  bookingsRouter.delete(
+    '/api/remaining-slots/:groupId',
+    requireAuth,
+    requireResident,
+    requireApartmentAccount,
+    (req, res) => {
+      try {
+        const result = remainingSlotService.cancel({
+          groupId: req.params.groupId,
+          bookingUserId: req.session.user.bookingUserId,
+          houseId: currentHouseId(req)
+        });
+        return res.json({ ok: true, deleted: result.deleted, message: 'Das Restplatzpaket wurde storniert.' });
+      } catch (error) {
+        return res.status(error.status || 500).json({ code: error.code || 'REMAINING_SLOT_FAILED', error: error.message });
+      }
+    }
+  );
+
+  bookingsRouter.delete(
+    '/api/remaining-slots/:groupId/tumbler',
+    requireAuth,
+    requireResident,
+    requireApartmentAccount,
+    (req, res) => {
+      try {
+        const result = remainingSlotService.removeTumbler({
+          groupId: req.params.groupId,
+          bookingUserId: req.session.user.bookingUserId,
+          houseId: currentHouseId(req),
+          selfDryingConfirmed: req.body?.selfDryingConfirmed === true
+        });
+        return res.json({
+          ok: true,
+          deleted: result.deleted,
+          bookings: result.bookings,
+          message: 'Der Tumbler wurde entfernt. Die Trocknung organisierst du selbst.'
+        });
+      } catch (error) {
+        return res.status(error.status || 500).json({ code: error.code || 'REMAINING_SLOT_FAILED', error: error.message });
+      }
+    }
+  );
+
   function packageRequestError(status, message) {
     const error = new Error(message);
     error.status = status;
@@ -337,7 +443,7 @@ function createBookingRouters({
 
       if (washerBookingId) {
         existingWasher = db.prepare(`
-          SELECT b.id, b.user_id, b.booking_date, b.slot, b.group_id,
+          SELECT b.id, b.user_id, b.booking_date, b.slot, b.group_id, b.booking_kind,
                  r.id AS resource_id, r.name AS resource_name
           FROM bookings b
           JOIN resources r ON r.id = b.resource_id
@@ -348,6 +454,9 @@ function createBookingRouters({
         }
         if (existingWasher.user_id !== req.session.user.bookingUserId) {
           throw packageRequestError(403, 'Diese Waschmaschinen-Buchung geh\u00f6rt dir nicht.');
+        }
+        if (existingWasher.booking_kind === 'remaining_slot') {
+          throw packageRequestError(409, 'Ein Restplatz kann nicht als normales Waschpaket erweitert werden.');
         }
         if (washerItems.length) {
           throw packageRequestError(400, 'Eine bereits gebuchte Waschmaschine darf im Paket nicht erneut reserviert werden.');
@@ -512,7 +621,8 @@ function createBookingRouters({
     const groupId = String(req.params.groupId || '');
     const houseId = currentHouseId(req);
     const groupedBookings = db.prepare(`
-      SELECT b.id, b.user_id
+      SELECT b.id, b.user_id, b.booking_date, b.slot, b.booking_kind,
+             r.type AS resource_type, r.house_id
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE b.group_id = ? AND r.house_id = ?
@@ -527,7 +637,16 @@ function createBookingRouters({
       return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
     }
 
-    db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
+    if (groupedBookings.some((booking) => booking.booking_kind === 'remaining_slot')) {
+      return res.status(409).json({
+        code: 'REMAINING_SLOT_ENDPOINT_REQUIRED',
+        error: 'Restplatzpakete werden nur ueber den dafuer vorgesehenen Stornoweg geaendert.'
+      });
+    }
+    db.transaction(() => {
+      for (const booking of groupedBookings) remainingSlotService.recordCountedUsage(booking);
+      db.prepare('DELETE FROM bookings WHERE group_id = ?').run(groupId);
+    })();
     res.json({ ok: true, deleted: groupedBookings.length, message: 'Waschpaket gel\u00f6scht.' });
   });
 
@@ -550,6 +669,12 @@ function createBookingRouters({
         && groupedBookings.some((booking) => booking.user_id !== req.session.user.bookingUserId)
       ) {
         return res.status(403).json({ error: 'Dieses Waschpaket geh\u00f6rt dir nicht' });
+      }
+      if (groupedBookings.some((booking) => booking.booking_kind === 'remaining_slot')) {
+        return res.status(409).json({
+          code: 'REMAINING_SLOT_NO_NOTIFICATIONS',
+          error: 'Restplatzpakete werden ohne neue Benachrichtigung ueber den Restplatz-Stornoweg storniert.'
+        });
       }
       if (groupedBookings.some((booking) => releaseWindowStatus(booking.booking_date, booking.slot).reason !== 'not_started')) {
         return res.status(409).json({ error: 'Das ganze Paket kann nur vor Beginn abgesagt werden. Laufende Bestandteile bitte einzeln fr\u00fcher freigeben.' });
@@ -603,7 +728,7 @@ function createBookingRouters({
 
   bookingsRouter.delete('/api/bookings/:id', requireAuth, (req, res) => {
     const booking = db.prepare(`
-      SELECT b.* FROM bookings b
+      SELECT b.*, r.type AS resource_type, r.house_id FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE b.id = ? AND r.house_id = ?
     `).get(Number(req.params.id), currentHouseId(req));
@@ -615,7 +740,16 @@ function createBookingRouters({
       return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
     }
 
-    db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+    if (booking.booking_kind === 'remaining_slot') {
+      return res.status(409).json({
+        code: 'REMAINING_SLOT_ENDPOINT_REQUIRED',
+        error: 'Ein Restplatzbestandteil kann nicht einzeln ueber diesen Weg geloescht werden.'
+      });
+    }
+    db.transaction(() => {
+      remainingSlotService.recordCountedUsage(booking);
+      db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+    })();
     res.json({ ok: true, message: 'Buchung gel\u00f6scht.' });
   });
 
@@ -636,6 +770,12 @@ function createBookingRouters({
         return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
       }
 
+      if (booking.booking_kind === 'remaining_slot') {
+        return res.status(409).json({
+          code: 'REMAINING_SLOT_NO_NOTIFICATIONS',
+          error: 'Restplatzpakete werden ohne neue Benachrichtigung ueber den Restplatz-Stornoweg storniert.'
+        });
+      }
       const windowStatus = releaseWindowStatus(booking.booking_date, booking.slot);
       if (windowStatus.reason !== 'not_started') {
         return res.status(409).json({
@@ -680,8 +820,18 @@ function createBookingRouters({
         return res.status(403).json({ error: 'Diese Buchung geh\u00f6rt dir nicht' });
       }
 
+      if (booking.booking_kind === 'remaining_slot') {
+        return res.status(409).json({
+          code: 'REMAINING_SLOT_NO_NOTIFICATIONS',
+          error: 'Restplaetze koennen nicht ueber den allgemeinen Freigabeweg geloest werden.'
+        });
+      }
+
       const releaseWindow = releaseWindowStatus(booking.booking_date, booking.slot);
-      db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+      db.transaction(() => {
+        remainingSlotService.recordCountedUsage(booking);
+        db.prepare('DELETE FROM bookings WHERE id = ?').run(booking.id);
+      })();
 
       if (!releaseWindow.eligible) {
         const message = releaseWindow.reason === 'ended'
@@ -719,23 +869,35 @@ function createBookingRouters({
       return res.status(400).json({ error: 'Bitte zur Bestaetigung ALLE BUCHUNGEN eingeben.' });
     }
     const houseId = currentHouseId(req);
-    const count = db.prepare(`
-      SELECT COUNT(*) AS count
+    const affectedBookings = db.prepare(`
+      SELECT b.*, r.type AS resource_type, r.house_id
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       WHERE r.house_id = ?
-    `).get(houseId).count;
-    db.prepare(`
-      DELETE FROM bookings
-      WHERE id IN (
-        SELECT b.id
-        FROM bookings b
-        JOIN resources r ON r.id = b.resource_id
-        WHERE r.house_id = ?
-      )
-    `).run(houseId);
-    writeAudit(req, 'bookings.reset', 'booking', '', { deleted: count });
-    res.json({ ok: true, deleted: count, message: `${count} Buchungen wurden geloescht. Dauertermine bleiben erhalten.` });
+    `).all(houseId);
+    db.transaction(() => {
+      for (const booking of affectedBookings) remainingSlotService.recordCountedUsage(booking);
+      db.prepare(`
+        UPDATE remaining_slot_requests SET state = 'cancelled'
+        WHERE group_id IN (
+          SELECT DISTINCT b.group_id
+          FROM bookings b
+          JOIN resources r ON r.id = b.resource_id
+          WHERE r.house_id = ? AND b.booking_kind = 'remaining_slot' AND b.group_id IS NOT NULL
+        )
+      `).run(houseId);
+      db.prepare(`
+        DELETE FROM bookings
+        WHERE id IN (
+          SELECT b.id
+          FROM bookings b
+          JOIN resources r ON r.id = b.resource_id
+          WHERE r.house_id = ?
+        )
+      `).run(houseId);
+    })();
+    writeAudit(req, 'bookings.reset', 'booking', '', { deleted: affectedBookings.length });
+    res.json({ ok: true, deleted: affectedBookings.length, message: `${affectedBookings.length} Buchungen wurden geloescht. Dauertermine bleiben erhalten.` });
   });
 
   function fixedDryingWindow(weekday, washSlot, durationSlots) {
@@ -813,11 +975,13 @@ function createBookingRouters({
 
   fixedBookingsRouter.get('/api/admin/fixed-bookings', requireAdmin, (req, res) => {
     const fixedBookings = db.prepare(`
-      SELECT fb.id, fb.resource_id, fb.weekday, fb.slot, fb.label, fb.group_id,
+      SELECT fb.id, fb.resource_id, fb.weekday, fb.slot, fb.label, fb.group_id, fb.apartment_id,
              fb.drying_duration_slots, fb.created_at,
-             r.name AS resource_name, r.type AS resource_type
+             r.name AS resource_name, r.type AS resource_type,
+             COALESCE(NULLIF(a.display_name, ''), a.label, '') AS apartment_name
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
+      LEFT JOIN apartments a ON a.id = fb.apartment_id
       WHERE fb.active = 1 AND r.house_id = ?
       ORDER BY fb.weekday, fb.slot, r.name
     `).all(currentHouseId(req));
@@ -832,6 +996,9 @@ function createBookingRouters({
     const slot = String(req.body?.slot || '');
     const label = String(req.body?.label || '').trim();
     const houseId = currentHouseId(req);
+    const apartmentId = req.body?.apartmentId == null || req.body.apartmentId === ''
+      ? null
+      : Number(req.body.apartmentId);
 
     if (hasLegacyResource === hasPackageResources) {
       return res.status(400).json({ error: 'Bitte entweder einen Legacy-Einzeltermin oder ein Dauerpaket angeben.' });
@@ -841,6 +1008,12 @@ function createBookingRouters({
     }
     if (!isValidPlainText(label, 2, 80)) {
       return res.status(400).json({ error: 'Bitte einen Namen oder Hinweis eintragen' });
+    }
+    if (apartmentId != null && (
+      !Number.isInteger(apartmentId)
+      || !db.prepare('SELECT 1 FROM apartments WHERE id = ? AND house_id = ? AND active = 1').get(apartmentId, houseId)
+    )) {
+      return res.status(404).json({ error: 'Die zugeordnete Wohnung wurde im aktiven Haus nicht gefunden.' });
     }
 
     try {
@@ -855,9 +1028,9 @@ function createBookingRouters({
         if (resource.type === 'tumbler') ensureFixedTumblerReserve(houseId, weekday, slot);
         ensureFixedRowsAvailable([{ resourceId, weekday, slot }], houseId);
         const result = db.prepare(`
-          INSERT INTO fixed_bookings (resource_id, weekday, slot, label, created_by)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(resourceId, weekday, slot, label, req.session.user.id);
+          INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, created_by)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(resourceId, weekday, slot, label, apartmentId, req.session.user.id);
         writeAudit(req, 'fixed_booking.create', 'fixed_booking', result.lastInsertRowid, {
           resourceId, weekday, slot, label
         });
@@ -915,8 +1088,8 @@ function createBookingRouters({
         if (tumblers.length) ensureFixedTumblerReserve(houseId, weekday, slot);
         const insert = db.prepare(`
           INSERT INTO fixed_bookings
-            (resource_id, weekday, slot, label, group_id, drying_duration_slots, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            (resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         return rows.map((row) => {
           const result = insert.run(
@@ -926,6 +1099,7 @@ function createBookingRouters({
             label,
             groupId,
             row.type === 'drying_room' ? dryingDurationSlots : null,
+            apartmentId,
             req.session.user.id
           );
           return { id: result.lastInsertRowid, ...row };

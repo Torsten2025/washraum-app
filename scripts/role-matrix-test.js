@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
+const { FIXTURE_ROLE_MATRIX } = require('../src/services/agent-test-fixture');
 
 const port = 37000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -184,6 +185,11 @@ async function login(client, username, password) {
 }
 
 async function run() {
+  assert.deepEqual(FIXTURE_ROLE_MATRIX, {
+    resident: { role: 'user', apartment: 'house-a-apartment', superadmin: false, houseAdmin: false },
+    houseAdmin: { role: 'admin', apartment: null, superadmin: false, houseAdmin: true },
+    superadmin: { role: 'admin', apartment: null, superadmin: true, houseAdmin: false }
+  }, 'Agent-Test-Fixture muss drei exklusive Rollen ohne implizite Fremdhausrechte definieren');
   await verifyConfiguredSuperadminRecovery();
 
   const server = spawn(process.execPath, ['server.js'], {

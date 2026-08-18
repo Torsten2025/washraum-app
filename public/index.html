@@ -146,6 +146,44 @@
                 </section>
               </div>
               <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
+              <section id="remainingSlotPanel" class="remaining-slot-panel" aria-labelledby="remainingSlotTitle">
+                <div class="remaining-slot-heading">
+                  <div>
+                    <span class="suggestion-label" data-i18n="remainingSlot.eyebrow">Nur heute</span>
+                    <h3 id="remainingSlotTitle" data-i18n="remainingSlot.title">Restplatz buchen</h3>
+                  </div>
+                  <button id="openRemainingSlotButton" class="secondary" type="button" data-i18n="remainingSlot.open">Restpl&auml;tze pr&uuml;fen</button>
+                </div>
+                <p id="remainingSlotRequiredText" class="muted" data-i18n="remainingSlot.requiredText">Restplatz f&uuml;r eine kleine W&auml;sche. Es ist kein Trockenraum enthalten. Ohne Tumblerbuchung muss die Trocknung selbst organisiert werden.</p>
+                <p id="remainingSlotStatus" class="notice muted" role="status" aria-live="polite" tabindex="-1" hidden></p>
+                <form id="remainingSlotForm" class="remaining-slot-form" aria-describedby="remainingSlotRequiredText remainingSlotStatus" hidden>
+                  <label>
+                    <span data-i18n="remainingSlot.slot">Waschslot heute</span>
+                    <select id="remainingSlotTime" required></select>
+                  </label>
+                  <label>
+                    <span data-i18n="remainingSlot.washer">Waschmaschine</span>
+                    <select id="remainingSlotWasher" required></select>
+                  </label>
+                  <fieldset class="remaining-slot-drying">
+                    <legend data-i18n="remainingSlot.drying">Trocknung</legend>
+                    <label>
+                      <input id="remainingSlotUseTumbler" type="radio" name="remainingSlotDrying" value="tumbler">
+                      <span data-i18n="remainingSlot.withTumbler">Tumbler im selben Slot buchen</span>
+                    </label>
+                    <select id="remainingSlotTumbler" aria-label="Tumbler" data-i18n-aria-label="remainingSlot.tumbler" disabled></select>
+                    <label>
+                      <input id="remainingSlotSelfDrying" type="radio" name="remainingSlotDrying" value="self">
+                      <span data-i18n="remainingSlot.selfDrying">Ich organisiere die Trocknung selbst.</span>
+                    </label>
+                  </fieldset>
+                  <div id="remainingSlotReview" class="remaining-slot-review" aria-live="polite"></div>
+                  <div class="inline-actions">
+                    <button id="bookRemainingSlotButton" type="submit" data-i18n="remainingSlot.book">Restplatz verbindlich buchen</button>
+                    <button id="cancelRemainingSlotButton" class="secondary" type="button" data-i18n="common.cancel">Abbrechen</button>
+                  </div>
+                </form>
+              </section>
             </div>
             <section id="bookingFlow" class="booking-flow" aria-labelledby="bookingFlowTitle">
               <div class="booking-flow-head">
@@ -328,6 +366,10 @@
                 <label>
                   Name / Hinweis
                   <input id="fixedBookingLabel" name="label" placeholder="z.B. Frau Meier" required>
+                </label>
+                <label>
+                  <span data-i18n="admin.fixedApartment">Wohnung (optional)</span>
+                  <select id="fixedBookingApartment"></select>
                 </label>
                 <label>
                   <span data-i18n="admin.fixedWasher">Waschmaschine</span>

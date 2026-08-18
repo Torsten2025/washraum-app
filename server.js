@@ -31,11 +31,18 @@ const { createPushService } = require('./src/services/push');
 const { createMaintenanceReporting } = require('./src/services/maintenance-reporting');
 const { createRoleContext } = require('./src/services/role-context');
 const { createRuntimeFlags } = require('./src/services/runtime-flags');
+const { createRemainingSlotService } = require('./src/services/remaining-slots');
+const {
+  createAgentTestProviderBoundary,
+  evaluateAgentTestFixtureGate,
+  initializeDatabaseWithAgentTestFixture
+} = require('./src/services/agent-test-fixture');
 const {
   addDays,
   isDateString,
   isPastSwissDate,
   isPastSwissSlot,
+  isSwissSlotStarted,
   swissDateString,
   weekdayForDate
 } = require('./swiss-time');
@@ -46,6 +53,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 const { environment: appEnvironment, displayName: appDisplayName } = resolveAppEnvironment(process.env);
 const serverStartedAt = new Date().toISOString();
 const appVersion = String(packageInfo.version || '0.0.0');
+const agentTestFixtureGate = evaluateAgentTestFixtureGate({
+  env: process.env,
+  appVersion
+});
 const appRelease = String(
   process.env.RENDER_GIT_COMMIT
   || process.env.APP_RELEASE
@@ -80,13 +91,6 @@ class BetterSqliteSessionStore extends session.Store {
   constructor(database) {
     super();
     this.db = database;
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        sid TEXT PRIMARY KEY,
-        expired INTEGER NOT NULL,
-        sess TEXT NOT NULL
-      )
-    `);
   }
 
   get(sid, callback) {
@@ -154,6 +158,12 @@ const slots = [
 
 function createCurrentTables() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid TEXT PRIMARY KEY,
+      expired INTEGER NOT NULL,
+      sess TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS houses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -297,6 +307,7 @@ function createCurrentTables() {
       booking_date TEXT NOT NULL,
       slot TEXT NOT NULL,
       group_id TEXT,
+      booking_kind TEXT NOT NULL DEFAULT 'standard',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
@@ -332,12 +343,40 @@ function createCurrentTables() {
       label TEXT NOT NULL,
       group_id TEXT,
       drying_duration_slots INTEGER,
+      apartment_id INTEGER,
       active INTEGER NOT NULL DEFAULT 1,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
       UNIQUE (resource_id, weekday, slot)
+    );
+
+    CREATE TABLE IF NOT EXISTS booking_day_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      apartment_id INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      booking_date TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      source_kind TEXT NOT NULL CHECK (source_kind IN ('booking', 'remaining_slot')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE,
+      UNIQUE (apartment_id, house_id, booking_date, slot)
+    );
+
+    CREATE TABLE IF NOT EXISTS remaining_slot_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      apartment_id INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      idempotency_key_hash TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('pending', 'completed', 'modified', 'cancelled')),
+      group_id TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE,
+      UNIQUE (apartment_id, idempotency_key_hash)
     );
 
     CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -479,8 +518,10 @@ function seedCurrentDefaults() {
   ensureColumn('resources', 'blocked_at', 'TEXT');
   ensureColumn('resources', 'blocked_by', 'INTEGER');
   ensureColumn('bookings', 'group_id', 'TEXT');
+  ensureColumn('bookings', 'booking_kind', "TEXT NOT NULL DEFAULT 'standard'");
   ensureColumn('fixed_bookings', 'group_id', 'TEXT');
   ensureColumn('fixed_bookings', 'drying_duration_slots', 'INTEGER');
+  ensureColumn('fixed_bookings', 'apartment_id', 'INTEGER');
   ensureColumn('release_notices', 'kind', "TEXT NOT NULL DEFAULT 'early_release'");
   ensureColumn('release_notices', 'house_id', 'INTEGER');
   ensureColumn('release_notices', 'resource_id', 'INTEGER');
@@ -559,7 +600,9 @@ function seedCurrentDefaults() {
   if (!isProduction) {
     seedUser('user', 'user123', 'user', defaultHouse.id);
   }
-  seedHouseResources(defaultHouse.id);
+  if (!agentTestFixtureGate.enabled) {
+    seedHouseResources(defaultHouse.id);
+  }
   seedSetting('house_code', initialHouseCode);
 
   const superadmin = db.prepare("SELECT id FROM users WHERE role = 'admin' AND is_superadmin = 1 LIMIT 1").get();
@@ -910,18 +953,7 @@ const {
   isValidPassword
 } = createAccountSecurity({ bcrypt, crypto });
 
-initDb();
-
-const activeAdminAtStartup = db.prepare(`
-  SELECT u.id
-  FROM users u
-  LEFT JOIN user_house_roles uhr ON uhr.user_id = u.id AND uhr.role = 'house_admin'
-  WHERE u.active = 1 AND (u.is_superadmin = 1 OR uhr.user_id IS NOT NULL)
-  LIMIT 1
-`).get();
-if (isProduction && !activeAdminAtStartup) {
-  console.warn('Kein aktives Admin-Konto vorhanden. Zur Wiederherstellung SEED_ADMIN_PASSWORD in Render setzen.');
-}
+let agentTestFixtureStatus = Object.freeze({ enabled: false, ready: false, code: 'FIXTURE_PENDING' });
 
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
@@ -1089,6 +1121,16 @@ const bookingRules = createBookingRules({
   isPastSwissDate,
   isPastSwissSlot
 });
+const remainingSlotService = createRemainingSlotService({
+  db,
+  crypto,
+  slots,
+  todayStringLocal,
+  isSwissSlotStarted,
+  weekdayForDate,
+  fixedBookingConflict: bookingRules.fixedBookingConflict,
+  validateTumblerBooking: bookingRules.validateTumblerBooking
+});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -1184,12 +1226,14 @@ function publicAppUrl(req) {
   return `${protocol}://${req.get('host')}`;
 }
 
-const { emailStatus, smtpConfig, extractEmailAddress, sendMail } = createMailTransport({
+const agentTestProviderBoundary = createAgentTestProviderBoundary({ db, gate: agentTestFixtureGate });
+const { emailStatus, smtpConfig, extractEmailAddress, sendMail: sendMailProvider } = createMailTransport({
   net,
   tls,
   env: process.env,
   enabled: runtimeFlags.email.enabled === true
 });
+const sendMail = agentTestProviderBoundary.wrapMail(sendMailProvider);
 
 const {
   pushStatus,
@@ -1209,6 +1253,9 @@ const {
   extractEmailAddress,
   publicAppUrl,
   weekdayForDate,
+  providerSendNotification: agentTestProviderBoundary.wrapPush(
+    (subscription, payload) => webPush.sendNotification(subscription, payload)
+  ),
   enabled: runtimeFlags.push.enabled === true
 });
 
@@ -1224,7 +1271,25 @@ const maintenanceReporting = createMaintenanceReporting({
   sendMail,
   publicAppUrl
 });
-maintenanceReporting.installSchema();
+agentTestFixtureStatus = initializeDatabaseWithAgentTestFixture({
+  db,
+  bcrypt,
+  env: process.env,
+  gate: agentTestFixtureGate,
+  initDatabase: initDb,
+  installServiceSchemas: () => maintenanceReporting.installSchema()
+});
+
+const activeAdminAtStartup = db.prepare(`
+  SELECT u.id
+  FROM users u
+  LEFT JOIN user_house_roles uhr ON uhr.user_id = u.id AND uhr.role = 'house_admin'
+  WHERE u.active = 1 AND (u.is_superadmin = 1 OR uhr.user_id IS NOT NULL)
+  LIMIT 1
+`).get();
+if (isProduction && !activeAdminAtStartup) {
+  console.warn('Kein aktives Admin-Konto vorhanden. Zur Wiederherstellung SEED_ADMIN_PASSWORD in Render setzen.');
+}
 
 async function runMaintenanceReminderSweep() {
   try {
@@ -1338,7 +1403,11 @@ const operationsRouters = createOperationsRouters({
   todayStringLocal,
   addDays,
   destroyUserSessions,
-  runtimeFlags
+  runtimeFlags,
+  agentTestFixtureStatus: () => ({
+    ...agentTestFixtureStatus,
+    ...agentTestProviderBoundary.status()
+  })
 });
 app.use(operationsRouters.publicRouter);
 
@@ -1472,7 +1541,8 @@ const bookingRouters = createBookingRouters({
   writeAudit,
   isValidPlainText,
   confirmCurrentAdminPassword,
-  bookingRules
+  bookingRules,
+  remainingSlotService
 });
 app.use(bookingRouters.preferencesRouter);
 

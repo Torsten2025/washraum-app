@@ -1,6 +1,6 @@
 # WaschZeit Gesamtaudit
 
-Stand: 10. August 2026
+Stand: 11. August 2026
 
 Dieser Testplan prueft die App in einer isolierten lokalen Umgebung. Jeder Lauf verwendet eine eigene SQLite-Datei und veraendert keine Produktionsdaten. Externe Live-Dienste wie Render, echtes SMTP, Betriebssystem-Push und App-Installation werden zusaetzlich manuell abgenommen.
 
@@ -88,6 +88,55 @@ npm run check
 | BOOK-11 | Hauswechsel mit leerem Haus | Haus A zeigt nur eigene Ressourcen; Haus B ohne Ressourcen zeigt 0 Kapazitaet, einen DE/EN-Leerzustand und keine Buchungsaktion; Rueckwechsel und Reload erben keine alten Daten | `npm test`, `test:roles`, `test:i18n`, `test:e2e` |
 | BOOK-12 | Bestehende Ressourcen beim Hausanlegen | Vorhandene Ressourcen und ihre IDs bleiben vor, waehrend und nach Anlage sowie Wechsel zu einem leeren Haus unveraendert; es gibt keine heuristische Bestandsbereinigung | `npm test` |
 | BOOK-13 | Initialisierungs- und Hauswechselrennen | Bewusste Kalenderwahl waehrend verzoegerter Admininitialisierung bleibt erhalten; ohne Klick startet der reine Admin in der Verwaltung. Verspaeteter Erfolg und Netzfehler aus Haus A veraendern Haus B nicht, ein aktueller B-Fehler bleibt sichtbar | `test:e2e` dreimal hintereinander, `npm run check` zweimal |
+
+### Restplaetze `RP-01` bis `RP-25`
+
+| ID | Pruefung | Soll-Ergebnis | Automatisierung |
+| --- | --- | --- | --- |
+| RP-01 | Lokaler Tag | Nur der heutige Kalendertag in `Europe/Zurich`; gestern und morgen werden weder angeboten noch akzeptiert | `test:remaining-slots`, `npm test` |
+| RP-02 | Slotbeginn | Abschluss strikt vor Beginn; genau zum oder nach Beginn abgelehnt; Clientzeit wirkungslos | `test:remaining-slots`, `test:e2e` |
+| RP-03 | Wohnungspartei | Konten derselben aktiven Wohnung teilen die Tagesgrenze; keine hausuebergreifende Personenpruefung | `test:remaining-slots`, `test:roles` |
+| RP-04 | Tagesnutzung/Storno | Jede heutige Waschbuchungsart sowie begonnene oder frueher freigegebene Nutzung sperrt; nur vollstaendig vor Beginn stornierte ungenutzte Buchung gibt wieder frei | `test:remaining-slots`, `npm test` |
+| RP-05 | Vorausbuchungsrecht | Spaetere Normalbuchung und heutiger Restplatz bleiben in beide Richtungen neutral | `test:remaining-slots`, `npm test` |
+| RP-06 | Vollstaendig freier Slot | Freier heutiger, noch nicht begonnener Slot ist auch ohne Teilbelegung zulaessig | `test:remaining-slots` |
+| RP-07 | Eine Waschmaschine | Exakt eine; null, zweite oder dritte Maschine ueber UI und API abgelehnt | `test:remaining-slots`, `test:e2e` |
+| RP-08 | Kein Trockenraum | Kein Trockenraum in Option, Persistenz, Gruppe, Export, Audit oder Kalenderwirkung | `test:remaining-slots`, `npm test` |
+| RP-09 | Optionaler Tumbler | Hoechstens ein aktiver, hausgleicher, freier Tumbler im selben Slot | `test:remaining-slots` |
+| RP-10 | Tumblerreserve | Bestehende Konflikte und Dauertermine beruecksichtigt; mindestens ein Tumbler bleibt frei | `test:remaining-slots`, `npm test` |
+| RP-11 | Ohne Tumbler | Explizite, nicht vorausgewaehlte Selbsttrocknung erforderlich und nicht dauerhaft gespeichert | `test:remaining-slots`, `test:e2e` |
+| RP-12 | Atomaritaet | Waschmaschine und Tumbler gemeinsam oder gar nicht; kein stilles Downgrade | `test:remaining-slots` |
+| RP-13 | Parallelitaet | Parteien, Geraete und Normalbuchung gegen Restplatz erzeugen genau einen konfliktfreien Gewinner | `test:remaining-slots`, `npm test` |
+| RP-14 | Wiederholung | Doppelklick, Retry und unklare Antwort erzeugen keine Doppelbuchung; abweichendes Payload zum gleichen Schluessel scheitert | `test:remaining-slots`, `test:e2e` |
+| RP-15 | Rollen | Nur aktiver Bewohner mit aktiver Wohnung; reine Admins, Superadmins und Konten ohne Wohnung abgelehnt | `npm test`, `test:roles` |
+| RP-16 | Hausisolation | Fremdhausparameter abgelehnt, Entwurf bei Hauswechsel verworfen, spaete Antwort wirkungslos | `npm test`, `test:e2e` |
+| RP-17 | Sperren/Dauertermine | Gesperrte, deaktivierte, fest oder inzwischen belegte Ressource fail-closed | `test:remaining-slots`, `npm test` |
+| RP-18 | Nichtverdraengung | Normalbuchungen, Waschpakete, Dauertermine, Trockenraeume, Sperren und Ressourcenbestand unveraendert | `test:remaining-slots`, `npm test` |
+| RP-19 | Storno/Aenderung | Vor Beginn Ganzstorno; Tumblerentfernung nur mit neuer Selbsttrocknungswahl; kein Wechsel oder Hinzufuegen | `test:remaining-slots`, `test:e2e` |
+| RP-20 | Leer-/Fehlerzustaende | Keine Option, heutige Nutzung, Sitzung, Netz, Tag, Haus und Konflikt klar und ohne Teilwirkung | `test:e2e`, `npm test` |
+| RP-21 | DE/EN | Pflichttext und alle Titel, Optionen, Status- und Fehlertexte vollstaendig ohne rohe Schluessel | `test:i18n`, `test:e2e` |
+| RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
+| RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
+| RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
+| RP-25 | Releasegrenze | Sichtbar `0.3.0-test.11`; Fixture und Produktfunktion getrennt belegt; keine Produktionswirkung | `test:safety`, `npm run check` |
+
+### Lean-A-Fixture `FA-01` bis `FA-12`
+
+| ID | Pruefung | Soll-Ergebnis | Automatisierung |
+| --- | --- | --- | --- |
+| FA-01 | Zieldienst | Exakt `waschzeit-agent-test` im Free-/ephemeral-Vertrag | `test:fixture`, `test:safety` |
+| FA-02 | Infrastruktur | Keine Disk, kein Planwechsel, kein Infrastruktur-Backup/Restore | `test:safety`, Blueprintreview |
+| FA-03 | Persistenzgrenze | `/tmp`-Verlust dokumentiert; Neustart baut markierte Baseline reproduzierbar neu | `test:fixture`, Handbuchreview |
+| FA-04 | Fail-closed Identitaet | NODE_ENV, APP_ENV, Service-ID/-Name, Host, HTTPS-Origin, Release/Paket, Branch, erwarteter=tatsaechlicher Commit, DB-Pfad und Renderkontext vor DB-Anlage exakt | `test:fixture`, `test:safety` |
+| FA-05 | Synthetischer Umfang | Zwei Haeuser und ausschliesslich minimale markierte Ressourcen | `test:fixture` |
+| FA-06 | Exklusive Rollen | Bewohner, Haus-Admin und Superadmin jeweils exklusiv; kombiniertes Bestandskonto unveraendert | `test:fixture`, `test:roles` |
+| FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
+| FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts sind null | `test:fixture`, `test:safety` |
+| FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
+| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.0-test.11` | `test:safety` |
+| FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
+| FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
+
+Das Releasegate prueft zusaetzlich die einzige erlaubte Choreografie: ein gemeinsames Render-Environment-`Save only` fuer drei Owner-Fixturesecrets, erwarteten Commit und Guardwerte muss null Deploys erzeugen; danach darf genau ein Fast-forward-Push auf `refs/heads/codex/agent-test` genau eine AutoDeploy-ID ausloesen. AutoDeploy-Umschaltung, Manual Deploy, Restart, Hook, Blueprint-Sync, zweiter Push oder Retry sind ausgeschlossen. Diese Schritte sind kein Bestandteil lokaler Tests und werden erst nach Freeze, CTO-, QA- und Owner-GO durch DevOps nachgewiesen.
 
 ## F. Stoerungen und Maschinentagebuch
 

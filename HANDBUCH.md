@@ -1,6 +1,6 @@
 # WaschZeit-Handbuch
 
-Stand: 20. Juli 2026
+Stand: 11. August 2026
 
 Dieses Dokument ist die gemeinsame Funktionsuebersicht, Bedienungsanleitung und technische Referenz der WaschZeit-App. Es richtet sich an Bewohner, Haus-Admins, Superadmins und Personen, die die Software weiterentwickeln.
 
@@ -27,6 +27,8 @@ Eine Funktionsaenderung ist erst abgeschlossen, wenn Code, Tests und Handbuch de
 8. Oben rechts das Kontomenue oeffnen und mit `Abmelden` die Sitzung sicher beenden.
 
 Einzelne Maschinen oder Raeume koennen weiterhin im nachgeordneten Bereich `Einzelnes Geraet separat buchen` reserviert werden. Fuer einen vollstaendigen Waschtag ist der gefuehrte Ablauf der schnellste Weg.
+
+Ein `Restplatz` ist ein getrennter Weg fuer einen noch nicht begonnenen freien Waschslot am heutigen Schweizer Kalendertag. Er enthaelt genau eine Waschmaschine, optional einen Tumbler im selben Slot und niemals einen Trockenraum. Ohne Tumbler muss die selbst organisierte Trocknung vor dem Abschluss ausdruecklich gewaehlt werden.
 
 ## Rollen
 
@@ -147,6 +149,8 @@ Auf kleinen Smartphones stehen Wortmarke und Hausadresse bewusst in einer eigene
 | Absagen und informieren | Vor Slotbeginn loeschen und den Termin wieder anbieten |
 | Paket absagen | Alle noch nicht begonnenen Bestandteile gemeinsam freigeben |
 | Loeschen | Eigene Buchung oder das gesamte eigene Paket ohne Hinweis entfernen |
+| Restplatz absagen | Das gesamte noch nicht begonnene Restplatzpaket gemeinsam stornieren |
+| Restplatz-Tumbler entfernen | Vor Beginn nur den optionalen Tumbler entfernen und die Selbsttrocknung erneut ausdruecklich bestaetigen |
 
 ### Buchen
 
@@ -184,6 +188,16 @@ Auf kleinen Smartphones stehen Wortmarke und Hausadresse bewusst in einer eigene
 | Belegte Termine | Name der buchenden Person oder geschuetzten Dauertermin anzeigen |
 | Lesender Admin-Kalender | Reinen Admin-Konten ohne aktive Wohnung Belegungen und Kapazitaeten ohne Empfehlung, Buchungsassistent oder Einzelbuchung zeigen |
 | Admin-Korrektur | Haus-Admin und Superadmin koennen normale Buchungen im aktiven Haus loeschen |
+
+#### Restplatz am selben Tag
+
+Der getrennte Einstieg `Restplatz buchen` verwendet ausschliesslich die serverseitige Schweizer Zeit (`Europe/Zurich`). Angeboten werden freie Slots des heutigen Tages, deren Beginn noch nicht erreicht ist. Auch ein vollstaendig freier Slot ist zulaessig. Browserdatum, Geraetezeit und ein alter geoeffneter Entwurf koennen die Tages- oder Startgrenze nicht verschieben; bei Tages- oder Hauswechsel wird der Entwurf verworfen.
+
+Buchungspartei ist die aktive Wohnung im aktiven Haus. Mehrere Konten derselben Wohnung teilen die Tagesgrenze. Es gibt keine neue personenbezogene Verknuepfung ueber mehrere Haeuser. Eine Partei mit einem heutigen Waschslot kann keinen Restplatz buchen. Dazu zaehlen normale Buchungen, Waschpakete, zurechenbare Dauertermine, Restplaetze sowie begonnene, abgeschlossene oder waehrend der Nutzung frueher freigegebene Slots. Eine vollstaendig vor Beginn stornierte und ungenutzte Waschbuchung sperrt danach nicht mehr; eine fehlgeschlagene oder nur teilweise bestaetigte Stornierung stellt die Berechtigung nicht wieder her. Normale Buchungen an spaeteren Tagen und das normale Vorausbuchungsrecht bleiben vom Restplatz in beide Richtungen unveraendert.
+
+Ein Restplatz enthaelt exakt eine aktive freie Waschmaschine. Optional kann exakt ein aktiver, freier und konfliktfreier Tumbler desselben Hauses im selben Slot gewaehlt werden; die bestehende Reserve von mindestens einem freien Tumbler gilt weiter. Trockenraeume und Waeschestaender sind in diesem Weg ausgeschlossen. Ohne Tumbler ist vor jedem Abschluss die nicht vorausgewaehlte Selbsttrocknung zu bestaetigen. Diese Bestaetigung wird weder gespeichert noch exportiert oder auditiert. Der sichtbare Pflichttext lautet: `Restplatz fuer eine kleine Waesche. Es ist kein Trockenraum enthalten. Ohne Tumblerbuchung muss die Trocknung selbst organisiert werden.` Die englische Fassung lautet: `Remaining slot for a small load of laundry. No drying room is included. If you do not book a tumble dryer, you must arrange drying yourself.`
+
+Waschmaschine und gewaehlter Tumbler werden in einer Transaktion angelegt. Ein Konflikt erzeugt kein stilles Paket ohne Tumbler. Ein wohnungsgebundener Idempotenzschluessel verhindert Doppelbuchungen durch Doppelklick, Retry oder eine unklare Antwort; derselbe Schluessel mit abweichender Auswahl wird abgelehnt. Vor Slotbeginn kann das ganze Paket storniert werden. Der Tumbler kann einzeln entfernt werden, wenn die Selbsttrocknung erneut bestaetigt wird. Maschine, Datum und Slot koennen nicht direkt gewechselt und ein Tumbler kann in `test.11` nicht nachtraeglich hinzugefuegt oder ausgetauscht werden. Restplaetze erzeugen keine neue E-Mail, Push-Mitteilung, Erinnerung oder Empfaengergruppe. Der persoenliche Export enthaelt nur Buchungsart, eigenes Haus, Datum, Slot, Waschmaschine und gegebenenfalls Tumbler.
 
 Ressourcen, Kapazitaeten, Belegungen und Buchungsoptionen stammen immer aus dem serverseitig aktiven Haus. Neu angelegte Haeuser starten bewusst ohne Geraete oder Raeume; ein Haus-Admin richtet die tatsaechlich vorhandenen Ressourcen anschliessend ein. Solange ein Haus keine Ressourcen besitzt, zeigt der Bewohnerbereich einen zweisprachigen Leerzustand statt eines Belegungsplans und bietet keine Buchungsaktion an. Ein Hauswechsel leert zuvor geladene Hausdaten sofort und laedt sie erst fuer den serverseitig bestaetigten neuen Hauskontext neu. Gesperrte Ressourcen bleiben von diesem Leerzustand getrennt: Sie sind eingerichtet, liefern aber keine aktive Buchungskapazitaet.
 
@@ -482,6 +496,7 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 - E-Mail-Bestaetigung, Passwort-Wiederherstellung, Passwortwechsel und echte SMTP-Zustellung eines passenden Freigabe-Hinweises.
 - Admin-ausgeloester Passwort-Reset nur als Link an eine bestaetigte E-Mail; ein Admin kann kein fremdes Passwort festlegen.
 - Einzelbuchung, Waschpaket, Vorschlag, Kalender, Freigabe und Absage.
+- Restplaetze nur am heutigen Schweizer Tag mit genau einer Waschmaschine, optional einem Tumbler, ausdruecklicher nicht gespeicherter Selbsttrocknung, wohnungsweiter Tagesgrenze, Atomaritaet und Idempotenz.
 - Waschmaschinen-, Trockenraum- und Tumblerregeln inklusive Parallelzugriff.
 - Bewohner-, Haus-Admin- und Superadminrechte sowie Fremdhaus-Isolation.
 - Kombinierte Bewohner-/Hausadmin-Rolle sowie die gesperrte Buchungserstellung fuer reine Admin- und Superadmin-Konten.
@@ -501,6 +516,8 @@ Die Reinigungspflicht gilt auch fuer einzelne Durchgaenge innerhalb eines fremde
 | Befehl | Zweck |
 | --- | --- |
 | `npm run verify` | Syntax aller zentralen Dateien pruefen |
+| `npm run test:fixture` | Agent-Test-Identitaetsgates, transaktionalen deterministischen Fixture-Neuaufbau, exklusive Rollen, No-PII und No-Send pruefen |
+| `npm run test:remaining-slots` | Tages-, Partei-, Ressourcen-, Atomaritaets-, Idempotenz-, Storno- und Exportgrenzen der Restplaetze pruefen |
 | `npm run test:security` | Sicherheitsheader, Origin-Schutz, Sitzungen, Einladungen, Anmeldewege, Einmalcodes, Passwortregeln und Rate-Limits dynamisch pruefen |
 | `npm run test:i18n` | Deutsche und englische Schluessel, Rueckfall, Persistenzvertrag, sechs Rollenfuehrungen, Kapitel und Benachrichtigungsvorlagen pruefen |
 | `npm run test:media` | Sechs MP4/VTT/Poster/Transkript-Pakete, H.264/AAC-Marker, Format, Laufzeit, Textvollstaendigkeit und PWA-Cachegrenzen pruefen |
@@ -540,6 +557,25 @@ Der verbindliche Katalog fuer Unternehmensleitung, Technik, Entwicklung, Pilot, 
 
 Die Teambezeichnungen steuern Fuehrung und Kommunikation. Fachliche Rollen-IDs wie `BUCHUNGEN`, `FRONTEND_UX`, `BENACHRICHTIGUNGEN` oder `RELEASE` werden weiterhin je Arbeitspaket ausdruecklich zugewiesen. Sie sind keine Benutzerrollen der App und erzeugen keine zusaetzlichen Produkt-, Datei- oder Produktionsrechte. Die historische technische Rollen-ID `CEO_TECHNIK` bleibt bestehen und wird vom CTO wahrgenommen. Der Unternehmens-CEO koordiniert die Gesamtfirma, ersetzt aber weder CTO-, QA-, Rechts- noch Eigentuemerentscheide.
 
+#### AI-native Vier-Rollen-Organisation
+
+Produktlieferungen verwenden vier operative Huete statt einer dauernden seriellen Kette aus allen Fachrollen:
+
+| Hut | Aufgabe | Grenze |
+| --- | --- | --- |
+| `Delivery Lead` | Ziel, Prioritaet, Scope, Risiken, Freeze und Eigentuemerentscheide koordinieren | implementiert, validiert und released nicht selbst im selben Auftrag |
+| `Builder` | als alleiniger Product-Writer den Kandidaten umsetzen und den Freeze belegen | kein eigenes Endurteil und keine parallelen Product-Writer |
+| `Independent Validator` | den vollstaendigen Freeze unabhaengig pruefen und gebuendelt `PASS` oder `FAIL` urteilen | keine Selbstabnahme oder Fehlerkorrektur; Negativbefunde bleiben bindend |
+| `Release Runner` | Testrelease parallel read-only vorbereiten und einen freigegebenen Freeze ausrollen | kein Kandidatenwrite; Testrelease erst nach gueltigem Auftrag und Validator-`PASS` |
+
+CTO, Legal, Privacy, Security, Product Operations, Business und External Advisory werden nur bei konkreter Betroffenheit als read-only Fachlinsen zugeschaltet. Ihre bestaetigten negativen Urteile duerfen nicht abgeschwaecht oder umgestuft werden. `OWNER_BRIEFING` bleibt eine nicht blockierende Uebersetzungsfunktion und weder Filter noch Freigabe- oder Prozessgate.
+
+Die `Test-Fast-Lane` gilt ausschliesslich fuer isolierte, synthetische, reversible und kostenkontrollierte Testumgebungen ohne reale Daten-, Versand- oder Produktionswirkung. Nach vollstaendig identifiziertem Freeze, Validator-`PASS` und gueltigem Releaseauftrag darf der Release Runner das Testrelease ohne weitere operative Zwischenrunde vollziehen. Die `Guarded Lane` umfasst Produktion, reale Daten und Nachrichten, Migrationen, irreversible Aktionen, externe Kosten sowie Rechts-, Datenschutz- und Sicherheitsrisiken; alle dafuer festgelegten Fach-, Unternehmens- und Eigentuemer-Gates bleiben zwingend.
+
+Diese Lane-Regel hat fuer den Lieferweg Vorrang vor aelteren pauschalen Freigabeformulierungen. In der Test-Fast-Lane sind CTO und weitere Fachrollen nur bei konkreter Betroffenheit read-only beteiligt; harte Security-, Privacy-, Rollen-, Haus-, Datenverlust- oder Rechtsbefunde stoppen den Freeze sofort und bindend. Eine zusaetzliche serielle Standard-CTO-/CEO-Runde nach Validator-`PASS` ist nicht vorgesehen. Pauschale CTO-, Unternehmens-, Rechts-/Datenschutz-, Kosten-, institutionelle und Eigentuemer-Gates gelten weiterhin vollstaendig fuer die Guarded Lane.
+
+Der laufende `test.11`-Prozess bleibt unveraendert: Recovery-Worktree, Checkpoints, Befunde und STOPs werden weder kopiert noch zurueckgesetzt oder neu begonnen. Dieser Organisationskandidat laeuft in einem getrennten, nicht deploy-verbundenen Zweig, erzeugt keine neue test.11-Anforderung und darf Produktarbeit, QA oder Testdeployment nicht pausieren oder blockieren. Eine spaetere Integration muss den dann finalen HANDBUCH-Stand read-only abgleichen.
+
 `OWNER_BRIEFING` ist die reine Stabs- und Uebersetzungsfunktion `05 · Eigentuemer-Briefing – Einfacher Ueberblick`. Sie beantwortet in Alltagssprache vier Fragen: Stand, Aenderung, wichtigstes Risiko oder offener Punkt sowie den jetzt noetigen Eigentuemerentscheid. Bereichsampeln werden getrennt als `GRUEN`, `GELB`, `ROT` oder `GRAU` mit Quelle, Datum und relevantem Versions-/Revisionsstand gezeigt; es gibt keine automatisch berechnete Gesamtampel und keine eigene Umstufung von QA-, Legal-, Security- oder Finanzurteilen. Waehrend aktiver Entwicklung oder Pilotvorbereitung berichtet die Funktion nach jeder wesentlichen Lageaenderung und mindestens woechentlich, ausserdem vor Eigentuemerentscheiden und bei bestaetigten roten Befunden; ausserhalb aktiver Phasen monatlich oder auf Anfrage. Sie fuehrt, prueft, filtert, genehmigt, ermittelt und kontaktiert nicht, ersetzt keine direkte Eskalation und besitzt weder App-Benutzerrolle noch App-Rechte.
 
 `BUGFIXER` ist die Rollen-ID des Junior Developers fuer kleine, klar abgegrenzte Fehlerkorrekturen. Der CTO priorisiert den technischen Befund; Engineering Lead konkretisiert den Auftrag, prueft Domaenengrenzen und fuehrt das Fachreview. Kritische Sicherheits-, Datenschutz-, Daten-, Rollen-, Hausgrenzen- oder Produktionsbefunde gehen sofort auch an den CTO. Die unabhaengige Endabnahme verbleibt bei Senior QA; der Junior gibt niemals selbst frei.
@@ -566,6 +602,8 @@ Fuer Arbeiten am Minispiel ist `WINDEL_ALARM` die fuehrende Rollen-ID von `22 ·
 | `src/services/account-service.js` | Wohnungs- und Einladungszuordnung, Kontonamen sowie Regeneration und Invalidierung von Sitzungen |
 | `src/services/backup.js` | Gekapselte Erstellung, Integritaetspruefung, Aufbewahrung und externe Kopie von SQLite-Backups |
 | `src/services/booking-rules.js` | Buchungsregeln, Kalenderkapazitaeten, Waschpaketoptionen und Terminempfehlungen |
+| `src/services/remaining-slots.js` | Serverseitige Schweizer Tagesgrenze, Wohnungspartei, Optionen, atomare Restplatzbuchung, Idempotenz und erlaubte Stornowege |
+| `src/services/agent-test-fixture.js` | Fail-closed Agent-Test-Identitaet und transaktionaler deterministischer Aufbau ausschliesslich synthetischer Fixturedaten |
 | `src/services/mail-transport.js` | SMTP-Konfiguration und Transport fuer ausgehende E-Mails |
 | `src/services/localization.js` | Serverseitige `de/en`-Vorlagen fuer Verifizierung, Reset, Freigabe, Testmail und Push |
 | `src/services/notifications.js` | E-Mail-Bestaetigung, Passwortreset und gemeinsame Freigabe-Benachrichtigungen |
@@ -624,9 +662,13 @@ Danach ist die App unter `http://localhost:3000` erreichbar. Nur lokal werden st
 
 `render.staging.yaml` beschreibt einen getrennten kostenlosen Render-Dienst `waschplan-staging-test7` auf dem eindeutigen Zweig `codex/staging`. Auto-Deploy ist aus; der erste Freeze wird bewusst manuell gestartet. Staging installiert mit `npm ci`, prueft `/api/health`, verwendet ausschliesslich die fluechtige Datenbank `/tmp/waschplan-staging.sqlite`, besitzt keine Disk und keine Produktions-Env-Gruppe. `BACKUP_ENABLED`, `EMAIL_ENABLED`, `PUSH_ENABLED` und `AUTO_BACKUP` stehen dort auf `false`; SMTP-, VAPID- und Backup-Upload-Werte werden nicht hinterlegt. Eigene Staging-Geheimnisse wie `SESSION_SECRET`, Seed-Passwort, Hauscode und spaetere Basis-URL bleiben `sync: false`.
 
-`render.agent-test.yaml` beschreibt den dauerhaft wiederverwendbaren Free-Dienst `waschzeit-agent-test` in Frankfurt auf dem eigenen Zweig `codex/agent-test`. Seine Datenbank liegt ausschliesslich unter `/tmp/waschzeit-agent-test.sqlite`; es gibt keine Disk, Produktions-Env-Gruppe, Providerwerte oder reale Daten. Nur dieser Agent-Testdienst pinnt seine Render-Laufzeit ueber `NODE_VERSION` exakt auf Node `22.23.1`. Diese offizielle Node-Version enthaelt npm `10.9.8`; `packageManager: npm@10.9.8` dokumentiert diese Kombination im Paket. Der netzwerkfreie `scripts/toolchain-guard.js` prueft Node und npm vor `npm ci` exakt und bricht bei fehlenden, ungueltigen oder abweichenden Versionen ab. Er installiert nichts und verwendet weder globale npm-Installation noch `npx`, Corepack oder einen sonstigen Bootstrap. Der Pin dient ausschliesslich der reproduzierbaren Laufzeit- und Ressourcenhaertung. Linux-`npm ci` bestand zuvor sowohl unter Node `22.23.1` als auch unter Node `24.14.1`; deshalb beweist der Pin keine Ursache des fehlgeschlagenen Render-Builds. Die Node-24-Hypothese und die tatsaechliche Render-Ursache bleiben unbestaetigt. Render erzeugt `SESSION_SECRET` und `HOUSE_CODE` bei der Erstanlage. Das einzige separat verwaltete Geheimnis ist das synthetische Seed-Admin-Passwort; es wird einmalig im freigegebenen Passwortmanager gespeichert und nie in Repository, Chat, Log oder Beleg aufgenommen. `PUBLIC_APP_URL` ist fest auf die Agent-Test-URL begrenzt. Backup, automatisches Backup, E-Mail und Push bleiben explizit `false`.
+`render.agent-test.yaml` beschreibt den dauerhaft wiederverwendbaren Free-Dienst `waschzeit-agent-test` in Frankfurt auf dem Releasezweig `codex/agent-test`. Seine Datenbank liegt ausschliesslich unter `/tmp/waschzeit-agent-test.sqlite`; es gibt keine Disk, Produktions-Env-Gruppe, Providerwerte oder reale Daten. Nur dieser Agent-Testdienst pinnt seine Render-Laufzeit ueber `NODE_VERSION` exakt auf Node `22.23.1`. Diese offizielle Node-Version enthaelt npm `10.9.8`; `packageManager: npm@10.9.8` dokumentiert diese Kombination im Paket. Der netzwerkfreie `scripts/toolchain-guard.js` prueft Node und npm vor `npm ci` exakt und bricht bei fehlenden, ungueltigen oder abweichenden Versionen ab. Er installiert nichts und verwendet weder globale npm-Installation noch `npx`, Corepack oder einen sonstigen Bootstrap. Der Pin dient ausschliesslich der reproduzierbaren Laufzeit- und Ressourcenhaertung. Linux-`npm ci` bestand zuvor sowohl unter Node `22.23.1` als auch unter Node `24.14.1`; deshalb beweist der Pin keine Ursache des fehlgeschlagenen Render-Builds. Die Node-24-Hypothese und die tatsaechliche Render-Ursache bleiben unbestaetigt.
 
-Nach der einmaligen Anlage deployt der Agent-Testdienst jeden Push auf `codex/agent-test` automatisch. Das erweitert keine Releasebefugnis: Ein Push erfolgt weiterhin nur mit sichtbarer neuer Testversionsnummer, bestandenem `npm run check`, eingefrorenem Kandidaten und unabhaengigem Senior-QA-PASS. Die Automatik ersetzt lediglich den wiederholten Render-Login und die erneute Geheimwerteingabe. Produktion und `master` bleiben davon technisch und organisatorisch getrennt.
+Die Lean-A-Fixture wird nur bei explizitem `AGENT_TEST_FIXTURE_ENABLED=true` aktiv und prueft vor dem Anlegen des Datenbankverzeichnisses fail-closed `NODE_ENV=production`, den Agent-Test-Umgebungsnamen, die exakte Service-ID und den Servicenamen, Host, HTTPS-Ursprung, Release `agent-v0.3.0-test.11`, Paketversion, Releasezweig, die identische erwartete und tatsaechliche Commitrevision, Node-/Renderkontext, den fluechtigen Datenbankpfad und alle No-Send-/No-Backup-Schalter. SMTP-, VAPID-, Backup-Upload- oder andere Providerbindungen muessen fehlen. Sie entfernt ausschliesslich ihre markierten synthetischen Daten und baut Initialschema, Standard-Seeds und Fixture in einer Transaktion auf; ein Fehler hinterlaesst keinen Teilzustand. Das bestehende kombinierte Seed-Admin-Konto bleibt unveraendert. Die drei Fixture-Passwoerter und das Seed-Admin-Passwort sind vier getrennte Owner-Runtimewerte (`sync: false`), werden nie ausgegeben und liegen ausschliesslich im freigegebenen Passwortmanager. Die drei Fixturewerte muessen ausreichend stark, paarweise verschieden und vom Seed-Admin-Passwort verschieden sein. Der lokale Fixture-Sink ist in die tatsaechlichen E-Mail- und Pushprovidergrenzen eingeschaltet, enthaelt nur abstrakte Statusereignisse und meldet `externalAttempts=0`; E-Mail, Push, externe Provider und Backups bleiben hart deaktiviert.
+
+Der Free-Dienst besitzt keine persistente Disk. Restart, Deploy oder Spin-down duerfen die `/tmp`-Daten verlieren; beim naechsten Start wird die markierte synthetische Baseline deterministisch neu aufgebaut. Das ist eine ausdrueckliche Testgrenze und kein Produktions-Backup-/Restore- oder Retentionvertrag. Die Fixture ist weder UI-Funktion noch oeffentliche Resetroute und ausserhalb der exakt gebundenen Agent-Testidentitaet nicht lauffaehig.
+
+Der einzige zulaessige test.11-Releaseweg beginnt erst nach identischem Freeze, lokalem linearem Releasecommit, CTO-GO, unabhaengigem Senior-QA-PASS und Owner-GO. Blueprint Auto Sync bleibt pausiert und Service AutoDeploy bleibt `On Commit`. Danach werden die drei dedizierten Owner-Fixturesecrets, `AGENT_TEST_EXPECTED_COMMIT` und alle gefrorenen Guardwerte in genau einem Environment-Vorgang mit der sichtbar eindeutigen Option `Save only` gespeichert. Es muessen danach null neue Deploys existieren und weiterhin test.10 auf Commit `c1418e77ed93e83069a2912adee2bf0cdb69119c` live sein. Erst dann folgt genau ein normaler Fast-forward-Push des exakten test.11-Commits auf `refs/heads/codex/agent-test`; dieser Push ist der einzige Deploytrigger und muss genau eine neue AutoDeploy-ID erzeugen. AutoDeploy wird nicht umgeschaltet; Manual Deploy, Restart, Deploy-Hook, Blueprint-Sync, zweiter Push oder Retry gehoeren nicht zu diesem Vertrag. Jede Abweichung stoppt den Lauf. Produktion und `master` bleiben technisch und organisatorisch getrennt.
 
 `render.yaml` beschreibt ausschliesslich einen spaeteren, getrennt freizugebenden Produktionsdeploy auf `master`, installiert ebenfalls mit `npm ci` und behaelt SQLite sowie Backups auf der persistenten Disk unter `/var/data`. `SESSION_SECRET` wird nie im Repository erzeugt oder gespeichert, sondern bleibt im Blueprint `sync: false`. Die drei Integrationsschalter sind dort bewusst explizit auf `true` gesetzt; ohne diese Werte blieben sie deaktiviert. Eine tatsaechliche Mail-, Push- oder externe Backupwirkung verlangt weiterhin die getrennte Providerkonfiguration. Diese Kandidatenpruefung wendet `render.yaml` nicht an und veraendert die laufende Produktion nicht. Der Staging-Blueprint darf niemals eine Produktionsdisk, Produktions-Env-Gruppe oder reale Domain uebernehmen.
 
@@ -635,6 +677,13 @@ Stop-/Ruecksetzregel: Staging wird bei unerwartetem externem Verbindungsversuch,
 Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium und fuehrt `npm run check` aus. Der verbindliche Browserlauf erzeugt Screenshots fuer Mobiltelefon, Tablet und Desktop; GitHub bewahrt sie 14 Tage als Testartefakt auf. Nur bei vollstaendigem Erfolg ruft der Workflow den als Repository-Secret gespeicherten Render Deploy Hook auf. Produktion soll erst als aktuell gelten, wenn `/api/health` den erwarteten Git-Commit meldet.
 
 ## Aenderungsprotokoll
+
+### 11. August 2026
+
+- Neuen Testkandidaten `0.3.0-test.11` in einem isolierten Arbeitszweig vorbereitet; der spaetere, separat gegatete Release darf ausschliesslich als exakter Fast-forward auf `codex/agent-test` erfolgen. Paket, Lockdatei, Service Worker, sichtbare Releasekennung, Tests und Agent-Test-Blueprint verwenden dieselbe Vorabversion; `test.10` und Produktion bleiben unveraendert.
+- Agent-Test-Start und Ein-Deploy-Choreografie gehaertet: exakte Service-/URL-/Release-/Commit-/DB-Identitaet, fehlende Providerbindungen und vier getrennte Runtimepasswoerter werden vor jeder DB-Mutation geprueft. Der einzige spaetere Releaseweg ist ein gemeinsames `Save only` ohne Deploy, gefolgt von genau einem Fast-forward-Push und genau einem AutoDeploy; in dieser Korrekturrunde wurde keine Renderaktion ausgefuehrt.
+- Lean-A-Fixture fuer den Free-/ephemeral-Agent-Testdienst ergaenzt: exakte serverseitige Identitaetsbindung, drei Owner-seitige Runtime-Credentials, transaktionaler und idempotenter Neuaufbau von zwei rein synthetischen Haeusern, minimalen Ressourcen und drei exklusiven Rollenkonten. Kombiniertes Bestandskonto, Produktion und Provider bleiben unangetastet; Backup, E-Mail und Push sind aus.
+- Restplatzweg fuer freie, noch nicht begonnene Slots des heutigen Schweizer Tages ergaenzt. Exakt eine Waschmaschine und optional ein Tumbler werden atomar und idempotent gebucht; Trockenraum, neue Benachrichtigungen und dauerhafte Selbsttrocknungsdaten sind ausgeschlossen. Wohnungsweite Tagesgrenze, Storno-/Aenderungsgrenzen, Hausisolation, Konkurrenz, DE/EN, Export und mobile Bedienung sind automatisiert abgedeckt.
 
 ### 10. August 2026
 
@@ -654,6 +703,11 @@ Der GitHub-Workflow `.github/workflows/deploy-render.yml` installiert Chromium u
 - CTO-/QA-Zustell- und Workflowkorrektur fuer `0.3.0-test.10`: Reporter-Push ist nur bei einer aktiven Subscription im Haus der konkreten Meldung waehlbar. Admin- und Reporter-Outbox werden mit einem atomaren Lease-Claim gegen parallele Doppelzustellung geschuetzt; jeder Empfaenger wird unmittelbar vor seinem Provideraufruf frisch revalidiert. Neue Faelle koennen weder durch `action=block` noch durch eine allgemeine Ressourcenbearbeitung ohne ausdruecklichen Sperrentscheid uebernommen werden. Angemeldete Testansichten behalten `WaschZeit Test` auch nach Reload, Navigation, Sprach- und Hauswechsel im Seitentitel. Konkurrenz-, Mid-Batch-, Fremdhaus-, Inaktiv-/Historien-, API-Umgehungs- und Browserregressionen sichern diese Grenzen ab.
 - R11/R12-Zustellkorrektur fuer `0.3.0-test.10`: Pro Outbox-Ereignis und Empfaenger wird hoechstens ein externer Providerattempt begonnen. Versuchsbeginn ist dauerhaft markiert; Timeout, Prozessabbruch, Leaseablauf, Providerfehler oder Settlement-Drift enden als `Zustellausgang unklar` und werden nicht automatisch erneut versendet. Nur sicher vor dem Providerkontakt gescheiterte Vorbereitung bleibt planbar. E-Mail-Verfuegbarkeit, Erstellung, Praeferenz, Queue und Versand verwenden denselben fail-closed Adressresolver: aktive Konten und exakte Uebereinstimmung der normalisierten aktuellen Primaer- oder Fallback-Zweitadresse mit ihrem dauerhaft gespeicherten Bestaetigungswert. Adressaenderung und -loeschung entwerten Flag und Bindung; Legacy-Flags ohne Bindung werden nicht migriert, sondern gesperrt. Service-, API-, UI-, Startup-Migrations-, Recovery-, Export-, Konkurrenz- und No-Send-Tests decken beide Vertraege ab.
 - R13-Freigabe-E-Mail-Haertung fuer `0.3.0-test.10`: Auch bei mehr als fuenf Empfaengern wird unmittelbar vor jedem einzelnen Provideraufruf ein aktueller Datenbankstand geprueft. Adressaenderung oder -leerung, Deaktivierung, Hauswechsel, Opt-in-Entzug, Bindungsdrift und verschwundene Zielidentitaet zwischen den Batches erzeugen exakt keinen Versuch; unveraenderte berechtigte Ziele behalten die bestehende Batch- und Deduplizierungssemantik.
+
+### 18. August 2026
+
+- AI-native Vier-Rollen-Organisation fuer Produktlieferungen dokumentiert: Delivery Lead koordiniert, Builder bleibt alleiniger Product-Writer, Independent Validator urteilt unabhaengig gebuendelt und Release Runner bereitet parallel vor. Test-Fast-Lane und Guarded Lane sind strikt getrennt; negative Fachbefunde bleiben bindend, OWNER_BRIEFING bleibt nicht blockierend und Fachrollen werden bedarfsbezogen read-only zugeschaltet. Der laufende `test.11`-Prozess, Produktcode, Tests, App-Rollen, Outputs, Release und Produktion bleiben unveraendert.
+- Pauschale Altfreigabeklauseln lane-spezifisch qualifiziert: Die isolierte Test-Fast-Lane benoetigt nach Pflichtgates, Freeze und Independent-Validator-`PASS` nur den gueltigen Releaseauftrag; CTO-/CEO-Standardzwischenrunden entfallen. Guarded-Lane-Gates und bindende Hard-Risk-STOPs bleiben vollstaendig erhalten.
 
 ### 31. Juli 2026
 

@@ -126,7 +126,11 @@ const forbiddenEnglishResidentPatterns = [
   /Freie Optionen werden gepr(?:ue|\u00fc)ft/i,
   /Waschmaschinen\s+Trockenr(?:ae|\u00e4)ume/i,
   /Waschzeiten frei/i,
-  /Sonntag ist Ruhetag/i
+  /Sonntag ist Ruhetag/i,
+  /Restplatz buchen/i,
+  /Restpl(?:ae|ä)tze pr(?:ue|ü)fen/i,
+  /kleine W(?:ae|ä)sche/i,
+  /Trocknung selbst organisiert/i
 ];
 
 async function assertEnglishResidentPage(page, context) {
@@ -138,6 +142,10 @@ async function assertEnglishResidentPage(page, context) {
   assert.equal(await page.locator('.intro-copy-block h2').innerText(), 'Your laundry schedule for this week.');
   assert.equal(await page.locator('.my-bookings-panel h2').innerText(), 'My bookings');
   assert.equal(await page.locator('#myBookings .muted').innerText(), 'You currently have no upcoming bookings.');
+  assert.equal(
+    await page.locator('#remainingSlotPanel [data-i18n="remainingSlot.requiredText"]').innerText(),
+    'Remaining slot for a small load of laundry. No drying room is included. If you do not book a tumble dryer, you must arrange drying yourself.'
+  );
   if (await page.locator('#bookingSuggestion').isVisible()) {
     assert.match(await page.locator('#bookingSuggestion .suggestion-label').innerText(), /^Your recommendation$/i);
     assert.equal(await page.locator('#bookingSuggestion button').innerText(), 'Book recommended time');
@@ -148,6 +156,10 @@ async function assertGermanResidentPage(page, context) {
   assert.match(await page.locator('.intro-copy-block h2').innerText(), /Dein Waschplan f(?:ue|\u00fc)r diese Woche\./i, context);
   assert.equal(await page.locator('.my-bookings-panel h2').innerText(), 'Meine Buchungen');
   assert.match(await page.locator('#myBookings .muted').innerText(), /Du hast aktuell keine kommenden Buchungen\./i, context);
+  assert.equal(
+    await page.locator('#remainingSlotPanel [data-i18n="remainingSlot.requiredText"]').innerText(),
+    'Restplatz für eine kleine Wäsche. Es ist kein Trockenraum enthalten. Ohne Tumblerbuchung muss die Trocknung selbst organisiert werden.'
+  );
   if (await page.locator('#bookingSuggestion').isVisible()) {
     assert.match(await page.locator('#bookingSuggestion .suggestion-label').innerText(), /^Deine Empfehlung$/i, context);
   }
@@ -723,6 +735,70 @@ async function run() {
     await assertEnglishSettingsDialog(page, screenshotDirectory);
     await page.click('#closeSettingsButton');
     await assertEnglishResidentPage(page, 'resident/de-to-en-without-reload');
+
+    const remainingSlotDate = '2099-01-02';
+    let remainingSlotSubmission = null;
+    const remainingOptionsHandler = async (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        date: remainingSlotDate,
+        eligible: true,
+        code: 'READY',
+        slots: [{
+          slot: '17:00-21:00',
+          washers: [{ id: 91001, name: 'Synthetic Washer' }],
+          tumblers: [{ id: 92001, name: 'Synthetic Tumbler' }]
+        }]
+      })
+    });
+    const remainingCreateHandler = async (route) => {
+      remainingSlotSubmission = {
+        headers: route.request().headers(),
+        body: route.request().postDataJSON()
+      };
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, idempotent: false, bookings: [], message: 'The remaining slot has been booked.' })
+      });
+    };
+    await page.route(`${baseUrl}/api/remaining-slots/options`, remainingOptionsHandler);
+    await page.route(`${baseUrl}/api/remaining-slots`, remainingCreateHandler);
+    assert.equal(await page.locator('#remainingSlotPanel [data-i18n="remainingSlot.requiredText"]').innerText(),
+      'Remaining slot for a small load of laundry. No drying room is included. If you do not book a tumble dryer, you must arrange drying yourself.');
+    await page.click('#openRemainingSlotButton');
+    await page.waitForSelector('#remainingSlotForm:not([hidden])');
+    assert.equal(await page.locator('#remainingSlotUseTumbler').isChecked(), false);
+    assert.equal(await page.locator('#remainingSlotSelfDrying').isChecked(), false);
+    assert.equal(await page.locator('#bookRemainingSlotButton').isDisabled(), true);
+    await page.check('#remainingSlotUseTumbler');
+    await page.selectOption('#remainingSlotTumbler', '92001');
+    assert.match(await page.locator('#remainingSlotReview').innerText(), /Synthetic Tumbler/);
+    assert.match(await page.locator('#remainingSlotReview').innerText(), /Not included/);
+    await page.check('#remainingSlotSelfDrying');
+    assert.equal(await page.locator('#remainingSlotTumbler').isDisabled(), true);
+    assert.equal(await page.locator('#bookRemainingSlotButton').isDisabled(), false);
+    const remainingLayout = await page.locator('#remainingSlotPanel').evaluate((panel) => ({
+      scrollWidth: panel.scrollWidth,
+      clientWidth: panel.clientWidth
+    }));
+    assert.ok(remainingLayout.scrollWidth <= remainingLayout.clientWidth + 1, 'Restplatzbereich laeuft mobil horizontal ueber');
+    await page.click('#bookRemainingSlotButton');
+    await page.waitForFunction(() => document.querySelector('#remainingSlotForm')?.hidden === true);
+    assert.ok(remainingSlotSubmission);
+    assert.match(remainingSlotSubmission.headers['idempotency-key'] || '', /^remaining-slot:/);
+    assert.deepEqual(remainingSlotSubmission.body, {
+      slot: '17:00-21:00',
+      washerId: 91001,
+      tumblerId: null,
+      selfDryingConfirmed: true
+    });
+    assert.equal(Object.hasOwn(remainingSlotSubmission.body, 'houseId'), false);
+    assert.equal(Object.hasOwn(remainingSlotSubmission.body, 'date'), false);
+    await page.unroute(`${baseUrl}/api/remaining-slots/options`, remainingOptionsHandler);
+    await page.unroute(`${baseUrl}/api/remaining-slots`, remainingCreateHandler);
+
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.documentElement.lang === 'en');
     assert.match(await page.title(), /^WaschZeit Test \| /);
