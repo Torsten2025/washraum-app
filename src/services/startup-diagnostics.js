@@ -23,7 +23,15 @@ function classifyStartupFailure(error) {
 }
 
 function formatStartupFailure(error) {
-  return `WASCHZEIT_STARTFAIL class=${classifyStartupFailure(error)}`;
+  const failureClass = classifyStartupFailure(error);
+  if (failureClass === 'GUARD_CREDENTIALS') {
+    const failMask = Number(error?.failMask);
+    if (Number.isInteger(failMask) && failMask > 0 && failMask <= 0xf) {
+      return `STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0x${failMask.toString(16).toUpperCase()}`;
+    }
+    return 'WASCHZEIT_STARTFAIL class=STARTUP';
+  }
+  return `WASCHZEIT_STARTFAIL class=${failureClass}`;
 }
 
 function writeStartupFailureLine(line) {

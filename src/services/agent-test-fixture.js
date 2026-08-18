@@ -1,10 +1,16 @@
 'use strict';
 
 const FIXTURE_VERSION = 'agent-test-fixture-v1';
+const CREDENTIAL_FAILURE_BITS = Object.freeze({
+  FIXTURE_POLICY: 0x1,
+  FIXTURE_DISTINCT: 0x2,
+  SEED_POLICY: 0x4,
+  FIXTURE_SEED_OVERLAP: 0x8
+});
 const EXPECTED = Object.freeze({
   appEnvironment: 'agent-test',
-  appRelease: 'agent-v0.3.0-test.11',
-  appVersion: '0.3.0-test.11',
+  appRelease: 'agent-v0.3.0-test.12',
+  appVersion: '0.3.0-test.12',
   branch: 'codex/agent-test',
   databasePath: '/tmp/waschzeit-agent-test.sqlite',
   externalHostname: 'waschzeit-agent-test.onrender.com',
@@ -137,13 +143,21 @@ function evaluateAgentTestFixtureGate({ env = {}, appVersion = '' } = {}) {
     env.AGENT_TEST_HOUSEADMIN_PASSWORD,
     env.AGENT_TEST_SUPERADMIN_PASSWORD
   ];
-  if (
-    !credentials.every(validCredential)
-    || new Set(credentials).size !== credentials.length
-    || !validCredential(env.SEED_ADMIN_PASSWORD)
-    || credentials.includes(env.SEED_ADMIN_PASSWORD)
-  ) {
-    throw fixtureError('AGENT_TEST_FIXTURE_CREDENTIALS_INVALID');
+  const fixtureCredentialValidity = credentials.map((credential) => validCredential(credential));
+  const fixturePolicyInvalid = fixtureCredentialValidity.some((valid) => !valid);
+  const fixtureCredentialsNotDistinct = new Set(credentials).size !== credentials.length;
+  const seedPolicyInvalid = !validCredential(env.SEED_ADMIN_PASSWORD);
+  const fixtureSeedMatches = credentials.map((credential) => credential === env.SEED_ADMIN_PASSWORD);
+  const fixtureSeedOverlap = fixtureSeedMatches.some(Boolean);
+  const credentialFailMask =
+    (fixturePolicyInvalid ? CREDENTIAL_FAILURE_BITS.FIXTURE_POLICY : 0)
+    | (fixtureCredentialsNotDistinct ? CREDENTIAL_FAILURE_BITS.FIXTURE_DISTINCT : 0)
+    | (seedPolicyInvalid ? CREDENTIAL_FAILURE_BITS.SEED_POLICY : 0)
+    | (fixtureSeedOverlap ? CREDENTIAL_FAILURE_BITS.FIXTURE_SEED_OVERLAP : 0);
+  if (credentialFailMask !== 0) {
+    const error = fixtureError('AGENT_TEST_FIXTURE_CREDENTIALS_INVALID');
+    error.failMask = credentialFailMask;
+    throw error;
   }
 
   return Object.freeze({ enabled: true, requested: true, code: 'FIXTURE_ALLOWED' });
@@ -703,6 +717,7 @@ function initializeDatabaseWithAgentTestFixture({
 }
 
 module.exports = {
+  CREDENTIAL_FAILURE_BITS,
   EXPECTED,
   FIXTURE,
   FIXTURE_ROLE_MATRIX,

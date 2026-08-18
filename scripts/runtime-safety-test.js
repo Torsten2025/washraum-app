@@ -12,6 +12,7 @@ const { createBackupService } = require('../src/services/backup');
 const { createMailTransport } = require('../src/services/mail-transport');
 const { createOperationsService } = require('../src/services/operations');
 const { createPushService } = require('../src/services/push');
+const { formatStartupFailure } = require('../src/services/startup-diagnostics');
 const {
   FLAG_DEFAULTS,
   createRuntimeFlags,
@@ -263,7 +264,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.11',
+      appVersion: '0.3.0-test.12',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -340,12 +341,12 @@ function verifyBlueprintsAndVersion() {
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.11');
+  assert.equal(packageInfo.version, '0.3.0-test.12');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
   assert.equal(packageInfo.scripts.start, 'node startup.js');
-  assert.equal(lock.version, '0.3.0-test.11');
-  assert.equal(lock.packages[''].version, '0.3.0-test.11');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.11';"));
+  assert.equal(lock.version, '0.3.0-test.12');
+  assert.equal(lock.packages[''].version, '0.3.0-test.12');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.12';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
@@ -378,7 +379,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.11/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.12/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -408,7 +409,13 @@ function verifyBlueprintsAndVersion() {
   assert.match(fixtureSource, /runtimeCommit === expectedCommit/);
   assert.match(fixtureSource, /exact\(env, 'DB_PATH', EXPECTED\.databasePath\)/);
   assert.match(fixtureSource, /AGENT_TEST_FIXTURE_PROVIDER_BINDING_FORBIDDEN/);
-  assert.match(fixtureSource, /credentials\.includes\(env\.SEED_ADMIN_PASSWORD\)/);
+  assert.match(fixtureSource, /FIXTURE_POLICY: 0x1/);
+  assert.match(fixtureSource, /FIXTURE_DISTINCT: 0x2/);
+  assert.match(fixtureSource, /SEED_POLICY: 0x4/);
+  assert.match(fixtureSource, /FIXTURE_SEED_OVERLAP: 0x8/);
+  assert.match(fixtureSource, /fixtureCredentialValidity = credentials\.map/);
+  assert.match(fixtureSource, /fixtureSeedMatches = credentials\.map/);
+  assert.match(fixtureSource, /credentialFailMask =[\s\S]*FIXTURE_POLICY[\s\S]*FIXTURE_DISTINCT[\s\S]*SEED_POLICY[\s\S]*FIXTURE_SEED_OVERLAP/);
   for (const key of [
     'ALLOW_LEGACY_HOUSE_REGISTRATION',
     'ALLOW_TEST_INVITATION_LINK',
@@ -425,9 +432,23 @@ function verifyBlueprintsAndVersion() {
   assert.match(startupSource, /finally \{\s*process\.exit\(1\);\s*\}/);
   assert.doesNotMatch(startupSource, /process\.exitCode\s*=/);
   assert.match(startupDiagnostics, /WASCHZEIT_STARTFAIL class=/);
+  assert.match(startupDiagnostics, /STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0x/);
   assert.match(startupDiagnostics, /fs\.writeSync\(2, output, offset, output\.length - offset\)/);
   assert.doesNotMatch(startupDiagnostics, /process\.stderr\.write/);
   assert.doesNotMatch(startupDiagnostics, /error\?\.message|error\?\.stack|JSON\.stringify\(error/);
+  const credentialMarker = formatStartupFailure({
+    code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID',
+    failMask: 0xf,
+    message: 'canary-secret C:\\private\\credential.env'
+  });
+  assert.equal(credentialMarker, 'STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0xF');
+  assert.doesNotMatch(credentialMarker, /canary|private|credential\.env|AGENT_TEST_|SEED_ADMIN|Password|\\|\/[A-Za-z]/i);
+  for (const failMask of [0, 0x10, NaN, null]) {
+    assert.equal(formatStartupFailure({
+      code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID',
+      failMask
+    }), 'WASCHZEIT_STARTFAIL class=STARTUP');
+  }
   for (const document of [handbook, readme, testPlan]) {
     assert.doesNotMatch(document, /codex\/agent-test11/);
   }
@@ -597,7 +618,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.11');
+    assert.equal(health.body.version, '0.3.0-test.12');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -734,7 +755,7 @@ async function run() {
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.11',
+    version: '0.3.0-test.12',
     toolchain,
     unit,
     runtime,

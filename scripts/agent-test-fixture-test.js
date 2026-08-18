@@ -11,6 +11,7 @@ const Database = require('better-sqlite3');
 const { createMailTransport } = require('../src/services/mail-transport');
 const { createPushService } = require('../src/services/push');
 const {
+  CREDENTIAL_FAILURE_BITS,
   EXPECTED,
   FIXTURE,
   FIXTURE_VERSION,
@@ -26,6 +27,13 @@ const {
 } = require('../src/services/startup-diagnostics');
 
 const projectRoot = path.resolve(__dirname, '..');
+
+function credentialWithClasses(fill, length = 24, classCount = 4) {
+  const prefixes = { 2: 'Aa', 3: 'Aa1', 4: 'Aa1!' };
+  const prefix = prefixes[classCount];
+  if (!prefix || length < prefix.length) throw new Error('INVALID_CREDENTIAL_TEST_CASE');
+  return `${prefix}${fill.repeat(length - prefix.length)}`;
+}
 
 function fixtureEnv(overrides = {}) {
   return {
@@ -353,10 +361,112 @@ async function main() {
       appVersion: EXPECTED.appVersion
     }), { code: 'AGENT_TEST_FIXTURE_PROVIDER_BINDING_FORBIDDEN' }, key);
   }
-  assert.throws(() => evaluateAgentTestFixtureGate({
-    env: fixtureEnv({ AGENT_TEST_RESIDENT_PASSWORD: '' }),
-    appVersion: EXPECTED.appVersion
-  }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
+  const credentialValues = Object.freeze({
+    resident: credentialWithClasses('r'),
+    houseAdmin: credentialWithClasses('h'),
+    superadmin: credentialWithClasses('s'),
+    seed: credentialWithClasses('c'),
+    invalidFixture: 'f'.repeat(24),
+    invalidFixtureOther: 'g'.repeat(24),
+    invalidSeed: 'z'.repeat(24)
+  });
+  const credentialEnv = (overrides = {}) => fixtureEnv({
+    AGENT_TEST_RESIDENT_PASSWORD: credentialValues.resident,
+    AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.houseAdmin,
+    AGENT_TEST_SUPERADMIN_PASSWORD: credentialValues.superadmin,
+    SEED_ADMIN_PASSWORD: credentialValues.seed,
+    ...overrides
+  });
+  const credentialMask = (overrides = {}) => {
+    try {
+      evaluateAgentTestFixtureGate({ env: credentialEnv(overrides), appVersion: EXPECTED.appVersion });
+      return 0;
+    } catch (error) {
+      assert.equal(error.code, 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID');
+      assert.ok(Number.isInteger(error.failMask));
+      return error.failMask;
+    }
+  };
+  const credentialTruthCases = [
+    { mask: 0x0, overrides: {} },
+    { mask: 0x1, overrides: { AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidFixture } },
+    { mask: 0x2, overrides: { AGENT_TEST_RESIDENT_PASSWORD: credentialValues.houseAdmin } },
+    { mask: 0x3, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidFixture,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.invalidFixture
+    } },
+    { mask: 0x4, overrides: { SEED_ADMIN_PASSWORD: credentialValues.invalidSeed } },
+    { mask: 0x5, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidFixture,
+      SEED_ADMIN_PASSWORD: credentialValues.invalidSeed
+    } },
+    { mask: 0x6, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.houseAdmin,
+      SEED_ADMIN_PASSWORD: credentialValues.invalidSeed
+    } },
+    { mask: 0x7, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidFixture,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.invalidFixture,
+      SEED_ADMIN_PASSWORD: credentialValues.invalidSeed
+    } },
+    { mask: 0x8, overrides: { AGENT_TEST_RESIDENT_PASSWORD: credentialValues.seed } },
+    { mask: 0x9, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.seed,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.invalidFixture
+    } },
+    { mask: 0xa, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.seed,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.seed
+    } },
+    { mask: 0xb, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.seed,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.seed,
+      AGENT_TEST_SUPERADMIN_PASSWORD: credentialValues.invalidFixture
+    } },
+    { mask: 0xd, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidSeed,
+      SEED_ADMIN_PASSWORD: credentialValues.invalidSeed
+    } },
+    { mask: 0xf, overrides: {
+      AGENT_TEST_RESIDENT_PASSWORD: credentialValues.invalidSeed,
+      AGENT_TEST_HOUSEADMIN_PASSWORD: credentialValues.invalidSeed,
+      SEED_ADMIN_PASSWORD: credentialValues.invalidSeed
+    } }
+  ];
+  assert.deepEqual(CREDENTIAL_FAILURE_BITS, {
+    FIXTURE_POLICY: 0x1,
+    FIXTURE_DISTINCT: 0x2,
+    SEED_POLICY: 0x4,
+    FIXTURE_SEED_OVERLAP: 0x8
+  });
+  for (const testCase of credentialTruthCases) {
+    assert.equal(credentialMask(testCase.overrides), testCase.mask, `Credentialmaske 0x${testCase.mask.toString(16)}`);
+    if (testCase.mask !== 0) {
+      const error = new Error('canary-secret C:\\private\\credential.env');
+      error.code = 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID';
+      error.failMask = testCase.mask;
+      const marker = formatStartupFailure(error);
+      assert.equal(marker, `STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0x${testCase.mask.toString(16).toUpperCase()}`);
+      assert.doesNotMatch(marker, /canary|private|credential\.env|AGENT_TEST_|SEED_ADMIN|Password|\\|\/[A-Za-z]/i);
+    }
+  }
+  // 0xc und 0xe sind unmoeglich: Seed-Overlap mit policywidrigem Seed setzt immer auch Fixture-Policy.
+  assert.deepEqual(credentialTruthCases.map(({ mask }) => mask), [
+    0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xd, 0xf
+  ]);
+
+  for (const [length, expectedMask] of [[23, 0x1], [24, 0x0], [256, 0x0], [257, 0x1]]) {
+    assert.equal(credentialMask({
+      AGENT_TEST_RESIDENT_PASSWORD: credentialWithClasses('r', length, 4)
+    }), expectedMask, `Credentiallaengengrenze ${length}`);
+  }
+  assert.equal(credentialMask({
+    AGENT_TEST_RESIDENT_PASSWORD: credentialWithClasses('r', 24, 2)
+  }), 0x1, 'Zwei Zeichenklassen muessen scheitern');
+  assert.equal(credentialMask({
+    AGENT_TEST_RESIDENT_PASSWORD: credentialWithClasses('r', 24, 3)
+  }), 0x0, 'Drei Zeichenklassen muessen bestehen');
+  assert.equal(credentialMask({ AGENT_TEST_RESIDENT_PASSWORD: '' }), 0x1);
   for (const key of [
     'ALLOW_LEGACY_HOUSE_REGISTRATION',
     'ALLOW_TEST_INVITATION_LINK',
@@ -387,39 +497,32 @@ async function main() {
   assert.equal(classifyStartupFailure({ code: 'MODULE_NOT_FOUND' }), 'BOOTSTRAP');
   assert.equal(formatStartupFailure({
     code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID',
+    failMask: 0x1,
     message: 'canary-secret C:\\private\\credential.env'
-  }), 'WASCHZEIT_STARTFAIL class=GUARD_CREDENTIALS');
+  }), 'STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0x1');
+  assert.equal(formatStartupFailure({
+    code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID',
+    failMask: 0
+  }), 'WASCHZEIT_STARTFAIL class=STARTUP');
   const diagnosticLines = [];
   const reportDiagnostic = createStartupFailureReporter((line) => diagnosticLines.push(line));
   assert.equal(reportDiagnostic({ code: 'AGENT_TEST_FIXTURE_GLOBAL_STATE_INVALID' }), true);
   assert.equal(reportDiagnostic({ code: 'SQLITE_CANTOPEN' }), false, 'Pro Start darf nur ein Marker entstehen');
   assert.deepEqual(diagnosticLines, ['WASCHZEIT_STARTFAIL class=FIXTURE_STATE']);
-  assert.throws(() => evaluateAgentTestFixtureGate({
-    env: fixtureEnv({ AGENT_TEST_RESIDENT_PASSWORD: 'a'.repeat(24) }),
-    appVersion: EXPECTED.appVersion
-  }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
-  assert.throws(() => evaluateAgentTestFixtureGate({
-    env: fixtureEnv({ AGENT_TEST_RESIDENT_PASSWORD: validEnv.SEED_ADMIN_PASSWORD }),
-    appVersion: EXPECTED.appVersion
-  }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
-  assert.throws(() => evaluateAgentTestFixtureGate({
-    env: fixtureEnv({
-      AGENT_TEST_RESIDENT_PASSWORD: validEnv.AGENT_TEST_HOUSEADMIN_PASSWORD
-    }),
-    appVersion: EXPECTED.appVersion
-  }), { code: 'AGENT_TEST_FIXTURE_CREDENTIALS_INVALID' });
-
   const rejectedCases = [
-    { className: 'GUARD_IDENTITY', override: { RENDER_SERVICE_NAME: 'wrong-service' } },
-    { className: 'GUARD_MODE', override: { ALLOW_TEST_INVITATION_LINK: 'true' } },
-    { className: 'GUARD_NO_SEND', override: { PUSH_ENABLED: 'true' } },
-    { className: 'GUARD_PROVIDER', override: { SMTP_HOST: 'forbidden.invalid' } },
-    { className: 'GUARD_CREDENTIALS', override: { AGENT_TEST_RESIDENT_PASSWORD: '' } }
+    { output: 'WASCHZEIT_STARTFAIL class=GUARD_IDENTITY', env: fixtureEnv({ RENDER_SERVICE_NAME: 'wrong-service' }) },
+    { output: 'WASCHZEIT_STARTFAIL class=GUARD_MODE', env: fixtureEnv({ ALLOW_TEST_INVITATION_LINK: 'true' }) },
+    { output: 'WASCHZEIT_STARTFAIL class=GUARD_NO_SEND', env: fixtureEnv({ PUSH_ENABLED: 'true' }) },
+    { output: 'WASCHZEIT_STARTFAIL class=GUARD_PROVIDER', env: fixtureEnv({ SMTP_HOST: 'forbidden.invalid' }) },
+    ...credentialTruthCases.filter(({ mask }) => mask !== 0).map(({ mask, overrides }) => ({
+      output: `STARTUP_ABORT class=GUARD_CREDENTIALS failMask=0x${mask.toString(16).toUpperCase()}`,
+      env: credentialEnv(overrides)
+    }))
   ];
   for (const rejectedCase of rejectedCases) {
-    const rejected = await runRejectedServer(fixtureEnv(rejectedCase.override));
+    const rejected = await runRejectedServer(rejectedCase.env);
     assert.notEqual(rejected.exitCode, 0);
-    assert.equal(rejected.output.trim(), `WASCHZEIT_STARTFAIL class=${rejectedCase.className}`);
+    assert.equal(rejected.output.trim(), rejectedCase.output);
     assert.doesNotMatch(rejected.output, /Error:|at\s|FILESYSTEM_TOUCHED|RENDER_|AGENT_TEST_|Password/i);
   }
   await runFatalListenerRegression('uncaughtException');
