@@ -34,6 +34,13 @@ const { createRuntimeFlags } = require('./src/services/runtime-flags');
 const { reportStartupFailure } = require('./src/services/startup-diagnostics');
 const { createRemainingSlotService } = require('./src/services/remaining-slots');
 const {
+  evaluateProductionGuard,
+  requireProductionStartupPermit
+} = require('./src/services/production-guard');
+const { readSchemaIdentity } = require('./src/services/guarded-database');
+const { createProductionBackupRuntime } = require('./src/services/production-startup');
+const { createProviderHold } = require('./src/services/provider-hold');
+const {
   createAgentTestProviderBoundary,
   evaluateAgentTestFixtureGate,
   initializeDatabaseWithAgentTestFixture
@@ -67,6 +74,10 @@ const appReleasedAt = String(process.env.APP_RELEASE_DATE || serverStartedAt).tr
 const allowLegacyHouseRegistration = process.env.ALLOW_LEGACY_HOUSE_REGISTRATION === 'true';
 const allowTestInvitationLink = !isProduction && process.env.ALLOW_TEST_INVITATION_LINK === 'true';
 const runtimeFlags = createRuntimeFlags({ env: process.env, logger: console });
+const productionGuard = evaluateProductionGuard({ env: process.env, appVersion });
+const productionStartupPermit = productionGuard.production
+  ? requireProductionStartupPermit(productionGuard.contractHash)
+  : null;
 const localDbPath = path.join(__dirname, 'data', 'washraum.sqlite');
 const renderDbPath = '/var/data/washraum.sqlite';
 const dbPath = path.resolve(
@@ -76,12 +87,24 @@ const dbPath = path.resolve(
 );
 const dbDir = path.dirname(dbPath);
 
-fs.mkdirSync(dbDir, { recursive: true });
+if (!productionGuard.production) fs.mkdirSync(dbDir, { recursive: true });
 
-const db = new Database(dbPath);
+const db = new Database(dbPath, productionGuard.production ? { fileMustExist: true } : undefined);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 5000');
+if (productionGuard.production && readSchemaIdentity(db).hash !== productionStartupPermit.targetSchemaHash) {
+  throw new Error('PRODUCTION_RUNTIME_SCHEMA_DRIFT');
+}
+const productionBackupRuntime = productionGuard.production
+  ? createProductionBackupRuntime({ db, contract: productionGuard, permit: productionStartupPermit })
+  : null;
+const productionProviderHold = createProviderHold({
+  enabled: productionGuard.production,
+  runtimeFlags,
+  env: process.env
+});
+productionProviderHold.assertZeroExternalAttempts();
 
 app.disable('x-powered-by');
 if (isProduction) {
@@ -912,7 +935,7 @@ const { backupDirectory, createVerifiedBackup } = createBackupService({
   dbDir,
   setSetting,
   fetchImpl: fetch,
-  enabled: runtimeFlags.backup.enabled === true
+  enabled: runtimeFlags.backup.enabled === true && !productionGuard.production
 });
 
 const {
@@ -1005,6 +1028,21 @@ app.use((req, res, next) => {
     return res.status(403).json({ error: 'Ung\u00fcltiger Anfrage-Ursprung.' });
   }
   next();
+});
+app.use((req, res, next) => {
+  if (!productionBackupRuntime || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  const sessionOnly = new Set(['/api/login', '/api/logout', '/logout', '/api/session/keepalive']);
+  if (sessionOnly.has(req.path)) return next();
+  try {
+    productionBackupRuntime.freshnessGate.assertFreshForWrite();
+    return next();
+  } catch (error) {
+    res.setHeader('Retry-After', String(error.retryAfterSeconds || 60));
+    return res.status(503).json({
+      code: 'PRODUCTION_BACKUP_STALE_WRITE_BLOCKED',
+      error: 'Schreibzugriffe sind bis zum naechsten verifizierten Off-Disk-Backup voruebergehend gesperrt.'
+    });
+  }
 });
 app.use(session({
   store: new BetterSqliteSessionStore(db),
@@ -1233,7 +1271,10 @@ const { emailStatus, smtpConfig, extractEmailAddress, sendMail: sendMailProvider
   env: process.env,
   enabled: runtimeFlags.email.enabled === true
 });
-const sendMail = agentTestProviderBoundary.wrapMail(sendMailProvider);
+const sendMail = productionProviderHold.wrap(
+  'email',
+  agentTestProviderBoundary.wrapMail(sendMailProvider)
+);
 
 const {
   pushStatus,
@@ -1253,8 +1294,11 @@ const {
   extractEmailAddress,
   publicAppUrl,
   weekdayForDate,
-  providerSendNotification: agentTestProviderBoundary.wrapPush(
-    (subscription, payload) => webPush.sendNotification(subscription, payload)
+  providerSendNotification: productionProviderHold.wrap(
+    'push',
+    agentTestProviderBoundary.wrapPush(
+      (subscription, payload) => webPush.sendNotification(subscription, payload)
+    )
   ),
   enabled: runtimeFlags.push.enabled === true
 });
@@ -1271,15 +1315,19 @@ const maintenanceReporting = createMaintenanceReporting({
   sendMail,
   publicAppUrl
 });
-agentTestFixtureStatus = initializeDatabaseWithAgentTestFixture({
-  db,
-  bcrypt,
-  env: process.env,
-  gate: agentTestFixtureGate,
-  initDatabase: initDb,
-  installServiceSchemas: () => maintenanceReporting.installSchema()
-});
-agentTestProviderBoundary.assertNoExternalAttempts();
+if (productionGuard.production) {
+  agentTestFixtureStatus = Object.freeze({ enabled: false, ready: false, reason: 'production-fail-closed' });
+} else {
+  agentTestFixtureStatus = initializeDatabaseWithAgentTestFixture({
+    db,
+    bcrypt,
+    env: process.env,
+    gate: agentTestFixtureGate,
+    initDatabase: initDb,
+    installServiceSchemas: () => maintenanceReporting.installSchema()
+  });
+  agentTestProviderBoundary.assertNoExternalAttempts();
+}
 
 const activeAdminAtStartup = db.prepare(`
   SELECT u.id
@@ -1641,23 +1689,25 @@ app.use((err, req, res, next) => {
 });
 
 async function startServer() {
-  await maintenanceReporting.prepareLegacyMigration({
-    production: isProduction,
-    backupEnabled: runtimeFlags.backup.enabled === true,
-    createVerifiedBackup
-  });
-
-  cleanupExpiredData();
-  const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
-  cleanupTimer.unref();
-  if (runtimeFlags.push.enabled === true) {
+  if (!productionGuard.production) {
+    await maintenanceReporting.prepareLegacyMigration({
+      production: isProduction,
+      backupEnabled: runtimeFlags.backup.enabled === true,
+      createVerifiedBackup
+    });
+    cleanupExpiredData();
+    const cleanupTimer = setInterval(cleanupExpiredData, 24 * 60 * 60 * 1000);
+    cleanupTimer.unref();
+  }
+  if (!productionGuard.production && runtimeFlags.push.enabled === true) {
     const initialMaintenanceReminderTimer = setTimeout(runMaintenanceReminderSweep, 60 * 1000);
     initialMaintenanceReminderTimer.unref();
     const maintenanceReminderTimer = setInterval(runMaintenanceReminderSweep, 5 * 60 * 1000);
     maintenanceReminderTimer.unref();
   }
   if (
-    runtimeFlags.backup.enabled === true
+    !productionGuard.production
+    && runtimeFlags.backup.enabled === true
     && (isProduction || String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true')
   ) {
     const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
@@ -1675,6 +1725,8 @@ async function startServer() {
       + `Push=${runtimeFlags.push.enabled === true ? 'aktiv' : 'deaktiviert'}`
     );
   });
+  productionBackupRuntime?.scheduler.start();
+  productionProviderHold.assertZeroExternalAttempts();
   httpServer.once('error', (error) => {
     reportStartupFailure(error);
     process.exitCode = 1;

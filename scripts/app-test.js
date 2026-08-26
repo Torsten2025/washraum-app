@@ -148,8 +148,13 @@ async function verifyProductionRecoveryStartup() {
     env: {
       ...process.env,
       NODE_ENV: 'production',
+      APP_ENV: 'agent-test',
       PORT: String(recoveryPort),
       DB_PATH: recoveryDatabasePath,
+      BACKUP_ENABLED: 'false',
+      AUTO_BACKUP: 'false',
+      EMAIL_ENABLED: 'false',
+      PUSH_ENABLED: 'false',
       HOUSE_CODE: 'Recovery Test 18',
       SEED_ADMIN_PASSWORD: '',
       SESSION_SECRET: 'short'
@@ -258,7 +263,7 @@ async function verifyProductionMaintenanceMigrationGate() {
   const blockedOutput = [];
   const blocked = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
-    env: { ...commonEnv, NODE_ENV: 'production' },
+    env: { ...commonEnv, NODE_ENV: 'production', APP_ENV: 'agent-test' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   blocked.stdout.on('data', (chunk) => blockedOutput.push(chunk.toString()));
@@ -770,14 +775,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.12');
+    assert.equal(health.body.version, '0.3.0-test.14');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.12');
+    assert.equal(versionStatus.body.version, '0.3.0-test.14');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -2839,15 +2844,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.12'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.14'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.12"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.14"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.12'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.12'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.14'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.14'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

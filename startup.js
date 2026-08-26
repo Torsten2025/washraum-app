@@ -1,6 +1,7 @@
 'use strict';
 
 const { reportStartupFailure } = require('./src/services/startup-diagnostics');
+const { prepareProductionStartup } = require('./src/services/production-startup');
 
 function fail(error) {
   try {
@@ -13,8 +14,6 @@ function fail(error) {
 process.once('uncaughtException', fail);
 process.once('unhandledRejection', fail);
 
-try {
-  require('./server');
-} catch (error) {
-  fail(error);
-}
+prepareProductionStartup()
+  .then(() => require('./server'))
+  .catch(fail);

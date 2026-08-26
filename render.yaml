@@ -10,8 +10,60 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: production
       - key: DB_PATH
         value: /var/data/washraum.sqlite
+      - key: PRODUCTION_EXPECTED_DB_PATH
+        value: /var/data/washraum.sqlite
+      - key: PRODUCTION_SINGLE_INSTANCE
+        value: true
+      - key: WEB_CONCURRENCY
+        value: 1
+      - key: PRODUCTION_PROVIDER_HOLD
+        value: true
+      - key: PRODUCTION_SEED_DISABLED
+        value: true
+      - key: PRODUCTION_PREDEPLOY_REQUIRED
+        value: true
+      - key: EMAIL_ENABLED
+        value: false
+      - key: PUSH_ENABLED
+        value: false
+      - key: BACKUP_ENABLED
+        value: true
+      - key: AUTO_BACKUP
+        value: false
+      - key: PRODUCTION_BACKUP_MODE
+        value: kopia-repository-server
+      - key: PRODUCTION_BACKUP_RESIDENCY
+        value: EU
+      - key: PRODUCTION_BACKUP_RETENTION_DAYS
+        value: 30
+      - key: PRODUCTION_RPO_MODE
+        value: periodic-5m
+      - key: PRODUCTION_RPO_MINUTES
+        value: 5
+      - key: PRODUCTION_RTO_HOURS
+        value: 4
+      - key: PRODUCTION_BACKUP_INTERVAL_SECONDS
+        value: 240
+      - key: PRODUCTION_BACKUP_MAX_AGE_SECONDS
+        value: 300
+      - key: PRODUCTION_BACKUP_JOB_TIMEOUT_SECONDS
+        value: 180
+      - key: PRODUCTION_KOPIA_COMMAND_TIMEOUT_SECONDS
+        value: 150
+      - key: KOPIA_RELEASE_VERSION
+        value: 0.23.1
+      - key: KOPIA_RELEASE_COMMIT
+        value: 72ec08f
+      - key: KOPIA_RELEASE_ARCHIVE_SHA256
+        value: 416d0f84a3dbb321a8b2d8f0997b1a0a6e915babe79ee76fa6e4d2bd1e1c5178
+      - key: KOPIA_RELEASE_CHECKSUMS_SHA256
+        value: ec1089c8309867fb729b981ee77f6ebf57adb154a8094f841c2848ec8e41fb01
+      - key: KOPIA_RELEASE_SIGNATURE_SHA256
+        value: 0872308be5ff500b18b47558bca775ed35f69598633619ef3178b65d1252433a
       - key: SESSION_SECRET
         sync: false
       - key: SESSION_IDLE_MINUTES
@@ -24,34 +76,42 @@ services:
         sync: false
       - key: PUBLIC_APP_URL
         sync: false
-      - key: AUTO_BACKUP
-        value: true
-      - key: BACKUP_ENABLED
-        value: true
-      - key: BACKUP_DIR
-        value: /var/data/backups
-      - key: BACKUP_UPLOAD_URL
+      - key: APP_RELEASE
         sync: false
-      - key: BACKUP_UPLOAD_TOKEN
+      - key: PRODUCTION_EXPECTED_VERSION
         sync: false
-      - key: SMTP_HOST
+      - key: PRODUCTION_EXPECTED_RELEASE
         sync: false
-      - key: SMTP_PORT
+      - key: PRODUCTION_EXPECTED_COMMIT
         sync: false
-      - key: SMTP_SECURE
+      - key: PRODUCTION_CODE_ROLLBACK_COMMIT
         sync: false
-      - key: SMTP_USER
+      - key: PRODUCTION_EXPECTED_SERVICE
         sync: false
-      - key: SMTP_PASSWORD
+      - key: PRODUCTION_EXPECTED_URL
         sync: false
-      - key: SMTP_FROM
+      - key: PRODUCTION_BASELINE_SCHEMA_SHA256
         sync: false
-      - key: SMTP_TEST_TO
+      - key: PRODUCTION_MIGRATION_ARTIFACT
         sync: false
-      - key: EMAIL_ENABLED
-        value: true
-      - key: PUSH_ENABLED
-        value: true
+      - key: KOPIA_BINARY_PATH
+        sync: false
+      - key: KOPIA_BINARY_SHA256
+        sync: false
+      - key: KOPIA_REPOSITORY_SERVER_URL
+        sync: false
+      - key: KOPIA_REPOSITORY_SERVER_CERT_SHA256
+        sync: false
+      - key: KOPIA_REPOSITORY_APP_USERNAME
+        sync: false
+      - key: KOPIA_REPOSITORY_APP_HOSTNAME
+        sync: false
+      - key: KOPIA_REPOSITORY_APP_ACL_ROLE
+        value: APPEND_READ
+      - key: KOPIA_REPOSITORY_APP_PASSWORD
+        sync: false
+      - key: PRODUCTION_BACKUP_ENVELOPE_KEY_ID
+        sync: false
     disk:
       name: washraum-data
       mountPath: /var/data

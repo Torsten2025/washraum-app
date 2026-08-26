@@ -117,7 +117,7 @@ npm run check
 | RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
 | RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
 | RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
-| RP-25 | Releasegrenze | Sichtbar `0.3.0-test.12`; Fixture und Produktfunktion getrennt belegt; keine Produktionswirkung | `test:safety`, `npm run check` |
+| RP-25 | Releasegrenze | Sichtbar `0.3.0-test.14`; Fixture und Produktfunktion getrennt belegt; keine Produktionswirkung | `test:safety`, `npm run check` |
 
 ### Lean-A-Fixture `FA-01` bis `FA-12`
 
@@ -132,7 +132,7 @@ npm run check
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
 | FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
-| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.0-test.12` | `test:safety` |
+| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.0-test.14` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
 
@@ -215,6 +215,7 @@ Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Bu
 | OPS-05 | Mehrhaus-Jahr | 100 Personen, sechs Haeuser, 52 Wochen und 5.200 Waschpakete ohne Kollision | `test:year` |
 | OPS-06 | Produktion | `/api/health`, persistenter Pfad, Revision, SMTP, Push und externes Backup | Manueller Live-Test |
 | OPS-07 | Isoliertes Staging | Eigener Dienst und Zweig, Auto-Deploy aus, `npm ci`, Healthcheck, fluechtige `/tmp`-DB, keine Disk/Produktions-Env-Gruppe und alle drei Kill-Switches exakt `false` | `test:safety`, Blueprintreview |
+| OPS-08 | Produktions-Off-Disk-Adapter | App-Service enthaelt keine direkten R2-/AWS-/Bucket-Credentials und verbindet sich nur mit TLS-Pin sowie `APPEND_READ`-Konto zum getrennten Kopia Repository Server. Falsche URL, Pin oder ACL stoppen vor Wirkung; der Kindprozess erhaelt nur die minimale Allowlist. Der formelle isolierte Restore verwendet ein getrenntes `READ_ONLY`-Konto ohne Snapshot-, Delete-, Maintenance- oder Full-Recht | `test:production-backup`, Blueprintreview |
 
 ## Manuelle Live-Abnahme
 

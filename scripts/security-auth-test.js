@@ -86,8 +86,13 @@ async function verifyProductionHeaders() {
     env: {
       ...process.env,
       NODE_ENV: 'production',
+      APP_ENV: 'agent-test',
       PORT: String(productionPort),
       DB_PATH: productionDatabase,
+      BACKUP_ENABLED: 'false',
+      AUTO_BACKUP: 'false',
+      EMAIL_ENABLED: 'false',
+      PUSH_ENABLED: 'false',
       SEED_ADMIN_NAME: 'security-prod-admin',
       SEED_ADMIN_PASSWORD: 'Security-Prod-Admin-2026!',
       SESSION_SECRET: 'security-production-session-secret-at-least-32-characters',

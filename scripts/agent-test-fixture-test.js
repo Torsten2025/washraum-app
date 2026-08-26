@@ -799,8 +799,12 @@ async function main() {
     const serverSource = fs.readFileSync(path.join(projectRoot, 'server.js'), 'utf8');
     const operationsSource = fs.readFileSync(path.join(projectRoot, 'src', 'routes', 'operations.js'), 'utf8');
     assert.doesNotMatch(fixtureSource, /\bfetch\s*\(|https?\.request|net\.connect|tls\.connect|sendMail|sendNotification|webPush/);
-    assert.match(serverSource, /const sendMail = agentTestProviderBoundary\.wrapMail\(sendMailProvider\)/);
-    assert.match(serverSource, /providerSendNotification: agentTestProviderBoundary\.wrapPush\(/);
+    assert.match(serverSource,
+      /const sendMail = productionProviderHold\.wrap\([\s\S]*'email',[\s\S]*agentTestProviderBoundary\.wrapMail\(sendMailProvider\)[\s\S]*\);/,
+      'Produktions-Hold muss vor dem bestehenden Agent-Test-Mailadapter liegen');
+    assert.match(serverSource,
+      /providerSendNotification: productionProviderHold\.wrap\([\s\S]*'push',[\s\S]*agentTestProviderBoundary\.wrapPush\(/,
+      'Produktions-Hold muss vor dem bestehenden Agent-Test-Pushadapter liegen');
     assert.match(serverSource, /createMaintenanceReporting\([\s\S]*sendPushNotification,[\s\S]*sendMail,/);
     assert.match(serverSource, /createNotificationService\([\s\S]*sendMail,/);
     assert.doesNotMatch(serverSource, /password_hash = CASE WHEN/,

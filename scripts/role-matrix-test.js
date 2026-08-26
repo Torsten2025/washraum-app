@@ -83,15 +83,19 @@ async function verifyConfiguredSuperadminRecovery() {
       env: {
         ...process.env,
         NODE_ENV: 'production',
+        APP_ENV: 'agent-test',
         PORT: String(recoveryPort),
         DB_PATH: recoveryDatabasePath,
+        BACKUP_ENABLED: 'false',
         HOUSE_NAME: 'Recoveryhaus 18',
         HOUSE_CODE: 'Recoverycode 18',
         SEED_ADMIN_NAME: 'bestehender-admin',
         SEED_ADMIN_PASSWORD: password,
         SEED_ADMIN_FORCE_PASSWORD_RESET: forcePasswordReset ? 'true' : 'false',
         SESSION_SECRET: 'rollen-recovery-session-secret-at-least-32-characters',
-        AUTO_BACKUP: 'false'
+        AUTO_BACKUP: 'false',
+        EMAIL_ENABLED: 'false',
+        PUSH_ENABLED: 'false'
       },
       stdio: ['ignore', 'pipe', 'pipe']
     });
