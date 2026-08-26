@@ -265,7 +265,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0',
+      appVersion: '0.3.1',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -430,14 +430,15 @@ function verifyBlueprintsAndVersion() {
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0');
+  assert.equal(packageInfo.version, '0.3.1');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
   assert.equal(packageInfo.scripts.start, 'node startup.js');
-  assert.equal(lock.version, '0.3.0');
-  assert.equal(lock.packages[''].version, '0.3.0');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0';"));
+  assert.equal(lock.version, '0.3.1');
+  assert.equal(lock.packages[''].version, '0.3.1');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.1';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
+  assert.match(envExample, /^PRODUCTION_EMAIL_APPROVED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
   assert.match(envExample, /^PRODUCTION_PUSH_APPROVED=false$/m);
   for (const publicSource of [publicAppSource, publicI18nSource]) {
@@ -475,7 +476,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.1/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -567,6 +568,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(production, /WEB_CONCURRENCY[\s\S]*value: 1/);
   assert.match(production, /AUTO_BACKUP[\s\S]*value: false/);
   assert.match(production, /EMAIL_ENABLED[\s\S]*value: false/);
+  assert.match(production, /PRODUCTION_EMAIL_APPROVED[\s\S]*value: false/);
   assert.match(production, /PUSH_ENABLED[\s\S]*value: false/);
   assert.match(production, /PRODUCTION_PUSH_APPROVED[\s\S]*value: false/);
   assert.doesNotMatch(production, /KOPIA_|R2_|AWS_|BACKUP_UPLOAD_|SMTP_|VAPID_/);
@@ -593,6 +595,7 @@ function verifyLeanProductionSafety() {
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    emailApproved: false,
     pushApproved: false
   });
 
@@ -609,8 +612,41 @@ function verifyLeanProductionSafety() {
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    emailApproved: false,
     pushApproved: true
   });
+
+  assert.deepEqual(assertProductionSafety({
+    env: {
+      ...validProductionEnv(),
+      EMAIL_ENABLED: 'true',
+      PRODUCTION_EMAIL_APPROVED: 'true',
+      SMTP_HOST: 'smtp.example.invalid',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'false',
+      SMTP_USER: 'synthetic-user',
+      SMTP_PASSWORD: 'SECRET-CANARY-MUST-NOT-PRINT',
+      SMTP_FROM: 'WaschZeit <synthetic@example.invalid>'
+    },
+    dbPath: '/var/data/washraum.sqlite'
+  }), {
+    production: true,
+    dbPath: path.resolve('/var/data/washraum.sqlite'),
+    singleInstance: true,
+    providersHeld: true,
+    fixtureDisabled: true,
+    emailApproved: true,
+    pushApproved: false
+  });
+
+  assert.throws(() => assertProductionSafety({
+    env: {
+      ...validProductionEnv(),
+      EMAIL_ENABLED: 'true',
+      PRODUCTION_EMAIL_APPROVED: 'true'
+    },
+    dbPath: '/var/data/washraum.sqlite'
+  }), { code: 'PRODUCTION_EMAIL_CONFIG' });
 
   for (const [name, value, code] of [
     ['DB_PATH', '/tmp/production.sqlite', 'PRODUCTION_STORAGE'],
@@ -907,7 +943,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0');
+    assert.equal(health.body.version, '0.3.1');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -1047,7 +1083,7 @@ async function run() {
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0',
+    version: '0.3.1',
     toolchain,
     productionBackup,
     unit,

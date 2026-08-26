@@ -19,7 +19,18 @@ function isMissingOrFalse(value) {
   return current === '' || current === 'false';
 }
 
-function hasProviderBinding(env) {
+const allowedProductionSmtpKeys = new Set([
+  'SMTP_FROM',
+  'SMTP_HELO_NAME',
+  'SMTP_HOST',
+  'SMTP_PASSWORD',
+  'SMTP_PORT',
+  'SMTP_SECURE',
+  'SMTP_TEST_TO',
+  'SMTP_USER'
+]);
+
+function hasProviderBinding(env, { allowSmtp = false } = {}) {
   const forbiddenPrefixes = [
     'AWS_',
     'BACKUP_UPLOAD_',
@@ -31,9 +42,29 @@ function hasProviderBinding(env) {
     'VAPID_'
   ];
   return Object.keys(env).some((name) => (
-    forbiddenPrefixes.some((prefix) => name.startsWith(prefix))
+    (!allowSmtp || !allowedProductionSmtpKeys.has(name))
+    && forbiddenPrefixes.some((prefix) => name.startsWith(prefix))
     && String(env[name] || '').trim() !== ''
   ));
+}
+
+function assertProductionEmailConfig(env) {
+  const emailEnabled = normalized(env.EMAIL_ENABLED) === 'true';
+  if (!['false', 'true'].includes(normalized(env.EMAIL_ENABLED))) {
+    throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'E-Mail muss in Produktion explizit aktiviert oder deaktiviert sein.');
+  }
+  if (!emailEnabled) return false;
+  if (normalized(env.PRODUCTION_EMAIL_APPROVED) !== 'true') {
+    throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'E-Mail benoetigt eine ausdrueckliche Produktionsfreigabe.');
+  }
+  const port = Number(String(env.SMTP_PORT || '').trim());
+  const required = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'];
+  if (required.some((key) => String(env[key] || '').trim() === '')
+    || !Number.isInteger(port) || port < 1 || port > 65535
+    || !['false', 'true'].includes(normalized(env.SMTP_SECURE))) {
+    throw new ProductionSafetyError('PRODUCTION_EMAIL_CONFIG', 'Die produktive SMTP-Konfiguration ist unvollstaendig oder ungueltig.');
+  }
+  return true;
 }
 
 function createHttpSecurityContract({ production = false } = {}) {
@@ -67,11 +98,13 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
     throw new ProductionSafetyError('PRODUCTION_ENV', 'APP_ENV=production verlangt NODE_ENV=production.');
   }
 
-  for (const key of ['BACKUP_ENABLED', 'AUTO_BACKUP', 'EMAIL_ENABLED']) {
+  for (const key of ['BACKUP_ENABLED', 'AUTO_BACKUP']) {
     if (normalized(env[key]) !== 'false') {
-      throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Backup und E-Mail muessen beim Produktionsstart explizit deaktiviert sein.');
+      throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Backup muss beim Produktionsstart explizit deaktiviert sein.');
     }
   }
+
+  const emailEnabled = assertProductionEmailConfig(env);
 
   const pushEnabled = normalized(env.PUSH_ENABLED) === 'true';
   if (!['false', 'true'].includes(normalized(env.PUSH_ENABLED))) {
@@ -92,7 +125,7 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
     }
   }
 
-  if (hasProviderBinding(env)) {
+  if (hasProviderBinding(env, { allowSmtp: emailEnabled })) {
     throw new ProductionSafetyError('PRODUCTION_PROVIDER_BINDING', 'Providerbindungen muessen beim ersten Produktionsstart vollstaendig fehlen.');
   }
 
@@ -111,6 +144,7 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    emailApproved: emailEnabled,
     pushApproved: pushEnabled
   });
 }
@@ -118,6 +152,7 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
 module.exports = {
   ProductionSafetyError,
   assertProductionSafety,
+  assertProductionEmailConfig,
   createHttpSecurityContract,
   hasProviderBinding
 };

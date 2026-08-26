@@ -36,6 +36,8 @@ services:
         value: /var/data/backups
       - key: EMAIL_ENABLED
         value: false
+      - key: PRODUCTION_EMAIL_APPROVED
+        value: false
       - key: PUSH_ENABLED
         value: false
       - key: PRODUCTION_PUSH_APPROVED

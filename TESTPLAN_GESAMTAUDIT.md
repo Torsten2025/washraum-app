@@ -23,7 +23,7 @@ npm run check
 | SEC-04 | Produktionsmodus | HSTS sowie `Secure`, `HttpOnly` und `SameSite=Lax` am Sitzungscookie | `test:security` |
 | SEC-05 | Abhaengigkeiten | Keine bekannte kritische produktive Schwachstelle | `npm audit --omit=dev` |
 | SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; eigene Meldungen hausuebergreifend, aber ohne fremde Reports, Kontakte, Admin-/Audit-/Outboxfelder; Report- oder Kontoloeschung entfernt die persoenliche Meldungsschicht und erhaelt den neutralen Betriebsfall; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:roles` |
-| SEC-07 | Harte Betriebs-Kill-Switches | Nur explizites, trim-/case-insensitives `true` aktiviert Backup, E-Mail oder Push. In Produktion braucht Push zusaetzlich `PRODUCTION_PUSH_APPROVED=true`; externe VAPID-Bindungen bleiben dort verboten. Pro Kanal bleiben `false`, fehlend, leer, ungueltig und direkte Factory-Nutzung ohne `enabled` trotz gesetzter Providerwerte fail-closed; direkte und indirekte Pfade erzeugen null Dateien, DB-Kopien, Queue-/Token-/Abo-/Auditwirkungen sowie null DNS-, Netzwerk- oder Providerverbindungen. Die Adminoberflaeche zeigt DE/EN eindeutig `Deaktiviert`/`Disabled`, blendet irrefuehrende Providerhinweise aus und macht Backup-Erstellung, Download, Testversand sowie Wartungsstart unbedienbar; direkte API-Pfade bleiben `503` | `test:safety`, `test:i18n`, `test:a11y`, `test:e2e` |
+| SEC-07 | Harte Betriebs-Kill-Switches | Nur explizites, trim-/case-insensitives `true` aktiviert Backup, E-Mail oder Push. In Produktion brauchen E-Mail und Push zusaetzlich `PRODUCTION_EMAIL_APPROVED=true` beziehungsweise `PRODUCTION_PUSH_APPROVED=true`; E-Mail erfordert eine vollstaendige SMTP-Konfiguration, externe VAPID-Bindungen bleiben verboten. Pro Kanal bleiben `false`, fehlend, leer, ungueltig und direkte Factory-Nutzung ohne `enabled` trotz gesetzter Providerwerte fail-closed; direkte und indirekte Pfade erzeugen null Dateien, DB-Kopien, Queue-/Token-/Abo-/Auditwirkungen sowie null DNS-, Netzwerk- oder Providerverbindungen. Die Adminoberflaeche zeigt DE/EN eindeutig `Deaktiviert`/`Disabled`, blendet irrefuehrende Providerhinweise aus und macht Backup-Erstellung, Download, Testversand sowie Wartungsstart unbedienbar; direkte API-Pfade bleiben `503` | `test:safety`, `test:i18n`, `test:a11y`, `test:e2e` |
 
 ## B. Anmeldung, Einladung und Sitzungen
 
@@ -117,7 +117,7 @@ npm run check
 | RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
 | RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
 | RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
-| RP-25 | Releasegrenze | Sichtbar `0.3.0`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
+| RP-25 | Releasegrenze | Sichtbar `0.3.1`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
 
 ### Lean-A-Fixture `FA-01` bis `FA-12`
 
@@ -132,7 +132,7 @@ npm run check
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
 | FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
-| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.0` | `test:safety` |
+| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.1` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
 
