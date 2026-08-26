@@ -73,7 +73,31 @@ function createBackupService({ db, Database, fs, path, env, dbDir, setSetting, f
     return status;
   }
 
-  return { backupDirectory, createVerifiedBackup, enabled: integrationEnabled };
+  async function createVerifiedPreMigrationBackup() {
+    const directory = backupDirectory();
+    fs.mkdirSync(directory, { recursive: true });
+    const filename = `washplan-pre-migration-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
+    const backupPath = path.join(directory, filename);
+    await db.backup(backupPath);
+    const verificationDb = new Database(backupPath, { readonly: true, fileMustExist: true });
+    const integrity = verificationDb.pragma('integrity_check', { simple: true });
+    verificationDb.close();
+    if (integrity !== 'ok') {
+      fs.rmSync(backupPath, { force: true });
+      throw new Error(`Vor-Migrationsbackup-Integritaetspruefung: ${integrity}`);
+    }
+
+    const status = { ok: true, filename, createdAt: new Date().toISOString(), uploaded: false };
+    setSetting('pre_migration_backup_status', JSON.stringify(status));
+    return status;
+  }
+
+  return {
+    backupDirectory,
+    createVerifiedBackup,
+    createVerifiedPreMigrationBackup,
+    enabled: integrationEnabled
+  };
 }
 
 module.exports = { createBackupService };

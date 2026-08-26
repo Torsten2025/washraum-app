@@ -915,7 +915,7 @@ function setSetting(key, value) {
   `).run(key, String(value));
 }
 
-const { backupDirectory, createVerifiedBackup } = createBackupService({
+const { backupDirectory, createVerifiedBackup, createVerifiedPreMigrationBackup } = createBackupService({
   db,
   Database,
   fs,
@@ -1651,8 +1651,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   await maintenanceReporting.prepareLegacyMigration({
     production: isProduction,
-    backupEnabled: runtimeFlags.backup.enabled === true,
-    createVerifiedBackup
+    createVerifiedBackup: createVerifiedPreMigrationBackup
   });
 
   cleanupExpiredData();

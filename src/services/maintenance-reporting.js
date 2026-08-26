@@ -299,7 +299,7 @@ function createMaintenanceReporting({
     return migrateLegacyReports();
   }
 
-  async function prepareLegacyMigration({ production = false, backupEnabled = false, createVerifiedBackup } = {}) {
+  async function prepareLegacyMigration({ production = false, createVerifiedBackup } = {}) {
     installSchema();
     if (String(getSetting(REPORT_MIGRATION_KEY)) === '1') return { migrated: false, backupCreated: false };
     if (!legacyMigrationRequired()) {
@@ -307,7 +307,7 @@ function createMaintenanceReporting({
       return { migrated: false, backupCreated: false };
     }
     if (production === true) {
-      if (backupEnabled !== true || typeof createVerifiedBackup !== 'function') {
+      if (typeof createVerifiedBackup !== 'function') {
         const error = new Error('Die Tagebuchmigration benoetigt vor dem Produktionsstart ein verifiziertes Backup.');
         error.code = 'MAINTENANCE_MIGRATION_BACKUP_REQUIRED';
         throw error;

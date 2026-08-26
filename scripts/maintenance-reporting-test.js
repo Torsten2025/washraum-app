@@ -1123,7 +1123,7 @@ async function verifyProductionMigrationBackupGate() {
   seedActors(emptyDb);
   const emptyService = createHarness(emptyDb).service;
   assert.deepEqual(
-    await emptyService.prepareLegacyMigration({ production: true, backupEnabled: false }),
+    await emptyService.prepareLegacyMigration({ production: true }),
     { migrated: false, backupCreated: false }
   );
   emptyDb.close();
@@ -1139,7 +1139,7 @@ async function verifyProductionMigrationBackupGate() {
   service.installSchema();
   assert.equal(service.legacyMigrationRequired(), true);
   await assert.rejects(
-    service.prepareLegacyMigration({ production: true, backupEnabled: false }),
+    service.prepareLegacyMigration({ production: true }),
     (error) => error.code === 'MAINTENANCE_MIGRATION_BACKUP_REQUIRED'
   );
   assert.equal(db.prepare('SELECT title FROM maintenance_cases WHERE id = 80').get().title, 'BACKUP-GATE-PRIVATE');
@@ -1149,7 +1149,6 @@ async function verifyProductionMigrationBackupGate() {
   await assert.rejects(
     service.prepareLegacyMigration({
       production: true,
-      backupEnabled: true,
       createVerifiedBackup: async () => {
         failedBackupCalls += 1;
         throw new Error('synthetic backup failure');
@@ -1163,7 +1162,6 @@ async function verifyProductionMigrationBackupGate() {
   let successfulBackupCalls = 0;
   const result = await service.prepareLegacyMigration({
     production: true,
-    backupEnabled: true,
     createVerifiedBackup: async () => {
       successfulBackupCalls += 1;
       assert.equal(db.prepare('SELECT title FROM maintenance_cases WHERE id = 80').get().title, 'BACKUP-GATE-PRIVATE');

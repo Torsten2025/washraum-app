@@ -265,7 +265,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.17',
+      appVersion: '0.3.0-test.18',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -327,6 +327,49 @@ async function verifyUnitKillSwitches() {
   };
 }
 
+async function verifyPreMigrationBackupWithRuntimeBackupDisabled() {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-pre-migration-'));
+  const sourcePath = path.join(temporaryRoot, 'source.sqlite');
+  const backupDir = path.join(temporaryRoot, 'backups');
+  const db = new Database(sourcePath);
+  db.exec('CREATE TABLE proof (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
+  db.prepare('INSERT INTO proof (value) VALUES (?)').run('synthetic');
+  const settings = new Map();
+  let providerAttempts = 0;
+  try {
+    const service = createBackupService({
+      db,
+      Database,
+      fs,
+      path,
+      env: {
+        BACKUP_DIR: backupDir,
+        BACKUP_UPLOAD_URL: 'https://provider.example.invalid/upload'
+      },
+      dbDir: temporaryRoot,
+      setSetting(key, value) { settings.set(key, value); },
+      fetchImpl: async () => { providerAttempts += 1; throw new Error('Provider darf nicht kontaktiert werden'); },
+      enabled: false
+    });
+    await assert.rejects(service.createVerifiedBackup(), { code: 'BACKUP_DISABLED' });
+    const status = await service.createVerifiedPreMigrationBackup();
+    assert.equal(status.ok, true);
+    assert.equal(status.uploaded, false);
+    assert.match(status.filename, /^washplan-pre-migration-.*\.sqlite$/);
+    assert.equal(providerAttempts, 0);
+    assert.equal(settings.has('backup_status'), false);
+    assert.equal(settings.has('pre_migration_backup_status'), true);
+    const copy = new Database(path.join(backupDir, status.filename), { readonly: true, fileMustExist: true });
+    assert.equal(copy.pragma('integrity_check', { simple: true }), 'ok');
+    assert.equal(copy.prepare('SELECT value FROM proof').get().value, 'synthetic');
+    copy.close();
+    return { created: true, integrity: 'ok', providerAttempts };
+  } finally {
+    db.close();
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
 function verifyBlueprintsAndVersion() {
   const packageInfo = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package-lock.json'), 'utf8'));
@@ -345,12 +388,12 @@ function verifyBlueprintsAndVersion() {
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.17');
+  assert.equal(packageInfo.version, '0.3.0-test.18');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
   assert.equal(packageInfo.scripts.start, 'node startup.js');
-  assert.equal(lock.version, '0.3.0-test.17');
-  assert.equal(lock.packages[''].version, '0.3.0-test.17');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.17';"));
+  assert.equal(lock.version, '0.3.0-test.18');
+  assert.equal(lock.packages[''].version, '0.3.0-test.18');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.18';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
@@ -389,7 +432,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.17/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.18/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -802,7 +845,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.17');
+    assert.equal(health.body.version, '0.3.0-test.18');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -937,14 +980,16 @@ async function run() {
   const productionBackup = verifyProductionBackupTool();
   const toolchain = verifyToolchainContract();
   const unit = await verifyUnitKillSwitches();
+  const preMigrationBackup = await verifyPreMigrationBackupWithRuntimeBackupDisabled();
   const runtime = await verifyRuntimeRoutes();
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.17',
+    version: '0.3.0-test.18',
     toolchain,
     productionBackup,
     unit,
+    preMigrationBackup,
     runtime,
     providersContacted: 0
   }));
