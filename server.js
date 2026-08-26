@@ -33,6 +33,7 @@ const { createRoleContext } = require('./src/services/role-context');
 const { createRuntimeFlags } = require('./src/services/runtime-flags');
 const { reportStartupFailure } = require('./src/services/startup-diagnostics');
 const { createRemainingSlotService } = require('./src/services/remaining-slots');
+const { assertProductionSafety, createHttpSecurityContract } = require('./src/services/production-safety');
 const {
   createAgentTestProviderBoundary,
   evaluateAgentTestFixtureGate,
@@ -51,6 +52,7 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
+const httpSecurity = createHttpSecurityContract({ production: isProduction });
 const { environment: appEnvironment, displayName: appDisplayName } = resolveAppEnvironment(process.env);
 const serverStartedAt = new Date().toISOString();
 const appVersion = String(packageInfo.version || '0.0.0');
@@ -76,12 +78,22 @@ const dbPath = path.resolve(
 );
 const dbDir = path.dirname(dbPath);
 
+const productionSafety = assertProductionSafety({
+  env: process.env,
+  dbPath,
+  agentTestAllowed: agentTestFixtureGate.enabled === true
+});
+
 fs.mkdirSync(dbDir, { recursive: true });
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 5000');
+
+if (productionSafety.production) {
+  console.log('Produktionsschutz aktiv: persistente SQLite-Disk, Einzelinstanz und Provider-Hold.');
+}
 
 app.disable('x-powered-by');
 if (isProduction) {
@@ -971,8 +983,8 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  if (isProduction) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (httpSecurity.strictTransportSecurity) {
+    res.setHeader('Strict-Transport-Security', httpSecurity.strictTransportSecurity);
   }
   next();
 });
@@ -1013,18 +1025,14 @@ app.use(session({
   saveUninitialized: false,
   rolling: true,
   cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction,
+    ...httpSecurity.sessionCookie,
     maxAge: 1000 * 60 * 60 * 8
   }
 }));
 
 function clearSessionCookie(res) {
   res.clearCookie('connect.sid', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction,
+    ...httpSecurity.sessionCookie,
     path: '/'
   });
 }
@@ -1658,7 +1666,7 @@ async function startServer() {
   }
   if (
     runtimeFlags.backup.enabled === true
-    && (isProduction || String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true')
+    && String(process.env.AUTO_BACKUP || '').trim().toLowerCase() === 'true'
   ) {
     const initialBackupTimer = setTimeout(runScheduledBackup, 60 * 1000);
     initialBackupTimer.unref();

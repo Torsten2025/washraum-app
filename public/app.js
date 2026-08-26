@@ -5145,7 +5145,7 @@ function renderAdminRecovery(data, users) {
         <div><dt>${escapeHtml(translate('admin.renderRecovery', 'Render-Recovery'))}</dt><dd>${escapeHtml(data.seedPasswordResetEnabled ? translate('admin.resetActive', 'Reset aktiv') : data.seedRecoveryConfigured ? translate('admin.prepared', 'vorbereitet') : translate('admin.missing', 'fehlt'))}</dd></div>
       </dl>
       <ul>${warningRows}</ul>
-      <p class="muted">${escapeHtml(translate('admin.emergencyRule', 'Notfallregel: Render-Zugang nutzen, SEED_ADMIN_PASSWORD setzen und bei unbekanntem Passwort einmalig SEED_ADMIN_FORCE_PASSWORD_RESET=true aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.'))}</p>
+      <p class="muted">${escapeHtml(translate('admin.emergencyRule', 'Notfallregel: SEED_ADMIN_FORCE_PASSWORD_RESET muss fehlen oder false bleiben. Eine Passwortrotation ist nur ueber einen separat freigegebenen, sicheren Recovery-Betriebsweg zulaessig.'))}</p>
       <p class="muted">${escapeHtml(translate('admin.activeSuperadmins', 'Aktive Superadmins: {names}', { names: superadminNames }))}</p>
     </section>
   `;

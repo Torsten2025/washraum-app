@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const { createHttpSecurityContract } = require('../src/services/production-safety');
 
 const rootDir = path.resolve(__dirname, '..');
 const port = 35000 + (process.pid % 1000);
@@ -77,6 +78,13 @@ function removeDatabase(filePath) {
 }
 
 async function verifyProductionHeaders() {
+  const productionSecurity = createHttpSecurityContract({ production: true });
+  assert.equal(productionSecurity.strictTransportSecurity, 'max-age=31536000; includeSubDomains');
+  assert.deepEqual(productionSecurity.sessionCookie, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: true
+  });
   const productionPort = port + 1;
   const productionUrl = `http://127.0.0.1:${productionPort}`;
   const productionDatabase = path.join(os.tmpdir(), `waschzeit-security-production-${process.pid}.sqlite`);
@@ -85,14 +93,16 @@ async function verifyProductionHeaders() {
     cwd: rootDir,
     env: {
       ...process.env,
-      NODE_ENV: 'production',
+      NODE_ENV: 'development',
+      APP_ENV: 'development',
       PORT: String(productionPort),
       DB_PATH: productionDatabase,
       SEED_ADMIN_NAME: 'security-prod-admin',
       SEED_ADMIN_PASSWORD: 'Security-Prod-Admin-2026!',
       SESSION_SECRET: 'security-production-session-secret-at-least-32-characters',
       ALLOW_LEGACY_HOUSE_REGISTRATION: 'false',
-      ALLOW_TEST_INVITATION_LINK: 'false'
+      ALLOW_TEST_INVITATION_LINK: 'false',
+      EMAIL_ENABLED: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -103,7 +113,7 @@ async function verifyProductionHeaders() {
     await waitForServer(productionUrl, output);
     const health = await fetch(`${productionUrl}/api/health`);
     assert.equal(health.status, 200);
-    assert.match(health.headers.get('strict-transport-security') || '', /max-age=31536000/);
+    assert.equal(health.headers.get('strict-transport-security'), null);
     const login = await fetch(`${productionUrl}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https' },
@@ -113,7 +123,7 @@ async function verifyProductionHeaders() {
     const cookie = login.headers.get('set-cookie') || '';
     assert.match(cookie, /HttpOnly/i);
     assert.match(cookie, /SameSite=Lax/i);
-    assert.match(cookie, /Secure/i);
+    assert.doesNotMatch(cookie, /Secure/i);
     const invitationWithoutEmail = await fetch(`${productionUrl}/api/admin/apartments`, {
       method: 'POST',
       headers: {

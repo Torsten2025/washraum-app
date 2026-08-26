@@ -866,7 +866,7 @@
     'audit.maintenanceFinish': { de: 'Wartungsmodus beendet', en: 'Maintenance mode ended' },
     'audit.maintenanceFailed': { de: 'Wartungspruefung fehlgeschlagen', en: 'Maintenance check failed' },
     'admin.onlyOneSuperadmin': { de: 'Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.', en: 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.' },
-    'admin.emergencyRule': { de: 'Notfallregel: Render-Zugang nutzen, SEED_ADMIN_PASSWORD setzen und bei unbekanntem Passwort einmalig SEED_ADMIN_FORCE_PASSWORD_RESET=true aktivieren. Danach neu starten und den Reset-Schalter wieder entfernen.', en: 'Emergency procedure: use Render access, set SEED_ADMIN_PASSWORD and, if the password is unknown, enable SEED_ADMIN_FORCE_PASSWORD_RESET=true once. Restart, then remove the reset switch again.' },
+    'admin.emergencyRule': { de: 'Notfallregel: SEED_ADMIN_FORCE_PASSWORD_RESET muss fehlen oder false bleiben. Eine Passwortrotation ist nur ueber einen separat freigegebenen, sicheren Recovery-Betriebsweg zulaessig.', en: 'Emergency rule: SEED_ADMIN_FORCE_PASSWORD_RESET must remain absent or false. Password rotation is permitted only through a separately approved, secure recovery procedure.' },
     'admin.errorNameArea': { de: 'Bitte einen gueltigen Namen und Bereich waehlen.', en: 'Choose a valid name and category.' },
     'admin.errorDuplicateEquipment': { de: 'Ein Geraet mit diesem Namen ist bereits vorhanden.', en: 'Equipment with this name already exists.' },
     'admin.errorEquipmentMissing': { de: 'Geraet nicht gefunden.', en: 'Equipment not found.' },

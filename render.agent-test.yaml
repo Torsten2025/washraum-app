@@ -17,7 +17,7 @@ services:
       - key: APP_ENV
         value: agent-test
       - key: APP_RELEASE
-        value: agent-v0.3.0-test.12
+        value: agent-v0.3.0-test.16
       - key: DB_PATH
         value: /tmp/waschzeit-agent-test.sqlite
       - key: HOUSE_NAME

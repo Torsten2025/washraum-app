@@ -140,19 +140,18 @@ async function waitForServer() {
 }
 
 async function verifyProductionRecoveryStartup() {
-  const recoveryPort = port + 1;
-  const recoveryDatabasePath = path.join(os.tmpdir(), `waschplan-recovery-${process.pid}.sqlite`);
+  const recoveryRoot = path.join(os.tmpdir(), `waschplan-production-target-${process.pid}`);
+  const recoveryDatabasePath = path.join(recoveryRoot, 'blocked.sqlite');
   const recoveryOutput = [];
-  const recoveryServer = spawn(process.execPath, ['server.js'], {
+  const recoveryServer = spawn(process.execPath, ['startup.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(recoveryPort),
+      APP_ENV: '',
+      PORT: '0',
       DB_PATH: recoveryDatabasePath,
-      HOUSE_CODE: 'Recovery Test 18',
-      SEED_ADMIN_PASSWORD: '',
-      SESSION_SECRET: 'short'
+      SEED_ADMIN_FORCE_PASSWORD_RESET: 'true'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -160,27 +159,19 @@ async function verifyProductionRecoveryStartup() {
   recoveryServer.stderr.on('data', (chunk) => recoveryOutput.push(chunk.toString()));
 
   try {
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      try {
-        const response = await fetch(`http://127.0.0.1:${recoveryPort}/api/health`);
-        if (response.ok) {
-          const health = await response.json();
-          assert.equal(health.adminReady, false);
-          assert.ok(recoveryOutput.join('').includes('sicheres, zufaelliges Geheimnis'));
-          return;
-        }
-      } catch {}
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    throw new Error(`Produktions-Recovery-Start fehlgeschlagen.\n${recoveryOutput.join('')}`);
+    await Promise.race([
+      new Promise((resolve) => recoveryServer.once('exit', resolve)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Produktions-Zielguard hat nicht beendet.')), 5000))
+    ]);
+    assert.notEqual(recoveryServer.exitCode, 0);
+    assert.equal(recoveryOutput.join('').trim(), 'WASCHZEIT_STARTFAIL class=GUARD_PRODUCTION');
+    assert.equal(fs.existsSync(recoveryRoot), false);
   } finally {
     if (recoveryServer.exitCode === null) {
       recoveryServer.kill();
       await new Promise((resolve) => recoveryServer.once('exit', resolve));
     }
-    for (const suffix of ['', '-wal', '-shm']) {
-      fs.rmSync(`${recoveryDatabasePath}${suffix}`, { force: true });
-    }
+    fs.rmSync(recoveryRoot, { recursive: true, force: true });
   }
 }
 
@@ -256,7 +247,7 @@ async function verifyProductionMaintenanceMigrationGate() {
   fixtureDb.close();
 
   const blockedOutput = [];
-  const blocked = spawn(process.execPath, ['server.js'], {
+  const blocked = spawn(process.execPath, ['startup.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: { ...commonEnv, NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -270,7 +261,7 @@ async function verifyProductionMaintenanceMigrationGate() {
     ]);
     assert.notEqual(blocked.exitCode, 0);
     const startupDiagnostic = blockedOutput.join('').trim();
-    assert.equal(startupDiagnostic, 'WASCHZEIT_STARTFAIL class=MIGRATION_BACKUP');
+    assert.equal(startupDiagnostic, 'WASCHZEIT_STARTFAIL class=GUARD_PRODUCTION');
     assert.doesNotMatch(startupDiagnostic, /PRODUCTION-GATE|Error:|\sat\s|\\|\/[^/]/);
     await assert.rejects(fetch(`http://127.0.0.1:${migrationPort}/api/health`));
     const unchangedDb = new Database(migrationDatabasePath, { readonly: true });
@@ -770,14 +761,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.0-test.12');
+    assert.equal(health.body.version, '0.3.0-test.16');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.0-test.12');
+    assert.equal(versionStatus.body.version, '0.3.0-test.16');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -2839,15 +2830,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.12'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.0-test.16'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.12"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.0-test.16"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.12'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.12'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.0-test.16'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.0-test.16'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

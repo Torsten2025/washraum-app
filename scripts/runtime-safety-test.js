@@ -13,6 +13,7 @@ const { createMailTransport } = require('../src/services/mail-transport');
 const { createOperationsService } = require('../src/services/operations');
 const { createPushService } = require('../src/services/push');
 const { formatStartupFailure } = require('../src/services/startup-diagnostics');
+const { assertProductionSafety } = require('../src/services/production-safety');
 const {
   FLAG_DEFAULTS,
   createRuntimeFlags,
@@ -264,7 +265,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.0-test.12',
+      appVersion: '0.3.0-test.16',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -335,21 +336,30 @@ function verifyBlueprintsAndVersion() {
   const agentTest = fs.readFileSync(path.join(projectRoot, 'render.agent-test.yaml'), 'utf8');
   const production = fs.readFileSync(path.join(projectRoot, 'render.yaml'), 'utf8');
   const fixtureSource = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'agent-test-fixture.js'), 'utf8');
+  const serverSource = fs.readFileSync(path.join(projectRoot, 'server.js'), 'utf8');
   const startupSource = fs.readFileSync(path.join(projectRoot, 'startup.js'), 'utf8');
   const startupDiagnostics = fs.readFileSync(path.join(projectRoot, 'src', 'services', 'startup-diagnostics.js'), 'utf8');
+  const publicAppSource = fs.readFileSync(path.join(projectRoot, 'public', 'app.js'), 'utf8');
+  const publicI18nSource = fs.readFileSync(path.join(projectRoot, 'public', 'i18n.js'), 'utf8');
   const handbook = fs.readFileSync(path.join(projectRoot, 'HANDBUCH.md'), 'utf8');
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.0-test.12');
+  assert.equal(packageInfo.version, '0.3.0-test.16');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
   assert.equal(packageInfo.scripts.start, 'node startup.js');
-  assert.equal(lock.version, '0.3.0-test.12');
-  assert.equal(lock.packages[''].version, '0.3.0-test.12');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.12';"));
+  assert.equal(lock.version, '0.3.0-test.16');
+  assert.equal(lock.packages[''].version, '0.3.0-test.16');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.0-test.16';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PUSH_ENABLED=false$/m);
+  for (const publicSource of [publicAppSource, publicI18nSource]) {
+    assert.doesNotMatch(publicSource, /SEED_ADMIN_FORCE_PASSWORD_RESET\s*=\s*true/i);
+    assert.doesNotMatch(publicSource, /SEED_ADMIN_PASSWORD (?:setzen|set)/i);
+  }
+  assert.match(publicAppSource, /SEED_ADMIN_FORCE_PASSWORD_RESET muss fehlen oder false bleiben/);
+  assert.match(publicI18nSource, /SEED_ADMIN_FORCE_PASSWORD_RESET must remain absent or false/);
 
   assert.match(staging, /name: waschplan-staging-test7/);
   assert.match(staging, /branch: codex\/staging/);
@@ -379,7 +389,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.12/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.0-test\.16/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -466,9 +476,183 @@ function verifyBlueprintsAndVersion() {
   assert.doesNotMatch(production, /NODE_VERSION/);
   assert.match(production, /DB_PATH[\s\S]*value: \/var\/data\/washraum\.sqlite/);
   assert.match(production, /mountPath: \/var\/data/);
-  assert.match(production, /BACKUP_ENABLED[\s\S]*value: true/);
-  assert.match(production, /EMAIL_ENABLED[\s\S]*value: true/);
-  assert.match(production, /PUSH_ENABLED[\s\S]*value: true/);
+  assert.match(production, /BACKUP_ENABLED[\s\S]*value: false/);
+  assert.match(production, /APP_ENV[\s\S]*value: production/);
+  assert.match(production, /WEB_CONCURRENCY[\s\S]*value: 1/);
+  assert.match(production, /AUTO_BACKUP[\s\S]*value: false/);
+  assert.match(production, /EMAIL_ENABLED[\s\S]*value: false/);
+  assert.match(production, /PUSH_ENABLED[\s\S]*value: false/);
+  assert.doesNotMatch(production, /KOPIA_|R2_|AWS_|BACKUP_UPLOAD_|SMTP_|VAPID_/);
+  assert.match(serverSource, /runtimeFlags\.backup\.enabled === true\s*\n\s*&& String\(process\.env\.AUTO_BACKUP/);
+  assert.doesNotMatch(serverSource, /runtimeFlags\.backup\.enabled === true\s*\n\s*&& \(isProduction/);
+}
+
+function verifyLeanProductionSafety() {
+  const validProductionEnv = () => ({
+    NODE_ENV: 'production',
+    APP_ENV: 'production',
+    WEB_CONCURRENCY: '1',
+    BACKUP_ENABLED: 'false',
+    AUTO_BACKUP: 'false',
+    EMAIL_ENABLED: 'false',
+    PUSH_ENABLED: 'false'
+  });
+  assert.deepEqual(assertProductionSafety({
+    env: validProductionEnv(),
+    dbPath: '/var/data/washraum.sqlite'
+  }), {
+    production: true,
+    dbPath: path.resolve('/var/data/washraum.sqlite'),
+    singleInstance: true,
+    providersHeld: true,
+    fixtureDisabled: true
+  });
+
+  for (const [name, value, code] of [
+    ['DB_PATH', '/tmp/production.sqlite', 'PRODUCTION_STORAGE'],
+    ['WEB_CONCURRENCY', '2', 'PRODUCTION_CONCURRENCY'],
+    ['BACKUP_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
+    ['EMAIL_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
+    ['AGENT_TEST_FIXTURE_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
+    ['SEED_ADMIN_FORCE_PASSWORD_RESET', 'true', 'PRODUCTION_FEATURE_HOLD'],
+    ['BACKUP_UPLOAD_URL', 'https://provider.invalid/upload', 'PRODUCTION_PROVIDER_BINDING'],
+    ['SMTP_PASSWORD', 'SECRET-CANARY-MUST-NOT-PRINT', 'PRODUCTION_PROVIDER_BINDING'],
+    ['VAPID_PRIVATE_KEY', 'SECRET-CANARY-MUST-NOT-PRINT', 'PRODUCTION_PROVIDER_BINDING'],
+    ['R2_ACCESS_KEY_ID', 'SECRET-CANARY-MUST-NOT-PRINT', 'PRODUCTION_PROVIDER_BINDING']
+  ]) {
+    const env = validProductionEnv();
+    if (name !== 'DB_PATH') env[name] = value;
+    assert.throws(() => assertProductionSafety({
+      env,
+      dbPath: name === 'DB_PATH' ? value : '/var/data/washraum.sqlite'
+    }), { code });
+  }
+
+  for (const appEnvironment of [undefined, '', 'staging', 'unknown']) {
+    const env = validProductionEnv();
+    if (appEnvironment === undefined) delete env.APP_ENV;
+    else env.APP_ENV = appEnvironment;
+    assert.throws(() => assertProductionSafety({
+      env,
+      dbPath: '/var/data/washraum.sqlite'
+    }), { code: 'PRODUCTION_TARGET' });
+  }
+  assert.throws(() => assertProductionSafety({
+    env: { ...validProductionEnv(), NODE_ENV: 'development' },
+    dbPath: '/var/data/washraum.sqlite'
+  }), { code: 'PRODUCTION_ENV' });
+  assert.deepEqual(assertProductionSafety({
+    env: { NODE_ENV: 'production', APP_ENV: 'agent-test' },
+    dbPath: '/tmp/waschzeit-agent-test.sqlite',
+    agentTestAllowed: true
+  }), { production: false, agentTest: true });
+  assert.throws(() => assertProductionSafety({
+    env: { NODE_ENV: 'production', APP_ENV: 'agent-test' },
+    dbPath: '/tmp/waschzeit-agent-test.sqlite'
+  }), { code: 'PRODUCTION_TARGET' });
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-production-target-'));
+  const blockedDirectory = path.join(root, 'must-not-exist');
+  const blockedDbPath = path.join(blockedDirectory, 'blocked.sqlite');
+  try {
+    const blocked = spawnSync(process.execPath, ['startup.js'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        NODE_ENV: 'production',
+        APP_ENV: '',
+        DB_PATH: blockedDbPath,
+        PORT: '0'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    assert.notEqual(blocked.status, 0);
+    assert.equal(blocked.stdout, '');
+    assert.equal(blocked.stderr.trim(), 'WASCHZEIT_STARTFAIL class=GUARD_PRODUCTION');
+    assert.equal(fs.existsSync(blockedDirectory), false, 'ungueltige Produktionsidentitaet darf kein Verzeichnis oder SQLite-Artefakt anlegen');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function verifyProductionBackupTool() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-backup-verify-'));
+  const databasePath = path.join(root, 'backup.sqlite');
+  const verifierPath = path.join(projectRoot, 'scripts', 'verify-production-backup.js');
+  try {
+    const db = new Database(databasePath);
+    db.exec(`
+      CREATE TABLE houses (id INTEGER PRIMARY KEY, name TEXT, code TEXT, active INTEGER);
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, role TEXT,
+        house_id INTEGER, is_superadmin INTEGER, active INTEGER
+      );
+      CREATE TABLE apartments (
+        id INTEGER PRIMARY KEY, house_id INTEGER, label TEXT, claimed_by INTEGER, active INTEGER
+      );
+      CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, type TEXT, house_id INTEGER, active INTEGER);
+      CREATE TABLE bookings (
+        id INTEGER PRIMARY KEY, user_id INTEGER, resource_id INTEGER, booking_date TEXT, slot TEXT
+      );
+      CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+    `);
+    db.prepare(`
+      INSERT INTO users (username, password_hash, role, house_id, is_superadmin, active)
+      VALUES (?, 'hash', 'user', NULL, 0, 1)
+    `).run('PII-CANARY-MUST-NOT-PRINT');
+    db.close();
+
+    const result = spawnSync(process.execPath, [verifierPath, databasePath], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+    assert.doesNotMatch(result.stdout, /PII-CANARY-MUST-NOT-PRINT/);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.ok, true);
+    assert.equal(report.schemaContract, 'waschzeit-production-schema-v1');
+    assert.match(report.schemaSha256, /^[0-9a-f]{64}$/);
+    assert.equal(report.tableCounts.users, 1);
+    assert.equal(report.personalDataPrinted, false);
+    assert.match(report.sha256, /^[0-9a-f]{64}$/);
+
+    const foreignPath = path.join(root, 'foreign.sqlite');
+    const foreignDb = new Database(foreignPath);
+    foreignDb.exec('CREATE TABLE residents (id INTEGER PRIMARY KEY, private_name TEXT NOT NULL)');
+    foreignDb.prepare('INSERT INTO residents (private_name) VALUES (?)').run('PII-CANARY-MUST-NOT-PRINT');
+    foreignDb.close();
+    const foreign = spawnSync(process.execPath, [verifierPath, foreignPath], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    assert.notEqual(foreign.status, 0);
+    assert.equal(foreign.stdout, '');
+    assert.equal(foreign.stderr, 'BACKUP_VERIFY_FAIL schema_contract\n');
+    assert.doesNotMatch(foreign.stderr, /PII-CANARY-MUST-NOT-PRINT/);
+
+    const invalidPath = path.join(root, 'invalid.sqlite');
+    fs.writeFileSync(invalidPath, 'not-a-database');
+    const invalid = spawnSync(process.execPath, [verifierPath, invalidPath], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    assert.notEqual(invalid.status, 0);
+    assert.match(invalid.stderr, /^BACKUP_VERIFY_FAIL /);
+    return {
+      validBackup: true,
+      foreignSchemaRejected: true,
+      corruptBackupRejected: true,
+      personalDataPrinted: false
+    };
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function verifyToolchainContract() {
@@ -618,7 +802,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.0-test.12');
+    assert.equal(health.body.version, '0.3.0-test.16');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -749,14 +933,17 @@ async function verifyRuntimeRoutes() {
 
 async function run() {
   verifyBlueprintsAndVersion();
+  verifyLeanProductionSafety();
+  const productionBackup = verifyProductionBackupTool();
   const toolchain = verifyToolchainContract();
   const unit = await verifyUnitKillSwitches();
   const runtime = await verifyRuntimeRoutes();
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.0-test.12',
+    version: '0.3.0-test.16',
     toolchain,
+    productionBackup,
     unit,
     runtime,
     providersContacted: 0

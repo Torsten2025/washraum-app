@@ -6,6 +6,15 @@
 - Jeder Push benoetigt eine neue, sichtbare Versionsnummer. Bis zur ausdruecklichen Produktivfreigabe verwendet WaschZeit eine SemVer-Vorabversion mit `-test.N` und zeigt den Status `Testversion` in der ausgelieferten App.
 - Eine Aenderung gilt erst nach passenden Tests und `npm run check` als abgeschlossen.
 
+## Verhaeltnismaessigkeit und Einfachheit
+
+- Neue Infrastruktur, Dienste, Abhaengigkeiten oder Sicherheitsmechanismen brauchen vor der Umsetzung einen konkreten, im Projekt vorhandenen Risikofall und einen messbaren Nutzen.
+- Es gilt die kleinste vollstaendige Loesung, die den bestaetigten Bedarf sicher erfuellt. Eine technisch moegliche Erweiterung ist ohne nachgewiesenen Bedarf kein Arbeitsauftrag.
+- Vor jeder groesseren Architekturergänzung werden bestehende Plattformfunktionen, vorhandener Produktcode und ein einfacher manueller Betriebsweg geprueft. Eigenbau ist nur zulaessig, wenn diese Wege den Bedarf nicht ausreichend abdecken.
+- Eine Loesung darf die Gesamtzuverlaessigkeit nicht durch mehr Betriebs-, Konfigurations- oder Fehlerkomplexitaet verschlechtern als das behandelte Risiko rechtfertigt.
+- Budget-, Betriebs- und Pilotumfang sind harte Architekturgrenzen. Kostenpflichtige oder dauerhaft zu betreibende Zusatzdienste werden nicht ohne ausdrueckliche Eigentuemerentscheidung eingeplant.
+- Architekturvorschlaege nennen stets: konkretes Problem, Minimalvariante, verworfene groessere Variante, laufende Kosten, neue Fehlerquellen und Rueckbauweg.
+
 # Unternehmens- und technische Gesamtleitung
 
 - Der Nutzer ist Eigentuemer und Auftraggeber. Die Codex-Aufgabe `00 · CEO – Unternehmensleitung` fuehrt die Firma gesamthaft und berichtet direkt an ihn.

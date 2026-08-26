@@ -10,8 +10,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: production
       - key: DB_PATH
         value: /var/data/washraum.sqlite
+      - key: WEB_CONCURRENCY
+        value: 1
       - key: SESSION_SECRET
         sync: false
       - key: SESSION_IDLE_MINUTES
@@ -25,33 +29,15 @@ services:
       - key: PUBLIC_APP_URL
         sync: false
       - key: AUTO_BACKUP
-        value: true
+        value: false
       - key: BACKUP_ENABLED
-        value: true
+        value: false
       - key: BACKUP_DIR
         value: /var/data/backups
-      - key: BACKUP_UPLOAD_URL
-        sync: false
-      - key: BACKUP_UPLOAD_TOKEN
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_SECURE
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: SMTP_TEST_TO
-        sync: false
       - key: EMAIL_ENABLED
-        value: true
+        value: false
       - key: PUSH_ENABLED
-        value: true
+        value: false
     disk:
       name: washraum-data
       mountPath: /var/data

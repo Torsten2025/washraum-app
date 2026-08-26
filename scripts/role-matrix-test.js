@@ -82,7 +82,8 @@ async function verifyConfiguredSuperadminRecovery() {
       cwd: path.resolve(__dirname, '..'),
       env: {
         ...process.env,
-        NODE_ENV: 'production',
+        NODE_ENV: 'development',
+        APP_ENV: 'development',
         PORT: String(recoveryPort),
         DB_PATH: recoveryDatabasePath,
         HOUSE_NAME: 'Recoveryhaus 18',

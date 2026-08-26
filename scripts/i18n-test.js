@@ -75,6 +75,14 @@ assert.equal(i18n.translateVisibleText('E-Mail ist in dieser Umgebung deaktivier
 assert.equal(i18n.translateVisibleText('Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'), 'Push notifications are disabled in this environment.');
 assert.equal(i18n.t('admin.onlyOneSuperadmin'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
 assert.equal(i18n.translateVisibleText('Nur ein aktiver Superadmin. Gib einer vertrauenswuerdigen Stellvertretung rechtzeitig zusaetzliche Superadminrechte.'), 'Only one superadmin is active. Grant additional superadmin rights to a trusted deputy in good time.');
+assert.equal(
+  i18n.t('admin.emergencyRule'),
+  'Emergency rule: SEED_ADMIN_FORCE_PASSWORD_RESET must remain absent or false. Password rotation is permitted only through a separately approved, secure recovery procedure.'
+);
+assert.equal(
+  i18n.translateVisibleText('Notfallregel: SEED_ADMIN_FORCE_PASSWORD_RESET muss fehlen oder false bleiben. Eine Passwortrotation ist nur ueber einen separat freigegebenen, sicheren Recovery-Betriebsweg zulaessig.'),
+  'Emergency rule: SEED_ADMIN_FORCE_PASSWORD_RESET must remain absent or false. Password rotation is permitted only through a separately approved, secure recovery procedure.'
+);
 assert.equal(i18n.translateVisibleText('Bitte einen gueltigen Namen und Bereich waehlen.'), 'Choose a valid name and category.');
 assert.equal(i18n.translateVisibleText('Freigabe erst nach einer erfolgreichen Funktionspruefung moeglich.'), 'The resource can only be released after a successful functional test.');
 assert.equal(i18n.translateVisibleText('WM 1 wurde gesperrt und im Tagebuch erfasst.'), 'WM 1 was blocked and recorded in the logbook.');
@@ -142,6 +150,13 @@ for (const role of ['resident', 'house_admin', 'superadmin']) {
 const indexHtml = read('public/index.html');
 const loginHtml = read('public/login.html');
 const appSource = read('public/app.js');
+const i18nSource = read('public/i18n.js');
+for (const publicSource of [appSource, i18nSource]) {
+  assert.doesNotMatch(publicSource, /SEED_ADMIN_FORCE_PASSWORD_RESET\s*=\s*true/i);
+  assert.doesNotMatch(publicSource, /SEED_ADMIN_PASSWORD (?:setzen|set)/i);
+}
+assert.match(appSource, /SEED_ADMIN_FORCE_PASSWORD_RESET muss fehlen oder false bleiben/);
+assert.match(i18nSource, /SEED_ADMIN_FORCE_PASSWORD_RESET must remain absent or false/);
 const explicitI18nKeys = [...indexHtml.matchAll(/data-i18n="([^"]+)"/g)].map((match) => match[1]);
 for (const key of explicitI18nKeys) {
   assert.ok(i18n.messages[key], `public/index.html uses unknown i18n key ${key}`);
