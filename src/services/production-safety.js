@@ -67,10 +67,18 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
     throw new ProductionSafetyError('PRODUCTION_ENV', 'APP_ENV=production verlangt NODE_ENV=production.');
   }
 
-  for (const key of ['BACKUP_ENABLED', 'AUTO_BACKUP', 'EMAIL_ENABLED', 'PUSH_ENABLED']) {
+  for (const key of ['BACKUP_ENABLED', 'AUTO_BACKUP', 'EMAIL_ENABLED']) {
     if (normalized(env[key]) !== 'false') {
-      throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Backup und Nachrichten muessen beim ersten Produktionsstart explizit deaktiviert sein.');
+      throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Backup und E-Mail muessen beim Produktionsstart explizit deaktiviert sein.');
     }
+  }
+
+  const pushEnabled = normalized(env.PUSH_ENABLED) === 'true';
+  if (!['false', 'true'].includes(normalized(env.PUSH_ENABLED))) {
+    throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Push muss in Produktion explizit aktiviert oder deaktiviert sein.');
+  }
+  if (pushEnabled && normalized(env.PRODUCTION_PUSH_APPROVED) !== 'true') {
+    throw new ProductionSafetyError('PRODUCTION_FEATURE_HOLD', 'Push benoetigt eine ausdrueckliche Produktionsfreigabe.');
   }
 
   for (const key of [
@@ -102,7 +110,8 @@ function assertProductionSafety({ env = process.env, dbPath, agentTestAllowed = 
     dbPath: expectedDbPath,
     singleInstance: true,
     providersHeld: true,
-    fixtureDisabled: true
+    fixtureDisabled: true,
+    pushApproved: pushEnabled
   });
 }
 

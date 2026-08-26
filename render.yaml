@@ -38,6 +38,8 @@ services:
         value: false
       - key: PUSH_ENABLED
         value: false
+      - key: PRODUCTION_PUSH_APPROVED
+        value: false
     disk:
       name: washraum-data
       mountPath: /var/data
