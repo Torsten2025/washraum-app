@@ -376,8 +376,10 @@ function createNotificationRouters({
     }
     if (targetUserId !== null) {
       const targetUser = db.prepare(`
-        SELECT id FROM users
-        WHERE id = ? AND house_id = ? AND active = 1
+        SELECT u.id FROM users u
+        JOIN push_subscriptions ps ON ps.user_id = u.id
+        WHERE u.id = ? AND ps.house_id = ? AND u.active = 1 AND ps.active = 1
+        LIMIT 1
       `).get(targetUserId, currentHouseId(req));
       if (!targetUser) {
         return res.status(404).json({ error: 'Push-Empfaenger nicht gefunden.' });
@@ -389,7 +391,7 @@ function createNotificationRouters({
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username
       FROM push_subscriptions ps
       JOIN users u ON u.id = ps.user_id
-      LEFT JOIN apartments a ON a.id = u.apartment_id
+      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = ps.house_id
       WHERE ps.house_id = ?
         AND ps.active = 1
         AND u.active = 1
@@ -440,8 +442,8 @@ function createNotificationRouters({
              COUNT(ps.id) AS devices
       FROM users u
       JOIN push_subscriptions ps ON ps.user_id = u.id
-      LEFT JOIN apartments a ON a.id = u.apartment_id
-      WHERE u.house_id = ?
+      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = ps.house_id
+      WHERE ps.house_id = ?
         AND u.active = 1
         AND ps.active = 1
       GROUP BY u.id

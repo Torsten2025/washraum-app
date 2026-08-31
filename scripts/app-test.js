@@ -761,14 +761,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.1');
+    assert.equal(health.body.version, '0.3.2');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.1');
+    assert.equal(versionStatus.body.version, '0.3.2');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1454,6 +1454,11 @@ async function run() {
     const overview = await expectStatus(admin, '/api/admin/overview', 200);
     assert.equal(typeof overview.body.usersMissingEmail, 'number');
     await expectStatus(admin, '/api/admin/email-test', 409, { method: 'POST' });
+    const notificationRoutesSource = fs.readFileSync(
+      path.join(__dirname, '..', 'src', 'routes', 'notifications.js'),
+      'utf8'
+    );
+    assert.match(notificationRoutesSource, /adminRouter\.get\('\/api\/admin\/push-devices'[\s\S]*WHERE ps\.house_id = \?/);
     const pushDevices = await expectStatus(admin, '/api/admin/push-devices', 200);
     assert.equal(pushDevices.body.totalDevices, 1);
     assert.ok(pushDevices.body.users.some((item) => item.username === 'Bewohner Test' && item.devices === 1));
@@ -2106,11 +2111,46 @@ async function run() {
     const foreignPushHouse = pushIsolationDatabase.prepare(`
       INSERT INTO houses (name, code) VALUES ('Push-Isolationshaus', 'PUSH-ISOLATION-HOUSE')
     `).run();
+    const foreignApartmentSentinel = 'FREMDWOHNUNG-PUSH-SENTINEL';
+    const defaultHouseApartment = pushIsolationDatabase.prepare(`
+      INSERT INTO apartments (house_id, label, display_name)
+      VALUES (?, 'Push-Testwohnung', ?)
+    `).run(defaultHouseId, foreignApartmentSentinel);
+    pushIsolationDatabase.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
+      .run(defaultHouseApartment.lastInsertRowid, registration.body.user.id);
     pushIsolationDatabase.prepare(`
       UPDATE push_subscriptions SET house_id = ?
       WHERE user_id = ? AND active = 1
     `).run(foreignPushHouse.lastInsertRowid, registration.body.user.id);
     pushIsolationDatabase.close();
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: foreignPushHouse.lastInsertRowid })
+    });
+    const foreignHousePushDevices = await expectStatus(admin, '/api/admin/push-devices', 200);
+    assert.equal(foreignHousePushDevices.body.totalDevices, 1);
+    assert.ok(foreignHousePushDevices.body.users.some((item) => (
+      item.id === registration.body.user.id && item.username === 'Bewohner Test' && item.devices === 1
+    )));
+    assert.ok(!JSON.stringify(foreignHousePushDevices.body).includes(foreignApartmentSentinel));
+    const foreignHouseTargetPush = await expectStatus(admin, '/api/admin/push-test', 200, {
+      method: 'POST',
+      body: JSON.stringify({ userId: registration.body.user.id })
+    });
+    assert.equal(foreignHouseTargetPush.body.sent, 0);
+    assert.equal(foreignHouseTargetPush.body.failed, 1);
+    const restoreCrossHousePushFixture = new Database(databasePath);
+    restoreCrossHousePushFixture.prepare('UPDATE users SET apartment_id = NULL WHERE id = ?')
+      .run(registration.body.user.id);
+    restoreCrossHousePushFixture.prepare('UPDATE push_subscriptions SET active = 1 WHERE endpoint = ?')
+      .run(maintenancePushEndpoint);
+    restoreCrossHousePushFixture.prepare('DELETE FROM apartments WHERE id = ?')
+      .run(defaultHouseApartment.lastInsertRowid);
+    restoreCrossHousePushFixture.close();
+    await expectStatus(admin, '/api/me/active-house', 200, {
+      method: 'PUT',
+      body: JSON.stringify({ houseId: defaultHouseId })
+    });
     const foreignHousePushState = await expectStatus(user, '/api/maintenance-cases', 200);
     assert.deepEqual(foreignHousePushState.body.notificationAvailability, { push: false, email: false });
     assert.ok(foreignHousePushState.body.cases.every((item) => item.notificationAvailability.push === false));
@@ -2830,15 +2870,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.1'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.2'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.1"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.2"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.1'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.1'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.2'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.2'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
