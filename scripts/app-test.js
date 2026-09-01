@@ -489,10 +489,19 @@ async function verifySmtpDelivery() {
         if (dataMode) {
           const end = buffer.indexOf('\r\n.\r\n');
           if (end < 0) return;
-          messages.push(buffer.slice(0, end));
+          const message = buffer.slice(0, end);
           buffer = buffer.slice(end + 5);
           dataMode = false;
-          socket.write('250 queued\r\n');
+          const containsBareLineFeed = /(^|[^\r])\n/.test(message);
+          const containsOverlongLine = message
+            .split('\r\n')
+            .some((line) => Buffer.byteLength(line, 'utf8') > 998);
+          if (containsBareLineFeed || containsOverlongLine) {
+            socket.write('550 invalid SMTP data line framing or length\r\n');
+          } else {
+            messages.push(message);
+            socket.write('250 queued\r\n');
+          }
           continue;
         }
         const end = buffer.indexOf('\r\n');
@@ -670,6 +679,11 @@ async function verifySmtpDelivery() {
     assert.ok(messages[4].includes('To: smtp-einladung@example.com'));
     assert.ok(messages[4].includes('Subject: WaschZeit: Einladung'));
     assert.ok(messages[4].includes('/login.html?invite='));
+    assert.equal(/(^|[^\r])\n/.test(messages[4]), false);
+    assert.equal(
+      messages[4].split('\r\n').every((line) => Buffer.byteLength(line, 'utf8') <= 998),
+      true
+    );
     const invitationToken = messages[4].match(/login\.html\?invite=([a-f0-9]{64})/)[1];
     const acceptedInvitation = await fetch(`http://127.0.0.1:${appPort}/api/invitations/accept`, {
       method: 'POST',
@@ -761,14 +775,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.2');
+    assert.equal(health.body.version, '0.3.3');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.2');
+    assert.equal(versionStatus.body.version, '0.3.3');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -2870,15 +2884,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.2'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.3'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.2"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.3"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.2'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.2'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.3'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.3'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

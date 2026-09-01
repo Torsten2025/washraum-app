@@ -60,6 +60,13 @@ function createMailTransport({ net, tls, env, enabled = false }) {
     return String(value || '').replace(/[\r\n]+/g, ' ').trim();
   }
 
+  function normalizeMailText(value) {
+    return String(value || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\n/g, '\r\n');
+  }
+
   function mailHeaders({ config, to, subject, text }) {
     const safeFrom = sanitizeMailHeader(config.from);
     const from = safeFrom.includes('<') ? safeFrom : `WaschZeit <${safeFrom}>`;
@@ -71,7 +78,7 @@ function createMailTransport({ net, tls, env, enabled = false }) {
       'Content-Type: text/plain; charset=UTF-8',
       `Date: ${new Date().toUTCString()}`,
       '',
-      text
+      normalizeMailText(text)
     ].join('\r\n');
   }
 
@@ -103,7 +110,7 @@ function createMailTransport({ net, tls, env, enabled = false }) {
     await session.command(`MAIL FROM:<${extractEmailAddress(config.from)}>`, [250]);
     await session.command(`RCPT TO:<${extractEmailAddress(to)}>`, [250, 251]);
     await session.command('DATA', [354]);
-    socket.write(`${mailHeaders({ config, to, subject, text }).replace(/^\./gm, '..')}\r\n.\r\n`);
+    socket.write(`${mailHeaders({ config, to, subject, text }).replace(/(^|\r\n)\./g, '$1..')}\r\n.\r\n`);
     await session.expect([250]);
     await session.command('QUIT', [221]);
     session.closeListeners();
