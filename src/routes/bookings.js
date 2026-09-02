@@ -27,6 +27,7 @@ function createBookingRouters({
   const bookingsRouter = express.Router();
   const adminResetRouter = express.Router();
   const fixedBookingsRouter = express.Router();
+  const calendarFeedRouter = express.Router();
   const {
     getFixedBookingsForDate,
     fixedBookingConflict,
@@ -41,8 +42,171 @@ function createBookingRouters({
     isSunday,
     isPastDate,
     isPastSlot,
-    slotEndLabel
+    slotEndLabel,
+    bookingRuleMode
   } = bookingRules;
+
+  const calendarTokenHash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+  const modeNotApplicable = (res) => res.status(409).json({
+    code: 'MODE_NOT_APPLICABLE',
+    error: 'Restplaetze sind im liberalen Hausregelmodus nicht anwendbar.'
+  });
+  const icsEscape = (value) => String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\r?\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+  const icsDate = (date, time) => `${String(date).replace(/-/g, '')}T${String(time).replace(':', '')}00`;
+  const slotTimes = (slot) => {
+    const [start, end] = String(slot).split('-');
+    return { start, end };
+  };
+  const nextWeekdayDate = (weekday, slot) => {
+    const start = todayStringLocal();
+    const base = new Date(`${start}T12:00:00Z`);
+    const current = base.getUTCDay();
+    let offset = (Number(weekday) - current + 7) % 7;
+    if (offset === 0 && isPastSlot(start, slot)) offset = 7;
+    return addDays(start, offset);
+  };
+  const stableCalendarUid = (kind, id, userId) => `${crypto.createHash('sha256')
+    .update(`${kind}:${id}:${userId}`)
+    .digest('hex').slice(0, 32)}@waschzeit`;
+  const foldIcsLine = (line) => {
+    const chunks = [];
+    let current = '';
+    for (const codePoint of Array.from(String(line))) {
+      if (current && Buffer.byteLength(current + codePoint, 'utf8') > 75) {
+        chunks.push(current);
+        current = ` ${codePoint}`;
+      } else {
+        current += codePoint;
+      }
+    }
+    chunks.push(current);
+    return chunks.join('\r\n');
+  };
+
+  const activeCalendarOwner = (userId) => db.prepare(`
+    SELECT u.id, u.apartment_id, u.house_id
+    FROM users u
+    JOIN apartments a ON a.id = u.apartment_id AND a.active = 1 AND a.house_id = u.house_id
+    JOIN houses h ON h.id = u.house_id AND h.active = 1
+    WHERE u.id = ? AND u.active = 1
+      AND (a.claimed_by = u.id OR EXISTS (
+        SELECT 1 FROM users resident
+        WHERE resident.apartment_id = a.id AND resident.id = u.id AND resident.active = 1
+      ))
+  `).get(userId);
+
+  preferencesRouter.get('/api/me/calendar-feed', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
+    const active = db.prepare(`
+      SELECT cft.created_at FROM calendar_feed_tokens cft
+      JOIN users u ON u.id = cft.user_id AND u.active = 1
+      JOIN apartments a ON a.id = cft.apartment_id AND a.active = 1
+      WHERE cft.user_id = ? AND cft.revoked_at IS NULL
+        AND u.apartment_id = cft.apartment_id AND u.house_id = cft.house_id
+        AND a.house_id = cft.house_id
+      ORDER BY cft.id DESC LIMIT 1
+    `).get(req.session.user.id);
+    res.json({ active: Boolean(active), createdAt: active?.created_at || null });
+  });
+
+  preferencesRouter.post('/api/me/calendar-feed', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
+    const owner = activeCalendarOwner(req.session.user.id);
+    if (!owner) return res.status(409).json({ code: 'CALENDAR_FEED_UNAVAILABLE', error: 'Der Kalenderfeed braucht eine aktive Wohnung im aktuellen Haus.' });
+    const token = crypto.randomBytes(32).toString('base64url');
+    db.transaction(() => {
+      db.prepare('UPDATE calendar_feed_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL')
+        .run(req.session.user.id);
+      db.prepare('INSERT INTO calendar_feed_tokens (user_id, apartment_id, house_id, token_hash) VALUES (?, ?, ?, ?)')
+        .run(owner.id, owner.apartment_id, owner.house_id, calendarTokenHash(token));
+    })();
+    writeAudit(req, 'calendar_feed.rotate', 'user', req.session.user.id, {});
+    res.status(201).json({
+      path: `/api/calendar-feed/${token}.ics`,
+      message: 'Kalenderfeed erstellt. Diese Adresse wird nur jetzt angezeigt.'
+    });
+  });
+
+  preferencesRouter.delete('/api/me/calendar-feed', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
+    const result = db.prepare(`
+      UPDATE calendar_feed_tokens SET revoked_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND revoked_at IS NULL
+    `).run(req.session.user.id);
+    writeAudit(req, 'calendar_feed.revoke', 'user', req.session.user.id, { revoked: result.changes });
+    res.json({ ok: true, active: false, message: 'Kalenderfeed widerrufen.' });
+  });
+
+  calendarFeedRouter.get('/api/calendar-feed/:token.ics', (req, res) => {
+    const token = String(req.params.token || '');
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(404).end();
+    const owner = db.prepare(`
+      SELECT u.id, u.apartment_id, u.house_id,
+             COALESCE(a.claimed_by, (SELECT MIN(p.id) FROM users p WHERE p.apartment_id = u.apartment_id AND p.active = 1), u.id) AS booking_user_id
+      FROM calendar_feed_tokens cft
+      JOIN users u ON u.id = cft.user_id
+      JOIN apartments a ON a.id = cft.apartment_id AND a.active = 1
+      JOIN houses h ON h.id = cft.house_id AND h.active = 1
+      WHERE cft.token_hash = ? AND cft.revoked_at IS NULL AND u.active = 1
+        AND u.apartment_id = cft.apartment_id AND u.house_id = cft.house_id
+        AND a.house_id = cft.house_id
+      LIMIT 1
+    `).get(calendarTokenHash(token));
+    if (!owner) return res.status(404).end();
+
+    const normal = db.prepare(`
+      SELECT b.id, b.booking_date, b.slot, r.name AS resource_name
+      FROM bookings b JOIN resources r ON r.id = b.resource_id
+      WHERE b.user_id = ? AND r.house_id = ? AND b.booking_date >= ?
+      ORDER BY b.booking_date, b.slot, b.id
+    `).all(owner.booking_user_id, owner.house_id, todayStringLocal());
+    const fixed = owner.apartment_id == null ? [] : db.prepare(`
+      SELECT fb.id, fb.weekday, fb.slot, r.name AS resource_name
+      FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
+      WHERE fb.apartment_id = ? AND r.house_id = ? AND fb.active = 1
+      ORDER BY fb.weekday, fb.slot, fb.id
+    `).all(owner.apartment_id, owner.house_id);
+    const events = [];
+    for (const booking of normal) {
+      const time = slotTimes(booking.slot);
+      events.push([
+        'BEGIN:VEVENT',
+        `UID:${stableCalendarUid('booking', booking.id, owner.id)}`,
+        `DTSTAMP:${icsDate(todayStringLocal(), '00:00')}Z`,
+        `DTSTART;TZID=Europe/Zurich:${icsDate(booking.booking_date, time.start)}`,
+        `DTEND;TZID=Europe/Zurich:${icsDate(booking.booking_date, time.end)}`,
+        `SUMMARY:${icsEscape(`WaschZeit: ${booking.resource_name}`)}`,
+        'END:VEVENT'
+      ]);
+    }
+    for (const booking of fixed) {
+      const date = nextWeekdayDate(booking.weekday, booking.slot);
+      const time = slotTimes(booking.slot);
+      events.push([
+        'BEGIN:VEVENT',
+        `UID:${stableCalendarUid('fixed', booking.id, owner.id)}`,
+        `DTSTAMP:${icsDate(todayStringLocal(), '00:00')}Z`,
+        `DTSTART;TZID=Europe/Zurich:${icsDate(date, time.start)}`,
+        `DTEND;TZID=Europe/Zurich:${icsDate(date, time.end)}`,
+        'RRULE:FREQ=WEEKLY',
+        `SUMMARY:${icsEscape(`WaschZeit Dauertermin: ${booking.resource_name}`)}`,
+        'END:VEVENT'
+      ]);
+    }
+    const lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WaschZeit//Personal Calendar Feed//DE',
+      'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:WaschZeit - Meine Buchungen',
+      'X-WR-TIMEZONE:Europe/Zurich',
+      ...events.flat(), 'END:VCALENDAR'
+    ];
+    res.set({
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'inline; filename="waschzeit-meine-buchungen.ics"',
+      'Cache-Control': 'private, no-store'
+    });
+    res.send(`${lines.map(foldIcsLine).join('\r\n')}\r\n`);
+  });
 
   preferencesRouter.put('/api/me/booking-mode', requireAuth, (req, res) => {
     const bookingMode = String(req.body?.bookingMode || '');
@@ -77,6 +241,7 @@ function createBookingRouters({
     `).get(houseId).count;
     res.json({
       from,
+      bookingRuleMode: bookingRuleMode(houseId),
       resourceCount,
       activeResourceCount: calendarDays[0]?.activeResourceCount || 0,
       days: calendarDays
@@ -113,7 +278,7 @@ function createBookingRouters({
     `).all(req.session.user.bookingUserId, houseId, date);
 
     const slotOptions = slots.map((slot) => {
-      const unavailableByTime = isSunday(date) || isPastSlot(date, slot);
+      const unavailableByTime = isSunday(date, houseId) || isPastSlot(date, slot);
       const washerError = unavailableByTime
         ? ''
         : validateWasherBooking(req.session.user.bookingUserId, date, slot, houseId);
@@ -154,7 +319,7 @@ function createBookingRouters({
       date,
       resourceCount,
       activeResourceCount,
-      closed: isSunday(date),
+      closed: isSunday(date, houseId),
       existingWashers,
       slots: slotOptions,
       companions
@@ -175,6 +340,7 @@ function createBookingRouters({
     requireResident,
     requireApartmentAccount,
     (req, res) => {
+      if (bookingRuleMode(currentHouseId(req)) === 'liberal') return modeNotApplicable(res);
       try {
         res.json(remainingSlotService.options({
           apartmentId: req.session.user.apartmentId,
@@ -254,7 +420,7 @@ function createBookingRouters({
     if (isPastSlot(date, slot)) {
       return res.status(400).json({ error: 'Dieser Slot liegt bereits in der Vergangenheit' });
     }
-    if (isSunday(date)) {
+    if (isSunday(date, houseId)) {
       return res.status(400).json({ error: 'Sonntags sind keine Buchungen m\u00f6glich' });
     }
 
@@ -323,6 +489,7 @@ function createBookingRouters({
     requireResident,
     requireApartmentAccount,
     (req, res) => {
+      if (bookingRuleMode(currentHouseId(req)) === 'liberal') return modeNotApplicable(res);
       if (Object.hasOwn(req.body || {}, 'houseId') || Object.hasOwn(req.body || {}, 'date')) {
         return res.status(400).json({ code: 'SERVER_CONTEXT_REQUIRED', error: 'Haus und Datum werden serverseitig bestimmt.' });
       }
@@ -360,6 +527,7 @@ function createBookingRouters({
     requireResident,
     requireApartmentAccount,
     (req, res) => {
+      if (bookingRuleMode(currentHouseId(req)) === 'liberal') return modeNotApplicable(res);
       try {
         const result = remainingSlotService.cancel({
           groupId: req.params.groupId,
@@ -379,6 +547,7 @@ function createBookingRouters({
     requireResident,
     requireApartmentAccount,
     (req, res) => {
+      if (bookingRuleMode(currentHouseId(req)) === 'liberal') return modeNotApplicable(res);
       try {
         const result = remainingSlotService.removeTumbler({
           groupId: req.params.groupId,
@@ -473,7 +642,7 @@ function createBookingRouters({
       if (isPastDate(washDate) || isPastSlot(washDate, washSlot)) {
         throw packageRequestError(400, 'Der empfohlene Waschslot ist bereits vorbei. Bitte lade eine neue Empfehlung.');
       }
-      if (isSunday(washDate)) {
+      if (isSunday(washDate, houseId)) {
         throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
       }
 
@@ -485,7 +654,9 @@ function createBookingRouters({
         throw packageRequestError(400, 'Der Tumbler muss im gleichen Zeitfenster wie die Waschmaschine liegen.');
       }
 
-      const allowedDryingWindow = allowedDryingRoomSlots(washDate, washSlot);
+      const allowedDryingWindow = bookingRuleMode(houseId) === 'liberal'
+        ? [{ date: washDate, slot: washSlot }]
+        : allowedDryingRoomSlots(washDate, washSlot);
       const sortedDryingItems = [...dryingItems].sort((left, right) => {
         const leftIndex = allowedDryingWindow.findIndex((item) => item.date === left.date && item.slot === left.slot);
         const rightIndex = allowedDryingWindow.findIndex((item) => item.date === right.date && item.slot === right.slot);
@@ -509,7 +680,7 @@ function createBookingRouters({
         if (isPastDate(item.date) || isPastSlot(item.date, item.slot)) {
           throw packageRequestError(400, 'Ein Bestandteil des Waschpakets liegt bereits in der Vergangenheit.');
         }
-        if (isSunday(item.date)) {
+        if (isSunday(item.date, houseId)) {
           throw packageRequestError(400, 'Sonntags sind keine Buchungen m\u00f6glich.');
         }
         const fixedConflict = fixedBookingConflict(item.resourceId, item.date, item.slot, houseId);
@@ -945,6 +1116,7 @@ function createBookingRouters({
   }
 
   function ensureFixedTumblerReserve(houseId, weekday, slot, additionalCount = 1) {
+    if (bookingRuleMode(houseId) === 'liberal') return;
     const totalTumblers = db.prepare(`
       SELECT COUNT(*) AS count FROM resources
       WHERE active = 1 AND type = 'tumbler' AND house_id = ?
@@ -1003,7 +1175,8 @@ function createBookingRouters({
     if (hasLegacyResource === hasPackageResources) {
       return res.status(400).json({ error: 'Bitte entweder einen Legacy-Einzeltermin oder ein Dauerpaket angeben.' });
     }
-    if (!Number.isInteger(weekday) || weekday < 1 || weekday > 6 || !slots.includes(slot)) {
+    const weekdayMinimum = bookingRuleMode(houseId) === 'liberal' ? 0 : 1;
+    if (!Number.isInteger(weekday) || weekday < weekdayMinimum || weekday > 6 || !slots.includes(slot)) {
       return res.status(400).json({ error: 'Ungueltige feste Buchung' });
     }
     if (!isValidPlainText(label, 2, 80)) {
@@ -1059,12 +1232,13 @@ function createBookingRouters({
         throw packageRequestError(400, 'Ein Dauerpaket braucht genau eine Waschmaschine und optional je einen Trockenraum und Tumbler.');
       }
 
-      const dryingDurationSlots = dryingRooms.length ? Number(req.body?.dryingDurationSlots) : null;
+      const liberal = bookingRuleMode(houseId) === 'liberal';
+      const dryingDurationSlots = dryingRooms.length ? (liberal ? 1 : Number(req.body?.dryingDurationSlots)) : null;
       if (!dryingRooms.length && req.body?.dryingDurationSlots != null) {
         throw packageRequestError(400, 'Eine Trocknungsdauer ist nur mit einem Trockenraum zulaessig.');
       }
       const dryingWindow = dryingRooms.length
-        ? fixedDryingWindow(weekday, slot, dryingDurationSlots)
+        ? (liberal ? [{ weekday, slot }] : fixedDryingWindow(weekday, slot, dryingDurationSlots))
         : [];
       if (dryingRooms.length && !dryingWindow) {
         throw packageRequestError(400, 'Die Trocknungsdauer ist fuer diesen Wochentag und Waschslot nicht zulaessig.');
@@ -1168,7 +1342,7 @@ function createBookingRouters({
     });
   });
 
-  return { preferencesRouter, planningRouter, bookingsRouter, adminResetRouter, fixedBookingsRouter };
+  return { preferencesRouter, planningRouter, bookingsRouter, adminResetRouter, fixedBookingsRouter, calendarFeedRouter };
 }
 
 module.exports = { createBookingRouters };

@@ -9,9 +9,17 @@ function createBookingRules({
   isPastSwissDate,
   isPastSwissSlot
 }) {
+  function bookingRuleMode(houseId) {
+    return db.prepare('SELECT booking_rule_mode FROM houses WHERE id = ?').get(houseId)?.booking_rule_mode || 'gbmz';
+  }
+
+  function usesLiberalRules(houseId) {
+    return bookingRuleMode(houseId) === 'liberal';
+  }
+
   function getFixedBookingsForDate(dateString, houseId) {
     const weekday = weekdayForDate(dateString);
-    if (weekday === 0) {
+    if (weekday === 0 && !usesLiberalRules(houseId)) {
       return [];
     }
 
@@ -31,7 +39,7 @@ function createBookingRules({
 
   function fixedBookingConflict(resourceId, dateString, slot, houseId) {
     const weekday = weekdayForDate(dateString);
-    if (weekday === 0) {
+    if (weekday === 0 && !usesLiberalRules(houseId)) {
       return null;
     }
 
@@ -96,6 +104,7 @@ function createBookingRules({
   }
 
   function validateWasherBooking(userId, date, slot, houseId) {
+    if (usesLiberalRules(houseId)) return '';
     const today = todayStringLocal();
     const washerBookings = db.prepare(`
       SELECT b.booking_date, b.slot, b.booking_kind
@@ -131,6 +140,7 @@ function createBookingRules({
   }
 
   function validateTumblerBooking(date, slot, houseId) {
+    if (usesLiberalRules(houseId)) return '';
     const totalTumblers = db.prepare(`
       SELECT COUNT(*) AS count
       FROM resources
@@ -166,6 +176,7 @@ function createBookingRules({
   }
 
   function validateDryingRoomBooking(userId, date, slot, houseId) {
+    if (usesLiberalRules(houseId)) return '';
     const userDryingRoomInSlot = db.prepare(`
       SELECT b.id
       FROM bookings b
@@ -190,7 +201,7 @@ function createBookingRules({
   }
 
   function calendarDaySummary(userId, date, houseId) {
-    const closed = isSunday(date);
+    const closed = isSunday(date, houseId);
     const activeResources = db.prepare(`
       SELECT id, name, type
       FROM resources
@@ -229,7 +240,7 @@ function createBookingRules({
         if (isPastSlot(date, slot)) {
           continue;
         }
-        const capacity = type === 'tumbler'
+        const capacity = type === 'tumbler' && !usesLiberalRules(houseId)
           ? Math.max(0, typeResources.length - 1)
           : typeResources.length;
         const occupiedCount = typeResources
@@ -250,7 +261,7 @@ function createBookingRules({
 
       for (const type of ['washer', 'drying_room', 'tumbler']) {
         const typeResources = activeResources.filter((resource) => resource.type === type);
-        const capacity = type === 'tumbler'
+        const capacity = type === 'tumbler' && !usesLiberalRules(houseId)
           ? Math.max(0, typeResources.length - 1)
           : typeResources.length;
         const occupiedResources = typeResources.filter((resource) => occupied.has(`${resource.id}|${slot}`));
@@ -355,7 +366,7 @@ function createBookingRules({
   }
 
   function findAvailableResourceForWindow(type, window, houseId) {
-    if (!window.length || window.some((item) => isPastSlot(item.date, item.slot) || isSunday(item.date))) {
+    if (!window.length || window.some((item) => isPastSlot(item.date, item.slot) || isSunday(item.date, houseId))) {
       return null;
     }
 
@@ -379,7 +390,9 @@ function createBookingRules({
   }
 
   function bestDryingRoomWindow(washDate, washSlot, houseId) {
-    const allowedWindow = allowedDryingRoomSlots(washDate, washSlot);
+    const allowedWindow = usesLiberalRules(houseId)
+      ? [{ date: washDate, slot: washSlot }]
+      : allowedDryingRoomSlots(washDate, washSlot);
     for (let length = allowedWindow.length; length >= 1; length -= 1) {
       const window = allowedWindow.slice(0, length);
       const resource = findAvailableResourceForWindow('drying_room', window, houseId);
@@ -409,7 +422,9 @@ function createBookingRules({
   }
 
   function availableDryingRoomsForWasher(userId, washDate, washSlot, houseId) {
-    const allowedWindow = allowedDryingRoomSlots(washDate, washSlot);
+    const allowedWindow = usesLiberalRules(houseId)
+      ? [{ date: washDate, slot: washSlot }]
+      : allowedDryingRoomSlots(washDate, washSlot);
     const dryingRooms = db.prepare(`
       SELECT id, name, type
       FROM resources
@@ -438,7 +453,7 @@ function createBookingRules({
       const availableWindow = [];
       for (const item of allowedWindow) {
         const unavailable = isPastSlot(item.date, item.slot)
-          || isSunday(item.date)
+          || isSunday(item.date, houseId)
           || occupied.get(resource.id, item.date, item.slot)
           || fixedBookingConflict(resource.id, item.date, item.slot, houseId)
           || ownDryingBooking.get(userId, houseId, item.date, item.slot);
@@ -486,7 +501,9 @@ function createBookingRules({
       id: washerBooking.resource_id,
       name: washerBooking.resource_name
     }, [], { required: true, existing: true })];
-    const dryingWindow = allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
+    const dryingWindow = usesLiberalRules(houseId)
+      ? [{ date: washerBooking.booking_date, slot: washerBooking.slot }]
+      : allowedDryingRoomSlots(washerBooking.booking_date, washerBooking.slot);
 
     if (!userHasBookingInWindow(userId, 'drying_room', dryingWindow, houseId)) {
       const drying = bestDryingRoomWindow(washerBooking.booking_date, washerBooking.slot, houseId);
@@ -626,7 +643,7 @@ function createBookingRules({
     for (let offset = 0; offset < 21; offset += 1) {
       const date = addDays(startDate, offset);
       const weekday = weekdayForDate(date);
-      if (weekday === 0) {
+      if (weekday === 0 && !usesLiberalRules(houseId)) {
         continue;
       }
       for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
@@ -704,6 +721,14 @@ function createBookingRules({
       ORDER BY b.booking_date, b.slot, b.id
     `).all(userId, houseId, today);
 
+    if (usesLiberalRules(houseId)) {
+      return nextWasherRecommendation(userId, today, houseId) || {
+        kind: 'info',
+        title: 'Im Moment keine freie Empfehlung',
+        reason: 'In den naechsten drei Wochen ist kein freier Waschslot verfuegbar.'
+      };
+    }
+
     for (const washerBooking of upcomingWashers) {
       const companion = companionPackageRecommendation(userId, washerBooking, houseId);
       if (companion) {
@@ -732,8 +757,8 @@ function createBookingRules({
     };
   }
 
-  function isSunday(dateString) {
-    return weekdayForDate(dateString) === 0;
+  function isSunday(dateString, houseId) {
+    return !usesLiberalRules(houseId) && weekdayForDate(dateString) === 0;
   }
 
   function isPastDate(dateString) {
@@ -765,7 +790,8 @@ function createBookingRules({
     isSunday,
     isPastDate,
     isPastSlot,
-    slotEndLabel
+    slotEndLabel,
+    bookingRuleMode
   };
 }
 

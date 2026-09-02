@@ -725,6 +725,30 @@ async function run() {
     assert.ok(await page.locator('#notificationEmail').isVisible());
     await page.click('[data-settings-target="notifications"]');
     assert.ok(await page.locator('#notifyReleases').isVisible());
+    await page.click('[data-settings-target="device"]');
+    await page.click('#createCalendarFeedButton');
+    await page.waitForFunction(() => {
+      const input = document.querySelector('#calendarFeedUrl');
+      return input?.value.startsWith(`${window.location.origin}/api/calendar-feed/`)
+        && input.value.endsWith('.ics')
+        && document.querySelector('#calendarFeedUrlWrap')?.hidden === false;
+    });
+    assert.equal(await page.evaluate(() => (
+      document.querySelector('#calendarFeedUrl')?.value.length > 64
+      && document.querySelector('#copyCalendarFeedButton')?.hidden === false
+    )), true);
+    await page.click('#closeSettingsButton');
+    await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
+    await page.click('#accountMenuButton');
+    await page.click('#openSettingsButton');
+    await page.waitForSelector('#settingsOverlay:not([hidden])');
+    await page.click('[data-settings-target="device"]');
+    await page.waitForFunction(() => document.querySelector('#calendarFeedStatus')?.textContent.length > 0);
+    assert.equal(await page.evaluate(() => (
+      document.querySelector('#calendarFeedUrl')?.value === ''
+      && document.querySelector('#calendarFeedUrlWrap')?.hidden === true
+      && document.querySelector('#copyCalendarFeedButton')?.hidden === true
+    )), true);
     await page.click('[data-settings-target="profile"]');
     await page.selectOption('#settingsLanguage', 'en');
     await page.waitForFunction(() => document.documentElement.lang === 'en');

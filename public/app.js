@@ -50,6 +50,7 @@ const bookingDate = document.querySelector('#bookingDate');
 const bookingPanelTitle = document.querySelector('#bookingPanelTitle');
 const bookingPanelIntro = document.querySelector('#bookingPanelIntro');
 const bookingSuggestion = document.querySelector('#bookingSuggestion');
+const houseRuleModeNotice = document.querySelector('#houseRuleModeNotice');
 const remainingSlotPanel = document.querySelector('#remainingSlotPanel');
 const openRemainingSlotButton = document.querySelector('#openRemainingSlotButton');
 const remainingSlotStatus = document.querySelector('#remainingSlotStatus');
@@ -144,6 +145,7 @@ const equipmentManagementPanel = document.querySelector('#equipmentManagementPan
 const ownHouseSummary = document.querySelector('#ownHouseSummary');
 const houseForm = document.querySelector('#houseForm');
 const houseNameInput = document.querySelector('#houseNameInput');
+const houseBookingRuleMode = document.querySelector('#houseBookingRuleMode');
 const houseList = document.querySelector('#houseList');
 const resourceForm = document.querySelector('#resourceForm');
 const resourceNameInput = document.querySelector('#resourceNameInput');
@@ -160,6 +162,13 @@ const appUpdateText = document.querySelector('#appUpdateText');
 const updateAppButton = document.querySelector('#updateAppButton');
 const appVersionText = document.querySelector('#appVersionText');
 const checkAppUpdateButton = document.querySelector('#checkAppUpdateButton');
+const calendarFeedCard = document.querySelector('#calendarFeedCard');
+const calendarFeedStatus = document.querySelector('#calendarFeedStatus');
+const calendarFeedUrlWrap = document.querySelector('#calendarFeedUrlWrap');
+const calendarFeedUrl = document.querySelector('#calendarFeedUrl');
+const createCalendarFeedButton = document.querySelector('#createCalendarFeedButton');
+const copyCalendarFeedButton = document.querySelector('#copyCalendarFeedButton');
+const revokeCalendarFeedButton = document.querySelector('#revokeCalendarFeedButton');
 const maintenanceOverlay = document.querySelector('#maintenanceOverlay');
 const maintenanceText = document.querySelector('#maintenanceText');
 const checkMaintenanceButton = document.querySelector('#checkMaintenanceButton');
@@ -330,6 +339,7 @@ let calendarAnchorDate = '';
 let calendarStartDate = '';
 let calendarDays = [];
 let calendarResourceCount = null;
+let currentBookingRuleMode = 'gbmz';
 let houseContextRevision = 0;
 let appViewRevision = 0;
 const staleHouseRequest = Symbol('stale-house-request');
@@ -1207,6 +1217,41 @@ function setSettingsSection(sectionName) {
   }
 }
 
+async function loadCalendarFeedStatus() {
+  clearCalendarFeedSecret();
+  calendarFeedCard.hidden = !currentUser?.canBook;
+  if (calendarFeedCard.hidden) return;
+  const data = await api('/api/me/calendar-feed');
+  calendarFeedStatus.textContent = data.active
+    ? translate('settings.calendarFeedActive', 'Eine abonnierbare Adresse ist aktiv.')
+    : translate('settings.calendarFeedInactive', 'Noch keine abonnierbare Adresse aktiv.');
+  revokeCalendarFeedButton.hidden = !data.active;
+}
+
+function clearCalendarFeedSecret() {
+  calendarFeedUrl.value = '';
+  calendarFeedUrlWrap.hidden = true;
+  copyCalendarFeedButton.hidden = true;
+}
+
+async function createCalendarFeed() {
+  const data = await api('/api/me/calendar-feed', { method: 'POST' });
+  calendarFeedUrl.value = new URL(data.path, window.location.origin).href;
+  calendarFeedUrlWrap.hidden = false;
+  copyCalendarFeedButton.hidden = false;
+  revokeCalendarFeedButton.hidden = false;
+  calendarFeedStatus.textContent = translate('settings.calendarFeedCreated', 'Adresse erstellt. Sie wird nur jetzt angezeigt und ersetzt eine fruehere Adresse sofort.');
+}
+
+async function revokeCalendarFeed() {
+  await api('/api/me/calendar-feed', { method: 'DELETE' });
+  calendarFeedUrl.value = '';
+  calendarFeedUrlWrap.hidden = true;
+  copyCalendarFeedButton.hidden = true;
+  revokeCalendarFeedButton.hidden = true;
+  calendarFeedStatus.textContent = translate('settings.calendarFeedRevoked', 'Die Kalenderadresse wurde widerrufen.');
+}
+
 function openSettings(firstRun = false) {
   closeAccountMenu();
   settingsReturnFocus = document.activeElement;
@@ -1225,10 +1270,14 @@ function openSettings(firstRun = false) {
   settingsOverlay.hidden = false;
   document.body.classList.add('modal-open');
   renderSettingsSummary();
+  loadCalendarFeedStatus().catch((error) => {
+    calendarFeedStatus.textContent = error.message;
+  });
   closeSettingsButton.focus();
 }
 
 function closeSettings() {
+  clearCalendarFeedSecret();
   settingsOverlay.hidden = true;
   document.body.classList.remove('modal-open');
   if (settingsReturnFocus instanceof HTMLElement) {
@@ -2748,7 +2797,8 @@ function populateRemainingSlotSelection({ preserveDrying = false } = {}) {
 }
 
 function renderRemainingSlot() {
-  remainingSlotPanel.hidden = !currentUser?.canBook;
+  remainingSlotPanel.hidden = !currentUser?.canBook || currentBookingRuleMode === 'liberal';
+  if (remainingSlotPanel.hidden) return;
   openRemainingSlotButton.textContent = remainingSlotOpen
     ? translate('remainingSlot.refresh', 'Neu pruefen')
     : translate('remainingSlot.open', 'Restplaetze pruefen');
@@ -2891,7 +2941,15 @@ async function loadCalendar() {
   );
   if (data === staleHouseRequest) return;
   calendarResourceCount = Number(data.resourceCount || 0);
+  currentBookingRuleMode = data.bookingRuleMode === 'liberal' ? 'liberal' : 'gbmz';
+  houseRuleModeNotice.textContent = currentBookingRuleMode === 'liberal'
+    ? translate('app.houseRuleLiberalNotice', 'Hausregelmodus Liberal: Die GBMZ-Zusatzgrenzen gelten nicht; Konflikt-, Rollen-, Haus- und Wartungsschutz bleiben aktiv.')
+    : translate('app.houseRuleGbmzNotice', 'Hausregelmodus GBMZ-Regeln');
   calendarDays = data.days;
+  remainingSlotPanel.hidden = !currentUser?.canBook || currentBookingRuleMode === 'liberal';
+  const sundayOption = fixedBookingWeekday.querySelector('[data-liberal-weekday]');
+  if (sundayOption) sundayOption.hidden = currentBookingRuleMode !== 'liberal';
+  syncFixedBookingDuration();
   renderCalendar();
 }
 
@@ -5594,6 +5652,14 @@ function renderHouses(houses) {
       equipment: house.resources
     });
     copy.append(title, meta, status);
+    const mode = document.createElement('select');
+    mode.setAttribute('aria-label', translate('admin.houseRuleModeFor', 'Hausregelmodus fuer {name}', { name: house.name }));
+    mode.innerHTML = `
+      <option value="gbmz">${escapeHtml(translate('admin.houseRuleGbmz', 'GBMZ-Regeln'))}</option>
+      <option value="liberal">${escapeHtml(translate('admin.houseRuleLiberal', 'Liberal'))}</option>
+    `;
+    mode.value = house.booking_rule_mode === 'liberal' ? 'liberal' : 'gbmz';
+    mode.addEventListener('change', () => updateHouse(house.id, { bookingRuleMode: mode.value }));
     const actions = document.createElement('div');
     actions.className = 'house-admin-actions';
     const editButton = document.createElement('button');
@@ -5627,7 +5693,7 @@ function renderHouses(houses) {
       : translate('admin.activate', 'Aktivieren');
     activeButton.disabled = Number(house.id) === Number(currentUser.activeHouseId);
     activeButton.addEventListener('click', () => updateHouse(house.id, { active: !Boolean(house.active) }));
-    actions.append(button, editButton, activeButton);
+    actions.append(mode, button, editButton, activeButton);
     item.append(copy, actions, nameForm);
     houseList.append(item);
   }
@@ -6042,6 +6108,9 @@ function renderAuditLog(entries) {
     'house.create': translate('audit.houseCreate', 'Haus angelegt'),
     'house.update': translate('audit.houseUpdate', 'Haus aktualisiert'),
     'house.code': translate('audit.houseCode', 'Hauscode geaendert'),
+    'house.booking_rule_mode.change': translate('audit.houseBookingRuleMode', 'Hausregeln geaendert'),
+    'calendar_feed.rotate': translate('audit.calendarFeedRotate', 'Kalenderadresse erstellt oder ersetzt'),
+    'calendar_feed.revoke': translate('audit.calendarFeedRevoke', 'Kalenderadresse widerrufen'),
     'resource.create': translate('audit.resourceCreate', 'Geraet angelegt'),
     'resource.update': translate('audit.resourceUpdate', 'Geraet aktualisiert'),
     'resource.block': translate('audit.resourceBlock', 'Ressource gesperrt'),
@@ -6172,8 +6241,9 @@ function populateFixedBookingControls() {
 
 function syncFixedBookingDuration() {
   const hasDryingRoom = Boolean(fixedBookingDryingRoom.value);
-  fixedBookingDryingDurationWrap.hidden = !hasDryingRoom;
-  fixedBookingDryingDurationSlots.disabled = !hasDryingRoom;
+  const usesDuration = hasDryingRoom && currentBookingRuleMode !== 'liberal';
+  fixedBookingDryingDurationWrap.hidden = !usesDuration;
+  fixedBookingDryingDurationSlots.disabled = !usesDuration;
   if (!hasDryingRoom) return;
   const slot = fixedBookingSlot.value;
   const weekday = Number(fixedBookingWeekday.value);
@@ -6283,6 +6353,7 @@ async function createHouse() {
       method: 'POST',
       body: JSON.stringify({
         name: houseNameInput.value
+        , bookingRuleMode: houseBookingRuleMode.value
       })
     });
     houseForm.reset();
@@ -7470,6 +7541,16 @@ settingsTabButtons.forEach((button) => {
   button.addEventListener('click', () => setSettingsSection(button.dataset.settingsTarget));
 });
 settingsBookingMode.addEventListener('change', () => setBookingMode(settingsBookingMode.value, false));
+createCalendarFeedButton.addEventListener('click', () => createCalendarFeed().catch((error) => {
+  calendarFeedStatus.textContent = error.message;
+}));
+copyCalendarFeedButton.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(calendarFeedUrl.value);
+  calendarFeedStatus.textContent = translate('settings.calendarFeedCopied', 'Adresse kopiert. Behandle sie wie ein Passwort.');
+});
+revokeCalendarFeedButton.addEventListener('click', () => revokeCalendarFeed().catch((error) => {
+  calendarFeedStatus.textContent = error.message;
+}));
 settingsOverlay.addEventListener('click', (event) => {
   if (event.target === settingsOverlay) {
     closeSettings();

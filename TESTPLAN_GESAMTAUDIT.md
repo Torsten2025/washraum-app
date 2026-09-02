@@ -75,7 +75,7 @@ npm run check
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
-| BOOK-01 | Vergangenheit und Sonntag | Nicht buchbar und nicht als frei angeboten | `npm test` |
+| BOOK-01 | Vergangenheit und Sonntag | Vergangenheit ist in beiden Modi nicht buchbar. Sonntag ist unter `GBMZ-Regeln` gesperrt und wird unter `Liberal` wie jeder andere freie Tag angeboten. | `npm test` |
 | BOOK-02 | Waschmaschinen | Eine Waschsequenz im Voraus; mehrere Maschinen nur gleicher Slot | `npm test`, `test:year` |
 | BOOK-03 | Tumbler | Nur im Waschslot; mindestens ein Tumbler bleibt frei | `npm test`, `test:year` |
 | BOOK-04 | Trockenraum | Nur ein Raum gleichzeitig; erlaubtes zusammenhaengendes Trocknungsfenster | `npm test`, `test:year` |
@@ -83,11 +83,14 @@ npm run check
 | BOOK-06 | Fremde Buchung | Bewohner kann sie weder loeschen noch erweitern | `npm test` |
 | BOOK-07 | Freigabe und Absage | Zeitfenster, Mitteilung, Push-/Mailfilter und neutraler Text stimmen | `npm test` |
 | BOOK-08 | Monats-/Wochenkalender | API-Daten, Tagesdetails und eigene Buchungen stimmen ueberein | `npm test`, `test:e2e` |
-| BOOK-09 | Dauerpaket | `resourceIds` erzeugt atomar genau eine WM, optional hoechstens einen TR/Tumbler, gemeinsame Gruppenkennung auch WM-only und modellierte Trocknungsdauer; Konflikt/zweite WM/Mischpayload/Fremdhaus/Sonntagsfenster speichert nichts, Tumblerreserve bleibt bestehen | `npm test`, `test:roles` |
+| BOOK-09 | Dauerpaket | Im GBMZ-Modus erzeugt `resourceIds` atomar genau eine WM, optional hoechstens einen TR/Tumbler, gemeinsame Gruppenkennung auch WM-only und modellierte Trocknungsdauer; Konflikt/zweite WM/Mischpayload/Fremdhaus/Sonntagsfenster speichert nichts, Tumblerreserve bleibt bestehen. Liberal entfallen Sonntags- und Reservegrenze, nicht aber Konflikt, Hausbindung und Atomaritaet. | `npm test`, `test:roles` |
 | BOOK-10 | Parallelzugriff | Eindeutige Ressourcenbelegung ohne Teilbuchung | `npm test`, `test:year` |
 | BOOK-11 | Hauswechsel mit leerem Haus | Haus A zeigt nur eigene Ressourcen; Haus B ohne Ressourcen zeigt 0 Kapazitaet, einen DE/EN-Leerzustand und keine Buchungsaktion; Rueckwechsel und Reload erben keine alten Daten | `npm test`, `test:roles`, `test:i18n`, `test:e2e` |
 | BOOK-12 | Bestehende Ressourcen beim Hausanlegen | Vorhandene Ressourcen und ihre IDs bleiben vor, waehrend und nach Anlage sowie Wechsel zu einem leeren Haus unveraendert; es gibt keine heuristische Bestandsbereinigung | `npm test` |
 | BOOK-13 | Initialisierungs- und Hauswechselrennen | Bewusste Kalenderwahl waehrend verzoegerter Admininitialisierung bleibt erhalten; ohne Klick startet der reine Admin in der Verwaltung. Verspaeteter Erfolg und Netzfehler aus Haus A veraendern Haus B nicht, ein aktueller B-Fehler bleibt sichtbar | `test:e2e` dreimal hintereinander, `npm run check` zweimal |
+| BOOK-14 | Hausregelmodus | Bestehende Haeuser default GBMZ; nur Superadmin kann gbmz/liberal waehlen oder wechseln; liberal erlaubt jede freie aktive Ressource in jedem nicht vergangenen Slot einschliesslich Sonntag ohne GBMZ-Tages-/Zukunfts-/Trockenraum-/Tumblergrenzen; Sicherheits-, Haus-, Konflikt- und Atomaritaetsgrenzen bleiben | `npm test`, `test:roles`, `test:e2e` |
+| BOOK-15 | Liberale Empfehlung | Bereits vorhandene heutige oder kuenftige Waschbuchung beendet die Empfehlung nicht; eine weitere freie Option wird gesucht | `npm test` |
+| BOOK-16 | Persoenlicher ICS-Feed | Aktiver Bewohner und kombiniertes Bewohner-/Hausadmin-Konto koennen einen Feed erzeugen; reiner Admin nicht. URL nur direkt nach Rotation sichtbar und nach Schliessen/erneutem Oeffnen beziehungsweise Statusreload aus Input und DOM-Anzeige entfernt; nur Hash gespeichert, Rotation/Widerruf sofort, eigene Wohnungsbuchungen und zugeordnete Dauertermine, RFC5545-/Unicode-Faltung bis 75 Oktette, keine Fremddaten | `npm test`, `test:roles`, `test:e2e` |
 
 ### Restplaetze `RP-01` bis `RP-25`
 
@@ -200,7 +203,7 @@ Das Releasegate prueft zusaetzlich die einzige erlaubte Choreografie: ein gemein
 | DASH-04 | Haus/Geraete-Trennung | Haus-Admin startet ausschliesslich bei eigenen Geraeten; Superadmin startet bei Haus und sieht nach Umschaltung nur Geraete des aktiven Hauses. Sprach-/Reloadwechsel erhaelt nur einen zur Rolle und zum Haus passenden Zustand | `test:roles`, `test:e2e`, Screenshotreview |
 | GAME-01 | Uebungsvariation | Zwei abgeschlossene Uebungsrunden wiederholen weder die vollstaendige Aufgabe noch die Ergebnisformulierung unmittelbar; Reload umgeht den serverseitigen Vergleich nicht | `npm test`, `test:e2e` |
 | GAME-02 | Faire Tagesmission | Derselbe Europe/Zurich-Tag liefert fuer alle dieselbe Mission; der Folgetag liefert bei vorhandener Alternative garantiert eine andere vollstaendige Mission | `npm test` |
-| SCOPE-01 | Foto und GBMZ abwesend | Keine Foto-DB, Uploadroute, Foto-UI, EXIF-Pipeline, GBMZ-Schaltflaeche, Attrappe, Verlinkung, Einbettung oder Datenuebertragung im Kandidaten | `npm test`, `test:security`, Quellscan |
+| SCOPE-01 | Foto und institutionelle GBMZ-Integration abwesend | Keine Foto-DB, Uploadroute, Foto-UI, EXIF-Pipeline oder institutionelle GBMZ-Verlinkung, Einbettung oder Datenuebertragung. Die lokale Auswahl `GBMZ-Regeln`/`Liberal` steuert ausschliesslich Haus-Buchungsregeln. | `npm test`, `test:security`, Quellscan |
 
 Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Buchstabenbezeichnung der bestehenden Abschnitte bleibt fuer historische Pruefverweise erhalten.
 

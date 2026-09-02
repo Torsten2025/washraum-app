@@ -775,14 +775,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.4');
+    assert.equal(health.body.version, '0.3.5-test.16');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.4');
+    assert.equal(versionStatus.body.version, '0.3.5-test.16');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1606,6 +1606,45 @@ async function run() {
     assert.equal(typeof remainingSlotOptions.body.eligible, 'boolean');
     assert.ok(Array.isArray(remainingSlotOptions.body.slots));
     assert.ok(remainingSlotOptions.body.slots.every((item) => !Object.hasOwn(item, 'dryingRooms')));
+    const calendarFeedBefore = await expectStatus(user, '/api/me/calendar-feed', 200);
+    assert.equal(calendarFeedBefore.body.active, false);
+    const firstCalendarFeed = await expectStatus(user, '/api/me/calendar-feed', 201, { method: 'POST' });
+    assert.match(firstCalendarFeed.body.path, /^\/api\/calendar-feed\/[A-Za-z0-9_-]{43}\.ics$/);
+    const firstCalendarToken = firstCalendarFeed.body.path.match(/calendar-feed\/(.+)\.ics$/)[1];
+    const calendarTokenDatabase = new Database(databasePath, { readonly: true });
+    const storedCalendarToken = calendarTokenDatabase.prepare(`
+      SELECT token_hash, apartment_id, house_id FROM calendar_feed_tokens
+      WHERE user_id = ? AND revoked_at IS NULL
+    `).get(registration.body.user.id);
+    calendarTokenDatabase.close();
+    assert.equal(storedCalendarToken.token_hash, crypto.createHash('sha256').update(firstCalendarToken).digest('hex'));
+    assert.equal(storedCalendarToken.token_hash.includes(firstCalendarToken), false);
+    assert.equal(storedCalendarToken.apartment_id, existingApartment.body.apartment.id);
+    const unicodeCalendarDatabase = new Database(databasePath);
+    const unicodeResourceName = `Trockenraum ${'Waesche-'.repeat(12)}🧺 Ende`;
+    const unicodeResource = unicodeCalendarDatabase.prepare(`
+      INSERT INTO resources (name, type, house_id, active) VALUES (?, 'drying_room', ?, 1)
+    `).run(unicodeResourceName, storedCalendarToken.house_id);
+    unicodeCalendarDatabase.prepare(`
+      INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, active, created_by)
+      VALUES (?, 1, '12:00-17:00', 'Kalender Unicode', ?, 1, ?)
+    `).run(unicodeResource.lastInsertRowid, existingApartment.body.apartment.id, registration.body.user.id);
+    unicodeCalendarDatabase.close();
+    const calendarFeedResponse = await expectStatus(guest, firstCalendarFeed.body.path, 200);
+    assert.match(calendarFeedResponse.response.headers.get('content-type'), /^text\/calendar/);
+    assert.match(calendarFeedResponse.response.headers.get('cache-control'), /no-store/);
+    const calendarText = calendarFeedResponse.body.toString('utf8');
+    assert.match(calendarText, /BEGIN:VCALENDAR\r\n/);
+    assert.match(calendarText, /X-WR-TIMEZONE:Europe\/Zurich/);
+    assert.doesNotMatch(calendarText, /�/);
+    assert.ok(calendarText.split('\r\n').every((line) => Buffer.byteLength(line, 'utf8') <= 75));
+    assert.match(calendarText.replace(/\r\n /g, ''), new RegExp(unicodeResourceName));
+    assert.doesNotMatch(calendarText, /bewohner-test@example\.com|Meier-Keller|user_id|apartment_id/i);
+    const secondCalendarFeed = await expectStatus(user, '/api/me/calendar-feed', 201, { method: 'POST' });
+    await expectStatus(guest, firstCalendarFeed.body.path, 404);
+    await expectStatus(guest, secondCalendarFeed.body.path, 200);
+    await expectStatus(user, '/api/me/calendar-feed', 200, { method: 'DELETE' });
+    await expectStatus(guest, secondCalendarFeed.body.path, 404);
     await expectStatus(user, '/api/remaining-slots', 400, {
       method: 'POST',
       headers: { 'Idempotency-Key': 'remaining-slot-route-test-0001' },
@@ -2539,6 +2578,58 @@ async function run() {
       })
     });
 
+    const secondHouseBookingCountBeforeMode = new Database(databasePath, { readonly: true });
+    const preservedSecondHouseBookings = secondHouseBookingCountBeforeMode.prepare(`
+      SELECT COUNT(*) AS count FROM bookings b JOIN resources r ON r.id = b.resource_id WHERE r.house_id = ?
+    `).get(secondHouse.body.house.id).count;
+    secondHouseBookingCountBeforeMode.close();
+    await expectStatus(admin, `/api/admin/houses/${secondHouse.body.house.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingRuleMode: 'liberal' })
+    });
+    const liberalCalendar = await expectStatus(admin, `/api/calendar?from=${nextWeekday(0)}&days=1`, 200);
+    assert.equal(liberalCalendar.body.bookingRuleMode, 'liberal');
+    assert.equal(liberalCalendar.body.days[0].closed, false);
+    const liberalResident = new ApiClient();
+    await expectStatus(liberalResident, '/api/register', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'Bewohner Liberal',
+        email: 'liberal@example.test',
+        password: 'Bewohner-Liberal-2026!',
+        houseCode: 'Testhaus 20 Neu',
+        notifyReleases: false
+      })
+    });
+    await expectStatus(liberalResident, '/api/remaining-slots/options', 409);
+    const liberalExistingBooking = await expectStatus(liberalResident, '/api/bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({ resourceId: secondWasher.id, date: bookingDate, slot: '12:00-17:00' })
+    });
+    const liberalRecommendation = await expectStatus(liberalResident, '/api/recommendation', 200);
+    assert.notEqual(liberalRecommendation.body.recommendation.kind, 'info',
+      'Liberale Empfehlung darf trotz bestehender Waschbuchung nicht vorzeitig abbrechen');
+    await expectStatus(liberalResident, `/api/bookings/${liberalExistingBooking.body.id}`, 200, { method: 'DELETE' });
+    const liberalSundayFixed = await expectStatus(admin, '/api/admin/fixed-bookings', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'Liberaler Sonntag',
+        resourceId: secondWasher.id,
+        weekday: 0,
+        slot: '12:00-17:00'
+      })
+    });
+    await expectStatus(admin, `/api/admin/fixed-bookings/${liberalSundayFixed.body.id}`, 200, { method: 'DELETE' });
+    const liberalDatabase = new Database(databasePath, { readonly: true });
+    assert.equal(liberalDatabase.prepare(`
+      SELECT COUNT(*) AS count FROM bookings b JOIN resources r ON r.id = b.resource_id WHERE r.house_id = ?
+    `).get(secondHouse.body.house.id).count, preservedSecondHouseBookings);
+    liberalDatabase.close();
+    await expectStatus(admin, `/api/admin/houses/${secondHouse.body.house.id}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingRuleMode: 'gbmz' })
+    });
+
     await expectStatus(admin, '/api/me/active-house', 200, {
       method: 'PUT',
       body: JSON.stringify({ houseId: defaultHouseId })
@@ -2886,15 +2977,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.4'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.5-test.16'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.4"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.5-test.16"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.4'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.4'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.5-test.16'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.5-test.16'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

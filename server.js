@@ -209,6 +209,21 @@ function createCurrentTables() {
       FOREIGN KEY (merged_into_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS calendar_feed_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      apartment_id INTEGER NOT NULL,
+      house_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      revoked_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+      FOREIGN KEY (house_id) REFERENCES houses(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_calendar_feed_tokens_user_active
+      ON calendar_feed_tokens(user_id, revoked_at);
+
     CREATE TABLE IF NOT EXISTS apartments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       house_id INTEGER NOT NULL,
@@ -351,7 +366,7 @@ function createCurrentTables() {
     CREATE TABLE IF NOT EXISTS fixed_bookings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       resource_id INTEGER NOT NULL,
-      weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 6),
+      weekday INTEGER NOT NULL CHECK (weekday BETWEEN 0 AND 6),
       slot TEXT NOT NULL,
       label TEXT NOT NULL,
       group_id TEXT,
@@ -524,6 +539,9 @@ function seedCurrentDefaults() {
   ensureColumn('users', 'secondary_email_verified_value', 'TEXT');
   ensureColumn('users', 'language', "TEXT NOT NULL DEFAULT 'de' CHECK (language IN ('de', 'en'))");
   ensureColumn('users', 'merged_into_user_id', 'INTEGER');
+  ensureColumn('houses', 'booking_rule_mode', "TEXT NOT NULL DEFAULT 'gbmz' CHECK (booking_rule_mode IN ('gbmz', 'liberal'))");
+  ensureColumn('calendar_feed_tokens', 'apartment_id', 'INTEGER');
+  ensureColumn('calendar_feed_tokens', 'house_id', 'INTEGER');
   ensureColumn('device_pairing_codes', 'apartment_id', 'INTEGER');
   ensureColumn('apartments', 'display_name', 'TEXT');
   ensureColumn('resources', 'house_id', 'INTEGER');
@@ -826,7 +844,44 @@ function initDb() {
   }
 
   createCurrentTables();
+  migrateFixedBookingSundaySupport();
   seedCurrentDefaults();
+}
+
+function migrateFixedBookingSundaySupport() {
+  const definition = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'fixed_bookings'").get()?.sql || '';
+  if (!/weekday\s+BETWEEN\s+1\s+AND\s+6/i.test(definition)) return;
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE fixed_bookings_sunday (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          resource_id INTEGER NOT NULL,
+          weekday INTEGER NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+          slot TEXT NOT NULL,
+          label TEXT NOT NULL,
+          group_id TEXT,
+          drying_duration_slots INTEGER,
+          apartment_id INTEGER,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_by INTEGER,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+          UNIQUE (resource_id, weekday, slot)
+        );
+        INSERT INTO fixed_bookings_sunday
+          (id, resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, active, created_by, created_at)
+        SELECT id, resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, active, created_by, created_at
+        FROM fixed_bookings;
+        DROP TABLE fixed_bookings;
+        ALTER TABLE fixed_bookings_sunday RENAME TO fixed_bookings;
+      `);
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
 }
 
 function ensureColumn(table, column, definition) {
@@ -1554,6 +1609,8 @@ const bookingRouters = createBookingRouters({
   remainingSlotService
 });
 app.use(bookingRouters.preferencesRouter);
+
+app.use(bookingRouters.calendarFeedRouter);
 
 app.use(notificationRouters.preferencesRouter);
 

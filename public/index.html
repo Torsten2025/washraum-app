@@ -146,6 +146,7 @@
                 </section>
               </div>
               <div id="bookingSuggestion" class="booking-suggestion" aria-live="polite"></div>
+              <p id="houseRuleModeNotice" class="notice muted" role="status"></p>
               <section id="remainingSlotPanel" class="remaining-slot-panel" aria-labelledby="remainingSlotTitle">
                 <div class="remaining-slot-heading">
                   <div>
@@ -321,6 +322,13 @@
                     Neue Hausnummer
                     <input id="houseNameInput" name="name" placeholder="z.B. Maneggplatz 20" maxlength="80" required>
                   </label>
+                  <label>
+                    <span data-i18n="admin.houseRuleMode">Hausregelmodus</span>
+                    <select id="houseBookingRuleMode">
+                      <option value="gbmz" data-i18n="admin.houseRuleGbmz">GBMZ-Regeln</option>
+                      <option value="liberal" data-i18n="admin.houseRuleLiberal">Liberal</option>
+                    </select>
+                  </label>
                   <button type="submit">Haus anlegen</button>
                 </form>
               </details>
@@ -394,6 +402,7 @@
                 <label>
                   Wochentag
                   <select id="fixedBookingWeekday" name="weekday" required>
+                    <option value="0" data-liberal-weekday hidden data-i18n="weekday.sunday">Sonntag</option>
                     <option value="1">Montag</option>
                     <option value="2">Dienstag</option>
                     <option value="3">Mittwoch</option>
@@ -962,6 +971,22 @@
                 <p id="appVersionText" class="muted">Versionsstand wird gepr&uuml;ft.</p>
               </div>
               <button id="checkAppUpdateButton" class="text-button" type="button" data-i18n="settings.checkUpdate">Nach Update suchen</button>
+            </section>
+            <section id="calendarFeedCard" class="push-card" aria-labelledby="calendarFeedTitle">
+              <div>
+                <h4 id="calendarFeedTitle" data-i18n="settings.calendarFeedTitle">Persoenlicher Kalenderfeed</h4>
+                <p class="muted" data-i18n="settings.calendarFeedHint">Abonniere deine eigenen und gemeinsam gebuchten Wohnungstermine. Die geheime Adresse darf nicht weitergegeben werden und aktualisiert sich automatisch.</p>
+                <p id="calendarFeedStatus" class="muted" role="status"></p>
+                <label id="calendarFeedUrlWrap" hidden>
+                  <span data-i18n="settings.calendarFeedUrl">Geheime Kalenderadresse</span>
+                  <input id="calendarFeedUrl" type="url" readonly autocomplete="off">
+                </label>
+              </div>
+              <div class="inline-actions">
+                <button id="createCalendarFeedButton" class="secondary" type="button" data-i18n="settings.calendarFeedCreate">Adresse erstellen oder ersetzen</button>
+                <button id="copyCalendarFeedButton" class="secondary" type="button" hidden data-i18n="settings.calendarFeedCopy">Adresse kopieren</button>
+                <button id="revokeCalendarFeedButton" class="text-button" type="button" hidden data-i18n="settings.calendarFeedRevoke">Adresse widerrufen</button>
+              </div>
             </section>
           </section>
 

@@ -382,6 +382,7 @@ async function run() {
       body: JSON.stringify({ email: 'angriff@example.test' })
     });
     await expectStatus(houseAdmin, '/api/me/device-code', 403, { method: 'POST' });
+    await expectStatus(houseAdmin, '/api/me/calendar-feed', 403, { method: 'POST' });
 
     const dualRoleApartment = await expectStatus(houseAdmin, '/api/admin/apartments', 201, {
       method: 'POST',
@@ -406,6 +407,10 @@ async function run() {
     assert.equal(dualRoleAcceptance.body.user.canBook, true);
     assert.equal(dualRoleAcceptance.body.user.canManage, true);
     await expectStatus(dualRoleIdentity, '/api/admin/resources', 200);
+    const dualRoleFeed = await expectStatus(dualRoleIdentity, '/api/me/calendar-feed', 201, { method: 'POST' });
+    assert.match(dualRoleFeed.body.path, /^\/api\/calendar-feed\/[A-Za-z0-9_-]{43}\.ics$/);
+    await expectStatus(new ApiClient(), dualRoleFeed.body.path, 200);
+    await expectStatus(dualRoleIdentity, '/api/me/calendar-feed', 200, { method: 'DELETE' });
 
     const dualRoleResources = await expectStatus(dualRoleIdentity, '/api/resources', 200);
     const dualRoleWasher = dualRoleResources.body.resources.find((resource) => resource.type === 'washer');
@@ -656,6 +661,10 @@ async function run() {
     });
 
     await expectStatus(houseAdmin, '/api/admin/houses', 403);
+    await expectStatus(houseAdmin, `/api/admin/houses/${secondHouseId}`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingRuleMode: 'liberal' })
+    });
     await expectStatus(houseAdmin, '/api/admin/backup', 403);
     await expectStatus(houseAdmin, '/api/admin/backup/run', 403, { method: 'POST' });
     await expectStatus(houseAdmin, '/api/admin/maintenance', 403);
@@ -708,6 +717,15 @@ async function run() {
     for (const [route, method] of residentDeniedRoutes) {
       await expectStatus(residentAfterReset, route, 403, { method });
     }
+    await expectStatus(residentAfterReset, `/api/admin/houses/${secondHouseId}`, 403, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingRuleMode: 'liberal' })
+    });
+    const modeChangedBySuperadmin = await expectStatus(superadmin, `/api/admin/houses/${secondHouseId}`, 200, {
+      method: 'PUT',
+      body: JSON.stringify({ bookingRuleMode: 'liberal' })
+    });
+    assert.match(modeChangedBySuperadmin.body.message, /Liberal/);
     await expectStatus(residentAfterReset, '/api/calendar?from=' + futureMonday() + '&days=7', 200);
     await expectStatus(residentAfterReset, '/api/recommendation', 200);
     await expectStatus(residentAfterReset, `/api/admin/apartments/${apartment.body.apartment.id}`, 403, {

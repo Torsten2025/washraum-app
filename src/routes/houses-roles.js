@@ -633,16 +633,17 @@ recoveryRouter.put('/api/admin/users/:id/superadmin', requireAdmin, requireSuper
 });
 
 housesRouter.get('/api/admin/settings', requireAdmin, (req, res) => {
-  const house = db.prepare('SELECT id, name, code FROM houses WHERE id = ?').get(currentHouseId(req));
+  const house = db.prepare('SELECT id, name, code, booking_rule_mode FROM houses WHERE id = ?').get(currentHouseId(req));
   res.json({
     houseCode: house?.code || '',
-    houseName: house?.name || ''
+    houseName: house?.name || '',
+    bookingRuleMode: house?.booking_rule_mode || 'gbmz'
   });
 });
 
 housesRouter.get('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
   const houses = db.prepare(`
-    SELECT h.id, h.name, h.code, h.active, h.created_at,
+    SELECT h.id, h.name, h.code, h.active, h.booking_rule_mode, h.created_at,
            COUNT(DISTINCT u.id) AS users,
            COUNT(DISTINCT r.id) AS resources
     FROM houses h
@@ -657,11 +658,15 @@ housesRouter.get('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res
 housesRouter.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, res) => {
   const name = String(req.body?.name || '').trim();
   const code = String(req.body?.code || `HOUSE-${crypto.randomBytes(12).toString('hex')}`).trim();
+  const bookingRuleMode = String(req.body?.bookingRuleMode || 'gbmz');
   if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
   }
   if (!isValidPlainText(code, 12, 80)) {
     return res.status(400).json({ error: 'Der interne Hausschluessel ist ung\u00fcltig.' });
+  }
+  if (!['gbmz', 'liberal'].includes(bookingRuleMode)) {
+    return res.status(400).json({ error: 'Bitte GBMZ-Regeln oder Liberal waehlen.' });
   }
   if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?)').get(name)) {
     return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });
@@ -669,10 +674,12 @@ housesRouter.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, re
 
   try {
     const house = db.transaction(() => {
-      const result = db.prepare('INSERT INTO houses (name, code) VALUES (?, ?)').run(name, code);
-      return db.prepare('SELECT id, name, code, active FROM houses WHERE id = ?').get(result.lastInsertRowid);
+      const result = db.prepare('INSERT INTO houses (name, code, booking_rule_mode) VALUES (?, ?, ?)')
+        .run(name, code, bookingRuleMode);
+      return db.prepare('SELECT id, name, code, active, booking_rule_mode FROM houses WHERE id = ?')
+        .get(result.lastInsertRowid);
     })();
-    writeAudit(req, 'house.create', 'house', house.id, { name: house.name });
+    writeAudit(req, 'house.create', 'house', house.id, { name: house.name, bookingRuleMode: house.booking_rule_mode });
     res.status(201).json({ house, message: `${house.name} wurde ohne Ger\u00e4te angelegt.` });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -683,14 +690,20 @@ housesRouter.post('/api/admin/houses', requireAdmin, requireSuperadmin, (req, re
 });
 
 housesRouter.put('/api/admin/houses/:id', requireAdmin, requireSuperadmin, (req, res) => {
-  const house = db.prepare('SELECT id, name, active FROM houses WHERE id = ?').get(Number(req.params.id));
+  const house = db.prepare('SELECT id, name, active, booking_rule_mode FROM houses WHERE id = ?').get(Number(req.params.id));
   if (!house) {
     return res.status(404).json({ error: 'Hausnummer nicht gefunden.' });
   }
   const name = String(req.body?.name ?? house.name).trim();
   const active = req.body?.active == null ? house.active : req.body.active === true ? 1 : 0;
+  const bookingRuleMode = req.body?.bookingRuleMode == null
+    ? house.booking_rule_mode
+    : String(req.body.bookingRuleMode);
   if (!isValidPlainText(name, 2, 80)) {
     return res.status(400).json({ error: 'Die Hausnummer muss 2 bis 80 Zeichen haben.' });
+  }
+  if (!['gbmz', 'liberal'].includes(bookingRuleMode)) {
+    return res.status(400).json({ error: 'Bitte GBMZ-Regeln oder Liberal waehlen.' });
   }
   if (db.prepare('SELECT id FROM houses WHERE lower(name) = lower(?) AND id != ?').get(name, house.id)) {
     return res.status(409).json({ error: 'Diese Hausnummer ist bereits vorhanden.' });
@@ -709,9 +722,20 @@ housesRouter.put('/api/admin/houses/:id', requireAdmin, requireSuperadmin, (req,
       return res.status(409).json({ error: 'Ein Haus mit aktiven Konten oder kommenden Buchungen kann nicht deaktiviert werden.' });
     }
   }
-  db.prepare('UPDATE houses SET name = ?, active = ? WHERE id = ?').run(name, active, house.id);
-  writeAudit(req, 'house.update', 'house', house.id, { name, active: Boolean(active) });
-  res.json({ ok: true, message: `${name} wurde aktualisiert.` });
+  db.prepare('UPDATE houses SET name = ?, active = ?, booking_rule_mode = ? WHERE id = ?')
+    .run(name, active, bookingRuleMode, house.id);
+  writeAudit(req, bookingRuleMode === house.booking_rule_mode ? 'house.update' : 'house.booking_rule_mode.change', 'house', house.id, {
+    name,
+    active: Boolean(active),
+    previousBookingRuleMode: house.booking_rule_mode,
+    bookingRuleMode
+  });
+  res.json({
+    ok: true,
+    message: bookingRuleMode === house.booking_rule_mode
+      ? `${name} wurde aktualisiert.`
+      : `${name} verwendet jetzt den Hausregelmodus ${bookingRuleMode === 'liberal' ? 'Liberal' : 'GBMZ'}. Bestehende Buchungen bleiben unveraendert.`
+  });
 });
 
 houseCodeRouter.put('/api/admin/settings/house-code', requireAdmin, (req, res) => {
