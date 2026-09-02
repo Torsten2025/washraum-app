@@ -5651,11 +5651,12 @@ function maintenanceActionOptions(maintenanceCase) {
   if (maintenanceCase.status === 'reported') {
     return [{ value: 'takeover', label: translate('maintenance.takeOver', 'Bearbeitung uebernehmen') }];
   }
+  const hasDocumentedRepair = (maintenanceCase.entries || []).some((entry) => entry.entry_type === 'repair');
   const options = [{ value: 'note', label: translate('admin.addNote', 'Notiz ergaenzen') }];
   if (['blocked', 'repairing', 'tested'].includes(maintenanceCase.status)) {
     options.unshift({ value: 'repair', label: translate('admin.documentRepair', 'Reparatur dokumentieren') });
   }
-  if (maintenanceCase.status === 'repairing') {
+  if (maintenanceCase.status === 'repairing' && hasDocumentedRepair) {
     options.unshift({ value: 'test', label: translate('admin.documentTest', 'Funktionspruefung dokumentieren') });
   }
   if (maintenanceCase.status === 'tested') {
