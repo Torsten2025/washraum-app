@@ -91,6 +91,7 @@ npm run check
 | BOOK-14 | Hausregelmodus | Bestehende Haeuser default GBMZ; nur Superadmin kann gbmz/liberal waehlen oder wechseln; liberal erlaubt jede freie aktive Ressource in jedem nicht vergangenen Slot einschliesslich Sonntag ohne GBMZ-Tages-/Zukunfts-/Trockenraum-/Tumblergrenzen; Sicherheits-, Haus-, Konflikt- und Atomaritaetsgrenzen bleiben | `npm test`, `test:roles`, `test:e2e` |
 | BOOK-15 | Liberale Empfehlung | Bereits vorhandene heutige oder kuenftige Waschbuchung beendet die Empfehlung nicht; eine weitere freie Option wird gesucht | `npm test` |
 | BOOK-16 | Persoenlicher ICS-Feed | Aktiver Bewohner und kombiniertes Bewohner-/Hausadmin-Konto koennen einen Feed erzeugen; reiner Admin nicht. URL nur direkt nach Rotation sichtbar und nach Schliessen/erneutem Oeffnen beziehungsweise Statusreload aus Input und DOM-Anzeige entfernt; nur Hash gespeichert, Rotation/Widerruf sofort, eigene Wohnungsbuchungen und zugeordnete Dauertermine, RFC5545-/Unicode-Faltung bis 75 Oktette, keine Fremddaten | `npm test`, `test:roles`, `test:e2e` |
+| BOOK-17 | Buchungsinhaber im Kalender | Eigene gemeinsame Wohnungspartei erscheint als `Du`/`You`; fremde Partei nur mit verwaltetem Wohnungsnamen im aktiven berechtigten Haus, sonst `Belegt`/`Occupied`. API und DOM enthalten keine Login-, Kontakt-, technischen Identitaets- oder Fremdhausdaten; Feed, Export, Audit und Benachrichtigungen bleiben unveraendert. | `npm test`, `test:roles`, `test:i18n`, `test:e2e` |
 
 ### Restplaetze `RP-01` bis `RP-25`
 
@@ -120,7 +121,7 @@ npm run check
 | RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
 | RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
 | RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
-| RP-25 | Releasegrenze | Sichtbar `0.3.6`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
+| RP-25 | Releasegrenze | Sichtbar `0.3.7`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
 
 ### Lean-A-Fixture `FA-01` bis `FA-12`
 
@@ -135,7 +136,7 @@ npm run check
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
 | FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
-| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.6` | `test:safety` |
+| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.7` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
 

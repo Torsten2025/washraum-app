@@ -288,8 +288,9 @@ async function run() {
         for (const house of houses) {
           const calendar = await expectStatus(house.residents[0].client, `/api/bookings?date=${sampleDate}`, 200);
           assert.ok(calendar.body.bookings.length >= 2, `Keine Buchungen fuer Haus ${house.id} in Stichprobenwoche ${week + 1}`);
-          const houseUsernames = new Set(house.residents.map((resident) => resident.username));
-          assert.ok(calendar.body.bookings.every((booking) => booking.is_fixed || houseUsernames.has(booking.username)));
+          assert.ok(calendar.body.bookings.every((booking) => (
+            !('username' in booking) && !('user_id' in booking) && !('apartment_id' in booking)
+          )));
         }
       }
     }

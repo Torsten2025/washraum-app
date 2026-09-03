@@ -748,6 +748,38 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     assert.match(await page.title(), /^WaschZeit Test \| /);
+    const ownerCalendarProjection = await page.evaluate(async () => {
+      const resources = await fetch('/api/resources').then((response) => response.json());
+      const washer = resources.resources.find((resource) => resource.type === 'washer');
+      const candidate = new Date();
+      do candidate.setDate(candidate.getDate() + 1); while (candidate.getDay() === 0);
+      const date = candidate.toISOString().slice(0, 10);
+      const created = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resourceId: washer.id, date, slot: '07:00-12:00' })
+      });
+      if (!created.ok) throw new Error(`owner-calendar setup failed: ${created.status}`);
+      const response = await fetch(`/api/bookings?date=${encodeURIComponent(date)}`);
+      const body = await response.json();
+      const own = body.bookings.find((booking) => booking.isOwn === true);
+      const forbidden = body.bookings.some((booking) => (
+        'username' in booking || 'user_id' in booking || 'apartment_id' in booking
+      ));
+      const input = document.querySelector('#bookingDate');
+      input.value = date;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return { date, own, forbidden };
+    });
+    assert.ok(ownerCalendarProjection.own);
+    assert.equal(ownerCalendarProjection.own.ownerDisplayName, null);
+    assert.equal(ownerCalendarProjection.forbidden, false);
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.booking-card p'))
+      .some((node) => node.textContent.trim() === 'You'));
+    assert.equal(await page.evaluate(async (bookingId) => {
+      const response = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
+      return response.status;
+    }, ownerCalendarProjection.own.id), 200);
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');

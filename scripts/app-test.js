@@ -777,14 +777,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.6');
+    assert.equal(health.body.version, '0.3.7');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.6');
+    assert.equal(versionStatus.body.version, '0.3.7');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1710,7 +1710,8 @@ async function run() {
     remainingExportCleanup.prepare('DELETE FROM bookings WHERE group_id = ?').run(exportGroupId);
     remainingExportCleanup.close();
     const bookingWithDoorbellName = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
-    assert.ok(bookingWithDoorbellName.body.bookings.some((booking) => booking.username === 'Meier / Keller'));
+    assert.ok(bookingWithDoorbellName.body.bookings.some((booking) => booking.isOwn && booking.ownerDisplayName === null));
+    assert.ok(bookingWithDoorbellName.body.bookings.every((booking) => !('username' in booking) && !('user_id' in booking) && !('apartment_id' in booking)));
     await expectStatus(user, '/api/me/apartment-name-request', 201, {
       method: 'POST',
       body: JSON.stringify({ displayName: 'Meier-Keller', note: 'Klingelschild wurde angepasst.' })
@@ -1727,7 +1728,7 @@ async function run() {
       })
     });
     const renamedBooking = await expectStatus(user, `/api/bookings?date=${bookingDate}`, 200);
-    assert.ok(renamedBooking.body.bookings.some((booking) => booking.username === 'Meier-Keller'));
+    assert.ok(renamedBooking.body.bookings.some((booking) => booking.isOwn && booking.ownerDisplayName === null));
     const apartmentsAfterApproval = await expectStatus(admin, '/api/admin/apartments', 200);
     assert.ok(apartmentsAfterApproval.body.apartments.some((apartment) => (
       apartment.id === existingApartment.body.apartment.id && !apartment.name_request_id
@@ -2550,8 +2551,31 @@ async function run() {
       body: JSON.stringify({ resourceId: secondWasher.id, date: bookingDate, slot: '07:00-12:00' })
     });
     const secondHouseBookings = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
-    assert.ok(secondHouseBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
-    assert.ok(!secondHouseBookings.body.bookings.some((booking) => booking.username === 'Bewohner Test'));
+    assert.ok(secondHouseBookings.body.bookings.some((booking) => booking.ownerDisplayName === null && booking.isOwn === false));
+    assert.ok(!secondHouseBookings.body.bookings.some((booking) => booking.ownerDisplayName === 'Bewohner Test'));
+    assert.ok(secondHouseBookings.body.bookings.every((booking) => !('username' in booking) && !('user_id' in booking) && !('apartment_id' in booking)));
+    const ownerProjectionDatabase = new Database(databasePath);
+    ownerProjectionDatabase.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
+      .run(existingApartment.body.apartment.id, secondHouseRegistration.body.user.id);
+    ownerProjectionDatabase.close();
+    const foreignApartmentProjection = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(foreignApartmentProjection.body.bookings.some((booking) => booking.ownerDisplayName === null));
+    assert.ok(!JSON.stringify(foreignApartmentProjection.body).includes('Meier-Keller'));
+    const inactiveProjectionDatabase = new Database(databasePath);
+    const inactiveApartment = inactiveProjectionDatabase.prepare(`
+      INSERT INTO apartments (house_id, label, display_name, active) VALUES (?, ?, ?, 0)
+    `).run(secondHouse.body.house.id, 'Inaktive Wohnung', 'Nicht anzeigen');
+    inactiveProjectionDatabase.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
+      .run(inactiveApartment.lastInsertRowid, secondHouseRegistration.body.user.id);
+    inactiveProjectionDatabase.close();
+    const inactiveApartmentProjection = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
+    assert.ok(inactiveApartmentProjection.body.bookings.some((booking) => booking.ownerDisplayName === null));
+    assert.ok(!JSON.stringify(inactiveApartmentProjection.body).includes('Nicht anzeigen'));
+    const ownerProjectionCleanup = new Database(databasePath);
+    ownerProjectionCleanup.prepare('UPDATE users SET apartment_id = NULL WHERE id = ?')
+      .run(secondHouseRegistration.body.user.id);
+    ownerProjectionCleanup.prepare('DELETE FROM apartments WHERE id = ?').run(inactiveApartment.lastInsertRowid);
+    ownerProjectionCleanup.close();
     const secondHouseUsers = await expectStatus(admin, '/api/admin/users', 200);
     const secondResident = secondHouseUsers.body.users.find((item) => item.username === 'Bewohner Haus 20');
     assert.ok(secondResident);
@@ -2642,7 +2666,7 @@ async function run() {
       preservedDefaultResourceIds
     );
     const isolatedDefaultBookings = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
-    assert.ok(!isolatedDefaultBookings.body.bookings.some((booking) => booking.username === 'Bewohner Haus 20'));
+    assert.ok(!isolatedDefaultBookings.body.bookings.some((booking) => booking.ownerDisplayName === 'Bewohner Haus 20'));
     const isolatedDefaultUsers = await expectStatus(admin, '/api/admin/users', 200);
     assert.ok(!isolatedDefaultUsers.body.users.some((item) => item.username === 'Bewohner Haus 20'));
     await expectStatus(admin, `/api/admin/users/${secondResident.id}/house`, 409, {
@@ -2993,15 +3017,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.6'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.7'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.6"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.7"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.6'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.6'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.7'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.7'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

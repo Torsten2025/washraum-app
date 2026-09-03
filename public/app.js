@@ -4366,11 +4366,13 @@ function renderSchedule() {
       card.className = `booking-card ${booking ? 'is-booked' : ''} ${booking?.is_fixed ? 'is-fixed' : ''} ${slotIsPast ? 'is-disabled' : ''}`;
 
       const owner = booking
-        ? booking.username
+        ? booking.isOwn
+          ? translate('app.you', 'Du')
+          : booking.ownerDisplayName || translate('app.occupied', 'Belegt')
         : slotIsPast
           ? translate('app.past', 'vorbei')
           : translate('app.freeLower', 'frei');
-      const canDelete = booking && !booking.is_fixed && (currentUser.canManage || booking.user_id === currentUser.bookingUserId);
+      const canDelete = booking && booking.canDelete;
       card.innerHTML = `
         <div>
           <strong>${escapeHtml(resource.name)}</strong>

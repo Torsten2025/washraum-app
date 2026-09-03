@@ -156,6 +156,7 @@
     'app.tumblers': { de: 'Tumbler', en: 'Dryers' },
     'app.free': { de: 'Frei', en: 'Available' },
     'app.occupied': { de: 'Belegt', en: 'Occupied' },
+    'app.you': { de: 'Du', en: 'You' },
     'app.blocked': { de: 'Gesperrt', en: 'Blocked' },
     'app.notBookable': { de: 'Nicht mehr buchbar', en: 'No longer bookable' },
     'app.releaseEarly': { de: 'Frueher freigeben', en: 'Release early' },

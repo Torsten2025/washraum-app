@@ -51,6 +51,30 @@ function createBookingRouters({
     code: 'MODE_NOT_APPLICABLE',
     error: 'Restplaetze sind im liberalen Hausregelmodus nicht anwendbar.'
   });
+  const projectCalendarBooking = (booking, req) => {
+    const isOwn = Boolean(
+      booking.apartment_id
+      && req.session.user.apartmentId
+      && Number(booking.apartment_id) === Number(req.session.user.apartmentId)
+    );
+    return ({
+    id: booking.id,
+    booking_date: booking.booking_date,
+    slot: booking.slot,
+    booking_kind: booking.booking_kind || 'standard',
+    resource_id: booking.resource_id,
+    resource_name: booking.resource_name,
+    resource_type: booking.resource_type,
+    is_fixed: Number(booking.is_fixed) === 1,
+    group_id: booking.group_id || null,
+    isOwn,
+    ownerDisplayName: isOwn ? null : (booking.owner_display_name || null),
+    canDelete: Boolean(
+      !booking.is_fixed
+      && (req.session.user.canManage || Number(booking.user_id) === Number(req.session.user.bookingUserId))
+    )
+    });
+  };
   const icsEscape = (value) => String(value || '')
     .replace(/\\/g, '\\\\')
     .replace(/\r?\n/g, '\\n')
@@ -356,12 +380,13 @@ function createBookingRouters({
   bookingsRouter.get('/api/my-bookings', requireAuth, (req, res) => {
     const bookings = db.prepare(`
       SELECT b.id, b.booking_date, b.slot, b.group_id, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
-             r.type AS resource_type, u.id AS user_id,
-             COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username
+             r.type AS resource_type, u.id AS user_id, u.apartment_id,
+             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, '')) AS owner_display_name,
+             0 AS is_fixed
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN users u ON u.id = b.user_id
-      LEFT JOIN apartments a ON a.id = u.apartment_id
+      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = r.house_id AND a.active = 1
       WHERE b.user_id = ?
         AND r.house_id = ?
         AND b.booking_date >= ?
@@ -373,7 +398,7 @@ function createBookingRouters({
       bookings: bookings.map((booking) => {
         const windowStatus = releaseWindowStatus(booking.booking_date, booking.slot);
         return {
-          ...booking,
+          ...projectCalendarBooking(booking, req),
           releaseEligible: windowStatus.eligible,
           cancellationNoticeEligible: windowStatus.reason === 'not_started'
         };
@@ -390,12 +415,13 @@ function createBookingRouters({
 
     const bookings = db.prepare(`
       SELECT b.id, b.booking_date, b.slot, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
-             r.type AS resource_type, u.id AS user_id,
-             COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username, 0 AS is_fixed
+             r.type AS resource_type, u.id AS user_id, u.apartment_id,
+             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, '')) AS owner_display_name, 0 AS is_fixed,
+             b.group_id
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN users u ON u.id = b.user_id
-      LEFT JOIN apartments a ON a.id = u.apartment_id
+      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = r.house_id AND a.active = 1
       WHERE b.booking_date = ? AND r.house_id = ?
       ORDER BY b.slot, r.name
     `).all(date, houseId);
@@ -404,7 +430,7 @@ function createBookingRouters({
     const allBookings = [...bookings, ...fixedBookings]
       .sort((left, right) => left.slot.localeCompare(right.slot) || left.resource_name.localeCompare(right.resource_name));
 
-    res.json({ bookings: allBookings });
+    res.json({ bookings: allBookings.map((booking) => projectCalendarBooking(booking, req)) });
   });
 
   bookingsRouter.post('/api/bookings', requireAuth, requireResident, requireApartmentAccount, (req, res) => {
