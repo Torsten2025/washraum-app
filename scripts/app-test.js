@@ -51,6 +51,7 @@ for (const module of diaperModuleSamples.values()) {
 const port = 33000 + (process.pid % 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
 const databasePath = path.join(os.tmpdir(), `waschplan-test-${process.pid}.sqlite`);
+const backupDirectory = path.join(os.tmpdir(), `waschplan-test-backups-${process.pid}`);
 const serverOutput = [];
 
 class ApiClient {
@@ -751,6 +752,7 @@ async function run() {
       NODE_ENV: 'development',
       PORT: String(port),
       DB_PATH: databasePath,
+      BACKUP_DIR: backupDirectory,
       HOUSE_CODE: 'Testhaus 18',
       SEED_ADMIN_NAME: 'admin',
       SEED_ADMIN_PASSWORD: 'Admin-Test-2026!',
@@ -775,14 +777,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.5');
+    assert.equal(health.body.version, '0.3.6');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.5');
+    assert.equal(versionStatus.body.version, '0.3.6');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -2886,11 +2888,25 @@ async function run() {
     assert.equal(backup.body.subarray(0, 15).toString(), 'SQLite format 3');
     const verifiedBackup = await expectStatus(admin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(verifiedBackup.body.status.ok, true);
+    const backupsBeforeMaintenance = fs.readdirSync(backupDirectory).filter((name) => name.endsWith('.sqlite'));
     const maintenanceStarted = await expectStatus(admin, '/api/admin/maintenance', 200, {
       method: 'PUT',
       body: JSON.stringify({ active: true, currentPassword: 'Admin-Test-2026!' })
     });
     assert.equal(maintenanceStarted.body.maintenance.active, true);
+    assert.ok(
+      Date.parse(maintenanceStarted.body.maintenance.backup.createdAt)
+        <= Date.parse(maintenanceStarted.body.maintenance.startedAt)
+    );
+    const backupsAfterMaintenance = fs.readdirSync(backupDirectory).filter((name) => name.endsWith('.sqlite'));
+    assert.equal(backupsAfterMaintenance.length, backupsBeforeMaintenance.length + 1);
+    assert.ok(!backupsBeforeMaintenance.includes(maintenanceStarted.body.maintenance.backup.filename));
+    const maintenanceBackup = new Database(
+      path.join(backupDirectory, maintenanceStarted.body.maintenance.backup.filename),
+      { readonly: true, fileMustExist: true }
+    );
+    assert.equal(maintenanceBackup.pragma('integrity_check', { simple: true }), 'ok');
+    maintenanceBackup.close();
     await expectStatus(user, '/api/bookings', 503, {
       method: 'POST',
       body: JSON.stringify({ resourceId: washers[0].id, date: bookingDate, slot: '17:00-21:00' })
@@ -2977,15 +2993,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.5'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.6'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.5"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.6"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.5'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.5'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.6'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.6'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -3385,6 +3401,7 @@ async function run() {
     for (const suffix of ['', '-wal', '-shm']) {
       fs.rmSync(`${databasePath}${suffix}`, { force: true });
     }
+    fs.rmSync(backupDirectory, { recursive: true, force: true });
   }
 }
 

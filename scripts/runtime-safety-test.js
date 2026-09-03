@@ -8,6 +8,8 @@ const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const Database = require('better-sqlite3');
+const express = require('express');
+const { createOperationsRouters } = require('../src/routes/operations');
 const { createBackupService } = require('../src/services/backup');
 const { createMailTransport } = require('../src/services/mail-transport');
 const { createOperationsService } = require('../src/services/operations');
@@ -265,7 +267,7 @@ async function verifyUnitKillSwitches() {
       getSetting() { return ''; },
       setSetting() { throw new Error('Backup-Status darf bei deaktiviertem Timer nicht geschrieben werden'); },
       createVerifiedBackup: async () => { scheduledBackupCalls += 1; },
-      appVersion: '0.3.5',
+      appVersion: '0.3.6',
       appRelease: 'synthetic',
       appReleasedAt: '2026-07-30T00:00:00.000Z',
       runtimeFlags
@@ -412,6 +414,128 @@ async function verifyPreMigrationBackupWithRuntimeBackupDisabled() {
   }
 }
 
+async function verifyProductionLocalBackup() {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-production-local-backup-'));
+  const sourcePath = path.join(temporaryRoot, 'source.sqlite');
+  const backupDir = path.join(temporaryRoot, 'backups');
+  const db = new Database(sourcePath);
+  db.exec('CREATE TABLE proof (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
+  db.prepare('INSERT INTO proof (value) VALUES (?)').run('local-production-backup');
+  const settings = new Map();
+  let providerAttempts = 0;
+  try {
+    const service = createBackupService({
+      db,
+      Database,
+      fs,
+      path,
+      env: { BACKUP_DIR: backupDir },
+      dbDir: temporaryRoot,
+      setSetting(key, value) { settings.set(key, value); },
+      fetchImpl: async () => { providerAttempts += 1; throw new Error('Provider darf nicht kontaktiert werden'); },
+      enabled: true
+    });
+    const status = await service.createVerifiedBackup();
+    assert.equal(status.ok, true);
+    assert.equal(status.uploaded, false);
+    assert.equal(providerAttempts, 0);
+    assert.equal(settings.has('backup_status'), true);
+    const files = fs.readdirSync(backupDir).filter((name) => name.endsWith('.sqlite'));
+    assert.deepEqual(files, [status.filename]);
+    const copy = new Database(path.join(backupDir, status.filename), { readonly: true, fileMustExist: true });
+    assert.equal(copy.pragma('integrity_check', { simple: true }), 'ok');
+    assert.equal(copy.prepare('SELECT value FROM proof').get().value, 'local-production-backup');
+    copy.close();
+    return { created: 1, integrity: 'ok', uploaded: false, providerAttempts };
+  } finally {
+    db.close();
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function verifyProductionPilotResetBlockedWithLocalBackupEnabled() {
+  const effects = {
+    backup: 0,
+    database: 0,
+    password: 0,
+    sessions: 0,
+    audit: 0
+  };
+  const forbiddenDatabase = {
+    prepare() {
+      effects.database += 1;
+      throw new Error('Der Produktions-Pilotreset darf die Datenbank nicht lesen oder schreiben.');
+    },
+    transaction() {
+      effects.database += 1;
+      throw new Error('Der Produktions-Pilotreset darf keine Transaktion oeffnen.');
+    }
+  };
+  const app = express();
+  app.use(express.json());
+  const routers = createOperationsRouters({
+    express,
+    db: forbiddenDatabase,
+    fs,
+    path,
+    os,
+    crypto: require('crypto'),
+    env: {},
+    dbPath: '/var/data/washraum.sqlite',
+    appVersion: '0.3.6',
+    appRelease: 'synthetic-production',
+    appEnvironment: 'production',
+    appDisplayName: 'WaschZeit',
+    requireAdmin(req, res, next) { next(); },
+    requireSuperadmin(req, res, next) { next(); },
+    currentHouseId() { return 1; },
+    isSuperadmin() { return true; },
+    writeAudit() { effects.audit += 1; },
+    maintenanceStatus() { return { active: false }; },
+    publicReleaseStatus() { return {}; },
+    async createVerifiedBackup() { effects.backup += 1; throw new Error('Backup darf nicht starten.'); },
+    runMaintenanceSelfCheck() { return {}; },
+    confirmCurrentAdminPassword() { effects.password += 1; return true; },
+    emailStatus() { return { enabled: false }; },
+    pushStatus() { return { enabled: false }; },
+    getSetting() { return ''; },
+    setSetting() { throw new Error('Settings duerfen nicht geschrieben werden.'); },
+    todayStringLocal() { return '2026-09-03'; },
+    addDays(value) { return value; },
+    destroyUserSessions() { effects.sessions += 1; },
+    runtimeFlags: {
+      backup: { enabled: true },
+      email: { enabled: false },
+      push: { enabled: false }
+    },
+    productionSafety: { production: true }
+  });
+  app.use(routers.pilotRouter);
+  const server = http.createServer(app);
+  const port = await listen(server);
+  try {
+    const client = new ApiClient(`http://127.0.0.1:${port}`);
+    const result = await expectStatus(client, '/api/admin/pilot-accounts', 403, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        confirm: 'ALLE TESTKONTEN LOESCHEN',
+        currentPassword: 'must-not-be-read'
+      })
+    });
+    assert.equal(result.body.code, 'PRODUCTION_PILOT_RESET_DISABLED');
+    assert.deepEqual(effects, {
+      backup: 0,
+      database: 0,
+      password: 0,
+      sessions: 0,
+      audit: 0
+    });
+    return { status: 403, backupEnabled: true, effects };
+  } finally {
+    await closeServer(server);
+  }
+}
+
 function verifyBlueprintsAndVersion() {
   const packageInfo = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
   const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package-lock.json'), 'utf8'));
@@ -430,12 +554,12 @@ function verifyBlueprintsAndVersion() {
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   const testPlan = fs.readFileSync(path.join(projectRoot, 'TESTPLAN_GESAMTAUDIT.md'), 'utf8');
 
-  assert.equal(packageInfo.version, '0.3.5');
+  assert.equal(packageInfo.version, '0.3.6');
   assert.equal(packageInfo.packageManager, 'npm@10.9.8');
   assert.equal(packageInfo.scripts.start, 'node startup.js');
-  assert.equal(lock.version, '0.3.5');
-  assert.equal(lock.packages[''].version, '0.3.5');
-  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.5';"));
+  assert.equal(lock.version, '0.3.6');
+  assert.equal(lock.packages[''].version, '0.3.6');
+  assert.ok(serviceWorker.includes("const CACHE_NAME = 'waschzeit-pwa-v0.3.6';"));
   assert.match(envExample, /^BACKUP_ENABLED=false$/m);
   assert.match(envExample, /^EMAIL_ENABLED=false$/m);
   assert.match(envExample, /^PRODUCTION_EMAIL_APPROVED=false$/m);
@@ -483,7 +607,7 @@ function verifyBlueprintsAndVersion() {
   assert.match(agentTest, /startCommand: npm start/);
   assert.match(agentTest, /healthCheckPath: \/api\/health/);
   assert.match(agentTest, /APP_ENV[\s\S]*value: agent-test/);
-  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.5/);
+  assert.match(agentTest, /APP_RELEASE[\s\S]*value: agent-v0\.3\.6/);
   assert.match(agentTest, /DB_PATH[\s\S]*value: \/tmp\/waschzeit-agent-test\.sqlite/);
   assert.match(agentTest, /SESSION_SECRET\s*\n\s*generateValue: true/);
   assert.match(agentTest, /SEED_ADMIN_PASSWORD\s*\n\s*sync: false/);
@@ -570,7 +694,8 @@ function verifyBlueprintsAndVersion() {
   assert.doesNotMatch(production, /NODE_VERSION/);
   assert.match(production, /DB_PATH[\s\S]*value: \/var\/data\/washraum\.sqlite/);
   assert.match(production, /mountPath: \/var\/data/);
-  assert.match(production, /BACKUP_ENABLED[\s\S]*value: false/);
+  assert.match(production, /BACKUP_ENABLED[\s\S]*value: true/);
+  assert.match(production, /BACKUP_DIR[\s\S]*value: \/var\/data\/backups/);
   assert.match(production, /APP_ENV[\s\S]*value: production/);
   assert.match(production, /WEB_CONCURRENCY[\s\S]*value: 1/);
   assert.match(production, /AUTO_BACKUP[\s\S]*value: false/);
@@ -602,6 +727,7 @@ function verifyLeanProductionSafety() {
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    localBackupEnabled: false,
     emailApproved: false,
     pushApproved: false
   });
@@ -619,6 +745,7 @@ function verifyLeanProductionSafety() {
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    localBackupEnabled: false,
     emailApproved: false,
     pushApproved: true
   });
@@ -642,6 +769,7 @@ function verifyLeanProductionSafety() {
     singleInstance: true,
     providersHeld: true,
     fixtureDisabled: true,
+    localBackupEnabled: false,
     emailApproved: true,
     pushApproved: false
   });
@@ -655,10 +783,29 @@ function verifyLeanProductionSafety() {
     dbPath: '/var/data/washraum.sqlite'
   }), { code: 'PRODUCTION_EMAIL_CONFIG' });
 
+  assert.deepEqual(assertProductionSafety({
+    env: {
+      ...validProductionEnv(),
+      BACKUP_ENABLED: 'true',
+      BACKUP_DIR: '/var/data/backups'
+    },
+    dbPath: '/var/data/washraum.sqlite'
+  }), {
+    production: true,
+    dbPath: path.resolve('/var/data/washraum.sqlite'),
+    singleInstance: true,
+    providersHeld: true,
+    fixtureDisabled: true,
+    localBackupEnabled: true,
+    emailApproved: false,
+    pushApproved: false
+  });
+
   for (const [name, value, code] of [
     ['DB_PATH', '/tmp/production.sqlite', 'PRODUCTION_STORAGE'],
     ['WEB_CONCURRENCY', '2', 'PRODUCTION_CONCURRENCY'],
-    ['BACKUP_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
+    ['BACKUP_ENABLED', 'invalid', 'PRODUCTION_FEATURE_HOLD'],
+    ['AUTO_BACKUP', 'true', 'PRODUCTION_FEATURE_HOLD'],
     ['EMAIL_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
     ['PUSH_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
     ['AGENT_TEST_FIXTURE_ENABLED', 'true', 'PRODUCTION_FEATURE_HOLD'],
@@ -674,6 +821,17 @@ function verifyLeanProductionSafety() {
       env,
       dbPath: name === 'DB_PATH' ? value : '/var/data/washraum.sqlite'
     }), { code });
+  }
+
+  for (const backupDir of ['', '/tmp/backups', '/var/data/other']) {
+    assert.throws(() => assertProductionSafety({
+      env: {
+        ...validProductionEnv(),
+        BACKUP_ENABLED: 'true',
+        BACKUP_DIR: backupDir
+      },
+      dbPath: '/var/data/washraum.sqlite'
+    }), { code: 'PRODUCTION_STORAGE' });
   }
 
   for (const appEnvironment of [undefined, '', 'staging', 'unknown']) {
@@ -950,7 +1108,7 @@ async function verifyRuntimeScenario(flagCase) {
     const guest = new ApiClient(baseUrl);
     const admin = new ApiClient(baseUrl);
     const health = await expectStatus(guest, '/api/health', 200);
-    assert.equal(health.body.version, '0.3.5');
+    assert.equal(health.body.version, '0.3.6');
     assert.deepEqual(health.body.features, {
       backup: { enabled: false },
       email: { enabled: false },
@@ -1086,15 +1244,19 @@ async function run() {
   const toolchain = verifyToolchainContract();
   const unit = await verifyUnitKillSwitches();
   const preMigrationBackup = await verifyPreMigrationBackupWithRuntimeBackupDisabled();
+  const productionLocalBackup = await verifyProductionLocalBackup();
+  const productionPilotReset = await verifyProductionPilotResetBlockedWithLocalBackupEnabled();
   const runtime = await verifyRuntimeRoutes();
   console.log(JSON.stringify({
     ok: true,
     suite: 'runtime-safety',
-    version: '0.3.5',
+    version: '0.3.6',
     toolchain,
     productionBackup,
     unit,
     preMigrationBackup,
+    productionLocalBackup,
+    productionPilotReset,
     runtime,
     providersContacted: 0
   }));

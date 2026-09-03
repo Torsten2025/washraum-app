@@ -31,6 +31,7 @@ function createOperationsRouters({
   addDays,
   destroyUserSessions,
   runtimeFlags,
+  productionSafety,
   agentTestFixtureStatus
 }) {
   const publicRouter = express.Router();
@@ -38,11 +39,19 @@ function createOperationsRouters({
   const analyticsRouter = express.Router();
   const pilotRouter = express.Router();
   const backupEnabled = runtimeFlags?.backup?.enabled === true;
+  const productionPilotResetBlocked = productionSafety?.production === true;
 
   function rejectDisabledBackup(res) {
     return res.status(503).json({
       code: 'BACKUP_DISABLED',
       error: 'Backups sind in dieser Umgebung deaktiviert.'
+    });
+  }
+
+  function rejectProductionPilotReset(res) {
+    return res.status(403).json({
+      code: 'PRODUCTION_PILOT_RESET_DISABLED',
+      error: 'Der globale Testkonten-Reset ist in Produktion deaktiviert.'
     });
   }
 
@@ -345,6 +354,7 @@ analyticsRouter.get('/api/admin/analytics', requireAdmin, (req, res) => {
 });
 
 pilotRouter.delete('/api/admin/pilot-accounts', requireAdmin, requireSuperadmin, async (req, res, next) => {
+  if (productionPilotResetBlocked) return rejectProductionPilotReset(res);
   if (!backupEnabled) return rejectDisabledBackup(res);
 
   const confirmText = String(req.body?.confirm || '').trim();

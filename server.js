@@ -1468,6 +1468,7 @@ const operationsRouters = createOperationsRouters({
   addDays,
   destroyUserSessions,
   runtimeFlags,
+  productionSafety,
   agentTestFixtureStatus: () => ({
     ...agentTestFixtureStatus,
     ...agentTestProviderBoundary.status()

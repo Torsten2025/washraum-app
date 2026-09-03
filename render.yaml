@@ -31,7 +31,7 @@ services:
       - key: AUTO_BACKUP
         value: false
       - key: BACKUP_ENABLED
-        value: false
+        value: true
       - key: BACKUP_DIR
         value: /var/data/backups
       - key: EMAIL_ENABLED

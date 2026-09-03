@@ -165,6 +165,35 @@ async function assertGermanResidentPage(page, context) {
   }
 }
 
+async function assertCalendarFeedSecretAbsentFromDom(page, secret, context) {
+  const exposure = await page.evaluate((issuedSecret) => {
+    const input = document.querySelector('#calendarFeedUrl');
+    const documentText = document.documentElement.textContent || '';
+    const documentMarkup = document.documentElement.innerHTML || '';
+    const attributeLeak = [...document.querySelectorAll('*')].some((element) => (
+      [...element.attributes].some((attribute) => attribute.value.includes(issuedSecret))
+    ));
+    return {
+      inputValueEmpty: input?.value === '',
+      inputAttributeEmpty: !input?.getAttribute('value'),
+      wrapperHidden: document.querySelector('#calendarFeedUrlWrap')?.hidden === true,
+      copyButtonHidden: document.querySelector('#copyCalendarFeedButton')?.hidden === true,
+      secretInText: documentText.includes(issuedSecret),
+      secretInMarkup: documentMarkup.includes(issuedSecret),
+      secretInAttribute: attributeLeak
+    };
+  }, secret);
+  assert.deepEqual(exposure, {
+    inputValueEmpty: true,
+    inputAttributeEmpty: true,
+    wrapperHidden: true,
+    copyButtonHidden: true,
+    secretInText: false,
+    secretInMarkup: false,
+    secretInAttribute: false
+  }, `${context}: einmalige Kalenderadresse blieb im DOM sichtbar oder auslesbar`);
+}
+
 const settingsLocalizationChecks = {
   profile: [
     /Deine Kontodaten/i,
@@ -737,18 +766,21 @@ async function run() {
       document.querySelector('#calendarFeedUrl')?.value.length > 64
       && document.querySelector('#copyCalendarFeedButton')?.hidden === false
     )), true);
+    const issuedCalendarFeedSecret = await page.locator('#calendarFeedUrl').inputValue();
+    assert.equal(
+      /^https?:\/\/[^/]+\/api\/calendar-feed\/[A-Za-z0-9_-]{43}\.ics$/.test(issuedCalendarFeedSecret),
+      true,
+      'calendar-feed/create: einmalige Adresse besitzt nicht das erwartete Format'
+    );
     await page.click('#closeSettingsButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
+    await assertCalendarFeedSecretAbsentFromDom(page, issuedCalendarFeedSecret, 'calendar-feed/close');
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     await page.waitForFunction(() => document.querySelector('#calendarFeedStatus')?.textContent.length > 0);
-    assert.equal(await page.evaluate(() => (
-      document.querySelector('#calendarFeedUrl')?.value === ''
-      && document.querySelector('#calendarFeedUrlWrap')?.hidden === true
-      && document.querySelector('#copyCalendarFeedButton')?.hidden === true
-    )), true);
+    await assertCalendarFeedSecretAbsentFromDom(page, issuedCalendarFeedSecret, 'calendar-feed/reopen');
     await page.click('[data-settings-target="profile"]');
     await page.selectOption('#settingsLanguage', 'en');
     await page.waitForFunction(() => document.documentElement.lang === 'en');
