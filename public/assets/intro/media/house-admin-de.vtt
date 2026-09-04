@@ -70,10 +70,10 @@ Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource
 gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und
 
 00:02:55.911 --> 00:03:03.691
-niemals automatisch geloescht. Danach dokumentierst du Reparatur und Funktionspruefung. Erst eine
+niemals automatisch geloescht. Danach dokumentierst du die Reparatur und fuehrst die Funktionspruefung aus. Eine
 
 00:03:03.691 --> 00:03:09.350
-erfolgreiche Pruefung mit Abschlussnotiz erlaubt Freigabe und Abschluss.
+erfolgreiche Pruefung schliesst den Fall und gibt eine gesperrte Ressource direkt wieder frei.
 
 00:03:10.350 --> 00:03:16.760
 Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen

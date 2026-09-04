@@ -20,7 +20,7 @@ In House and Equipment, first switch deliberately between house details and the 
 The logbook shows only the three main statuses New, In progress and Done. Personal report text stays separate and deletable. The neutral operational record contains only the resource, times and factual measures. Existing technical entries cannot be deleted or changed afterwards.
 
 7. Handle an incident through release [00:02:40.000]
-When taking over a report, explicitly choose without a preset whether to block the resource or keep it available. Existing bookings are displayed but never deleted automatically. Then document the repair and functional check. Only a successful check with a closing note permits release and closure.
+When taking over a report, explicitly choose without a preset whether to block the resource or keep it available. Existing bookings are displayed but never deleted automatically. Then document the repair and perform the functional check. A successful check closes the case and immediately releases a blocked resource.
 
 8. Maintain recurring appointments [00:03:10.000]
 A recurring package contains exactly one washing machine. You may add one drying room with a suitable duration and one tumbler. Every component is checked and saved together. A conflict creates no partial package, and removal always covers the complete future package.

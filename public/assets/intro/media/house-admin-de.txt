@@ -20,7 +20,7 @@ Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und Geraet
 Das Tagebuch zeigt nur die drei Hauptstatus Neu, In Bearbeitung und Erledigt. Persoenliche Meldungstexte bleiben getrennt und loeschbar. Im neutralen Betriebsnachweis dokumentierst du nur Ressource, Zeiten und sachliche Massnahmen. Bestehende technische Eintraege werden nicht geloescht oder nachtraeglich veraendert.
 
 7. Stoerung bis Freigabe bearbeiten [00:02:40.000]
-Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du Reparatur und Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt Freigabe und Abschluss.
+Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du die Reparatur und fuehrst die Funktionspruefung aus. Eine erfolgreiche Pruefung schliesst den Fall und gibt eine gesperrte Ressource direkt wieder frei.
 
 8. Dauertermine pflegen [00:03:10.000]
 Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen Trockenraum mit passender Nutzungsdauer und einen Tumbler hinzu. Alle Bestandteile werden gemeinsam geprueft und gespeichert. Bei einem Konflikt entsteht kein Teilpaket; entfernt wird spaeter immer das vollstaendige kuenftige Paket.

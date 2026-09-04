@@ -1,13 +1,31 @@
 name: Verify and deploy to Render
 
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
+    inputs:
+      candidate_commit:
+        description: Exact tested production candidate commit
+        required: true
+        type: string
+      backup_proof:
+        description: Signed proof token emitted by the production backup bootstrap
+        required: true
+        type: string
+      parallel_actions:
+        description: Must remain none after the final Render preflight
+        required: true
+        type: choice
+        options:
+          - none
+      render_auto_deploy:
+        description: Must remain off so the master push cannot trigger a second deploy
+        required: true
+        type: choice
+        options:
+          - off
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: render-production
@@ -22,10 +40,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      - name: Bind workflow to the tested candidate
+        env:
+          EXPECTED_CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != "master" ]; then
+            echo "::error::Production workflow must run from master."
+            exit 1
+          fi
+          if [ "$EXPECTED_CANDIDATE_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "::error::The workflow ref does not match the tested candidate."
+            exit 1
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.1
           cache: npm
 
       - name: Install dependencies
@@ -57,22 +88,13 @@ jobs:
       - name: Trigger Render deploy
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::error::GitHub secret RENDER_DEPLOY_HOOK_URL is missing."
-            exit 1
-          fi
-
-          separator='?'
-          case "$RENDER_DEPLOY_HOOK_URL" in
-            *\?*) separator='&' ;;
-          esac
-
-          curl --fail --silent --show-error \
-            --request POST \
-            --retry 3 \
-            --retry-all-errors \
-            "${RENDER_DEPLOY_HOOK_URL}${separator}ref=${GITHUB_SHA}"
+          PRODUCTION_RELEASE_PROOF_KEY: ${{ secrets.PRODUCTION_RELEASE_PROOF_KEY }}
+          PRODUCTION_CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          PRODUCTION_PARALLEL_ACTIONS: ${{ inputs.parallel_actions }}
+          PRODUCTION_AUTO_DEPLOY: ${{ inputs.render_auto_deploy }}
+          PRODUCTION_BACKUP_PROOF: ${{ inputs.backup_proof }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/trigger-production-deploy.js
 
       - name: Verify deployed commit
         env:

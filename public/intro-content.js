@@ -340,7 +340,7 @@
         startTime: 160,
         duration: 30,
         caption: 'Entscheide zuerst ausdruecklich ueber die Sperre und schliesse erst nach erfolgreicher Pruefung ab.',
-        transcript: 'Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du Reparatur und Funktionspruefung. Erst eine erfolgreiche Pruefung mit Abschlussnotiz erlaubt Freigabe und Abschluss.',
+        transcript: 'Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du die Reparatur und fuehrst die Funktionspruefung aus. Eine erfolgreiche Pruefung schliesst den Fall und gibt eine gesperrte Ressource direkt wieder frei.',
         scene: 'house-admin-incident-lifecycle',
         visual: { kind: 'app', view: 'equipment-logbook', focus: 'incident-workflow' }
       },
@@ -470,7 +470,7 @@
         startTime: 160,
         duration: 30,
         caption: 'Decide explicitly about blocking first, then close only after a successful check.',
-        transcript: 'When taking over a report, explicitly choose without a preset whether to block the resource or keep it available. Existing bookings are displayed but never deleted automatically. Then document the repair and functional check. Only a successful check with a closing note permits release and closure.',
+        transcript: 'When taking over a report, explicitly choose without a preset whether to block the resource or keep it available. Existing bookings are displayed but never deleted automatically. Then document the repair and perform the functional check. A successful check closes the case and immediately releases a blocked resource.',
         scene: 'house-admin-incident-lifecycle',
         visual: { kind: 'app', view: 'equipment-logbook', focus: 'incident-workflow' }
       },

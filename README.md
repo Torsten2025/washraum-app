@@ -81,7 +81,7 @@ Fuer eine neue Datenbank muessen in Render mindestens gesetzt sein:
 
 Die SQLite-Daten liegen unter `/var/data/washraum.sqlite`. Bestehende Daten bleiben bei Deployments erhalten. Der Render-Build verwendet reproduzierbar `npm ci`.
 
-Der Workflow `.github/workflows/deploy-render.yml` installiert Chromium, fuehrt `npm run check` einschliesslich verbindlichem Browser- und Screenshot-Test aus und ruft erst danach den geheimen Render Deploy Hook fuer genau den getesteten Commit auf. Die Screenshots fuer Mobiltelefon, Tablet und Desktop bleiben 14 Tage als CI-Artefakt erhalten. GitHub benoetigt das Repository Secret `RENDER_DEPLOY_HOOK_URL`.
+Der Workflow `.github/workflows/deploy-render.yml` wird ausschliesslich manuell nach dem Produktionsgate gestartet. Er akzeptiert nur den kryptografisch signierten Nachweis des tatsaechlich in der Render-Laufzeit erzeugten und isoliert wiederhergestellten SQLite-Backups, gleicht den signierten Livecommit und die Liveversion nochmals mit `/api/health` ab, installiert Chromium, fuehrt `npm run check` einschliesslich Browser- und Screenshot-Test aus und sendet danach exakt einen Render-Deploy-Hookrequest ohne Retry oder Redirect. Freie Hash-/PASS-Eingaben, ungueltige oder alte Nachweise und jeder unklare Zustand stoppen vor dem Hook. Die Screenshots fuer Mobiltelefon, Tablet und Desktop bleiben 14 Tage als CI-Artefakt erhalten. GitHub benoetigt die getrennten Repository-Secrets `RENDER_DEPLOY_HOOK_URL` und `PRODUCTION_RELEASE_PROOF_KEY`.
 
 ## E-Mail-Hinweise
 

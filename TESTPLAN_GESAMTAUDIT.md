@@ -121,7 +121,7 @@ npm run check
 | RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
 | RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
 | RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
-| RP-25 | Releasegrenze | Sichtbar `0.3.7`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
+| RP-25 | Releasegrenze | Sichtbar `0.3.10`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
 
 ### Lean-A-Fixture `FA-01` bis `FA-12`
 
@@ -136,7 +136,7 @@ npm run check
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
 | FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
-| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.7` | `test:safety` |
+| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.10` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
 
@@ -152,8 +152,8 @@ Das Releasegate prueft zusaetzlich die einzige erlaubte Choreografie: ein gemein
 | LOG-02 | Weitere Meldung | Erzeugt einen eigenen Report am offenen neutralen Fall statt eines zweiten Parallelfalls oder einer vermischten Reporterchronik | `npm test`, `node scripts/maintenance-reporting-test.js` |
 | LOG-03 | Uebernahme/Sperre | Ohne explizite Wahl `sperren`/`verfuegbar lassen` keine Mutation; Wahl und Statuswechsel atomar. `action=block`, allgemeine Ressourcenbearbeitung, fehlende/ungueltige Wahl, Fremdhaus und parallele Uebernahme koennen den ersten Wechsel aus Neu nicht umgehen. Eine Sperre entfernt/verschiebt keine bestehende Buchungszeile und weist Betroffenheit nur lesend aus | `npm test`, `test:roles` |
 | LOG-04 | Reparatur | Sachliche Pflichtnotiz und Statusfolge fuer gesperrte wie verfuegbare Faelle; kein Abschluss direkt aus Bearbeitung | `npm test`, `test:roles` |
-| LOG-05 | Funktionspruefung | Erst nach dokumentierter Reparatur; fehlgeschlagen bleibt in Bearbeitung, erfolgreich erlaubt den passenden Abschluss | `npm test`, `test:roles` |
-| LOG-06 | Freigabe/Abschluss | Nur nach Reparatur, erfolgreicher Pruefung und Abschlussnotiz; fallbezogene Sperre atomar freigeben, sonst Ressource unveraendert aktiv lassen | `npm test`, `test:roles` |
+| LOG-05 | Funktionspruefung | Erst nach dokumentierter Reparatur; fehlgeschlagen bleibt in Bearbeitung und gegebenenfalls gesperrt, erfolgreich schliesst den Fall atomar | `npm test`, `test:roles` |
+| LOG-06 | Freigabe/Abschluss | Die erfolgreiche Funktionspruefung ist der Abschlussnachweis und gibt eine fallbezogene Sperre in derselben Transaktion frei; ohne Sperre bleibt die Ressource aktiv. Historische `tested`-Faelle bleiben ueber die alten Abschlussaktionen kompatibel | `npm test`, `test:roles` |
 | LOG-07 | Unveraenderbarkeit | Keine Loeschroute; alte Chronik bleibt erhalten | `npm test` |
 | LOG-08 | Suche und Hausgrenze | Haus-Admin nur eigenes Haus; Superadmin ausschliesslich das serverseitig aktiv gewaehlte Haus, Fremdhaus-ID liefert 404 ohne Seiteneffekt | `test:roles` |
 | LOG-09 | Idempotente Erstellung | Gleicher kontogebundener Schluessel und gleiches normalisiertes Payload liefern dieselbe report_id ohne zweite Mutation; abweichendes Payload liefert 409; Pre-Commit-Fehler speichert nichts | `npm test`, `node scripts/maintenance-reporting-test.js` |
@@ -220,6 +220,9 @@ Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Bu
 | OPS-06 | Produktion | `/api/health`, persistenter Pfad, Revision, SMTP, Push und externes Backup | Manueller Live-Test |
 | OPS-07 | Isoliertes Staging | Eigener Dienst und Zweig, Auto-Deploy aus, `npm ci`, Healthcheck, fluechtige `/tmp`-DB, keine Disk/Produktions-Env-Gruppe und alle drei Kill-Switches exakt `false` | `test:safety`, Blueprintreview |
 | OPS-08 | Lean-Produktionsstart | Fehlende/falsche Produktionsidentitaet, Seed-Force-Reset, aktive Backup-/Nachrichtenflags oder vorhandene Upload-/Providerbindungen stoppen vor Dateisystem/SQLite; `AUTO_BACKUP=false` startet auch in Produktion keinen Scheduler. Der Offline-Pruefer akzeptiert nur den allowlisteten WaschZeit-Schemakern, meldet ausschliesslich Hashes/Zaehler und lehnt eine fremde Einzeltabelle ohne Inhaltsausgabe ab | `test:safety`, `npm test` |
+| OPS-09 | Produktionsbackup und Einmal-Deployhook | Exakte Dienst-/Livecommit-/Liveversion-`0.3.4`-/Kandidaten-`0.3.10`-/Pfadbindung vor Wirkung; Online-Backup und isolierte Restorekopie besitzen identische Datei-, Schema- und Zaehlerhashes. Das Bootstrap-Bundle wird vor dem Kandidatendeploy aus dem exakten nichtdeployenden Commit geladen und vor Ausfuehrung bytegenau gegen ein separat gefrorenes Manifest geprueft. Der Bootstrap signiert den Nachweis mit einem getrennten 256-Bit-Schluessel. Eine atomar erzeugte, nicht deployende GitHub-Ref verbraucht jeden Nonce genau einmal vor Livecheck und Hook; Replay, paralleler Lauf, unsicherer Ledgerzustand oder Crash nach Verbrauch stoppen ohne weiteren Versuch. Der Workflow akzeptiert weder freie Hash-/PASS-Eingaben noch einen ungueltigen, alten oder umgebungsfremden Nachweis und vergleicht danach den realen Health-Commit und die Liveversion. Falsche Identitaet, Symlink/Reparsepunkt, vorhandenes Ziel, Parallelitaet, defekte/fremde DB, Integritaets-/FK-/Schema-/Zaehlerabweichung sowie Backup-/Restorefehler stoppen ohne veroeffentlichtes Artefakt. Der manuelle Workflow sendet bei Erfolg genau einen Hook-POST ohne Redirect/Retry; erfundener Proof, fehlender Livebeleg, Timeout, Queue, Transport, Status-/Bodyabweichung bleiben terminal vor dem Hook | `test:production-release`, `test:safety`, Workflowreview |
+
+| OPS-10 | Stabile Produktionsquelle | Strukturpruefung und Onlinebackup verwenden dieselbe durchgehend offene SQLite-Verbindung; ein zusaetzlicher read-only Dateideskriptor bindet die Geraete-/Inodeidentitaet. Austauschversuche waehrend Bindung, Pruefung, Backup, Restore, Publikation oder Proofbildung stoppen ohne publiziertes Backup und ohne PASS-Proof | `test:production-release` |
 
 ## Manuelle Live-Abnahme
 

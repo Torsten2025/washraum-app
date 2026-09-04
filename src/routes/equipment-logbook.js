@@ -525,10 +525,15 @@ function createEquipmentLogbookRouter({
       }
       const successful = req.body?.successful === true;
       entryType = successful ? 'test_passed' : 'test_failed';
-      nextStatus = successful ? 'tested' : 'repairing';
+      nextStatus = successful ? 'closed' : 'repairing';
+      shouldReleaseResource = successful && caseHasBlock;
       message = successful
-        ? 'Funktionspruefung bestanden. Die Freigabe ist jetzt moeglich.'
-        : 'Funktionspruefung nicht bestanden. Die Ressource bleibt gesperrt.';
+        ? caseHasBlock
+          ? `${resource.name} wurde nach bestandener Funktionspruefung freigegeben und der Fall abgeschlossen.`
+          : 'Funktionspruefung bestanden und der Fall wurde abgeschlossen.'
+        : caseHasBlock
+          ? 'Funktionspruefung nicht bestanden. Die Ressource bleibt gesperrt.'
+          : 'Funktionspruefung nicht bestanden. Der Fall bleibt in Bearbeitung.';
     } else if (action === 'release') {
       if (
         maintenanceCase.status !== 'tested'

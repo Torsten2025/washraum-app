@@ -501,13 +501,15 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'repair', note: 'Haus-Admin dokumentiert die Reparatur.' })
     });
-    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+    const completedHouseAdminTest = await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'test', successful: true, note: 'Haus-Admin bestaetigt den Probelauf.' })
     });
-    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 200, {
+    assert.equal(completedHouseAdminTest.body.status, 'closed');
+    assert.equal(completedHouseAdminTest.body.visibleStatus, 'done');
+    await expectStatus(houseAdmin, `/api/admin/maintenance-cases/${secondHouseIssue.body.id}/actions`, 409, {
       method: 'POST',
-      body: JSON.stringify({ action: 'release', note: 'Reparatur abgeschlossen und Probelauf erfolgreich.' })
+      body: JSON.stringify({ action: 'release', note: 'Der atomar abgeschlossene Fall bleibt unveraenderbar.' })
     });
     const superadminCases = await expectStatus(superadmin, '/api/admin/maintenance-cases', 200);
     assert.ok(superadminCases.body.cases.some((item) => item.id === secondHouseIssue.body.id));

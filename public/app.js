@@ -5898,16 +5898,23 @@ function renderMaintenanceCases() {
     noteLabel.append(note);
     const submit = document.createElement('button');
     submit.type = 'submit';
-    submit.textContent = translate('admin.saveEntry', 'Eintrag speichern');
+    const wasBlocked = (maintenanceCase.entries || []).some((entry) => entry.entry_type === 'block');
     const syncActionFields = () => {
       decisionField.hidden = actionSelect.value !== 'takeover';
       testLabel.hidden = actionSelect.value !== 'test';
       actionForm.classList.toggle('has-test-result', actionSelect.value === 'test');
+      submit.textContent = actionSelect.value === 'test' && testResult.value === 'true'
+        ? wasBlocked
+          ? translate('maintenance.releaseAndClose', 'Freigeben und abschliessen')
+          : translate('maintenance.closeCase', 'Fall abschliessen')
+        : translate('admin.saveEntry', 'Eintrag speichern');
       note.placeholder = ['release', 'close'].includes(actionSelect.value)
+        || (actionSelect.value === 'test' && testResult.value === 'true')
         ? translate('admin.releaseNotePlaceholder', 'Pflicht: ausgefuehrte Arbeit und erfolgreichen Probelauf festhalten.')
         : translate('admin.notePlaceholder', 'Sachlich festhalten, was gemacht oder festgestellt wurde.');
     };
     actionSelect.addEventListener('change', syncActionFields);
+    testResult.addEventListener('change', syncActionFields);
     actionForm.append(actionLabel, decisionField, testLabel, noteLabel, submit);
     syncActionFields();
     actionForm.addEventListener('submit', async (event) => {

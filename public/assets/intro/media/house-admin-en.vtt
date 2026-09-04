@@ -85,10 +85,10 @@ whether to block the resource or keep it available. Existing
 bookings are displayed but never deleted automatically. Then document the
 
 00:02:59.263 --> 00:03:05.567
-repair and functional check. Only a successful check with a
+repair and perform the functional check. A successful check closes the
 
 00:03:05.567 --> 00:03:09.350
-closing note permits release and closure.
+case and immediately releases a blocked resource.
 
 00:03:10.350 --> 00:03:16.898
 A recurring package contains exactly one washing machine. You may add

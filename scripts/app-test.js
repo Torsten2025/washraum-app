@@ -777,14 +777,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.7');
+    assert.equal(health.body.version, '0.3.10');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.7');
+    assert.equal(versionStatus.body.version, '0.3.10');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -2328,27 +2328,31 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'repair', note: 'Ablaufschlauch neu befestigt.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+    const failedTest = await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'test', successful: false, note: 'Erster Probelauf zeigt noch Feuchtigkeit.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
+    assert.equal(failedTest.body.status, 'repairing');
+    assert.equal(failedTest.body.visibleStatus, 'in_progress');
+    const resourcesAfterFailedTest = await expectStatus(admin, '/api/admin/resources', 200);
+    assert.ok(resourcesAfterFailedTest.body.resources.some((resource) => (
+      resource.id === addedResource.body.id && resource.active === 0
+    )));
+    const passedTest = await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'test', successful: true, note: 'Zweiter Probelauf ohne Wasseraustritt.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 400, {
+    assert.equal(passedTest.body.status, 'closed');
+    assert.equal(passedTest.body.visibleStatus, 'done');
+    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 409, {
       method: 'POST',
-      body: JSON.stringify({ action: 'release', note: '' })
-    });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${reportedIssue.body.id}/actions`, 200, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'release', note: 'Ablaufschlauch befestigt, Probelauf erfolgreich.' })
+      body: JSON.stringify({ action: 'release', note: 'Ein bereits abgeschlossener Fall bleibt unveraenderbar.' })
     });
     const closedIssues = await expectStatus(admin, '/api/admin/maintenance-cases', 200);
     const closedIssue = closedIssues.body.cases.find((item) => item.id === reportedIssue.body.id);
     assert.equal(closedIssue.status, 'closed');
     assert.deepEqual(closedIssue.entries.map((entry) => entry.entry_type), [
-      'block', 'repair', 'test_failed', 'test_passed', 'release'
+      'block', 'repair', 'test_failed', 'test_passed'
     ]);
     assert.equal(closedIssue.reports.length, 3);
     assert.ok(closedIssue.reports.some((report) => report.description.includes('FREMDREPORT-SENTINEL')));
@@ -2400,20 +2404,59 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'close', note: 'Abschluss vor Funktionspruefung.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
+    const testedAvailable = await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'test', successful: true, note: 'Probelauf ohne Auffaelligkeit.' })
     });
-    const closeAvailable = await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 200, {
+    assert.equal(testedAvailable.body.status, 'closed');
+    assert.equal(testedAvailable.body.visibleStatus, 'done');
+    await expectStatus(admin, `/api/admin/maintenance-cases/${availableCase.body.id}/actions`, 409, {
       method: 'POST',
       body: JSON.stringify({ action: 'close', note: 'Abdeckung befestigt und Probelauf erfolgreich.' })
     });
-    assert.equal(closeAvailable.body.status, 'closed');
-    assert.equal(closeAvailable.body.visibleStatus, 'done');
     const availableResourcesAfterClose = await expectStatus(admin, '/api/admin/resources', 200);
     assert.ok(availableResourcesAfterClose.body.resources.some((resource) => (
       resource.id === availableResource.body.id && resource.active === 1
     )));
+
+    const legacyAvailableCase = await expectStatus(user, '/api/maintenance-cases', 201, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'app-test-report-legacy-tested-0001' },
+      body: JSON.stringify({
+        resourceId: availableResource.body.id,
+        title: 'Historischer Pruefstatus',
+        description: 'Dieser Fall bildet den alten Zwischenstatus nach einer erfolgreichen Pruefung ab.'
+      })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${legacyAvailableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'takeover',
+        blockDecision: 'keep_available',
+        note: 'Historischer Fall bleibt fuer die Pruefung verfuegbar.'
+      })
+    });
+    await expectStatus(admin, `/api/admin/maintenance-cases/${legacyAvailableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'repair', note: 'Historische Reparatur dokumentiert.' })
+    });
+    const legacyTestedDatabase = new Database(databasePath);
+    legacyTestedDatabase.transaction(() => {
+      legacyTestedDatabase.prepare(`
+        INSERT INTO maintenance_entries (case_id, entry_type, note, created_by)
+        VALUES (?, 'test_passed', 'Historische Funktionspruefung bestanden.', ?)
+      `).run(legacyAvailableCase.body.id, adminLogin.body.user.id);
+      legacyTestedDatabase.prepare(`
+        UPDATE maintenance_cases SET status = 'tested' WHERE id = ?
+      `).run(legacyAvailableCase.body.id);
+    })();
+    legacyTestedDatabase.close();
+    const legacyClose = await expectStatus(admin, `/api/admin/maintenance-cases/${legacyAvailableCase.body.id}/actions`, 200, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'close', note: 'Historischen Zwischenstatus abgeschlossen.' })
+    });
+    assert.equal(legacyClose.body.status, 'closed');
+    assert.equal(legacyClose.body.visibleStatus, 'done');
 
     await expectStatus(admin, `/api/admin/resources/${addedResource.body.id}`, 200, {
       method: 'PUT',
@@ -2431,14 +2474,12 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ action: 'repair', note: 'Sichtkontrolle und Reinigung abgeschlossen.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
+    const directBlockTest = await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
       method: 'POST',
       body: JSON.stringify({ action: 'test', successful: true, note: 'Testbetrieb erfolgreich.' })
     });
-    await expectStatus(admin, `/api/admin/maintenance-cases/${directBlockCase.id}/actions`, 200, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'release', note: 'Reinigung abgeschlossen, Testbetrieb erfolgreich.' })
-    });
+    assert.equal(directBlockTest.body.status, 'closed');
+    assert.equal(directBlockTest.body.visibleStatus, 'done');
 
     const privacyInspection = new Database(databasePath, { readonly: true });
     const neutralCases = privacyInspection.prepare(`
@@ -2998,6 +3039,7 @@ async function run() {
     const appJs = fs.readFileSync(path.resolve(__dirname, '..', 'public', 'app.js'), 'utf8');
     assert.ok(appJs.includes("maintenanceCase.status === 'repairing' && hasDocumentedRepair"));
     assert.ok(appJs.includes("entry.entry_type === 'repair'"));
+    assert.ok(appJs.includes("actionSelect.value === 'test' && testResult.value === 'true'"));
     const rolesDocument = fs.readFileSync(path.resolve(__dirname, '..', '.agents', 'ROLES.md'), 'utf8');
     const handbookDocument = fs.readFileSync(path.resolve(__dirname, '..', 'HANDBUCH.md'), 'utf8');
     const roleMatrixTestDocument = fs.readFileSync(path.resolve(__dirname, 'role-matrix-test.js'), 'utf8');
@@ -3017,15 +3059,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.7'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.10'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.7"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.10"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.7'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.7'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.10'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.10'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
