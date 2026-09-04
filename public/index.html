@@ -69,6 +69,14 @@
       <button id="updateAppButton" type="button">Jetzt aktualisieren</button>
     </section>
 
+    <section id="whatsNewNotice" class="app-update-notice whats-new-notice" aria-labelledby="whatsNewTitle" hidden>
+      <div>
+        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.11</strong>
+        <span data-i18n="whatsNew.summary">Namen bei belegten Terminen, bessere Desktop-App-Ansicht, einfacherer Kalenderfeed und aktivierte Datensicherung. Bei Haeusern waehlt der Superadmin bei der Anlage oder spaeter GBMZ (bisherige Regeln) oder Liberal (freie Eintragung in freie Slots; keine Doppelbelegung und nur im berechtigten Haus).</span>
+      </div>
+      <button id="dismissWhatsNewButton" type="button" data-i18n="common.understood">Verstanden</button>
+    </section>
+
     <main class="layout">
       <div class="main-column">
         <section class="intro-panel">
@@ -976,6 +984,11 @@
               <div>
                 <h4 id="calendarFeedTitle" data-i18n="settings.calendarFeedTitle">Persoenlicher Kalenderfeed</h4>
                 <p class="muted" data-i18n="settings.calendarFeedHint">Abonniere deine eigenen und gemeinsam gebuchten Wohnungstermine. Die geheime Adresse darf nicht weitergegeben werden und aktualisiert sich automatisch.</p>
+                <ol class="calendar-feed-steps">
+                  <li data-i18n="settings.calendarFeedStepCreate">Geheime Abo-Adresse erstellen.</li>
+                  <li data-i18n="settings.calendarFeedStepCopy">Adresse kopieren oder direkt in der Kalender-App oeffnen.</li>
+                  <li data-i18n="settings.calendarFeedStepSubscribe">In deinem Kalender &quot;Kalender abonnieren&quot; beziehungsweise &quot;Per URL hinzufuegen&quot; waehlen und die Adresse einfuegen.</li>
+                </ol>
                 <p id="calendarFeedStatus" class="muted" role="status"></p>
                 <label id="calendarFeedUrlWrap" hidden>
                   <span data-i18n="settings.calendarFeedUrl">Geheime Kalenderadresse</span>
@@ -985,6 +998,7 @@
               <div class="inline-actions">
                 <button id="createCalendarFeedButton" class="secondary" type="button" data-i18n="settings.calendarFeedCreate">Adresse erstellen oder ersetzen</button>
                 <button id="copyCalendarFeedButton" class="secondary" type="button" hidden data-i18n="settings.calendarFeedCopy">Adresse kopieren</button>
+                <a id="openCalendarFeedButton" class="button-link secondary" hidden data-i18n="settings.calendarFeedOpen">In Kalender-App oeffnen</a>
                 <button id="revokeCalendarFeedButton" class="text-button" type="button" hidden data-i18n="settings.calendarFeedRevoke">Adresse widerrufen</button>
               </div>
             </section>

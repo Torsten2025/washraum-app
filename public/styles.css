@@ -44,6 +44,12 @@
   display: none;
 }
 
+.whats-new-notice {
+  position: relative;
+  top: auto;
+  z-index: 1;
+}
+
 .app-update-notice > div {
   display: grid;
   gap: 2px;
@@ -8821,6 +8827,24 @@ body.admin-view .user-admin-actions button {
   padding: 0 0 18px;
 }
 
+.calendar-feed-steps {
+  color: var(--muted);
+  display: grid;
+  font-size: 14px;
+  gap: 6px;
+  line-height: 1.45;
+  margin: 12px 0;
+  padding-left: 22px;
+}
+
+.whats-new-notice {
+  border-bottom-color: var(--accent);
+}
+
+.whats-new-notice span {
+  line-height: 1.45;
+}
+
 .settings-help-video {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -8940,7 +8964,7 @@ body:not(.admin-view) .side-panel {
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
   }

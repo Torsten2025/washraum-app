@@ -777,14 +777,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.10');
+    assert.equal(health.body.version, '0.3.11');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.10');
+    assert.equal(versionStatus.body.version, '0.3.11');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1752,6 +1752,26 @@ async function run() {
     assert.equal(apartmentRegistration.body.user.apartmentLabel, '3. OG rechts');
     assert.equal(apartmentRegistration.body.user.displayName, 'Familie Neu');
     assert.notEqual(apartmentRegistration.body.user.username, 'Partei Neu Konto');
+    const legacyOwnerDate = '2098-05-05';
+    const legacyOwnerDatabase = new Database(databasePath);
+    const legacyAlias = legacyOwnerDatabase.prepare(`
+      INSERT INTO users (username, password_hash, role, house_id, active, merged_into_user_id)
+      SELECT ?, password_hash, 'user', house_id, 0, id FROM users WHERE id = ?
+    `).run('Zusammengefuehrtes Altkonto', apartmentRegistration.body.user.id);
+    const legacyOwnerBooking = legacyOwnerDatabase.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot)
+      VALUES (?, ?, ?, '12:00-17:00')
+    `).run(legacyAlias.lastInsertRowid, washers[0].id, legacyOwnerDate);
+    legacyOwnerDatabase.close();
+    const legacyOwnerProjection = await expectStatus(user, `/api/bookings?date=${legacyOwnerDate}`, 200);
+    const projectedLegacyBooking = legacyOwnerProjection.body.bookings.find((booking) => (
+      Number(booking.id) === Number(legacyOwnerBooking.lastInsertRowid)
+    ));
+    assert.equal(projectedLegacyBooking.ownerDisplayName, 'Familie Neu');
+    assert.equal(projectedLegacyBooking.isOwn, false);
+    assert.ok(!('username' in projectedLegacyBooking));
+    assert.ok(!('user_id' in projectedLegacyBooking));
+    assert.ok(!('apartment_id' in projectedLegacyBooking));
     await expectStatus(new ApiClient(), '/api/login', 401, {
       method: 'POST',
       body: JSON.stringify({ username: 'Partei Neu Konto', password: 'Partei-Neu-2026!' })
@@ -3059,15 +3079,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.10'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.11'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.10"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.11"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.10'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.10'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.11'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.11'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

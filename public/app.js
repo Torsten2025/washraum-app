@@ -160,12 +160,15 @@ const auditLog = document.querySelector('#auditLog');
 const appUpdateNotice = document.querySelector('#appUpdateNotice');
 const appUpdateText = document.querySelector('#appUpdateText');
 const updateAppButton = document.querySelector('#updateAppButton');
+const whatsNewNotice = document.querySelector('#whatsNewNotice');
+const dismissWhatsNewButton = document.querySelector('#dismissWhatsNewButton');
 const appVersionText = document.querySelector('#appVersionText');
 const checkAppUpdateButton = document.querySelector('#checkAppUpdateButton');
 const calendarFeedCard = document.querySelector('#calendarFeedCard');
 const calendarFeedStatus = document.querySelector('#calendarFeedStatus');
 const calendarFeedUrlWrap = document.querySelector('#calendarFeedUrlWrap');
 const calendarFeedUrl = document.querySelector('#calendarFeedUrl');
+const openCalendarFeedButton = document.querySelector('#openCalendarFeedButton');
 const createCalendarFeedButton = document.querySelector('#createCalendarFeedButton');
 const copyCalendarFeedButton = document.querySelector('#copyCalendarFeedButton');
 const revokeCalendarFeedButton = document.querySelector('#revokeCalendarFeedButton');
@@ -366,6 +369,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
+const WHATS_NEW_VERSION = '0.3.11';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1232,6 +1236,8 @@ function clearCalendarFeedSecret() {
   calendarFeedUrl.value = '';
   calendarFeedUrlWrap.hidden = true;
   copyCalendarFeedButton.hidden = true;
+  openCalendarFeedButton.hidden = true;
+  openCalendarFeedButton.removeAttribute('href');
 }
 
 async function createCalendarFeed() {
@@ -1239,15 +1245,15 @@ async function createCalendarFeed() {
   calendarFeedUrl.value = new URL(data.path, window.location.origin).href;
   calendarFeedUrlWrap.hidden = false;
   copyCalendarFeedButton.hidden = false;
+  openCalendarFeedButton.href = calendarFeedUrl.value.replace(/^https?:/i, 'webcal:');
+  openCalendarFeedButton.hidden = false;
   revokeCalendarFeedButton.hidden = false;
   calendarFeedStatus.textContent = translate('settings.calendarFeedCreated', 'Adresse erstellt. Sie wird nur jetzt angezeigt und ersetzt eine fruehere Adresse sofort.');
 }
 
 async function revokeCalendarFeed() {
   await api('/api/me/calendar-feed', { method: 'DELETE' });
-  calendarFeedUrl.value = '';
-  calendarFeedUrlWrap.hidden = true;
-  copyCalendarFeedButton.hidden = true;
+  clearCalendarFeedSecret();
   revokeCalendarFeedButton.hidden = true;
   calendarFeedStatus.textContent = translate('settings.calendarFeedRevoked', 'Die Kalenderadresse wurde widerrufen.');
 }
@@ -1828,6 +1834,26 @@ function renderReleaseStatus(status = latestReleaseStatus) {
   applyMaintenanceStatus(status?.maintenance || {});
 }
 
+function whatsNewStorageKey() {
+  return `waschzeit-whats-new-understood-${loadedAppVersion}`;
+}
+
+function showWhatsNewOnce() {
+  if (loadedAppVersion !== WHATS_NEW_VERSION) return;
+  try {
+    whatsNewNotice.hidden = window.localStorage.getItem(whatsNewStorageKey()) === '1';
+  } catch {
+    whatsNewNotice.hidden = true;
+  }
+}
+
+function dismissWhatsNew() {
+  try {
+    window.localStorage.setItem(whatsNewStorageKey(), '1');
+  } catch {}
+  whatsNewNotice.hidden = true;
+}
+
 async function checkAppVersion({ manual = false } = {}) {
   if (manual) checkAppUpdateButton.disabled = true;
   try {
@@ -1959,6 +1985,7 @@ async function init() {
 
   if (i18n) await i18n.syncAccount(me.user);
   currentUser = me.user;
+  showWhatsNewOnce();
   reportIssueButton.hidden = !currentUser.canBook;
   remainingSlotPanel.hidden = !currentUser.canBook;
   await checkAppVersion();
@@ -7596,7 +7623,15 @@ resetBookingsButton.addEventListener('click', resetAllBookings);
 superadminPermissionAction.addEventListener('change', renderSuperadminPermissionTargets);
 superadminPermissionButton.addEventListener('click', updateSuperadminPermission);
 updateAppButton.addEventListener('click', requestAppUpdate);
-checkAppUpdateButton.addEventListener('click', () => checkAppVersion({ manual: true }));
+dismissWhatsNewButton.addEventListener('click', dismissWhatsNew);
+checkAppUpdateButton.addEventListener('click', async () => {
+  const status = await checkAppVersion({ manual: true });
+  if (!status || loadedAppVersion !== WHATS_NEW_VERSION) return;
+  closeSettings();
+  whatsNewNotice.hidden = false;
+  whatsNewNotice.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  dismissWhatsNewButton.focus();
+});
 checkMaintenanceButton.addEventListener('click', async () => {
   checkMaintenanceButton.disabled = true;
   const status = await checkAppVersion({ manual: true });

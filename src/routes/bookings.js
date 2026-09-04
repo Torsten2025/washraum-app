@@ -380,13 +380,19 @@ function createBookingRouters({
   bookingsRouter.get('/api/my-bookings', requireAuth, (req, res) => {
     const bookings = db.prepare(`
       SELECT b.id, b.booking_date, b.slot, b.group_id, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
-             r.type AS resource_type, u.id AS user_id, u.apartment_id,
-             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, '')) AS owner_display_name,
+             r.type AS resource_type, u.id AS user_id,
+             COALESCE(a.id, claimed_a.id) AS apartment_id,
+             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, ''),
+                      NULLIF(claimed_a.display_name, ''), NULLIF(claimed_a.label, '')) AS owner_display_name,
              0 AS is_fixed
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN users u ON u.id = b.user_id
-      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = r.house_id AND a.active = 1
+      LEFT JOIN users merged_owner ON merged_owner.id = u.merged_into_user_id AND merged_owner.active = 1
+      LEFT JOIN apartments a ON a.id = COALESCE(u.apartment_id, merged_owner.apartment_id)
+        AND a.house_id = r.house_id AND a.active = 1
+      LEFT JOIN apartments claimed_a ON claimed_a.claimed_by = COALESCE(u.merged_into_user_id, u.id)
+        AND claimed_a.house_id = r.house_id AND claimed_a.active = 1
       WHERE b.user_id = ?
         AND r.house_id = ?
         AND b.booking_date >= ?
@@ -415,13 +421,19 @@ function createBookingRouters({
 
     const bookings = db.prepare(`
       SELECT b.id, b.booking_date, b.slot, b.booking_kind, r.id AS resource_id, r.name AS resource_name,
-             r.type AS resource_type, u.id AS user_id, u.apartment_id,
-             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, '')) AS owner_display_name, 0 AS is_fixed,
+             r.type AS resource_type, u.id AS user_id,
+             COALESCE(a.id, claimed_a.id) AS apartment_id,
+             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, ''),
+                      NULLIF(claimed_a.display_name, ''), NULLIF(claimed_a.label, '')) AS owner_display_name, 0 AS is_fixed,
              b.group_id
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
       JOIN users u ON u.id = b.user_id
-      LEFT JOIN apartments a ON a.id = u.apartment_id AND a.house_id = r.house_id AND a.active = 1
+      LEFT JOIN users merged_owner ON merged_owner.id = u.merged_into_user_id AND merged_owner.active = 1
+      LEFT JOIN apartments a ON a.id = COALESCE(u.apartment_id, merged_owner.apartment_id)
+        AND a.house_id = r.house_id AND a.active = 1
+      LEFT JOIN apartments claimed_a ON claimed_a.claimed_by = COALESCE(u.merged_into_user_id, u.id)
+        AND claimed_a.house_id = r.house_id AND claimed_a.active = 1
       WHERE b.booking_date = ? AND r.house_id = ?
       ORDER BY b.slot, r.name
     `).all(date, houseId);

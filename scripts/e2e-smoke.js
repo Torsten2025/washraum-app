@@ -56,6 +56,7 @@ const visualViewports = [
   { name: 'small-mobile', width: 320, height: 720 },
   { name: 'mobile', width: 390, height: 844 },
   { name: 'tablet', width: 768, height: 1024 },
+  { name: 'desktop-app', width: 1048, height: 943 },
   { name: 'desktop', width: 1440, height: 900 }
 ];
 
@@ -178,6 +179,8 @@ async function assertCalendarFeedSecretAbsentFromDom(page, secret, context) {
       inputAttributeEmpty: !input?.getAttribute('value'),
       wrapperHidden: document.querySelector('#calendarFeedUrlWrap')?.hidden === true,
       copyButtonHidden: document.querySelector('#copyCalendarFeedButton')?.hidden === true,
+      openButtonHidden: document.querySelector('#openCalendarFeedButton')?.hidden === true,
+      openButtonHrefAbsent: !document.querySelector('#openCalendarFeedButton')?.hasAttribute('href'),
       secretInText: documentText.includes(issuedSecret),
       secretInMarkup: documentMarkup.includes(issuedSecret),
       secretInAttribute: attributeLeak
@@ -188,6 +191,8 @@ async function assertCalendarFeedSecretAbsentFromDom(page, secret, context) {
     inputAttributeEmpty: true,
     wrapperHidden: true,
     copyButtonHidden: true,
+    openButtonHidden: true,
+    openButtonHrefAbsent: true,
     secretInText: false,
     secretInMarkup: false,
     secretInAttribute: false
@@ -747,6 +752,31 @@ async function run() {
     assert.equal(await page.locator('#settingsTitle').innerText(), 'A quick setup.');
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
+    await page.waitForSelector('#whatsNewNotice:not([hidden])');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.11');
+    const whatsNewText = await page.locator('#whatsNewNotice').innerText();
+    assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
+    assert.match(whatsNewText, /GBMZ/);
+    assert.match(whatsNewText, /Liberal/);
+    assert.match(whatsNewText, /no double bookings/i);
+    assert.match(whatsNewText, /authorized house/i);
+    await page.click('#dismissWhatsNewButton');
+    assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
+    assert.equal(await page.evaluate(() => (
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.11')
+    )), '1');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(currentUser));
+    assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
+    await page.click('#accountMenuButton');
+    await page.click('#openSettingsButton');
+    await page.waitForSelector('#settingsOverlay:not([hidden])');
+    await page.click('[data-settings-target="device"]');
+    await page.click('#checkAppUpdateButton');
+    await page.waitForSelector('#whatsNewNotice:not([hidden])');
+    assert.equal(await page.locator('#settingsOverlay').isHidden(), true);
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'dismissWhatsNewButton');
+    await page.click('#dismissWhatsNewButton');
     assert.match(await page.title(), /^WaschZeit Test \| /);
     const ownerCalendarProjection = await page.evaluate(async () => {
       const resources = await fetch('/api/resources').then((response) => response.json());
@@ -783,6 +813,7 @@ async function run() {
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
+    await page.click('[data-settings-target="profile"]');
     assert.ok(await page.locator('#notificationEmail').isVisible());
     await page.click('[data-settings-target="notifications"]');
     assert.ok(await page.locator('#notifyReleases').isVisible());
@@ -797,6 +828,10 @@ async function run() {
     assert.equal(await page.evaluate(() => (
       document.querySelector('#calendarFeedUrl')?.value.length > 64
       && document.querySelector('#copyCalendarFeedButton')?.hidden === false
+      && document.querySelector('#openCalendarFeedButton')?.hidden === false
+      && document.querySelector('#openCalendarFeedButton')?.getAttribute('href')
+        === document.querySelector('#calendarFeedUrl')?.value.replace(/^https?:/i, 'webcal:')
+      && document.querySelectorAll('.calendar-feed-steps li').length === 3
     )), true);
     const issuedCalendarFeedSecret = await page.locator('#calendarFeedUrl').inputValue();
     assert.equal(
@@ -804,15 +839,31 @@ async function run() {
       true,
       'calendar-feed/create: einmalige Adresse besitzt nicht das erwartete Format'
     );
+    await page.click('#createCalendarFeedButton');
+    await page.waitForFunction((previousSecret) => (
+      document.querySelector('#calendarFeedUrl')?.value
+      && document.querySelector('#calendarFeedUrl').value !== previousSecret
+    ), issuedCalendarFeedSecret);
+    const replacedCalendarFeedSecret = await page.locator('#calendarFeedUrl').inputValue();
+    assert.equal(await page.evaluate((oldSecret) => (
+      !document.documentElement.innerHTML.includes(oldSecret)
+      && !String(document.querySelector('#openCalendarFeedButton')?.getAttribute('href') || '').includes(oldSecret)
+    ), issuedCalendarFeedSecret), true);
+    await page.click('#revokeCalendarFeedButton');
+    await page.waitForFunction(() => document.querySelector('#revokeCalendarFeedButton')?.hidden === true);
+    await assertCalendarFeedSecretAbsentFromDom(page, replacedCalendarFeedSecret, 'calendar-feed/revoke');
+    await page.click('#createCalendarFeedButton');
+    await page.waitForFunction(() => document.querySelector('#calendarFeedUrl')?.value.length > 64);
+    const finalCalendarFeedSecret = await page.locator('#calendarFeedUrl').inputValue();
     await page.click('#closeSettingsButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
-    await assertCalendarFeedSecretAbsentFromDom(page, issuedCalendarFeedSecret, 'calendar-feed/close');
+    await assertCalendarFeedSecretAbsentFromDom(page, finalCalendarFeedSecret, 'calendar-feed/close');
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     await page.waitForFunction(() => document.querySelector('#calendarFeedStatus')?.textContent.length > 0);
-    await assertCalendarFeedSecretAbsentFromDom(page, issuedCalendarFeedSecret, 'calendar-feed/reopen');
+    await assertCalendarFeedSecretAbsentFromDom(page, finalCalendarFeedSecret, 'calendar-feed/reopen');
     await page.click('[data-settings-target="profile"]');
     await page.selectOption('#settingsLanguage', 'en');
     await page.waitForFunction(() => document.documentElement.lang === 'en');
