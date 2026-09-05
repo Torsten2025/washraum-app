@@ -6,6 +6,7 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 const {
   BACKUP_CONTRACT_VERSION,
@@ -95,6 +96,96 @@ function createContractDatabase(databasePath, options = {}) {
   db.close();
 }
 
+async function createAppDatabase(databasePath, backupDir) {
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectRoot,
+    env: {
+      ...Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key))),
+      NODE_ENV: 'development', APP_ENV: 'test', PORT: '0',
+      DB_PATH: databasePath, BACKUP_DIR: backupDir,
+      BACKUP_ENABLED: 'false', AUTO_BACKUP: 'false', EMAIL_ENABLED: 'false', PUSH_ENABLED: 'false',
+      HOUSE_CODE: 'backup-schema-test', SEED_ADMIN_NAME: 'backup-schema-admin',
+      SEED_ADMIN_PASSWORD: 'Backup-Schema-Test-2026!',
+      SESSION_SECRET: 'backup-schema-test-session-secret-at-least-32-characters'
+    },
+    stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('APP_SCHEMA_START_TIMEOUT')), 15_000);
+      let output = '';
+      child.stdout.on('data', (chunk) => {
+        output += chunk.toString();
+        if (output.includes('Waschplan App laeuft auf')) { clearTimeout(timer); resolve(); }
+      });
+      child.stderr.resume();
+      child.once('error', () => { clearTimeout(timer); reject(new Error('APP_SCHEMA_START_ERROR')); });
+      child.once('exit', () => { clearTimeout(timer); reject(new Error('APP_SCHEMA_EARLY_EXIT')); });
+    });
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((resolve) => child.once('exit', resolve));
+      child.kill();
+      await exited;
+    }
+  }
+}
+
+async function verifyAppGeneratedSchemaBackup() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-app-schema-backup-'));
+  try {
+    const contract = backupInput(root);
+    fs.mkdirSync(contract.backupDir);
+    await createAppDatabase(contract.input.databasePath, contract.backupDir);
+    const db = new Database(contract.input.databasePath);
+    let calendarSql;
+    try {
+      calendarSql = db.prepare("SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'calendar_feed_tokens'").get()?.sql;
+      assert.ok(calendarSql, 'The app must create the actual calendar feed table');
+      const user = db.prepare('SELECT id, house_id FROM users ORDER BY id LIMIT 1').get();
+      const apartment = db.prepare('INSERT INTO apartments (house_id, label) VALUES (?, ?)').run(user.house_id, 'Backup schema fixture');
+      db.prepare('INSERT INTO calendar_feed_tokens (user_id, apartment_id, house_id, token_hash) VALUES (?, ?, ?, ?)')
+        .run(user.id, apartment.lastInsertRowid, user.house_id, crypto.createHash('sha256').update(PII_CANARY).digest('hex'));
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } finally { db.close(); }
+    const sourceBefore = fs.readFileSync(contract.input.databasePath);
+    const verified = verifyDatabaseArtifact(contract.input.databasePath);
+    assert.equal(verified.tableCounts.calendar_feed_tokens, 1);
+    const proof = await createProductionBackup(contract.input, contract.options);
+    assert.equal(proof.ok, true);
+    assert.equal(proof.restoreDrill.ok, true);
+    assert.equal(proof.tableCounts.calendar_feed_tokens, 1);
+    assert.deepEqual(fs.readFileSync(contract.input.databasePath), sourceBefore);
+
+    const variants = [
+      ['unknown-table', (fixture) => fixture.exec('CREATE TABLE foreign_private_table (id INTEGER PRIMARY KEY)')],
+      ['missing-column', (fixture) => fixture.exec(`DROP TABLE calendar_feed_tokens; ${calendarSql.replace('revoked_at TEXT,', '')}`)],
+      ['missing-foreign-key', (fixture) => fixture.exec(`DROP TABLE calendar_feed_tokens; ${calendarSql.replace('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,', '')}`)],
+      ['wrong-foreign-key', (fixture) => fixture.exec(`DROP TABLE calendar_feed_tokens; ${calendarSql.replace('REFERENCES apartments(id)', 'REFERENCES houses(id)')}`)],
+      ['wrong-delete-action', (fixture) => fixture.exec(`DROP TABLE calendar_feed_tokens; ${calendarSql.replace('ON DELETE CASCADE', 'ON DELETE RESTRICT')}`)]
+    ];
+    for (const [name, mutate] of variants) {
+      const filePath = path.join(root, `${name}.sqlite`);
+      fs.copyFileSync(contract.input.databasePath, filePath);
+      const fixture = new Database(filePath);
+      try { mutate(fixture); } finally { fixture.close(); }
+      assert.throws(() => verifyDatabaseArtifact(filePath), (error) => error.code === 'SCHEMA_CONTRACT', name);
+    }
+    const orphanPath = path.join(root, 'orphan-feed.sqlite');
+    fs.copyFileSync(contract.input.databasePath, orphanPath);
+    const orphan = new Database(orphanPath);
+    try {
+      orphan.pragma('foreign_keys = OFF');
+      orphan.exec('UPDATE calendar_feed_tokens SET user_id = 999999');
+    } finally { orphan.close(); }
+    assert.throws(() => verifyDatabaseArtifact(orphanPath), (error) => error.code === 'FOREIGN_KEYS');
+  } finally {
+    assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()));
+    assert.ok(path.basename(root).startsWith('waschzeit-app-schema-backup-'));
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function backupInput(root, overrides = {}) {
   const backupDir = path.join(root, 'backups');
   return {
@@ -105,9 +196,9 @@ function backupInput(root, overrides = {}) {
       expectedLiveCommit: LIVE_COMMIT,
       actualLiveCommit: LIVE_COMMIT,
       candidateCommit: CANDIDATE_COMMIT,
-      expectedLiveVersion: '0.3.10',
-      actualLiveVersion: '0.3.10',
-      candidateVersion: '0.3.11',
+      expectedLiveVersion: '0.3.11',
+      actualLiveVersion: '0.3.11',
+      candidateVersion: '0.3.12',
       databasePath: path.join(root, 'washraum.sqlite'),
       targetPath: expectedTargetPath(CANDIDATE_COMMIT, backupDir, path)
     },
@@ -139,8 +230,8 @@ function validProof(now = Date.now()) {
     domain: PRODUCTION_DOMAIN,
     sourceCommit: LIVE_COMMIT,
     candidateCommit: CANDIDATE_COMMIT,
-    sourceVersion: '0.3.10',
-    candidateVersion: '0.3.11',
+    sourceVersion: '0.3.11',
+    candidateVersion: '0.3.12',
     databasePath: '/var/data/washraum.sqlite',
     backupPath: `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`,
     bootstrapObserved: true,
@@ -219,8 +310,8 @@ async function verifyBackupBootstrap() {
     assert.equal(proof.contract, BACKUP_CONTRACT_VERSION);
     assert.equal(proof.sourceCommit, LIVE_COMMIT);
     assert.equal(proof.candidateCommit, CANDIDATE_COMMIT);
-    assert.equal(proof.sourceVersion, '0.3.10');
-    assert.equal(proof.candidateVersion, '0.3.11');
+    assert.equal(proof.sourceVersion, '0.3.11');
+    assert.equal(proof.candidateVersion, '0.3.12');
     assert.equal(proof.sourceOpenedReadOnly, true);
     assert.equal(proof.targetCreatedExactlyOnce, true);
     assert.equal(proof.restoreDrill.ok, true);
@@ -486,8 +577,8 @@ function verifyArgumentAndProofContracts() {
     '--service', 'washraum-app',
     '--expected-live-commit', LIVE_COMMIT,
     '--candidate-commit', CANDIDATE_COMMIT,
-    '--expected-live-version', '0.3.10',
-    '--candidate-version', '0.3.11',
+    '--expected-live-version', '0.3.11',
+    '--candidate-version', '0.3.12',
     '--database', '/var/data/washraum.sqlite',
     '--target', `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`
   ]);
@@ -496,8 +587,8 @@ function verifyArgumentAndProofContracts() {
   const livePackageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-live-package-'));
   try {
     const livePackagePath = path.join(livePackageRoot, 'package.json');
-    fs.writeFileSync(livePackagePath, '{"version":"0.3.10"}\n');
-    assert.equal(readLiveVersion(livePackagePath), '0.3.10');
+    fs.writeFileSync(livePackagePath, '{"version":"0.3.11"}\n');
+    assert.equal(readLiveVersion(livePackagePath), '0.3.11');
     assert.throws(() => readLiveVersion(path.join(livePackageRoot, 'missing.json')), /LIVE_VERSION_SOURCE/);
   } finally {
     fs.rmSync(livePackageRoot, { recursive: true, force: true });
@@ -589,7 +680,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
     consumeProofImpl: consumer.consume,
     liveFetchImpl: async () => {
       liveEndpointRequests += 1;
-      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.10' }) };
+      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.11' }) };
     },
     hookFetchImpl: async () => {
       hookRequests += 1;
@@ -607,7 +698,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
   await expectBackupError('LIVE_ENDPOINT', () => runDeployment(deploymentInput(proofToken), {
     now,
     consumeProofImpl: mismatchConsumer.consume,
-    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.10' }) }),
+    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.11' }) }),
     hookFetchImpl: async () => { hookRequests += 1; throw new Error('must not run'); }
   }));
   assert.equal(hookRequests, 0);
@@ -617,7 +708,7 @@ async function verifyProofReplayAndCrashBoundaries() {
   const now = Date.now();
   const proofToken = signBackupProof(validProof(now), PROOF_KEY);
   const liveOk = async () => ({ status: 200, json: async () => ({
-    ok: true, revision: LIVE_COMMIT, version: '0.3.10'
+    ok: true, revision: LIVE_COMMIT, version: '0.3.11'
   }) });
 
   let liveRequests = 0;
@@ -780,6 +871,7 @@ function verifyWorkflowContract() {
 }
 
 async function main() {
+  await verifyAppGeneratedSchemaBackup();
   await verifyBackupBootstrap();
   await verifySourceDatabaseSwapStops();
   verifyOfflineVerifierFailures();
@@ -794,6 +886,7 @@ async function main() {
   process.stdout.write(`${JSON.stringify({
     suite: 'production-release-tooling',
     onlineBackup: true,
+    appGeneratedCalendarFeedSchema: true,
     restoreProbe: true,
     signedRuntimeProof: true,
     liveEndpointObservedBeforeHook: true,

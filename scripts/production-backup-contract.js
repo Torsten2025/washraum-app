@@ -12,15 +12,15 @@ const PRODUCTION_RENDER_SERVICE_ID = 'srv-d8k09i48aovs73di2ejg';
 const PRODUCTION_DOMAIN = 'washraum-app.onrender.com';
 const PRODUCTION_DB_PATH = '/var/data/washraum.sqlite';
 const PRODUCTION_BACKUP_DIR = '/var/data/backups';
-const EXPECTED_LIVE_VERSION = '0.3.10';
-const EXPECTED_CANDIDATE_VERSION = '0.3.11';
+const EXPECTED_LIVE_VERSION = '0.3.11';
+const EXPECTED_CANDIDATE_VERSION = '0.3.12';
 const SIGNED_PROOF_CONTRACT_VERSION = 'waschzeit-signed-predeploy-proof-v1';
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const ALLOWED_TABLES = new Set([
   'account_recovery_codes', 'activity_entries', 'apartment_invitations',
   'apartment_name_requests', 'apartments', 'audit_log', 'blocked_dates',
-  'booking_day_usage', 'bookings', 'device_pairing_codes',
+  'booking_day_usage', 'bookings', 'calendar_feed_tokens', 'device_pairing_codes',
   'diaper_game_challenge_scores', 'diaper_game_rounds', 'diaper_game_scores',
   'email_verification_tokens', 'fixed_bookings', 'houses',
   'maintenance_admin_notifications', 'maintenance_cases', 'maintenance_entries',
@@ -37,6 +37,14 @@ const REQUIRED_TABLE_COLUMNS = Object.freeze({
   resources: Object.freeze(['id', 'name', 'type', 'house_id', 'active']),
   settings: Object.freeze(['key', 'value']),
   users: Object.freeze(['id', 'username', 'password_hash', 'role', 'house_id', 'is_superadmin', 'active'])
+});
+// Older artifacts may predate calendar feeds. If present, the table must keep
+// the complete token lifecycle and its account/apartment/house deletion bounds.
+const CALENDAR_FEED_COLUMNS = Object.freeze([
+  'id', 'user_id', 'apartment_id', 'house_id', 'token_hash', 'created_at', 'revoked_at'
+]);
+const CALENDAR_FEED_FOREIGN_KEYS = Object.freeze({
+  user_id: 'users', apartment_id: 'apartments', house_id: 'houses'
 });
 
 class ProductionBackupError extends Error {
@@ -239,6 +247,16 @@ function inspectDatabase(db, filePath, fsImpl = fs, options = {}) {
   for (const [name, requiredColumns] of Object.entries(REQUIRED_TABLE_COLUMNS)) {
     const actualColumns = columnsByTable.get(name);
     if (!actualColumns || requiredColumns.some((column) => !actualColumns.has(column))) reject('SCHEMA_CONTRACT');
+  }
+  const calendarColumns = columnsByTable.get('calendar_feed_tokens');
+  if (calendarColumns) {
+    if (CALENDAR_FEED_COLUMNS.some((column) => !calendarColumns.has(column))) reject('SCHEMA_CONTRACT');
+    const foreignKeys = db.pragma("foreign_key_list('calendar_feed_tokens')");
+    if (foreignKeys.length !== Object.keys(CALENDAR_FEED_FOREIGN_KEYS).length
+      || Object.entries(CALENDAR_FEED_FOREIGN_KEYS).some(([column, table]) => !foreignKeys.some((foreignKey) => (
+        foreignKey.from === column && foreignKey.table === table && foreignKey.to === 'id'
+        && Number(foreignKey.seq) === 0 && foreignKey.on_delete === 'CASCADE'
+      )))) reject('SCHEMA_CONTRACT');
   }
 
   const tableCounts = {};

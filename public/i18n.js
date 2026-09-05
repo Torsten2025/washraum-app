@@ -494,7 +494,7 @@
     'settings.calendarFeedCreated': { de: 'Adresse erstellt. Sie wird nur jetzt angezeigt und ersetzt eine fruehere Adresse sofort.', en: 'Address created. It is shown only now and immediately replaces any previous address.' },
     'settings.calendarFeedRevoked': { de: 'Die Kalenderadresse wurde widerrufen.', en: 'The calendar address has been revoked.' },
     'settings.calendarFeedCopied': { de: 'Adresse kopiert. Behandle sie wie ein Passwort.', en: 'Address copied. Treat it like a password.' },
-    'whatsNew.title': { de: 'Neu in Version 0.3.11', en: 'New in version 0.3.11' },
+    'whatsNew.title': { de: 'Neu in Version 0.3.12', en: 'New in version 0.3.12' },
     'whatsNew.summary': { de: 'Namen bei belegten Terminen, bessere Desktop-App-Ansicht, einfacherer Kalenderfeed und aktivierte Datensicherung. Bei Haeusern waehlt der Superadmin bei der Anlage oder spaeter GBMZ (bisherige Regeln) oder Liberal (freie Eintragung in freie Slots; keine Doppelbelegung und nur im berechtigten Haus).', en: 'Names on occupied bookings, a better desktop app layout, a simpler calendar feed and enabled backups. When creating a house or later, the superadmin can choose GBMZ (the previous rules) or Liberal (free booking in available slots; still no double bookings and only in the authorized house).' },
     'common.understood': { de: 'Verstanden', en: 'Got it' },
     'settings.newPassword': { de: 'Neues Passwort', en: 'New password' },

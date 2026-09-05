@@ -343,7 +343,7 @@
 }
 
 .calendar-slot-detail.is-past {
-  opacity: 0.58;
+  opacity: 1;
 }
 
 .calendar-slot-detail-head {
@@ -415,7 +415,7 @@
   border-radius: 5px;
   color: var(--night);
   display: flex;
-  font-size: 10px;
+  font-size: 12px;
   gap: 6px;
   justify-content: space-between;
   min-height: 32px;
@@ -428,8 +428,27 @@ button.calendar-resource {
 }
 
 .calendar-resource strong {
-  font-size: 9px;
-  white-space: nowrap;
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  white-space: normal;
+}
+
+.calendar-resource > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calendar-resource.is-booked,
+.calendar-resource.is-own {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.calendar-resource.is-booked strong,
+.calendar-resource.is-own strong {
+  text-align: left;
 }
 
 .calendar-resource.is-free {

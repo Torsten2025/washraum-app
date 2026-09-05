@@ -555,6 +555,140 @@ async function gateNextRequest(page, pattern, { reject = false } = {}) {
   };
 }
 
+async function verifyDayDialogNames(page, databasePath, screenshotDirectory) {
+  await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
+  const longName = 'Familie Langnamensbeispiel-Sommerfeld / Gemeinschaft Sonnenberg und Winterhalder';
+  const context = await page.evaluate(() => ({ userId: currentUser.id, anchorDate: calendarAnchorDate }));
+  const db = new Database(databasePath);
+  let apartmentId;
+  let otherUserId;
+  let resources = [];
+  try {
+  const owner = db.prepare('SELECT id, house_id, apartment_id FROM users WHERE id = ?').get(context.userId);
+  apartmentId = db.prepare('INSERT INTO apartments (house_id, label, display_name) VALUES (?, ?, ?)')
+    .run(owner.house_id, 'Day dialog fixture', longName).lastInsertRowid;
+  otherUserId = db.prepare(`
+    INSERT INTO users (username, password_hash, role, house_id, apartment_id)
+    SELECT 'PRIVATE-DIALOG-LOGIN', password_hash, 'user', house_id, ? FROM users WHERE id = ?
+  `).run(apartmentId, owner.id).lastInsertRowid;
+  resources = ['Dialog Normal', 'Dialog Dauertermin', 'Dialog Eigene Buchung'].map((name) =>
+    db.prepare("INSERT INTO resources (name, type, house_id) VALUES (?, 'washer', ?)").run(name, owner.house_id).lastInsertRowid);
+  const dates = ['2025-01-06', '2098-01-06'];
+  for (const date of dates) {
+    db.prepare("INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, ?, '07:00-12:00')")
+      .run(otherUserId, resources[0], date);
+    db.prepare("INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, ?, '07:00-12:00')")
+      .run(owner.id, resources[2], date);
+  }
+    db.prepare(`INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, active, created_by)
+      VALUES (?, 1, '07:00-12:00', 'PRIVATE-FIXED-LABEL', ?, 1, ?)`)
+      .run(resources[1], apartmentId, owner.id);
+    fs.mkdirSync(screenshotDirectory, { recursive: true });
+    for (const language of ['de', 'en']) {
+      await page.evaluate((value) => WZ_I18N.setLanguage(value, { persist: false }), language);
+      const tumblerLabels = await page.evaluate(() => {
+        const previousMode = currentBookingRuleMode;
+        const markup = {};
+        try {
+          for (const mode of ['gbmz', 'liberal']) {
+            currentBookingRuleMode = mode;
+            markup[mode] = calendarSlotTypeMarkup({ closed: false, ownByType: { washer: 0 } }, {
+              past: false, slot: '07:00-12:00', types: { tumbler: { free: 2, total: 2, resources: [] } }
+            }, calendarResourceTypes.find((item) => item.type === 'tumbler'));
+          }
+        } finally { currentBookingRuleMode = previousMode; }
+        return markup;
+      });
+      assert.match(tumblerLabels.gbmz, language === 'de' ? /einer bleibt frei/ : /one remains free/);
+      assert.doesNotMatch(tumblerLabels.liberal, /einer bleibt frei|one remains free/);
+      assert.match(tumblerLabels.liberal, language === 'de' ? /2 von 2 frei/ : /2 of 2 available/);
+      for (const width of [390, 760, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const date of dates) {
+          await page.evaluate(async (selectedDate) => {
+            closeCalendarPreview();
+            syncCalendarPeriod(selectedDate);
+            await loadCalendar();
+          }, date);
+          const day = page.locator(`#weekCalendar [data-calendar-date="${date}"]`);
+          await day.focus();
+          await page.waitForSelector('#calendarDayDetails:not([hidden])');
+          await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('#calendarDayDetails')).opacity) === 1);
+          const dialog = page.locator('#calendarDayDetails');
+          assert.equal(await dialog.locator('.is-booked strong').filter({ hasText: longName }).count(), 2);
+          assert.ok(await dialog.locator('.is-own strong').filter({ hasText: language === 'de' ? /deine Buchung/i : /your booking/i }).count());
+          assert.doesNotMatch(await dialog.innerText(), /PRIVATE-DIALOG-LOGIN|PRIVATE-FIXED-LABEL/);
+          const bounds = await dialog.evaluate((element) => ({
+            fits: element.scrollWidth <= element.clientWidth + 1,
+            textFits: [...element.querySelectorAll('.calendar-resource strong')].every((item) => item.scrollWidth <= item.clientWidth + 1),
+            pastReadable: [...element.querySelectorAll('.calendar-slot-detail.is-past')].every((item) => Number(getComputedStyle(item).opacity) === 1),
+            left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right
+          }));
+          assert.equal(bounds.fits && bounds.textFits && bounds.pastReadable, true, JSON.stringify({ language, width, date, bounds }));
+          assert.ok(bounds.left >= 0 && bounds.right <= width + 1);
+          if (date === dates[0]) {
+            assert.equal(await dialog.locator('.calendar-slot-note.is-muted').count(), 3);
+            await page.screenshot({ path: path.join(screenshotDirectory, `day-dialog-${language}-${width}.png`) });
+          }
+          await page.evaluate(() => closeCalendarPreview());
+        }
+      }
+    }
+  } finally {
+    for (const resourceId of resources) {
+      db.prepare('DELETE FROM bookings WHERE resource_id = ?').run(resourceId);
+      db.prepare('DELETE FROM fixed_bookings WHERE resource_id = ?').run(resourceId);
+      db.prepare('DELETE FROM resources WHERE id = ?').run(resourceId);
+    }
+    if (otherUserId) db.prepare('DELETE FROM users WHERE id = ?').run(otherUserId);
+    if (apartmentId) db.prepare('DELETE FROM apartments WHERE id = ?').run(apartmentId);
+    db.close();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => WZ_I18N.setLanguage('en', { persist: false }));
+    await page.evaluate(async (anchorDate) => { closeCalendarPreview(); syncCalendarPeriod(anchorDate); await loadCalendar(); }, context.anchorDate);
+  }
+}
+
+async function verifyTakeoverFilter(residentPage, adminPage) {
+  const report = await residentPage.evaluate(async () => {
+    const resourceData = await fetch('/api/resources').then((response) => response.json());
+    const resource = resourceData.resources.find((item) => item.type === 'washer');
+    const response = await fetch('/api/maintenance-cases', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ resourceId: resource.id, title: 'Filter regression', description: 'Synthetische Uebernahmepruefung', notifyPush: false, notifyEmail: false })
+    });
+    if (response.status !== 201) throw new Error(`Takeover fixture failed: ${response.status}`);
+    return { ...(await response.json()), resourceName: resource.name };
+  });
+  await adminPage.evaluate(async () => {
+    await loadAdmin(); setAppView('admin'); setAdminSection('logbook');
+    maintenanceStatusFilter.value = 'new'; maintenanceSearch.value = ''; renderMaintenanceCases();
+  });
+  const card = adminPage.locator('.maintenance-case').filter({ hasText: report.resourceName }).first();
+  await card.locator('input[value="keep_available"]').check();
+  await card.locator('textarea').fill('Synthetische Uebernahme ohne Sperre.');
+  const routePattern = `**/api/admin/maintenance-cases/${report.id}/actions`;
+  const failOnce = (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Synthetic takeover unavailable' }) });
+  await adminPage.route(routePattern, failOnce);
+  await card.locator('button[type="submit"]').click();
+  await adminPage.waitForFunction(() => document.querySelector('#statusText')?.textContent.includes('Synthetic takeover unavailable'));
+  assert.equal(await adminPage.locator('#maintenanceStatusFilter').inputValue(), 'new');
+  await adminPage.unroute(routePattern, failOnce);
+  await card.locator('button[type="submit"]').click();
+  await adminPage.waitForFunction(() => document.querySelector('#maintenanceStatusFilter')?.value === 'in_progress');
+  await adminPage.waitForSelector('.maintenance-case.status-in_progress');
+  assert.ok(await adminPage.locator('.maintenance-case.status-in_progress').filter({ hasText: report.resourceName }).isVisible());
+  await adminPage.evaluate(async (caseId) => {
+    for (const action of [
+      { action: 'repair', note: 'Synthetische Pruefung erledigt.' },
+      { action: 'test', successful: true, note: 'Synthetische Funktionspruefung erfolgreich.' }
+    ]) {
+      await api(`/api/admin/maintenance-cases/${caseId}/actions`, { method: 'POST', body: JSON.stringify(action) });
+    }
+    await loadAdmin(); setAppView('booking');
+  }, report.id);
+}
+
 async function run() {
   const playwright = await loadPlaywright();
   const port = 34000 + (process.pid % 1000);
@@ -753,7 +887,7 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.11');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.12');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
     assert.match(whatsNewText, /GBMZ/);
@@ -763,7 +897,7 @@ async function run() {
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.11')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.12')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -810,6 +944,7 @@ async function run() {
       const response = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
       return response.status;
     }, ownerCalendarProjection.own.id), 200);
+    await verifyDayDialogNames(page, databasePath, screenshotDirectory);
     await page.click('#accountMenuButton');
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
@@ -1467,6 +1602,7 @@ async function run() {
     await passiveAdminPage.waitForFunction(() => document.querySelector('#adminBox')?.hidden === false);
     await passiveInitGate.remove();
     await passiveAdminContext.close();
+    await verifyTakeoverFilter(page, adminPage);
 
     await adminPage.waitForSelector('#weekCalendar [data-calendar-date]');
     const readHouseState = () => adminPage.evaluate(() => ({

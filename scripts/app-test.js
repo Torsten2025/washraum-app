@@ -777,14 +777,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.11');
+    assert.equal(health.body.version, '0.3.12');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.11');
+    assert.equal(versionStatus.body.version, '0.3.12');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1627,7 +1627,7 @@ async function run() {
     const unicodeResource = unicodeCalendarDatabase.prepare(`
       INSERT INTO resources (name, type, house_id, active) VALUES (?, 'drying_room', ?, 1)
     `).run(unicodeResourceName, storedCalendarToken.house_id);
-    unicodeCalendarDatabase.prepare(`
+    const unicodeFixed = unicodeCalendarDatabase.prepare(`
       INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, active, created_by)
       VALUES (?, 1, '12:00-17:00', 'Kalender Unicode', ?, 1, ?)
     `).run(unicodeResource.lastInsertRowid, existingApartment.body.apartment.id, registration.body.user.id);
@@ -1642,6 +1642,59 @@ async function run() {
     assert.ok(calendarText.split('\r\n').every((line) => Buffer.byteLength(line, 'utf8') <= 75));
     assert.match(calendarText.replace(/\r\n /g, ''), new RegExp(unicodeResourceName));
     assert.doesNotMatch(calendarText, /bewohner-test@example\.com|Meier-Keller|user_id|apartment_id/i);
+    const readFeedEvents = async () => {
+      const result = await expectStatus(guest, firstCalendarFeed.body.path, 200);
+      const text = result.body.toString('utf8').replace(/\r\n /g, '');
+      return { text, events: text.split('BEGIN:VEVENT\r\n').slice(1).map((part) => part.split('END:VEVENT')[0]) };
+    };
+    const uidOf = (event) => event.match(/^UID:(.+)$/m)?.[1].trim();
+    const beforeFeedChange = await readFeedEvents();
+    const fixedUid = uidOf(beforeFeedChange.events.find((event) => event.includes(unicodeResourceName)));
+    assert.ok(fixedUid);
+    const feedLifecycleDb = new Database(databasePath);
+    const feedNormal = feedLifecycleDb.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, '2098-05-05', '12:00-17:00')
+    `).run(registration.body.user.id, unicodeResource.lastInsertRowid);
+    const foreignFeedHouse = feedLifecycleDb.prepare('INSERT INTO houses (name, code) VALUES (?, ?)')
+      .run('Feed foreign fixture', 'feed-foreign-fixture');
+    const foreignFeedResource = feedLifecycleDb.prepare("INSERT INTO resources (name, type, house_id) VALUES (?, 'washer', ?)")
+      .run('FOREIGN-HOUSE-FEED-CANARY', foreignFeedHouse.lastInsertRowid);
+    const foreignFeedBooking = feedLifecycleDb.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, '2098-05-05', '12:00-17:00')
+    `).run(registration.body.user.id, foreignFeedResource.lastInsertRowid);
+    const foreignFeedFixed = feedLifecycleDb.prepare(`
+      INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, active, created_by)
+      VALUES (?, 1, '12:00-17:00', 'Foreign feed fixture', ?, 1, ?)
+    `).run(foreignFeedResource.lastInsertRowid, existingApartment.body.apartment.id, registration.body.user.id);
+    feedLifecycleDb.close();
+    const createdFeed = await readFeedEvents();
+    const normalEvent = createdFeed.events.find((event) => event.includes(unicodeResourceName) && !event.includes('RRULE:'));
+    assert.ok(normalEvent, 'An existing subscription URL must expose a newly persisted booking');
+    const normalUid = uidOf(normalEvent);
+    assert.ok(normalUid);
+    assert.ok(!beforeFeedChange.events.some((event) => uidOf(event) === normalUid));
+    assert.doesNotMatch(createdFeed.text, /FOREIGN-HOUSE-FEED-CANARY/);
+    const changedFeedDb = new Database(databasePath);
+    changedFeedDb.prepare("UPDATE bookings SET booking_date = '2098-05-06', slot = '17:00-21:00' WHERE id = ?")
+      .run(feedNormal.lastInsertRowid);
+    changedFeedDb.close();
+    const changedFeed = await readFeedEvents();
+    const changedEvent = changedFeed.events.find((event) => uidOf(event) === normalUid);
+    assert.ok(changedEvent, 'An updated booking keeps its UID on the same subscription URL');
+    assert.match(changedEvent, /DTSTART;TZID=Europe\/Zurich:20980506T170000/);
+    assert.match(changedEvent, /DTEND;TZID=Europe\/Zurich:20980506T210000/);
+    assert.ok(changedFeed.events.some((event) => uidOf(event) === fixedUid));
+    await expectStatus(user, `/api/bookings/${feedNormal.lastInsertRowid}`, 200, { method: 'DELETE' });
+    await expectStatus(admin, `/api/admin/fixed-bookings/${unicodeFixed.lastInsertRowid}`, 200, { method: 'DELETE' });
+    const removedFeed = await readFeedEvents();
+    assert.ok(!removedFeed.events.some((event) => [normalUid, fixedUid].includes(uidOf(event))));
+    assert.doesNotMatch(removedFeed.text, /FOREIGN-HOUSE-FEED-CANARY/);
+    const feedFixtureCleanup = new Database(databasePath);
+    feedFixtureCleanup.prepare('DELETE FROM bookings WHERE id = ?').run(foreignFeedBooking.lastInsertRowid);
+    feedFixtureCleanup.prepare('DELETE FROM fixed_bookings WHERE id = ?').run(foreignFeedFixed.lastInsertRowid);
+    feedFixtureCleanup.prepare('DELETE FROM resources WHERE id = ?').run(foreignFeedResource.lastInsertRowid);
+    feedFixtureCleanup.prepare('DELETE FROM houses WHERE id = ?').run(foreignFeedHouse.lastInsertRowid);
+    feedFixtureCleanup.close();
     const secondCalendarFeed = await expectStatus(user, '/api/me/calendar-feed', 201, { method: 'POST' });
     await expectStatus(guest, firstCalendarFeed.body.path, 404);
     await expectStatus(guest, secondCalendarFeed.body.path, 200);
@@ -1769,6 +1822,44 @@ async function run() {
     ));
     assert.equal(projectedLegacyBooking.ownerDisplayName, 'Familie Neu');
     assert.equal(projectedLegacyBooking.isOwn, false);
+    const legacyDayProjection = await expectStatus(user, `/api/calendar?from=${legacyOwnerDate}&days=1`, 200);
+    const legacyDayWasher = legacyDayProjection.body.days[0].slotDetails.find((item) => item.slot === '12:00-17:00')
+      .types.washer.resources.find((item) => item.resourceId === washers[0].id);
+    assert.equal(legacyDayWasher.ownerDisplayName, 'Familie Neu', 'Day dialog must expose the managed name of a merged-account booking');
+    assert.equal(legacyDayWasher.state, 'booked');
+    const legacyOwnDay = await expectStatus(apartmentResident, `/api/calendar?from=${legacyOwnerDate}&days=1`, 200);
+    const ownLegacyWasher = legacyOwnDay.body.days[0].slotDetails.find((item) => item.slot === '12:00-17:00')
+      .types.washer.resources.find((item) => item.resourceId === washers[0].id);
+    assert.equal(ownLegacyWasher.state, 'own');
+    assert.equal(ownLegacyWasher.ownerDisplayName, null);
+    const dayNameDatabase = new Database(databasePath);
+    const pastNameDate = '2025-01-06';
+    const pastNameBooking = dayNameDatabase.prepare(`
+      INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, ?, '12:00-17:00')
+    `).run(legacyAlias.lastInsertRowid, washers[0].id, pastNameDate);
+    const namedFixed = dayNameDatabase.prepare(`
+      INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, active, created_by)
+      VALUES (?, 1, '12:00-17:00', 'PRIVATE FIXED LABEL', ?, 1, ?)
+    `).run(washers[1].id, newApartment.body.apartment.id, apartmentRegistration.body.user.id);
+    dayNameDatabase.close();
+    const pastNamedDay = await expectStatus(user, `/api/calendar?from=${pastNameDate}&days=1`, 200);
+    const pastNamedSlot = pastNamedDay.body.days[0].slotDetails.find((item) => item.slot === '12:00-17:00');
+    assert.equal(pastNamedSlot.past, true);
+    for (const resourceId of [washers[0].id, washers[1].id]) {
+      const item = pastNamedSlot.types.washer.resources.find((resource) => resource.resourceId === resourceId);
+      assert.equal(item.state, 'booked');
+      assert.equal(item.ownerDisplayName, 'Familie Neu');
+    }
+    const ownFixedDay = await expectStatus(apartmentResident, `/api/calendar?from=${pastNameDate}&days=1`, 200);
+    const ownFixedResource = ownFixedDay.body.days[0].slotDetails.find((item) => item.slot === '12:00-17:00')
+      .types.washer.resources.find((item) => item.resourceId === washers[1].id);
+    assert.equal(ownFixedResource.state, 'own');
+    assert.equal(ownFixedResource.ownerDisplayName, null);
+    assert.doesNotMatch(JSON.stringify(pastNamedDay.body), /Zusammengefuehrtes Altkonto|partei-neu@example|PRIVATE FIXED LABEL|user_id|apartment_id/);
+    const dayNameCleanup = new Database(databasePath);
+    dayNameCleanup.prepare('DELETE FROM bookings WHERE id = ?').run(pastNameBooking.lastInsertRowid);
+    dayNameCleanup.prepare('DELETE FROM fixed_bookings WHERE id = ?').run(namedFixed.lastInsertRowid);
+    dayNameCleanup.close();
     assert.ok(!('username' in projectedLegacyBooking));
     assert.ok(!('user_id' in projectedLegacyBooking));
     assert.ok(!('apartment_id' in projectedLegacyBooking));
@@ -2622,6 +2713,9 @@ async function run() {
     const foreignApartmentProjection = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
     assert.ok(foreignApartmentProjection.body.bookings.some((booking) => booking.ownerDisplayName === null));
     assert.ok(!JSON.stringify(foreignApartmentProjection.body).includes('Meier-Keller'));
+    const foreignApartmentDay = await expectStatus(admin, `/api/calendar?from=${bookingDate}&days=1`, 200);
+    assert.ok(!JSON.stringify(foreignApartmentDay.body).includes('Meier-Keller'));
+    assert.equal(foreignApartmentDay.body.days[0].slotDetails[0].types.washer.resources[0].ownerDisplayName, null);
     const inactiveProjectionDatabase = new Database(databasePath);
     const inactiveApartment = inactiveProjectionDatabase.prepare(`
       INSERT INTO apartments (house_id, label, display_name, active) VALUES (?, ?, ?, 0)
@@ -2632,6 +2726,9 @@ async function run() {
     const inactiveApartmentProjection = await expectStatus(admin, `/api/bookings?date=${bookingDate}`, 200);
     assert.ok(inactiveApartmentProjection.body.bookings.some((booking) => booking.ownerDisplayName === null));
     assert.ok(!JSON.stringify(inactiveApartmentProjection.body).includes('Nicht anzeigen'));
+    const inactiveApartmentDay = await expectStatus(admin, `/api/calendar?from=${bookingDate}&days=1`, 200);
+    assert.ok(!JSON.stringify(inactiveApartmentDay.body).includes('Nicht anzeigen'));
+    assert.equal(inactiveApartmentDay.body.days[0].slotDetails[0].types.washer.resources[0].ownerDisplayName, null);
     const ownerProjectionCleanup = new Database(databasePath);
     ownerProjectionCleanup.prepare('UPDATE users SET apartment_id = NULL WHERE id = ?')
       .run(secondHouseRegistration.body.user.id);
@@ -3079,15 +3176,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.11'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.12'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.11"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.12"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.11'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.11'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.12'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.12'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

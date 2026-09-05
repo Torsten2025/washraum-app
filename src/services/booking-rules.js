@@ -211,12 +211,29 @@ function createBookingRules({
       ORDER BY type, name
     `).all(houseId);
     const normalBookings = db.prepare(`
-      SELECT b.resource_id, b.slot, b.user_id, r.name AS resource_name, r.type AS resource_type
+      SELECT b.resource_id, b.slot, b.user_id, r.name AS resource_name, r.type AS resource_type,
+             COALESCE(a.id, claimed_a.id) AS apartment_id,
+             COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, ''),
+                      NULLIF(claimed_a.display_name, ''), NULLIF(claimed_a.label, '')) AS owner_display_name
       FROM bookings b
       JOIN resources r ON r.id = b.resource_id
+      JOIN users u ON u.id = b.user_id
+      LEFT JOIN users merged_owner ON merged_owner.id = u.merged_into_user_id AND merged_owner.active = 1
+      LEFT JOIN apartments a ON a.id = COALESCE(u.apartment_id, merged_owner.apartment_id)
+        AND a.house_id = r.house_id AND a.active = 1
+      LEFT JOIN apartments claimed_a ON claimed_a.claimed_by = COALESCE(u.merged_into_user_id, u.id)
+        AND claimed_a.house_id = r.house_id AND claimed_a.active = 1
       WHERE b.booking_date = ? AND r.house_id = ?
     `).all(date, houseId);
     const fixedBookings = getFixedBookingsForDate(date, houseId);
+    const ownApartmentId = db.prepare(`
+      SELECT a.id FROM apartments a
+      JOIN users u ON u.id = ? AND u.active = 1 AND u.house_id = a.house_id
+      WHERE a.house_id = ? AND a.active = 1 AND (a.id = u.apartment_id OR a.claimed_by = u.id)
+      ORDER BY CASE WHEN a.id = u.apartment_id THEN 0 ELSE 1 END, a.id LIMIT 1
+    `).get(userId, houseId)?.id;
+    const bookingsByResourceSlot = new Map([...fixedBookings, ...normalBookings]
+      .map((booking) => [`${booking.resource_id}|${booking.slot}`, booking]));
     const occupied = new Set([
       ...normalBookings.map((booking) => `${booking.resource_id}|${booking.slot}`),
       ...fixedBookings.map((booking) => `${booking.resource_id}|${booking.slot}`)
@@ -274,13 +291,18 @@ function createBookingRules({
           .map((booking) => booking.resource_id));
         const resourceStates = typeResources.map((resource) => {
           const isOccupied = occupied.has(`${resource.id}|${slot}`);
+          const booking = bookingsByResourceSlot.get(`${resource.id}|${slot}`);
+          const isOwnApartment = Boolean(ownApartmentId && booking?.apartment_id === ownApartmentId);
           let state = 'free';
-          if (ownResourceIds.has(resource.id)) state = 'own';
+          if (ownResourceIds.has(resource.id) || isOwnApartment) state = 'own';
           else if (isOccupied) state = 'booked';
           else if (closed) state = 'closed';
           else if (past) state = 'past';
           else if (type === 'tumbler' && bookable === 0) state = 'reserve';
-          return { resourceId: resource.id, resourceName: resource.name, state };
+          return {
+            resourceId: resource.id, resourceName: resource.name, state,
+            ownerDisplayName: state === 'booked' ? (booking?.owner_display_name || null) : null
+          };
         });
 
         types[type] = {

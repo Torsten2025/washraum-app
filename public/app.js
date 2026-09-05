@@ -369,7 +369,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.11';
+const WHATS_NEW_VERSION = '0.3.12';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -3060,13 +3060,15 @@ function calendarSlotTypeMarkup(day, slotDetail, typeMeta) {
     && !slotDetail.past
     && day.ownByType.washer === 0;
   const resourcesMarkup = detail.resources.map((resource) => {
-    const stateLabel = calendarResourceStateLabel(resource.state);
+    const stateLabel = resource.state === 'booked' && resource.ownerDisplayName
+      ? resource.ownerDisplayName
+      : calendarResourceStateLabel(resource.state);
     if (canStartWasher && resource.state === 'free') {
       return `<button class="calendar-resource is-free" type="button" data-calendar-book-washer="${resource.resourceId}" data-calendar-date="${day.date}" data-calendar-slot="${slotDetail.slot}"><span>${escapeHtml(resource.resourceName)}</span><strong>${escapeHtml(translate('app.select', 'Ausw\u00e4hlen'))}</strong></button>`;
     }
     return `<span class="calendar-resource is-${resource.state}"><span>${escapeHtml(resource.resourceName)}</span><strong>${escapeHtml(stateLabel)}</strong></span>`;
   }).join('');
-  const capacityText = typeMeta.type === 'tumbler'
+  const capacityText = typeMeta.type === 'tumbler' && currentBookingRuleMode !== 'liberal'
     ? translate(
       detail.free === 1 ? 'app.moreBookingAvailable' : 'app.moreBookingsAvailable',
       `${detail.free} weitere Buchung${detail.free === 1 ? '' : 'en'} m\u00f6glich, einer bleibt frei`,
@@ -5963,6 +5965,9 @@ function renderMaintenanceCases() {
             successful: actionSelect.value === 'test' ? testResult.value === 'true' : undefined
           })
         });
+        if (actionSelect.value === 'takeover' && maintenanceStatusFilter.value === 'new') {
+          maintenanceStatusFilter.value = 'in_progress';
+        }
         const resourceData = await api('/api/resources');
         resources = resourceData.resources;
         showStatus(localizedSystemText(data.message));
