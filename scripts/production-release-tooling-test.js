@@ -198,7 +198,7 @@ function backupInput(root, overrides = {}) {
       candidateCommit: CANDIDATE_COMMIT,
       expectedLiveVersion: '0.3.11',
       actualLiveVersion: '0.3.11',
-      candidateVersion: '0.3.12',
+      candidateVersion: '0.3.13',
       databasePath: path.join(root, 'washraum.sqlite'),
       targetPath: expectedTargetPath(CANDIDATE_COMMIT, backupDir, path)
     },
@@ -231,7 +231,7 @@ function validProof(now = Date.now()) {
     sourceCommit: LIVE_COMMIT,
     candidateCommit: CANDIDATE_COMMIT,
     sourceVersion: '0.3.11',
-    candidateVersion: '0.3.12',
+    candidateVersion: '0.3.13',
     databasePath: '/var/data/washraum.sqlite',
     backupPath: `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`,
     bootstrapObserved: true,
@@ -311,7 +311,7 @@ async function verifyBackupBootstrap() {
     assert.equal(proof.sourceCommit, LIVE_COMMIT);
     assert.equal(proof.candidateCommit, CANDIDATE_COMMIT);
     assert.equal(proof.sourceVersion, '0.3.11');
-    assert.equal(proof.candidateVersion, '0.3.12');
+    assert.equal(proof.candidateVersion, '0.3.13');
     assert.equal(proof.sourceOpenedReadOnly, true);
     assert.equal(proof.targetCreatedExactlyOnce, true);
     assert.equal(proof.restoreDrill.ok, true);
@@ -578,7 +578,7 @@ function verifyArgumentAndProofContracts() {
     '--expected-live-commit', LIVE_COMMIT,
     '--candidate-commit', CANDIDATE_COMMIT,
     '--expected-live-version', '0.3.11',
-    '--candidate-version', '0.3.12',
+    '--candidate-version', '0.3.13',
     '--database', '/var/data/washraum.sqlite',
     '--target', `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`
   ]);
@@ -858,6 +858,13 @@ function verifyWorkflowContract() {
   const workflow = fs.readFileSync(path.join(projectRoot, '.github', 'workflows', 'deploy-render.yml'), 'utf8');
   assert.doesNotMatch(workflow, /^\s*push:/m);
   assert.match(workflow, /^\s*workflow_dispatch:/m);
+  const autoDeployInput = workflow.match(/^      render_auto_deploy:\r?\n((?: {8}[^\r\n]*(?:\r?\n|$))+)/m);
+  assert.ok(autoDeployInput, 'production dispatch keeps its AutoDeploy input');
+  assert.match(autoDeployInput[1], /^        type: choice\r?$/m);
+  const autoDeployOptions = [...autoDeployInput[1].matchAll(/^          - (.+)\r?$/gm)].map(match => match[1].trim());
+  // Explicit JSON-compatible YAML quoting prevents YAML 1.1 from treating off as boolean false.
+  assert.deepEqual(autoDeployOptions, ['"off"'], 'AutoDeploy choice must be an explicitly quoted string');
+  assert.deepEqual(autoDeployOptions.map(value => JSON.parse(value)), ['off']);
   assert.match(workflow, /node scripts\/trigger-production-deploy\.js/);
   assert.doesNotMatch(workflow, /--retry|retry-all-errors|curl[\s\S]*RENDER_DEPLOY_HOOK_URL/);
   assert.match(workflow, /PRODUCTION_PARALLEL_ACTIONS/);

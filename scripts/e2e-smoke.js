@@ -887,7 +887,7 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.12');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.13');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
     assert.match(whatsNewText, /GBMZ/);
@@ -897,7 +897,7 @@ async function run() {
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.12')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.13')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
