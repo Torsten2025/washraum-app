@@ -1,4 +1,7 @@
 const express = require('express');
+const { isSwissSlotStarted } = require('../../swiss-time');
+const { normalizeRecurrence, recurrenceColumns, occursOn, overlap, capacityConflict, projectRecurrence,
+  feedRecurrence } = require('../services/fixed-recurrence');
 
 function createBookingRouters({
   db,
@@ -186,7 +189,7 @@ function createBookingRouters({
       ORDER BY b.booking_date, b.slot, b.id
     `).all(owner.booking_user_id, owner.house_id, todayStringLocal());
     const fixed = owner.apartment_id == null ? [] : db.prepare(`
-      SELECT fb.id, fb.weekday, fb.slot, r.name AS resource_name
+      SELECT fb.*, r.name AS resource_name
       FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
       WHERE fb.apartment_id = ? AND r.house_id = ? AND fb.active = 1
       ORDER BY fb.weekday, fb.slot, fb.id
@@ -205,7 +208,8 @@ function createBookingRouters({
       ]);
     }
     for (const booking of fixed) {
-      const date = nextWeekdayDate(booking.weekday, booking.slot);
+      const recurrence = booking.series_start_date ? feedRecurrence(booking) : null;
+      const date = recurrence ? recurrence.date : nextWeekdayDate(booking.weekday, booking.slot);
       const time = slotTimes(booking.slot);
       events.push([
         'BEGIN:VEVENT',
@@ -213,7 +217,7 @@ function createBookingRouters({
         `DTSTAMP:${icsDate(todayStringLocal(), '00:00')}Z`,
         `DTSTART;TZID=Europe/Zurich:${icsDate(date, time.start)}`,
         `DTEND;TZID=Europe/Zurich:${icsDate(date, time.end)}`,
-        'RRULE:FREQ=WEEKLY',
+        recurrence ? recurrence.rule : 'RRULE:FREQ=WEEKLY',
         `SUMMARY:${icsEscape(`WaschZeit Dauertermin: ${booking.resource_name}`)}`,
         'END:VEVENT'
       ]);
@@ -497,10 +501,17 @@ function createBookingRouters({
     }
 
     try {
-      const result = db.prepare(`
+      const result = db.transaction(() => {
+        if (fixedBookingConflict(resource.id, date, slot, houseId)) throw packageRequestError(409, 'Dieser Termin ist durch eine Serie reserviert.');
+        const currentRuleError = resource.type === 'washer' ? validateWasherBooking(req.session.user.bookingUserId, date, slot, houseId)
+          : resource.type === 'tumbler' ? validateTumblerBooking(date, slot, houseId)
+            : validateDryingRoomBooking(req.session.user.bookingUserId, date, slot, houseId);
+        if (currentRuleError) throw packageRequestError(409, currentRuleError);
+        return db.prepare(`
         INSERT INTO bookings (user_id, resource_id, booking_date, slot)
         VALUES (?, ?, ?, ?)
       `).run(req.session.user.bookingUserId, Number(resourceId), date, slot);
+      }).immediate();
 
       const created = db.prepare(`
         SELECT b.id, b.booking_date, b.slot, r.name AS resource_name
@@ -514,6 +525,7 @@ function createBookingRouters({
         message: `${created.resource_name} am ${created.booking_date} ${created.slot} gebucht.`
       });
     } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(409).json({ error: 'Dieser Termin ist bereits gebucht' });
       }
@@ -753,6 +765,11 @@ function createBookingRouters({
 
       const groupId = existingWasher?.group_id || crypto.randomUUID();
       const createPackage = db.transaction(() => {
+        for (const item of items) {
+          if (fixedBookingConflict(item.resourceId, item.date, item.slot, houseId)) {
+            throw packageRequestError(409, 'Ein Bestandteil des Waschpakets ist durch eine Serie reserviert.');
+          }
+        }
         const created = [];
         const insert = db.prepare(`
           INSERT INTO bookings (user_id, resource_id, booking_date, slot, group_id)
@@ -794,7 +811,7 @@ function createBookingRouters({
         return created;
       });
 
-      const created = createPackage();
+      const created = createPackage.immediate();
       const bookedTypes = [...new Set(created.map((item) => item.type))];
       const typeLabels = {
         washer: 'Waschmaschine',
@@ -1132,52 +1149,65 @@ function createBookingRouters({
     return window.some((item) => item.weekday === 0) ? null : window;
   }
 
-  function fixedSlotConflict(resourceId, weekday, slot, houseId) {
+  function fixedSlotConflict(row, houseId) {
     return db.prepare(`
-      SELECT fb.id, fb.label, r.name AS resource_name
+      SELECT fb.*, r.name AS resource_name
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1 AND fb.resource_id = ? AND r.house_id = ?
         AND fb.weekday = ? AND fb.slot = ?
-      LIMIT 1
-    `).get(resourceId, houseId, weekday, slot);
+    `).all(row.resourceId, houseId, row.weekday, row.slot)
+      .find(existing => overlap(row, existing, todayStringLocal()));
   }
 
-  function normalFutureConflict(resourceId, weekday, slot) {
+  function normalFutureConflict(row) {
     return db.prepare(`
-      SELECT b.id
+      SELECT b.id, b.booking_date
       FROM bookings b
       WHERE b.resource_id = ? AND b.slot = ? AND b.booking_date >= ?
         AND CAST(strftime('%w', b.booking_date) AS INTEGER) = ?
-      LIMIT 1
-    `).get(resourceId, slot, todayStringLocal(), weekday);
+    `).all(row.resourceId, row.slot, todayStringLocal(), row.weekday)
+      .find(booking => occursOn(row, booking.booking_date));
   }
 
-  function ensureFixedTumblerReserve(houseId, weekday, slot, additionalCount = 1) {
+  function ensureFixedTumblerReserve(houseId, row) {
     if (bookingRuleMode(houseId) === 'liberal') return;
     const totalTumblers = db.prepare(`
       SELECT COUNT(*) AS count FROM resources
       WHERE active = 1 AND type = 'tumbler' AND house_id = ?
     `).get(houseId).count;
     const fixedTumblers = db.prepare(`
-      SELECT COUNT(*) AS count
+      SELECT fb.*
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1 AND r.type = 'tumbler' AND r.house_id = ?
         AND fb.weekday = ? AND fb.slot = ?
-    `).get(houseId, weekday, slot).count;
-    if (fixedTumblers + additionalCount > Math.max(0, totalTumblers - 1)) {
-      throw packageRequestError(409, 'Mindestens ein Tumbler muss in diesem Slot frei bleiben.');
+    `).all(houseId, row.weekday, row.slot);
+    const limit = Math.max(0, totalTumblers - 1);
+    const normal = db.prepare(`
+      SELECT b.booking_date, COUNT(*) AS count FROM bookings b JOIN resources r ON r.id = b.resource_id
+      WHERE r.house_id = ? AND r.type = 'tumbler' AND b.slot = ? AND b.booking_date >= ?
+      GROUP BY b.booking_date
+    `).all(houseId, row.slot, todayStringLocal());
+    if (capacityConflict(row, fixedTumblers, limit, todayStringLocal())
+      || normal.some(booking => occursOn(row, booking.booking_date)
+        && booking.count + fixedTumblers.filter(fixed => occursOn(fixed, booking.booking_date)).length + 1 > limit)) {
+      const error = packageRequestError(409, 'Mindestens ein Tumbler muss in jedem Serienvorkommen frei bleiben.');
+      error.code = 'SERIES_TUMBLER_RESERVE';
+      throw error;
     }
   }
 
   function ensureFixedRowsAvailable(rows, houseId) {
     for (const row of rows) {
-      const fixedConflict = fixedSlotConflict(row.resourceId, row.weekday, row.slot, houseId);
+      if (!db.prepare('SELECT id FROM resources WHERE id=? AND house_id=? AND active=1').get(row.resourceId, houseId)) {
+        throw packageRequestError(404, 'Eine Ressource der Serie ist nicht mehr verfuegbar.');
+      }
+      const fixedConflict = fixedSlotConflict(row, houseId);
       if (fixedConflict) {
         throw packageRequestError(409, `${fixedConflict.resource_name} ist in diesem Dauer-Slot bereits reserviert.`);
       }
-      if (normalFutureConflict(row.resourceId, row.weekday, row.slot)) {
+      if (normalFutureConflict(row)) {
         throw packageRequestError(409, 'Es gibt bereits eine normale zukuenftige Buchung in einem Bestandteil dieses Dauerpakets.');
       }
     }
@@ -1187,6 +1217,7 @@ function createBookingRouters({
     const fixedBookings = db.prepare(`
       SELECT fb.id, fb.resource_id, fb.weekday, fb.slot, fb.label, fb.group_id, fb.apartment_id,
              fb.drying_duration_slots, fb.created_at,
+             fb.interval_weeks, fb.series_start_date, fb.series_end_date, fb.occurrence_count, fb.occurrence_day_offset,
              r.name AS resource_name, r.type AS resource_type,
              COALESCE(NULLIF(a.display_name, ''), a.label, '') AS apartment_name
       FROM fixed_bookings fb
@@ -1196,7 +1227,7 @@ function createBookingRouters({
       ORDER BY fb.weekday, fb.slot, r.name
     `).all(currentHouseId(req));
 
-    res.json({ fixedBookings });
+    res.json({ fixedBookings: fixedBookings.map(row => ({ ...row, recurrence: projectRecurrence(row) })) });
   });
 
   fixedBookingsRouter.post('/api/admin/fixed-bookings', requireAdmin, (req, res, next) => {
@@ -1228,6 +1259,14 @@ function createBookingRouters({
     }
 
     try {
+      if (hasLegacyResource && Object.prototype.hasOwnProperty.call(req.body, 'recurrence')) {
+        const error = packageRequestError(400, 'Serienoptionen sind nur fuer ein Dauerpaket verfuegbar.');
+        error.code = 'RECURRENCE_INVALID';
+        throw error;
+      }
+      const normalizeRequestedRecurrence = () => normalizeRecurrence(req.body.recurrence,
+        { weekday, slot, today: todayStringLocal(), isSlotStarted: isSwissSlotStarted });
+      const recurrence = normalizeRequestedRecurrence();
       if (hasLegacyResource) {
         const resourceId = Number(req.body.resourceId);
         if (!Number.isInteger(resourceId)) throw packageRequestError(400, 'Ungueltige feste Buchung');
@@ -1236,12 +1275,15 @@ function createBookingRouters({
           WHERE id = ? AND active = 1 AND house_id = ?
         `).get(resourceId, houseId);
         if (!resource) throw packageRequestError(404, 'Geraet nicht gefunden');
-        if (resource.type === 'tumbler') ensureFixedTumblerReserve(houseId, weekday, slot);
-        ensureFixedRowsAvailable([{ resourceId, weekday, slot }], houseId);
-        const result = db.prepare(`
+        const row = { resourceId, weekday, slot };
+        const result = db.transaction(() => {
+          ensureFixedRowsAvailable([row], houseId);
+          if (resource.type === 'tumbler') ensureFixedTumblerReserve(houseId, row);
+          return db.prepare(`
           INSERT INTO fixed_bookings (resource_id, weekday, slot, label, apartment_id, created_by)
           VALUES (?, ?, ?, ?, ?, ?)
         `).run(resourceId, weekday, slot, label, apartmentId, req.session.user.id);
+        }).immediate();
         writeAudit(req, 'fixed_booking.create', 'fixed_booking', result.lastInsertRowid, {
           resourceId, weekday, slot, label
         });
@@ -1290,18 +1332,21 @@ function createBookingRouters({
           type: 'drying_room'
         })),
         ...tumblers.map((resource) => ({ resourceId: resource.id, weekday, slot, type: 'tumbler' }))
-      ];
+      ].map(row => ({ ...row, ...recurrenceColumns(recurrence, (row.weekday - weekday + 7) % 7) }));
       ensureFixedRowsAvailable(rows, houseId);
-      if (tumblers.length) ensureFixedTumblerReserve(houseId, weekday, slot);
+      if (tumblers.length) ensureFixedTumblerReserve(houseId, rows.find(row => row.type === 'tumbler'));
 
       const groupId = crypto.randomUUID();
       const createFixedPackage = db.transaction(() => {
+        // Recheck the dated first start after acquiring the write lock as well.
+        normalizeRequestedRecurrence();
         ensureFixedRowsAvailable(rows, houseId);
-        if (tumblers.length) ensureFixedTumblerReserve(houseId, weekday, slot);
+        if (tumblers.length) ensureFixedTumblerReserve(houseId, rows.find(row => row.type === 'tumbler'));
         const insert = db.prepare(`
           INSERT INTO fixed_bookings
-            (resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, created_by,
+             interval_weeks, series_start_date, series_end_date, occurrence_count, occurrence_day_offset)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         return rows.map((row) => {
           const result = insert.run(
@@ -1312,14 +1357,15 @@ function createBookingRouters({
             groupId,
             row.type === 'drying_room' ? dryingDurationSlots : null,
             apartmentId,
-            req.session.user.id
+            req.session.user.id,
+            row.interval_weeks, row.series_start_date, row.series_end_date, row.occurrence_count, row.occurrence_day_offset
           );
           return { id: result.lastInsertRowid, ...row };
         });
       });
-      const created = createFixedPackage();
+      const created = createFixedPackage.immediate();
       writeAudit(req, 'fixed_booking.create', 'fixed_booking_group', groupId, {
-        resourceIds, weekday, slot, dryingDurationSlots, label
+        resourceIds, weekday, slot, dryingDurationSlots, label, recurrence
       });
       return res.status(201).json({
         id: created[0].id,
@@ -1329,7 +1375,7 @@ function createBookingRouters({
         message: 'Dauerpaket gespeichert.'
       });
     } catch (error) {
-      if (error.status) return res.status(error.status).json({ error: error.message });
+      if (error.status) return res.status(error.status).json({ code: error.code || 'FIXED_BOOKING_INVALID', error: error.message });
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(409).json({ error: 'Ein Bestandteil des Dauertermins wurde inzwischen reserviert.' });
       }

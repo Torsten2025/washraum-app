@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 const { createRemainingSlotService } = require('../src/services/remaining-slots');
+const { occursOn } = require('../src/services/fixed-recurrence');
 
 const TODAY = '2026-08-11';
 const SLOTS = ['07:00-12:00', '12:00-17:00', '17:00-21:00'];
@@ -34,7 +35,9 @@ function createDatabase() {
     );
     CREATE TABLE fixed_bookings (
       id INTEGER PRIMARY KEY AUTOINCREMENT, resource_id INTEGER NOT NULL, weekday INTEGER NOT NULL,
-      slot TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, apartment_id INTEGER
+      slot TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, apartment_id INTEGER,
+      interval_weeks INTEGER DEFAULT 1, series_start_date TEXT, series_end_date TEXT,
+      occurrence_count INTEGER, occurrence_day_offset INTEGER DEFAULT 0
     );
     CREATE TABLE booking_day_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT, apartment_id INTEGER NOT NULL, house_id INTEGER NOT NULL,
@@ -70,9 +73,9 @@ function fixture(db) {
   let startedSlots = new Set();
   let weekday = 2;
   const fixedBookingConflict = (resourceId, date, slot, houseId) => db.prepare(`
-    SELECT fb.id FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
+    SELECT fb.* FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
     WHERE fb.resource_id = ? AND fb.weekday = 2 AND fb.slot = ? AND fb.active = 1 AND r.house_id = ?
-  `).get(Number(resourceId), slot, Number(houseId));
+  `).all(Number(resourceId), slot, Number(houseId)).find(row => occursOn(row, date));
   const validateTumblerBooking = (date, slot, houseId) => {
     const total = db.prepare(`SELECT COUNT(*) AS count FROM resources WHERE type = 'tumbler' AND active = 1 AND house_id = ?`)
       .get(Number(houseId)).count;
@@ -81,9 +84,9 @@ function fixture(db) {
       WHERE r.type = 'tumbler' AND r.house_id = ? AND b.booking_date = ? AND b.slot = ?
     `).get(Number(houseId), date, slot).count;
     const fixed = db.prepare(`
-      SELECT COUNT(*) AS count FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
+      SELECT fb.* FROM fixed_bookings fb JOIN resources r ON r.id = fb.resource_id
       WHERE r.type = 'tumbler' AND r.house_id = ? AND fb.weekday = 2 AND fb.slot = ? AND fb.active = 1
-    `).get(Number(houseId), slot).count;
+    `).all(Number(houseId), slot).filter(row => occursOn(row, date)).length;
     return occupied + fixed >= Math.max(0, total - 1) ? 'TUMBLER_RESERVE' : '';
   };
   const service = createRemainingSlotService({
@@ -118,6 +121,19 @@ function request(overrides = {}) {
 }
 
 function main() {
+  const seriesDb = createDatabase();
+  try {
+    seriesDb.exec("INSERT INTO fixed_bookings(resource_id,weekday,slot,apartment_id,interval_weeks,series_start_date,occurrence_count) VALUES(1001,2,'12:00-17:00',11,2,'2026-08-04',3)");
+    const s = fixture(seriesDb).service;
+    assert.equal(s.options({ apartmentId: 11, bookingUserId: 101, houseId: 1 }).eligible, true);
+    assert(s.options({ apartmentId: 11, bookingUserId: 101, houseId: 1 }).slots.find(slot => slot.slot === '12:00-17:00').washers.some(washer => washer.id === 1001));
+    seriesDb.exec("UPDATE fixed_bookings SET series_start_date='2026-08-11'");
+    assert.equal(s.options({ apartmentId: 11, bookingUserId: 101, houseId: 1 }).code, 'TODAY_WASH_SLOT_EXISTS');
+    seriesDb.exec('UPDATE fixed_bookings SET apartment_id=12');
+    assert(!s.options({ apartmentId: 11, bookingUserId: 101, houseId: 1 }).slots.find(slot => slot.slot === '12:00-17:00').washers.some(washer => washer.id === 1001));
+    seriesDb.exec("UPDATE fixed_bookings SET series_start_date='2026-07-14', occurrence_count=1");
+    assert(s.options({ apartmentId: 11, bookingUserId: 101, houseId: 1 }).slots.find(slot => slot.slot === '12:00-17:00').washers.some(washer => washer.id === 1001));
+  } finally { seriesDb.close(); }
   const db = createDatabase();
   const { service, setStarted } = fixture(db);
   try {

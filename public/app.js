@@ -122,6 +122,9 @@ const adminSectionButtons = [...document.querySelectorAll('.admin-section-tab')]
 const adminSections = [...document.querySelectorAll('[data-admin-section]')];
 const backupOperation = document.querySelector('#backupOperation');
 const backupOperationHint = document.querySelector('#backupOperationHint');
+const backupLastStatus = document.querySelector('#backupLastStatus');
+const backupActionStatus = document.querySelector('#backupActionStatus');
+let backupActionPending = false;
 const runBackupButton = document.querySelector('#runBackupButton');
 const downloadBackupButton = document.querySelector('#downloadBackupButton');
 const maintenanceOperation = document.querySelector('#maintenanceOperation');
@@ -266,6 +269,17 @@ const fixedBookingTumbler = document.querySelector('#fixedBookingTumbler');
 const fixedBookingWeekday = document.querySelector('#fixedBookingWeekday');
 const fixedBookingSlot = document.querySelector('#fixedBookingSlot');
 const fixedBookingList = document.querySelector('#fixedBookingList');
+const fixedBookingInterval = document.querySelector('#fixedBookingInterval');
+const fixedBookingStart = document.querySelector('#fixedBookingStart');
+const fixedBookingEndType = document.querySelector('#fixedBookingEndType');
+const fixedBookingEndDate = document.querySelector('#fixedBookingEndDate');
+const fixedBookingCount = document.querySelector('#fixedBookingCount');
+const fixedBookingEndDateWrap = document.querySelector('#fixedBookingEndDateWrap');
+const fixedBookingCountWrap = document.querySelector('#fixedBookingCountWrap');
+const fixedBookingPreview = document.querySelector('#fixedBookingPreview');
+const fixedBookingEmpty = document.querySelector('#fixedBookingEmpty');
+const fixedBookingSubmit = document.querySelector('#fixedBookingSubmit');
+const fixedBookingActionStatus = document.querySelector('#fixedBookingActionStatus');
 const userList = document.querySelector('#userList');
 const adminAccountRecoveryResult = document.querySelector('#adminAccountRecoveryResult');
 const apartmentSetupOverlay = document.querySelector('#apartmentSetupOverlay');
@@ -344,6 +358,7 @@ let calendarDays = [];
 let calendarResourceCount = null;
 let currentBookingRuleMode = 'gbmz';
 let houseContextRevision = 0;
+let fixedBookingPending = false;
 let appViewRevision = 0;
 const staleHouseRequest = Symbol('stale-house-request');
 let calendarDetailDate = '';
@@ -369,7 +384,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.13';
+const WHATS_NEW_VERSION = '0.3.14-test.1';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1944,6 +1959,8 @@ async function api(path, options = {}) {
   }
   if (!response.ok) {
     const controlledErrors = {
+      RECURRENCE_INVALID: translate('series.invalid', 'Bitte gueltige Serienangaben pruefen: 1–52 Wochen, Start nicht vergangen, erster Waschslot noch nicht begonnen, eindeutiges Ende und 1–1000 Termine.'),
+      SERIES_TUMBLER_RESERVE: translate('series.tumblerReserve', 'Mindestens ein Tumbler muss bei jedem Serienvorkommen frei bleiben.'),
       BACKUP_DISABLED: translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'),
       EMAIL_DISABLED: translate('admin.errorEmailDisabled', 'E-Mail ist in dieser Umgebung deaktiviert.'),
       PUSH_DISABLED: translate('admin.errorPushDisabled', 'Push-Benachrichtigungen sind in dieser Umgebung deaktiviert.'),
@@ -2702,6 +2719,10 @@ function clearHouseScopedState() {
 async function switchHouse(houseId) {
   const revision = ++houseContextRevision;
   houseSelect.disabled = true;
+  fixedBookingActionStatus.textContent = '';
+  fixedBookingActionStatus.hidden = true;
+  if (fixedBookingPending) showStatus('');
+  syncFixedRecurrence();
   try {
     const data = await api('/api/me/active-house', {
       method: 'PUT',
@@ -2712,6 +2733,10 @@ async function switchHouse(houseId) {
     houseManagementView = '';
     renderHouseContext();
     clearHouseScopedState();
+    fixedBookingForm.reset();
+    fixedBookingStart.value = todayString();
+    syncFixedBookingDuration();
+    syncFixedRecurrence();
     const resourceData = await api('/api/resources');
     if (revision !== houseContextRevision) return;
     resources = resourceData.resources;
@@ -2724,7 +2749,10 @@ async function switchHouse(houseId) {
     houseSelect.value = String(currentUser.activeHouseId);
     showStatus(error.message, 'error');
   } finally {
-    if (revision === houseContextRevision) houseSelect.disabled = false;
+    if (revision === houseContextRevision) {
+      houseSelect.disabled = false;
+      syncFixedRecurrence();
+    }
   }
 }
 
@@ -5112,7 +5140,7 @@ async function loadAdmin() {
     renderHouses(housesData.houses);
   }
   setHouseManagementView(houseManagementView || preferredHouseManagementView(), { persist: false });
-  populateFixedBookingControls();
+  populateFixedBookingControls(adminResources.resources);
   renderFixedBookings(fixedData.fixedBookings);
   renderAdminResources(adminResources.resources);
   maintenanceCases = maintenanceData.cases;
@@ -5143,16 +5171,17 @@ async function loadAdmin() {
     auditEntries: auditData.entries
   });
   renderAdminRecovery(recoveryData, usersData.users);
-  runBackupButton.disabled = !adminIntegrationState.backup;
+  runBackupButton.disabled = backupActionPending || !adminIntegrationState.backup;
   downloadBackupButton.disabled = !adminIntegrationState.backup;
   backupOperationHint.textContent = adminIntegrationState.backup
-    ? translate('admin.backupDataHint', 'Eine vollstaendige SQLite-Sicherung erstellen oder herunterladen.')
+    ? translate('admin.backupDataHint', 'Jetzt sichern speichert auf dem Server. Herunterladen speichert eine eigene Kopie auf deinem Geraet.')
     : translate('admin.backupDisabledHint', 'Backups sind in dieser Umgebung deaktiviert. Erstellen und Herunterladen sind nicht verfuegbar.');
   const backupActionTitle = adminIntegrationState.backup
     ? ''
     : translate('admin.backupDisabledTitle', 'Backup ist in dieser Umgebung nicht verfuegbar');
   runBackupButton.title = backupActionTitle;
   downloadBackupButton.title = backupActionTitle;
+  backupLastStatus.textContent = backupStatusLabel(overviewData);
 
   adminEmailTestHint.textContent = adminIntegrationState.email
     ? translate('admin.emailTestHint', 'Eine Testmail an die betriebliche Testadresse oder deine hinterlegte Adresse senden.')
@@ -5363,19 +5392,40 @@ function renderAdminPushTargets(data, enabled = adminIntegrationState.push) {
   adminPushTarget.disabled = enabled !== true || !data.totalDevices;
 }
 
+function showBackupActionStatus(message, tone = 'ok') {
+  backupActionStatus.textContent = message;
+  backupActionStatus.className = `notice ${tone}`;
+  backupActionStatus.hidden = false;
+  showStatus(message, tone);
+}
+
 async function runBackupNow() {
+  if (backupActionPending) return;
   if (!adminIntegrationState.backup) {
-    showStatus(translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'), 'error');
+    showBackupActionStatus(translate('admin.errorBackupDisabled', 'Backups sind in dieser Umgebung deaktiviert.'), 'error');
     return;
   }
+  backupActionPending = true;
   runBackupButton.disabled = true;
+  runBackupButton.setAttribute('aria-busy', 'true');
+  showBackupActionStatus(translate('admin.backupRunning', 'Sicherung wird auf dem Server erstellt und geprueft. Bitte warten.'), 'muted');
+  let completedMessage = '';
   try {
     const data = await api('/api/admin/backup/run', { method: 'POST' });
-    showStatus(data.message);
+    if (!data) return;
+    completedMessage = translate('admin.backupCreatedAt', 'Serversicherung erstellt und geprueft am {date}.', {
+      date: new Date(data.status.createdAt).toLocaleString(activeLocale())
+    });
+    backupLastStatus.textContent = completedMessage;
+    showBackupActionStatus(completedMessage);
     await loadAdmin();
   } catch (error) {
-    showStatus(error.message, 'error');
+    showBackupActionStatus(completedMessage
+      ? `${completedMessage} ${translate('admin.backupRefreshFailed', 'Die Verwaltungsansicht konnte nicht neu geladen werden. Die bestaetigte Sicherung bleibt erhalten.')}`
+      : error.message, 'error');
   } finally {
+    backupActionPending = false;
+    runBackupButton.removeAttribute('aria-busy');
     runBackupButton.disabled = !adminIntegrationState.backup;
   }
 }
@@ -5574,11 +5624,20 @@ function renderAdminUsers(users) {
       actions.append(roleButton);
 
       const otherHouses = availableHouses.filter((house) => Number(house.id) !== Number(user.house_id));
-      if (otherHouses.length) {
+      if (user.is_resident) {
+        const moveNote = document.createElement('span');
+        moveNote.className = 'muted admin-account-note user-move-note';
+        moveNote.textContent = translate('admin.moveApartmentBound', 'Dieses Konto ist an seine Wohnung gebunden. Ein Verschieben in ein anderes Haus ist hier nicht moeglich.');
+        actions.append(moveNote);
+      } else if (otherHouses.length) {
         const moveWrap = document.createElement('div');
         moveWrap.className = 'user-move-control';
         const moveSelect = document.createElement('select');
+        moveSelect.id = `move-user-house-${user.id}`;
         moveSelect.setAttribute('aria-label', translate('admin.moveToBuilding', '{name} in anderes Haus verschieben', { name: visibleName }));
+        const moveLabel = document.createElement('label');
+        moveLabel.htmlFor = moveSelect.id;
+        moveLabel.textContent = translate('admin.moveTargetHouse', 'Zielhaus');
         moveSelect.innerHTML = otherHouses.map((house) => (
           `<option value="${house.id}">${escapeHtml(house.name)}</option>`
         )).join('');
@@ -5587,7 +5646,8 @@ function renderAdminUsers(users) {
         moveButton.className = 'secondary';
         moveButton.textContent = translate('admin.move', 'Verschieben');
         moveButton.addEventListener('click', () => moveUserToHouse(user.id, moveSelect.value));
-        moveWrap.append(moveSelect, moveButton);
+        moveLabel.append(moveSelect);
+        moveWrap.append(moveLabel, moveButton);
         actions.append(moveWrap);
       }
     }
@@ -5630,7 +5690,9 @@ function renderAdminUsers(users) {
 }
 
 async function moveUserToHouse(userId, houseId) {
-  if (!window.confirm('Konto in das gew\u00e4hlte Haus verschieben? Kommende Buchungen m\u00fcssen vorher gel\u00f6scht sein.')) return;
+  const targetHouse = availableHouses.find(house => Number(house.id) === Number(houseId));
+  if (!targetHouse) return;
+  if (!window.confirm(translate('admin.moveConfirm', 'Ungebundenes Konto nach "{house}" verschieben? Kommende Buchungen muessen vorher geloescht sein. Alle Haus-Adminrechte entfallen und bestehende Sitzungen werden beendet. Wohnungskonten bleiben an ihre Wohnung gebunden.', { house: targetHouse.name }))) return;
   try {
     const data = await api(`/api/admin/users/${userId}/house`, {
       method: 'PUT',
@@ -6251,18 +6313,18 @@ async function requestUserRecoveryCode(user, visibleName, button) {
   }
 }
 
-function populateFixedBookingControls() {
+function populateFixedBookingControls(adminResourceItems = []) {
   const optionMarkup = (items, optionalLabel = '') => [
     optionalLabel ? `<option value="">${escapeHtml(optionalLabel)}</option>` : '',
     ...items.map((resource) => `<option value="${resource.id}">${escapeHtml(resource.name)}</option>`)
   ].join('');
-  fixedBookingWasher.innerHTML = optionMarkup(resources.filter((resource) => resource.type === 'washer' && resource.active));
+  fixedBookingWasher.innerHTML = optionMarkup(adminResourceItems.filter((resource) => resource.type === 'washer' && resource.active));
   fixedBookingDryingRoom.innerHTML = optionMarkup(
-    resources.filter((resource) => resource.type === 'drying_room' && resource.active),
+    adminResourceItems.filter((resource) => resource.type === 'drying_room' && resource.active),
     translate('admin.noDryingRoom', 'Kein Trockenraum')
   );
   fixedBookingTumbler.innerHTML = optionMarkup(
-    resources.filter((resource) => resource.type === 'tumbler' && resource.active),
+    adminResourceItems.filter((resource) => resource.type === 'tumbler' && resource.active),
     translate('admin.noTumbler', 'Kein Tumbler')
   );
   fixedBookingApartment.innerHTML = [
@@ -6278,6 +6340,71 @@ function populateFixedBookingControls() {
     `<option value="${slot}">${slot}</option>`
   )).join('');
   syncFixedBookingDuration();
+  if (!fixedBookingStart.value) fixedBookingStart.value = todayString();
+  fixedBookingStart.min = todayString();
+  syncFixedRecurrence();
+}
+
+function fixedRecurrenceInput() {
+  const endType = fixedBookingEndType.value;
+  return { intervalWeeks: Number(fixedBookingInterval.value), startDate: fixedBookingStart.value, endType,
+    ...(endType === 'date' ? { endDate: fixedBookingEndDate.value } : {}),
+    ...(endType === 'count' ? { count: Number(fixedBookingCount.value) } : {}) };
+}
+
+function fixedRecurrenceSummary(recurrence) {
+  if (!recurrence) return translate('series.legacy', 'Woechentlich, ohne zeitliche Begrenzung (Bestand).');
+  const end = recurrence.lastOccurrenceDate
+    ? translate('series.last', 'Letzter Waschbeginn: {date}.', { date: recurrence.lastOccurrenceDate })
+    : translate('series.never', 'Nie');
+  return translate('series.summary', 'Alle {weeks} Wochen. Erster Waschbeginn: {first}. Ende: {end}',
+    { weeks: recurrence.intervalWeeks, first: recurrence.firstOccurrenceDate, end });
+}
+
+function isFixedSeriesSlotStarted(dateString, slot) {
+  const [start] = slot.split('-');
+  return Date.parse(`${dateString}T${start}:00Z`) <= swissClockTimestamp();
+}
+
+function syncFixedRecurrence() {
+  const input = fixedRecurrenceInput();
+  const dateEnd = input.endType === 'date', countEnd = input.endType === 'count';
+  fixedBookingEndDateWrap.hidden = !dateEnd;
+  fixedBookingEndDate.disabled = !dateEnd;
+  fixedBookingEndDate.required = dateEnd;
+  fixedBookingCountWrap.hidden = !countEnd;
+  fixedBookingCount.disabled = !countEnd;
+  fixedBookingCount.required = countEnd;
+  fixedBookingEmpty.hidden = Boolean(fixedBookingWasher.value);
+  let valid = Boolean(input.startDate) && input.startDate >= todayString()
+    && Number.isInteger(input.intervalWeeks) && input.intervalWeeks >= 1 && input.intervalWeeks <= 52;
+  const start = new Date(`${input.startDate}T00:00:00Z`);
+  valid = valid && Number.isFinite(start.getTime());
+  let first = '', last = null;
+  if (valid) {
+    first = addDaysString(input.startDate, (Number(fixedBookingWeekday.value) - start.getUTCDay() + 7) % 7);
+    valid = !isFixedSeriesSlotStarted(first, fixedBookingSlot.value);
+    if (dateEnd) {
+      valid = valid && Boolean(input.endDate) && input.endDate >= first;
+      if (valid) {
+        const days = Math.round((Date.parse(`${input.endDate}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 86400000);
+        last = addDaysString(first, Math.floor(days / (7 * input.intervalWeeks)) * 7 * input.intervalWeeks);
+      }
+    }
+    if (countEnd) {
+      valid = valid && Number.isInteger(input.count) && input.count >= 1 && input.count <= 1000;
+      if (valid) last = addDaysString(first, (input.count - 1) * 7 * input.intervalWeeks);
+    }
+  }
+  fixedBookingEndDate.min = first || input.startDate;
+  fixedBookingSubmit.disabled = fixedBookingPending || houseSelect.disabled || !valid || !fixedBookingWasher.value;
+  fixedBookingForm.setAttribute('aria-busy', String(fixedBookingPending));
+  fixedBookingSubmit.dataset.i18n = fixedBookingPending ? 'series.saving' : 'series.save';
+  fixedBookingSubmit.textContent = fixedBookingPending
+    ? translate('series.saving', 'Serie wird gespeichert …') : translate('series.save', 'Serie speichern');
+  fixedBookingPreview.textContent = valid ? fixedRecurrenceSummary({ ...input, firstOccurrenceDate: first, lastOccurrenceDate: last })
+    : translate('series.invalid', 'Bitte gueltige Serienangaben pruefen: 1–52 Wochen, Start nicht vergangen, erster Waschslot noch nicht begonnen, eindeutiges Ende und 1–1000 Termine.');
+  return valid;
 }
 
 function syncFixedBookingDuration() {
@@ -6323,15 +6450,20 @@ function renderFixedBookings(items) {
   });
 
   for (const group of sortedItems) {
-    const booking = group[0];
+    const booking = group.find(entry => entry.resource_type === 'washer') || group[0];
     const resourcesInPackage = [...new Map(group.map((entry) => [entry.resource_id, entry])).values()];
     const duration = Math.max(...group.map((entry) => Number(entry.drying_duration_slots || 0)));
+    const finalComponentDate = booking.recurrence?.lastOccurrenceDate
+      ? addDaysString(booking.recurrence.lastOccurrenceDate, Math.max(...group.map(entry => Number(entry.occurrence_day_offset || 0)))) : null;
     const item = document.createElement('article');
     item.className = 'fixed-booking-item';
     item.innerHTML = `
       <div>
         <strong>${escapeHtml(booking.label)}</strong>
         <span>${escapeHtml(weekdayLabel(booking.weekday))} - ${escapeHtml(booking.slot)}</span>
+        <small>${escapeHtml(fixedRecurrenceSummary(booking.recurrence))}</small>
+        ${finalComponentDate && finalComponentDate < todayString()
+    ? `<small>${escapeHtml(translate('series.ended', 'Serie beendet'))}</small>` : ''}
         <span>${escapeHtml(resourcesInPackage.map((entry) => entry.resource_name).join(', '))}</span>
         ${booking.apartment_name ? `<small>${escapeHtml(translate('admin.fixedApartmentSummary', 'Wohnung: {apartment}', { apartment: booking.apartment_name }))}</small>` : ''}
         ${duration ? `<small>${escapeHtml(translate('admin.dryingDurationSummary', 'Trockenraum: {count} Zeitfenster', { count: duration }))}</small>` : ''}
@@ -6349,7 +6481,20 @@ function renderFixedBookings(items) {
   }
 }
 
+function showFixedBookingStatus(message, tone = 'ok') {
+  fixedBookingActionStatus.textContent = message;
+  fixedBookingActionStatus.className = `notice ${tone}`;
+  fixedBookingActionStatus.hidden = !message;
+  showStatus(message, tone);
+}
+
 async function createFixedBooking() {
+  if (fixedBookingPending || houseSelect.disabled || sessionEnding) return;
+  if (!syncFixedRecurrence() || !fixedBookingWasher.value) return;
+  const revision = houseContextRevision;
+  fixedBookingPending = true;
+  syncFixedRecurrence();
+  showFixedBookingStatus(translate('series.saving', 'Serie wird gespeichert …'));
   try {
     const resourceIds = [
       Number(fixedBookingWasher.value),
@@ -6360,6 +6505,7 @@ async function createFixedBooking() {
       method: 'POST',
       body: JSON.stringify({
         label: fixedBookingLabel.value,
+        recurrence: fixedRecurrenceInput(),
         resourceIds,
         weekday: Number(fixedBookingWeekday.value),
         slot: fixedBookingSlot.value,
@@ -6369,12 +6515,32 @@ async function createFixedBooking() {
         apartmentId: fixedBookingApartment.value ? Number(fixedBookingApartment.value) : undefined
       })
     });
+    // A late response from the previous house must not reset this house's draft or feedback.
+    if (revision !== houseContextRevision || sessionEnding) return;
+    if (!data) {
+      showFixedBookingStatus(translate('series.sessionEnded', 'Die Sitzung ist beendet. Bitte erneut anmelden.'), 'error');
+      return;
+    }
     fixedBookingForm.reset();
+    fixedBookingStart.value = todayString();
     syncFixedBookingDuration();
-    showStatus(localizedSystemText(data.message, translate('admin.fixedSaved', 'Dauerpaket gespeichert.')));
-    await Promise.all([loadAdmin(), loadBookings()]);
+    syncFixedRecurrence();
+    const savedMessage = localizedSystemText(data.message, translate('admin.fixedSaved', 'Dauerpaket gespeichert.'));
+    showFixedBookingStatus(savedMessage);
+    // A committed save is not a failed save just because a subsequent read fails.
+    // Keep the lock until both reads settle so no late read can race a fresh submission.
+    const refreshResults = await Promise.allSettled([loadAdmin(), loadBookings()]);
+    if (revision !== houseContextRevision || sessionEnding) return;
+    if (refreshResults.some(result => result.status === 'rejected')) {
+      showFixedBookingStatus(`${savedMessage} ${translate('series.refreshFailed', 'Die Ansichten konnten nicht aktualisiert werden. Bitte die Seite neu laden; die Serie nicht erneut anlegen.')}`);
+    }
   } catch (error) {
-    showStatus(error.message, 'error');
+    if (revision === houseContextRevision && !sessionEnding) {
+      showFixedBookingStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
+    }
+  } finally {
+    fixedBookingPending = false;
+    syncFixedRecurrence();
   }
 }
 
@@ -7530,6 +7696,11 @@ fixedBookingForm.addEventListener('submit', async (event) => {
 fixedBookingDryingRoom.addEventListener('change', syncFixedBookingDuration);
 fixedBookingWeekday.addEventListener('change', syncFixedBookingDuration);
 fixedBookingSlot.addEventListener('change', syncFixedBookingDuration);
+for (const control of [fixedBookingInterval, fixedBookingStart, fixedBookingEndType, fixedBookingEndDate,
+  fixedBookingCount, fixedBookingWeekday, fixedBookingSlot, fixedBookingWasher]) {
+  control.addEventListener('input', syncFixedRecurrence);
+  control.addEventListener('change', syncFixedRecurrence);
+}
 
 filterButtons.forEach((button) => {
   button.addEventListener('click', () => {

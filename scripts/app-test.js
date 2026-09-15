@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+require('./fixed-recurrence-test').runFixedRecurrenceTests();
 process.env.ALLOW_LEGACY_HOUSE_REGISTRATION = 'true';
 const crypto = require('crypto');
 const fs = require('fs');
@@ -777,14 +778,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.13');
+    assert.equal(health.body.version, '0.3.14-test.1');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.13');
+    assert.equal(versionStatus.body.version, '0.3.14-test.1');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -1695,6 +1696,57 @@ async function run() {
     feedFixtureCleanup.prepare('DELETE FROM resources WHERE id = ?').run(foreignFeedResource.lastInsertRowid);
     feedFixtureCleanup.prepare('DELETE FROM houses WHERE id = ?').run(foreignFeedHouse.lastInsertRowid);
     feedFixtureCleanup.close();
+    // CR-004: real HTTP series lifecycle, synthetic resources only, same feed URL.
+    const seriesSeed = new Database(databasePath);
+    const seriesWasher = seriesSeed.prepare("INSERT INTO resources(name,type,house_id) VALUES('Series washer','washer',?)").run(storedCalendarToken.house_id).lastInsertRowid;
+    const seriesDrying = seriesSeed.prepare("INSERT INTO resources(name,type,house_id) VALUES('Series drying','drying_room',?)").run(storedCalendarToken.house_id).lastInsertRowid;
+    seriesSeed.close();
+    const seriesStart = addDays(nextWeekday(5), 14);
+    const seriesPayload = { label: 'Series synthetic', resourceIds: [seriesWasher, seriesDrying], weekday: 5,
+      slot: '17:00-21:00', dryingDurationSlots: 2, apartmentId: existingApartment.body.apartment.id,
+      recurrence: { intervalWeeks: 2, startDate: seriesStart, endType: 'count', count: 3 } };
+    const series = await expectStatus(admin, '/api/admin/fixed-bookings', 201, { method: 'POST', body: JSON.stringify(seriesPayload) });
+    assert.equal(series.body.created.length, 3);
+    const seriesResident = new ApiClient();
+    const seriesIdentity = await expectStatus(seriesResident, '/api/register', 201, { method: 'POST', body: JSON.stringify({
+      username: 'series-regression-resident', email: 'series-regression@example.test', password: 'Series-Regression-2026!', houseCode: 'Testhaus 18', notifyReleases: false
+    }) });
+    await expectStatus(seriesResident, '/api/bookings', 409, { method: 'POST', body: JSON.stringify({ resourceId: seriesWasher, date: seriesStart, slot: seriesPayload.slot }) });
+    const offWeekNormal = await expectStatus(seriesResident, '/api/bookings', 201, { method: 'POST', body: JSON.stringify({ resourceId: seriesWasher, date: addDays(seriesStart, 7), slot: seriesPayload.slot }) });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 409, { method: 'POST', body: JSON.stringify({ ...seriesPayload, recurrence: { ...seriesPayload.recurrence, startDate: addDays(seriesStart, 7) } }) });
+    await expectStatus(seriesResident, `/api/bookings/${offWeekNormal.body.id}`, 200, { method: 'DELETE' });
+    const seriesListed = (await expectStatus(admin, '/api/admin/fixed-bookings', 200)).body.fixedBookings.filter(row => row.group_id === series.body.groupId);
+    assert.equal(seriesListed.length, 3);
+    assert.ok(seriesListed.every(row => row.recurrence.count === 3 && row.recurrence.firstOccurrenceDate === seriesStart));
+    for (const [offset, expected] of [[0, 2], [1, 1], [7, 0], [14, 2], [28, 2], [29, 1], [42, 0]]) {
+      const bookings = await expectStatus(user, `/api/bookings?date=${addDays(seriesStart, offset)}`, 200);
+      assert.equal(bookings.body.bookings.filter(row => row.group_id === series.body.groupId).length, expected);
+    }
+    const finiteEvents = (await readFeedEvents()).events.filter(event => /Series washer|Series drying/.test(event));
+    assert.equal(finiteEvents.length, 3);
+    assert.ok(finiteEvents.every(event => event.includes('RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=3')));
+    assert.deepEqual((await readFeedEvents()).events.filter(event => /Series washer|Series drying/.test(event)), finiteEvents);
+    const alternatePayload = { ...seriesPayload, recurrence: { ...seriesPayload.recurrence, startDate: addDays(seriesStart, 7) } };
+    const alternating = await expectStatus(admin, '/api/admin/fixed-bookings', 201, { method: 'POST', body: JSON.stringify(alternatePayload) });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 409, { method: 'POST', body: JSON.stringify({ ...seriesPayload, recurrence: { ...seriesPayload.recurrence, intervalWeeks: 3 } }) });
+    await expectStatus(admin, '/api/admin/fixed-bookings', 400, { method: 'POST', body: JSON.stringify({ label: 'Legacy with recurrence', resourceId: seriesWasher, weekday: 5, slot: '07:00-12:00', recurrence: seriesPayload.recurrence }) });
+    await expectStatus(user, '/api/admin/fixed-bookings', 403, { method: 'POST', body: JSON.stringify(seriesPayload) });
+    await expectStatus(admin, `/api/admin/fixed-bookings/${series.body.id}`, 200, { method: 'DELETE' });
+    await expectStatus(admin, `/api/admin/fixed-bookings/${alternating.body.id}`, 200, { method: 'DELETE' });
+    assert.ok(!(await readFeedEvents()).events.some(event => /Series washer|Series drying/.test(event)));
+    const oncePayload = { ...seriesPayload, recurrence: { intervalWeeks: 3, startDate: seriesStart, endType: 'date', endDate: seriesStart } };
+    const onceSeries = await expectStatus(admin, '/api/admin/fixed-bookings', 201, { method: 'POST', body: JSON.stringify(oncePayload) });
+    assert.ok((await readFeedEvents()).events.filter(event => /Series washer|Series drying/.test(event)).every(event => event.includes('INTERVAL=3;COUNT=1')));
+    await expectStatus(admin, `/api/admin/fixed-bookings/${onceSeries.body.id}`, 200, { method: 'DELETE' });
+    const race = await Promise.all([admin.request('/api/admin/fixed-bookings', { method: 'POST', body: JSON.stringify(oncePayload) }),
+      admin.request('/api/admin/fixed-bookings', { method: 'POST', body: JSON.stringify(oncePayload) })]);
+    assert.deepEqual(race.map(result => result.response.status).sort(), [201, 409]);
+    const winner = race.find(result => result.response.status === 201);
+    await expectStatus(admin, `/api/admin/fixed-bookings/${winner.body.id}`, 200, { method: 'DELETE' });
+    const seriesCleanup = new Database(databasePath);
+    seriesCleanup.prepare('DELETE FROM resources WHERE id IN (?, ?)').run(seriesWasher, seriesDrying);
+    seriesCleanup.prepare('DELETE FROM users WHERE id=?').run(seriesIdentity.body.user.id);
+    seriesCleanup.close();
     const secondCalendarFeed = await expectStatus(user, '/api/me/calendar-feed', 201, { method: 'POST' });
     await expectStatus(guest, firstCalendarFeed.body.path, 404);
     await expectStatus(guest, secondCalendarFeed.body.path, 200);
@@ -3070,6 +3122,10 @@ async function run() {
     assert.equal(backup.body.subarray(0, 15).toString(), 'SQLite format 3');
     const verifiedBackup = await expectStatus(admin, '/api/admin/backup/run', 200, { method: 'POST' });
     assert.equal(verifiedBackup.body.status.ok, true);
+    assert.ok(Number.isFinite(Date.parse(verifiedBackup.body.status.createdAt)));
+    const backupOverview = await expectStatus(admin, '/api/admin/overview', 200);
+    assert.equal(backupOverview.body.backup.createdAt, verifiedBackup.body.status.createdAt);
+    assert.equal(backupOverview.body.backup.filename, verifiedBackup.body.status.filename);
     const backupsBeforeMaintenance = fs.readdirSync(backupDirectory).filter((name) => name.endsWith('.sqlite'));
     const maintenanceStarted = await expectStatus(admin, '/api/admin/maintenance', 200, {
       method: 'PUT',
@@ -3176,15 +3232,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.13'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.14-test.1'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.13"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.14-test.1"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.13'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.13'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.14-test.1'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.14-test.1'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

@@ -689,7 +689,81 @@ async function verifyTakeoverFilter(residentPage, adminPage) {
   }, report.id);
 }
 
+async function verifyFixedSeriesControls(page, directory) {
+  for (const language of ['de', 'en']) {
+    await page.evaluate(async language => {
+      i18n.setLanguage(language, { persist: false });
+      await loadAdmin();
+      setAppView('admin');
+      setAdminSection('fixed');
+      fixedBookingForm.closest('details').open = true;
+    }, language);
+    const activeCount = await page.evaluate(async () => (await api('/api/admin/resources')).resources.filter(r => r.active && r.type === 'washer').length);
+    assert(activeCount > 0);
+    assert.equal(await page.locator('#fixedBookingWasher option').count(), activeCount, 'BUG-FIXED-001: use the actual admin API shape');
+    const start = await page.evaluate(() => addDaysString(todayString(), 29));
+    await page.fill('#fixedBookingStart', start);
+    await page.fill('#fixedBookingInterval', '2');
+    await page.selectOption('#fixedBookingWeekday', '1');
+    await page.selectOption('#fixedBookingEndType', 'count');
+    await page.fill('#fixedBookingCount', '3');
+    assert(await page.locator('#fixedBookingCount').isVisible());
+    assert(!(await page.locator('#fixedBookingEndDate').isVisible()));
+    assert.match(await page.locator('#fixedBookingPreview').innerText(), language === 'de' ? /Alle 2 Wochen.*Erster Waschbeginn.*Letzter Waschbeginn/ : /Every 2 weeks.*First washing start.*Last washing start/);
+    await page.fill('#fixedBookingInterval', '53');
+    assert(await page.locator('#fixedBookingSubmit').isDisabled());
+    await page.fill('#fixedBookingInterval', '3');
+    await page.selectOption('#fixedBookingEndType', 'date');
+    await page.fill('#fixedBookingEndDate', start);
+    // Start is not necessarily Monday: before-first-date must not silently create zero occurrences.
+    const first = await page.evaluate(() => addDaysString(fixedBookingStart.value,
+      (1 - new Date(`${fixedBookingStart.value}T00:00:00Z`).getUTCDay() + 7) % 7));
+    await page.fill('#fixedBookingEndDate', first);
+    assert(await page.locator('#fixedBookingSubmit').isEnabled());
+    await page.selectOption('#fixedBookingEndType', 'never');
+    assert(!(await page.locator('#fixedBookingCount').isVisible()));
+    assert(!(await page.locator('#fixedBookingEndDate').isVisible()));
+    await page.selectOption('#fixedBookingEndType', 'count');
+    for (const width of [320, 390, 760, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const selector of ['#fixedBookingInterval', '#fixedBookingStart', '#fixedBookingEndType', '#fixedBookingCount', '#fixedBookingSubmit']) {
+        await page.locator(selector).evaluate(e => e.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        await page.locator(selector).focus();
+        const box = await page.locator(selector).boundingBox();
+        assert(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= 901, `${language}/${width}/${selector} reachable`);
+        assert(await page.locator(selector).evaluate(e => {
+          const r = e.getBoundingClientRect();
+          return e.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+        }), 'Series field must not be covered');
+        if (selector === '#fixedBookingInterval') await page.screenshot({ path: path.join(directory, `series-${language}-${width}-rhythm.png`) });
+      }
+      await page.locator('#fixedBookingPreview').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(directory, `series-${language}-${width}.png`) });
+    }
+    await page.fill('#fixedBookingLabel', 'Synthetic series UI');
+    let saved;
+    await page.route('**/api/admin/fixed-bookings', async route => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      saved = route.request().postDataJSON();
+      await route.fulfill({ json: { id: 123, message: 'Dauerpaket gespeichert.' }, status: 201 });
+    });
+    await page.locator('#fixedBookingSubmit').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => fixedBookingLabel.value === '');
+    assert.deepEqual(saved.recurrence, { intervalWeeks: 3, startDate: start, endType: 'count', count: 3 });
+    assert(saved.resourceIds[0] > 0);
+    await page.unroute('**/api/admin/fixed-bookings');
+    await page.evaluate(() => populateFixedBookingControls([]));
+    assert(await page.locator('#fixedBookingEmpty').isVisible());
+    assert(await page.locator('#fixedBookingSubmit').isDisabled());
+    await page.evaluate(async () => { await loadAdmin(); });
+  }
+  await page.evaluate(() => { i18n.setLanguage('de', { persist: false }); setAppView('booking'); });
+  console.log(JSON.stringify({ ok: true, suite: 'series-browser', locales: ['de', 'en'], widths: [320, 390, 760, 1024, 1440], payloadTransport: 'mocked POST; actual admin GET' }));
+}
+
 async function run() {
+  await require('./ui-feedback-regression').runUiFeedbackRegression();
   const playwright = await loadPlaywright();
   const port = 34000 + (process.pid % 1000);
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -887,7 +961,7 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.13');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.14-test.1');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
     assert.match(whatsNewText, /GBMZ/);
@@ -897,7 +971,7 @@ async function run() {
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.13')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.14-test.1')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -906,6 +980,12 @@ async function run() {
     await page.click('#openSettingsButton');
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
+    assert.equal(await page.locator('#appVersionText').isVisible(), true);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.14-test\.1/);
+    await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
+    assert.equal(await page.locator('#appVersionText').isVisible(), true);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.14-test\.1/);
+    await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
     assert.equal(await page.locator('#settingsOverlay').isHidden(), true);
@@ -1602,6 +1682,7 @@ async function run() {
     await passiveAdminPage.waitForFunction(() => document.querySelector('#adminBox')?.hidden === false);
     await passiveInitGate.remove();
     await passiveAdminContext.close();
+    await verifyFixedSeriesControls(adminPage, screenshotDirectory);
     await verifyTakeoverFilter(page, adminPage);
 
     await adminPage.waitForSelector('#weekCalendar [data-calendar-date]');

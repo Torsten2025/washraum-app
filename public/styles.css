@@ -3296,6 +3296,7 @@ aside.panel {
 .user-admin-identity strong,
 .user-admin-identity span {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .user-admin-identity span {
@@ -3308,6 +3309,39 @@ aside.panel {
 .user-admin-actions {
   display: grid;
   gap: 8px;
+}
+
+.user-move-control,
+.user-move-note {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.user-move-control label {
+  display: grid;
+  flex: 1 1 180px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.user-move-control select {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.user-move-note {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+#backupActionStatus,
+#backupLastStatus,
+#fixedBookingPreview,
+#fixedBookingEmpty,
+#statusText {
+  overflow-wrap: anywhere;
 }
 
 .apartment-edit-form,
@@ -9447,13 +9481,16 @@ body:not(.admin-view) .side-panel {
   .house-admin-actions,
   body.admin-view .user-admin-actions {
     display: grid !important;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
   .resource-admin-actions button,
   .house-admin-actions button,
   body.admin-view .user-admin-actions button {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
     width: 100%;
   }
 }

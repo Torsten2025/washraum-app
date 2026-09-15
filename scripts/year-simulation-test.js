@@ -232,6 +232,24 @@ async function run() {
     assert.equal(residents.length, totalResidentCount);
 
     const templateMonday = nextMonday();
+    // Concrete HTTP projections over a full year, separate from the historical workload.
+    await expectStatus(admin, '/api/me/active-house', 200, { method: 'PUT', body: JSON.stringify({ houseId: houses[0].id }) });
+    const seriesStart = addDays(templateMonday, 4);
+    const yearlySeries = [];
+    for (const [intervalWeeks, count, resource] of [[2, 26, houses[0].washers[1]], [3, 18, houses[0].washers[2]]]) {
+      const created = await expectStatus(admin, '/api/admin/fixed-bookings', 201, { method: 'POST', body: JSON.stringify({
+        label: 'Yearly series regression', resourceIds: [resource.id], weekday: 5, slot: slots[0],
+        recurrence: { intervalWeeks, startDate: seriesStart, endType: 'count', count }
+      }) });
+      yearlySeries.push({ ...created.body, intervalWeeks, count });
+    }
+    for (let week = 0; week < 54; week++) {
+      const projection = await expectStatus(admin, `/api/bookings?date=${addDays(seriesStart, week * 7)}`, 200);
+      for (const series of yearlySeries) assert.equal(projection.body.bookings.some(row => row.group_id === series.groupId),
+        week % series.intervalWeeks === 0 && week / series.intervalWeeks < series.count);
+    }
+    for (const series of yearlySeries) await expectStatus(admin, `/api/admin/fixed-bookings/${series.id}`, 200, { method: 'DELETE' });
+    await expectStatus(admin, '/api/me/active-house', 200, { method: 'PUT', body: JSON.stringify({ houseId: houses[houses.length - 1].id }) });
     const historyStart = addDays(previousMonday(), -simulatedWeeks * 7);
     const moveGroupToHistory = db.prepare('UPDATE bookings SET booking_date = ? WHERE group_id = ?');
     const expectedWashSlots = new Map();

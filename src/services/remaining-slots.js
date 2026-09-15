@@ -1,4 +1,5 @@
 'use strict';
+const { occursOn } = require('./fixed-recurrence');
 
 function createRemainingSlotService({
   db,
@@ -48,14 +49,13 @@ function createRemainingSlotService({
     `).get(Number(apartmentId), Number(houseId), date);
     if (retainedUsage) return true;
 
-    return Boolean(db.prepare(`
-      SELECT 1
+    return db.prepare(`
+      SELECT fb.*
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1 AND fb.apartment_id = ? AND r.house_id = ? AND r.type = 'washer'
         AND fb.weekday = ?
-      LIMIT 1
-    `).get(Number(apartmentId), Number(houseId), weekdayForDate(date)));
+    `).all(Number(apartmentId), Number(houseId), weekdayForDate(date)).some(row => occursOn(row, date));
   }
 
   function partyHasRemainingSlot(bookingUserId, houseId, date) {
@@ -78,12 +78,9 @@ function createRemainingSlotService({
           SELECT 1 FROM bookings b
           WHERE b.resource_id = r.id AND b.booking_date = ? AND b.slot = ?
         )
-        AND NOT EXISTS (
-          SELECT 1 FROM fixed_bookings fb
-          WHERE fb.resource_id = r.id AND fb.active = 1 AND fb.weekday = ? AND fb.slot = ?
-        )
       ORDER BY r.name, r.id
-    `).all(Number(houseId), type, date, slot, weekdayForDate(date), slot);
+    `).all(Number(houseId), type, date, slot)
+      .filter(resource => !fixedBookingConflict(resource.id, date, slot, houseId));
   }
 
   function tumblerOptions(date, slot, houseId) {
@@ -245,7 +242,7 @@ function createRemainingSlotService({
         UPDATE remaining_slot_requests SET state = 'completed' WHERE apartment_id = ? AND idempotency_key_hash = ?
       `).run(Number(apartmentId), requestHash);
       return { idempotent: false, bookings: groupProjection(groupId, bookingUserId, houseId) };
-    })();
+    }).immediate();
   }
 
   function ownedGroup(groupId, bookingUserId, houseId) {

@@ -375,9 +375,14 @@ function createCurrentTables() {
       active INTEGER NOT NULL DEFAULT 1,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      interval_weeks INTEGER NOT NULL DEFAULT 1 CHECK (interval_weeks BETWEEN 1 AND 52),
+      series_start_date TEXT,
+      series_end_date TEXT,
+      occurrence_count INTEGER CHECK (occurrence_count BETWEEN 1 AND 1000),
+      occurrence_day_offset INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_day_offset BETWEEN 0 AND 1),
       FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-      UNIQUE (resource_id, weekday, slot)
+      CHECK (series_end_date IS NULL OR occurrence_count IS NULL)
     );
 
     CREATE TABLE IF NOT EXISTS booking_day_usage (
@@ -584,6 +589,7 @@ function seedCurrentDefaults() {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_houses_code_lower ON houses (lower(code))");
   db.exec("CREATE INDEX IF NOT EXISTS idx_bookings_group_id ON bookings (group_id) WHERE group_id IS NOT NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_fixed_bookings_group_id ON fixed_bookings (group_id) WHERE group_id IS NOT NULL");
+  db.exec('CREATE INDEX IF NOT EXISTS idx_fixed_recurring_slot ON fixed_bookings(resource_id,weekday,slot,active)');
   db.exec("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id, active)");
   db.exec('CREATE INDEX IF NOT EXISTS idx_diaper_game_scores_version_best ON diaper_game_scores (game_version, best_time_ms, achieved_at)');
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_apartment ON users (apartment_id)");
@@ -850,37 +856,43 @@ function initDb() {
 
 function migrateFixedBookingSundaySupport() {
   const definition = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'fixed_bookings'").get()?.sql || '';
-  if (!/weekday\s+BETWEEN\s+1\s+AND\s+6/i.test(definition)) return;
+  const rebuild = /weekday\s+BETWEEN\s+1\s+AND\s+6/i.test(definition)
+    || /UNIQUE\s*\(resource_id,\s*weekday,\s*slot\)/i.test(definition);
+  const columns = db.pragma('table_info(fixed_bookings)').map(column => column.name);
+  if (['interval_weeks', 'series_start_date', 'series_end_date', 'occurrence_count', 'occurrence_day_offset']
+    .every(column => columns.includes(column)) && !rebuild) return;
+  const indexes = db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='fixed_bookings' AND sql IS NOT NULL").all();
+  const foreignKeys = db.pragma('foreign_keys', { simple: true });
   db.pragma('foreign_keys = OFF');
   try {
     db.transaction(() => {
-      db.exec(`
-        CREATE TABLE fixed_bookings_sunday (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          resource_id INTEGER NOT NULL,
-          weekday INTEGER NOT NULL CHECK (weekday BETWEEN 0 AND 6),
-          slot TEXT NOT NULL,
-          label TEXT NOT NULL,
-          group_id TEXT,
-          drying_duration_slots INTEGER,
-          apartment_id INTEGER,
-          active INTEGER NOT NULL DEFAULT 1,
-          created_by INTEGER,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE,
-          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-          UNIQUE (resource_id, weekday, slot)
-        );
-        INSERT INTO fixed_bookings_sunday
-          (id, resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, active, created_by, created_at)
-        SELECT id, resource_id, weekday, slot, label, group_id, drying_duration_slots, apartment_id, active, created_by, created_at
-        FROM fixed_bookings;
-        DROP TABLE fixed_bookings;
-        ALTER TABLE fixed_bookings_sunday RENAME TO fixed_bookings;
-      `);
+      if (db.pragma('foreign_key_check').length) throw new Error('FIXED_MIGRATION_FOREIGN_KEY');
+      if (rebuild) {
+        const replacement = definition.replace(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`]?fixed_bookings["`]?/i, 'CREATE TABLE fixed_bookings_recurrence')
+          .replace(/weekday\s+BETWEEN\s+1\s+AND\s+6/i, 'weekday BETWEEN 0 AND 6')
+          .replace(/,\s*UNIQUE\s*\(resource_id,\s*weekday,\s*slot\)/i, '');
+        const names = columns.map(name => `"${name.replace(/"/g, '""')}"`).join(',');
+        const count = db.prepare('SELECT COUNT(*) AS n FROM fixed_bookings').get().n;
+        const highWatermark = db.prepare("SELECT seq FROM sqlite_sequence WHERE name='fixed_bookings'").get()?.seq || 0;
+        db.exec(replacement);
+        db.exec(`INSERT INTO fixed_bookings_recurrence (${names}) SELECT ${names} FROM fixed_bookings`);
+        if (db.prepare('SELECT COUNT(*) AS n FROM fixed_bookings_recurrence').get().n !== count) throw new Error('FIXED_MIGRATION_COUNT');
+        db.exec('DROP TABLE fixed_bookings; ALTER TABLE fixed_bookings_recurrence RENAME TO fixed_bookings');
+        const restoredSequence = db.prepare("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='fixed_bookings'").run(highWatermark);
+        if (!restoredSequence.changes && highWatermark) db.prepare("INSERT INTO sqlite_sequence(name,seq) VALUES('fixed_bookings',?)").run(highWatermark);
+        for (const index of indexes) db.exec(index.sql);
+      }
+      ensureColumn('fixed_bookings', 'interval_weeks', 'INTEGER NOT NULL DEFAULT 1 CHECK (interval_weeks BETWEEN 1 AND 52)');
+      ensureColumn('fixed_bookings', 'series_start_date', 'TEXT');
+      ensureColumn('fixed_bookings', 'series_end_date', 'TEXT');
+      ensureColumn('fixed_bookings', 'occurrence_count', 'INTEGER CHECK (occurrence_count BETWEEN 1 AND 1000)');
+      ensureColumn('fixed_bookings', 'occurrence_day_offset', 'INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_day_offset BETWEEN 0 AND 1)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_fixed_recurring_slot ON fixed_bookings(resource_id,weekday,slot,active)');
+      if (db.pragma('foreign_key_check').length) throw new Error('FIXED_MIGRATION_FOREIGN_KEY');
+      if (db.pragma('integrity_check', { simple: true }) !== 'ok') throw new Error('FIXED_MIGRATION_INTEGRITY');
     })();
   } finally {
-    db.pragma('foreign_keys = ON');
+    db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
   }
 }
 

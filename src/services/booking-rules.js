@@ -1,3 +1,5 @@
+const { occursOn } = require('./fixed-recurrence');
+
 function createBookingRules({
   db,
   slots,
@@ -27,7 +29,8 @@ function createBookingRules({
       SELECT 'fixed-' || fb.id AS id, ? AS booking_date, fb.slot, r.id AS resource_id, r.name AS resource_name,
              r.type AS resource_type, NULL AS user_id, fb.apartment_id,
              COALESCE(NULLIF(a.display_name, ''), NULLIF(a.label, '')) AS owner_display_name,
-             1 AS is_fixed, fb.weekday, fb.group_id, fb.drying_duration_slots
+             1 AS is_fixed, fb.weekday, fb.group_id, fb.drying_duration_slots,
+             fb.interval_weeks, fb.series_start_date, fb.series_end_date, fb.occurrence_count, fb.occurrence_day_offset
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       LEFT JOIN apartments a ON a.id = fb.apartment_id AND a.house_id = r.house_id AND a.active = 1
@@ -36,7 +39,7 @@ function createBookingRules({
         AND r.house_id = ?
         AND fb.weekday = ?
       ORDER BY fb.slot, r.name
-    `).all(dateString, houseId, weekday);
+    `).all(dateString, houseId, weekday).filter(row => occursOn(row, dateString));
   }
 
   function fixedBookingConflict(resourceId, dateString, slot, houseId) {
@@ -46,7 +49,7 @@ function createBookingRules({
     }
 
     return db.prepare(`
-      SELECT fb.id, fb.label, r.name AS resource_name
+      SELECT fb.*, r.name AS resource_name
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1
@@ -54,8 +57,7 @@ function createBookingRules({
         AND r.house_id = ?
         AND fb.weekday = ?
         AND fb.slot = ?
-      LIMIT 1
-    `).get(Number(resourceId), houseId, weekday, slot);
+    `).all(Number(resourceId), houseId, weekday, slot).find(row => occursOn(row, dateString)) || null;
   }
 
   function allowedDryingRoomSlots(washDate, washSlot) {
@@ -160,7 +162,7 @@ function createBookingRules({
     `).get(houseId, date, slot).count;
 
     const fixedTumblers = db.prepare(`
-      SELECT COUNT(*) AS count
+      SELECT fb.*
       FROM fixed_bookings fb
       JOIN resources r ON r.id = fb.resource_id
       WHERE fb.active = 1
@@ -168,7 +170,7 @@ function createBookingRules({
         AND r.house_id = ?
         AND fb.weekday = ?
         AND fb.slot = ?
-    `).get(houseId, weekdayForDate(date), slot).count;
+    `).all(houseId, weekdayForDate(date), slot).filter(row => occursOn(row, date)).length;
 
     if (bookedTumblers + fixedTumblers >= Math.max(0, totalTumblers - 1)) {
       return 'Mindestens ein Tumbler muss am Ende des Waschslots frei bleiben.';
@@ -358,17 +360,9 @@ function createBookingRules({
             AND b.booking_date = ?
             AND b.slot = ?
         )
-        AND NOT EXISTS (
-          SELECT 1
-          FROM fixed_bookings fb
-          WHERE fb.resource_id = r.id
-            AND fb.active = 1
-            AND fb.weekday = ?
-            AND fb.slot = ?
-        )
       ORDER BY r.name
-      LIMIT ?
-    `).all(type, houseId, date, slot, weekdayForDate(date), slot, safeLimit);
+    `).all(type, houseId, date, slot)
+      .filter(resource => !fixedBookingConflict(resource.id, date, slot, houseId)).slice(0, safeLimit);
   }
 
   function findAvailableResource(userId, type, date, slot, houseId) {

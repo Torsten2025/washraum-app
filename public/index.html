@@ -71,11 +71,13 @@
 
     <section id="whatsNewNotice" class="app-update-notice whats-new-notice" aria-labelledby="whatsNewTitle" hidden>
       <div>
-        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.13</strong>
+        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.14-test.1</strong>
         <span data-i18n="whatsNew.summary">Namen bei belegten Terminen, bessere Desktop-App-Ansicht, einfacherer Kalenderfeed und aktivierte Datensicherung. Bei Haeusern waehlt der Superadmin bei der Anlage oder spaeter GBMZ (bisherige Regeln) oder Liberal (freie Eintragung in freie Slots; keine Doppelbelegung und nur im berechtigten Haus).</span>
       </div>
       <button id="dismissWhatsNewButton" type="button" data-i18n="common.understood">Verstanden</button>
     </section>
+
+    <p id="statusText" class="notice muted" role="status" aria-live="polite"></p>
 
     <main class="layout">
       <div class="main-column">
@@ -91,8 +93,6 @@
             </div>
           </div>
         </section>
-
-        <p id="statusText" class="notice muted" role="status" aria-live="polite"></p>
 
         <section class="panel my-bookings-panel">
           <div class="section-head">
@@ -411,7 +411,7 @@
                   Wochentag
                   <select id="fixedBookingWeekday" name="weekday" required>
                     <option value="0" data-liberal-weekday hidden data-i18n="weekday.sunday">Sonntag</option>
-                    <option value="1">Montag</option>
+                    <option value="1" selected>Montag</option>
                     <option value="2">Dienstag</option>
                     <option value="3">Mittwoch</option>
                     <option value="4">Donnerstag</option>
@@ -423,8 +423,30 @@
                   Slot
                   <select id="fixedBookingSlot" name="slot" required></select>
                 </label>
-                <button type="submit">Fest speichern</button>
+                <label><span data-i18n="series.interval">Alle N Wochen (1–52)</span>
+                  <input id="fixedBookingInterval" type="number" min="1" max="52" step="1" value="1" required>
+                </label>
+                <label><span data-i18n="series.start">Nicht vor diesem Datum</span>
+                  <input id="fixedBookingStart" type="date" required>
+                </label>
+                <label><span data-i18n="series.end">Ende der Serie</span>
+                  <select id="fixedBookingEndType">
+                    <option value="never" data-i18n="series.never">Nie</option>
+                    <option value="date" data-i18n="series.onDate">Am Datum (einschliesslich Waschdatum)</option>
+                    <option value="count" data-i18n="series.afterCount">Nach Anzahl Terminen</option>
+                  </select>
+                </label>
+                <label id="fixedBookingEndDateWrap" hidden><span data-i18n="series.endDate">Letztes erlaubtes Waschdatum</span>
+                  <input id="fixedBookingEndDate" type="date" disabled>
+                </label>
+                <label id="fixedBookingCountWrap" hidden><span data-i18n="series.count">Anzahl Waschtermine (1–1000)</span>
+                  <input id="fixedBookingCount" type="number" min="1" max="1000" step="1" value="1" disabled>
+                </label>
+                <p id="fixedBookingPreview" class="notice muted" role="status" aria-live="polite"></p>
+                <p id="fixedBookingEmpty" class="notice" role="status" hidden data-i18n="series.noWasher">Keine aktive Waschmaschine vorhanden. Bitte zuerst unter Haus &amp; Geraete einrichten.</p>
+                <button id="fixedBookingSubmit" type="submit" data-i18n="series.save">Serie speichern</button>
               </form>
+              <p id="fixedBookingActionStatus" class="notice" role="status" aria-live="polite" hidden></p>
             </details>
             <div id="fixedBookingList" class="fixed-booking-list"></div>
           </section>
@@ -493,6 +515,8 @@
                 <div>
                   <strong data-i18n="admin.backupData">Daten sichern</strong>
                   <span id="backupOperationHint" role="status">Eine vollst&auml;ndige SQLite-Sicherung erstellen oder herunterladen.</span>
+                  <span id="backupLastStatus"></span>
+                  <p id="backupActionStatus" class="notice" role="status" aria-live="polite" aria-atomic="true" hidden></p>
                 </div>
                 <div class="inline-actions">
                   <button id="runBackupButton" class="secondary" type="button" aria-describedby="backupOperationHint" data-i18n="admin.backupNow">Jetzt sichern</button>

@@ -88,6 +88,9 @@ assert.match(indexHtml, /id="diaperIncident"[^>]*role="status"[^>]*aria-live="as
 assert.match(indexHtml, /id="diaperGameStatus"[^>]*role="status"[^>]*aria-live="polite"/, 'Windel-Alarm ohne fortlaufenden Textstatus');
 assert.match(indexHtml, /id="diaperSoundButton"[^>]*aria-pressed="false"/, 'Windel-Alarm-Ton ohne Schalterstatus');
 assert.match(indexHtml, /id="backupOperationHint"[^>]*role="status"/, 'Backup-Verfuegbarkeit ohne Statussemantik');
+assert.match(indexHtml, /id="backupActionStatus"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/, 'Laufende Backupaktion braucht einen eigenen Live-Status');
+assert.ok(indexHtml.indexOf('id="statusText"') < indexHtml.indexOf('<main'), 'Globale Rueckmeldung darf nicht im ausgeblendeten Buchungsbereich liegen');
+assert.match(indexHtml, /id="fixedBookingPreview"[^>]*role="status"[^>]*aria-live="polite"/, 'Serienvorschau braucht Live-Status');
 assert.match(indexHtml, /id="runBackupButton"[^>]*aria-describedby="backupOperationHint"/, 'Backup-Aktion ohne zugaengliche Verfuegbarkeitsbeschreibung');
 assert.match(indexHtml, /<button id="downloadBackupButton"[^>]*aria-describedby="backupOperationHint"/, 'Backup-Download muss als deaktivierbare, beschriebene Button-Aktion vorliegen');
 assert.doesNotMatch(indexHtml, /<a id="downloadBackupButton"/, 'Backup-Download darf kein trotz Deaktivierung navigierbarer Link sein');

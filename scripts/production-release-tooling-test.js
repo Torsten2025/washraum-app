@@ -196,9 +196,9 @@ function backupInput(root, overrides = {}) {
       expectedLiveCommit: LIVE_COMMIT,
       actualLiveCommit: LIVE_COMMIT,
       candidateCommit: CANDIDATE_COMMIT,
-      expectedLiveVersion: '0.3.11',
-      actualLiveVersion: '0.3.11',
-      candidateVersion: '0.3.13',
+      expectedLiveVersion: '0.3.12',
+      actualLiveVersion: '0.3.12',
+      candidateVersion: '0.3.14-test.1',
       databasePath: path.join(root, 'washraum.sqlite'),
       targetPath: expectedTargetPath(CANDIDATE_COMMIT, backupDir, path)
     },
@@ -230,8 +230,8 @@ function validProof(now = Date.now()) {
     domain: PRODUCTION_DOMAIN,
     sourceCommit: LIVE_COMMIT,
     candidateCommit: CANDIDATE_COMMIT,
-    sourceVersion: '0.3.11',
-    candidateVersion: '0.3.13',
+    sourceVersion: '0.3.12',
+    candidateVersion: '0.3.14-test.1',
     databasePath: '/var/data/washraum.sqlite',
     backupPath: `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`,
     bootstrapObserved: true,
@@ -310,8 +310,8 @@ async function verifyBackupBootstrap() {
     assert.equal(proof.contract, BACKUP_CONTRACT_VERSION);
     assert.equal(proof.sourceCommit, LIVE_COMMIT);
     assert.equal(proof.candidateCommit, CANDIDATE_COMMIT);
-    assert.equal(proof.sourceVersion, '0.3.11');
-    assert.equal(proof.candidateVersion, '0.3.13');
+    assert.equal(proof.sourceVersion, '0.3.12');
+    assert.equal(proof.candidateVersion, '0.3.14-test.1');
     assert.equal(proof.sourceOpenedReadOnly, true);
     assert.equal(proof.targetCreatedExactlyOnce, true);
     assert.equal(proof.restoreDrill.ok, true);
@@ -577,8 +577,8 @@ function verifyArgumentAndProofContracts() {
     '--service', 'washraum-app',
     '--expected-live-commit', LIVE_COMMIT,
     '--candidate-commit', CANDIDATE_COMMIT,
-    '--expected-live-version', '0.3.11',
-    '--candidate-version', '0.3.13',
+    '--expected-live-version', '0.3.12',
+    '--candidate-version', '0.3.14-test.1',
     '--database', '/var/data/washraum.sqlite',
     '--target', `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`
   ]);
@@ -587,8 +587,8 @@ function verifyArgumentAndProofContracts() {
   const livePackageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-live-package-'));
   try {
     const livePackagePath = path.join(livePackageRoot, 'package.json');
-    fs.writeFileSync(livePackagePath, '{"version":"0.3.11"}\n');
-    assert.equal(readLiveVersion(livePackagePath), '0.3.11');
+    fs.writeFileSync(livePackagePath, '{"version":"0.3.12"}\n');
+    assert.equal(readLiveVersion(livePackagePath), '0.3.12');
     assert.throws(() => readLiveVersion(path.join(livePackageRoot, 'missing.json')), /LIVE_VERSION_SOURCE/);
   } finally {
     fs.rmSync(livePackageRoot, { recursive: true, force: true });
@@ -680,7 +680,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
     consumeProofImpl: consumer.consume,
     liveFetchImpl: async () => {
       liveEndpointRequests += 1;
-      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.11' }) };
+      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.12' }) };
     },
     hookFetchImpl: async () => {
       hookRequests += 1;
@@ -698,7 +698,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
   await expectBackupError('LIVE_ENDPOINT', () => runDeployment(deploymentInput(proofToken), {
     now,
     consumeProofImpl: mismatchConsumer.consume,
-    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.11' }) }),
+    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.12' }) }),
     hookFetchImpl: async () => { hookRequests += 1; throw new Error('must not run'); }
   }));
   assert.equal(hookRequests, 0);
@@ -708,7 +708,7 @@ async function verifyProofReplayAndCrashBoundaries() {
   const now = Date.now();
   const proofToken = signBackupProof(validProof(now), PROOF_KEY);
   const liveOk = async () => ({ status: 200, json: async () => ({
-    ok: true, revision: LIVE_COMMIT, version: '0.3.11'
+    ok: true, revision: LIVE_COMMIT, version: '0.3.12'
   }) });
 
   let liveRequests = 0;
