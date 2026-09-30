@@ -87,6 +87,11 @@
             Passwort
             <input name="password" type="password" autocomplete="current-password" required>
           </label>
+          <label class="checkbox-label">
+            <input name="rememberDevice" type="checkbox" aria-describedby="rememberDeviceHint">
+            <span data-i18n="auth.rememberDevice">Auf diesem Gerät angemeldet bleiben</span>
+          </label>
+          <p id="rememberDeviceHint" class="helper-text" data-i18n="auth.rememberDeviceHint">Nur auf deinem persönlichen Gerät: bis zu 90 Tage, bei Nutzung verlängerbar. Auf gemeinsam genutzten Geräten ausgeschaltet lassen.</p>
           <button type="submit">Einsteigen</button>
           <button id="showRecovery" class="text-button" type="button">Passwort vergessen?</button>
           <p id="message" class="message" role="status"></p>

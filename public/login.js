@@ -154,7 +154,8 @@ form.addEventListener('submit', async (event) => {
   const formData = new FormData(form);
   const data = await submitJson(form, '/api/login', {
     email: formData.get('email'),
-    password: formData.get('password')
+    password: formData.get('password'),
+    rememberDevice: formData.get('rememberDevice') === 'on'
   }, message);
   if (!data) return;
 

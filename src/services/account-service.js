@@ -1,4 +1,5 @@
 'use strict';
+const { credentialStamp, STANDARD_COOKIE_MS } = require('./session-store');
 
 function createAccountService({
   db,
@@ -168,11 +169,25 @@ function createAccountService({
     return `${base}-${crypto.randomBytes(3).toString('hex')}`;
   }
 
-  function regenerateSession(req) {
+  function regenerateSession(req, authenticatedUser) {
     return new Promise((resolve, reject) => {
       req.session.regenerate((error) => {
         if (error) reject(error);
-        else resolve();
+        else {
+          try {
+            const current = db.prepare('SELECT id, active, password_hash FROM users WHERE id = ?').get(authenticatedUser?.id);
+            if (!current?.active || current.password_hash !== authenticatedUser.password_hash) {
+              const invalid = new Error('SESSION_ACCOUNT_CHANGED');
+              invalid.status = 401;
+              return reject(invalid);
+            }
+            req.session.authUserId = current.id;
+            req.session.authCredentialStamp = credentialStamp(current);
+            db.prepare('INSERT INTO sessions (sid, expired, sess) VALUES (?, ?, ?)')
+              .run(req.sessionID, Date.now() + STANDARD_COOKIE_MS, JSON.stringify(req.session));
+            resolve();
+          } catch (failure) { reject(failure); }
+        }
       });
     });
   }
@@ -186,7 +201,8 @@ function createAccountService({
         continue;
       }
       try {
-        if (Number(JSON.parse(row.sess)?.user?.id) === Number(userId)) {
+        const stored = JSON.parse(row.sess);
+        if (Number(stored.authUserId || stored.user?.id) === Number(userId)) {
           remove.run(row.sid);
         }
       } catch {

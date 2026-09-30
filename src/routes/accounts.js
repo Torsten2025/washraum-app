@@ -1,4 +1,5 @@
 'use strict';
+const { REMEMBER_MS, remembered, bindRememberCookie, renewRememberSession } = require('../services/session-store');
 
 function createAccountRouters({
   express,
@@ -48,6 +49,15 @@ function createAccountRouters({
 }) {
   const primaryRouter = express.Router();
   const personalRouter = express.Router();
+  function sessionInfo(req) {
+    return {
+      idleTimeoutMs: remembered(req.session) ? 0 : sessionIdleTimeoutMs,
+      warningMs: remembered(req.session) ? 0 : sessionWarningMs,
+      lastActivityAt: req.session?.lastActivityAt,
+      rememberDevice: remembered(req.session),
+      expiresAt: remembered(req.session) ? req.session.rememberExpiresAt : null
+    };
+  }
 
 primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
   const password = req.body?.password;
@@ -68,17 +78,24 @@ primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
   }
 
   if (!isBcryptHash(user.password_hash)) {
+    user.password_hash = bcrypt.hashSync(String(password || ''), 10);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-      .run(bcrypt.hashSync(String(password || ''), 10), user.id);
+      .run(user.password_hash, user.id);
   }
 
   try {
     const sessionUser = sessionUserFromRow(user);
     clearAuthRateLimit(req);
-    await regenerateSession(req);
+    await regenerateSession(req, user);
     req.session.user = sessionUser;
     req.session.activeHouseId = user.house_id;
     req.session.lastActivityAt = Date.now();
+    if (req.body?.rememberDevice === true) {
+      req.session.rememberDevice = true;
+      req.session.rememberRenewedAt = Date.now();
+      req.session.rememberExpiresAt = req.session.rememberRenewedAt + REMEMBER_MS;
+      bindRememberCookie(req.session);
+    }
     res.json({ user: req.session.user });
   } catch (error) {
     next(error);
@@ -159,7 +176,7 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
         console.error(`QR-Mitglied konnte keine Bestaetigungsmail erhalten: ${error.message}`);
       });
     }
-    await regenerateSession(req);
+    await regenerateSession(req, identity);
     req.session.user = sessionUserFromRow(identity);
     req.session.activeHouseId = identity.house_id;
     req.session.lastActivityAt = Date.now();
@@ -295,7 +312,7 @@ primaryRouter.post('/api/invitations/accept', registrationRateLimit, authRateLim
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
-    await regenerateSession(req);
+    await regenerateSession(req, user);
     req.session.user = sessionUserFromRow(user, house);
     req.session.activeHouseId = user.house_id;
     req.session.lastActivityAt = Date.now();
@@ -396,7 +413,7 @@ primaryRouter.post('/api/register', registrationRateLimit, authRateLimit, async 
     })();
 
     const createdUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-    await regenerateSession(req);
+    await regenerateSession(req, createdUser);
     req.session.user = sessionUserFromRow(createdUser, house);
     req.session.activeHouseId = house.id;
     req.session.lastActivityAt = Date.now();
@@ -616,8 +633,10 @@ function finishLogout(req, res, next, redirectToLogin = false) {
   }
   req.session.destroy((error) => {
     if (error) {
-      // Das Cookie wird auch bei einem kurzzeitigen Store-Fehler entfernt.
-      console.error(`Sitzung konnte beim Abmelden nicht aus dem Speicher entfernt werden: ${error.message}`);
+      // Keep the browser's SID so the same logout action can retry the revoke.
+      console.error('Sitzung konnte beim Abmelden nicht aus dem Speicher entfernt werden.');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({ error: 'Abmeldung konnte nicht sicher abgeschlossen werden. Bitte erneut versuchen.' });
     }
     return sendResponse();
   });
@@ -659,11 +678,7 @@ primaryRouter.get('/api/me', (req, res) => {
       available: pushStatus().configured,
       activeSubscriptions: activePushSubscriptions
     },
-    session: {
-      idleTimeoutMs: sessionIdleTimeoutMs,
-      warningMs: sessionWarningMs,
-      lastActivityAt: req.session.lastActivityAt
-    }
+    session: sessionInfo(req)
   });
 });
 
@@ -799,17 +814,14 @@ primaryRouter.post('/api/me/apartment/join', requireAuth, (req, res) => {
 
 primaryRouter.post('/api/session/keepalive', requireAuth, (req, res) => {
   req.session.lastActivityAt = Date.now();
+  renewRememberSession(req.session);
   res.json({
     ok: true,
-    session: {
-      idleTimeoutMs: sessionIdleTimeoutMs,
-      warningMs: sessionWarningMs,
-      lastActivityAt: req.session.lastActivityAt
-    }
+    session: sessionInfo(req)
   });
 });
 
-personalRouter.put('/api/me/password', requireAuth, (req, res) => {
+personalRouter.put('/api/me/password', requireAuth, (req, res, next) => {
   const currentPassword = String(req.body?.currentPassword || '');
   const newPassword = String(req.body?.newPassword || '');
   const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.session.user.id);
@@ -824,10 +836,21 @@ personalRouter.put('/api/me/password', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Bitte verwende ein anderes neues Passwort.' });
   }
 
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .run(bcrypt.hashSync(newPassword, 10), user.id);
-  destroyUserSessions(user.id, req.sessionID);
-  res.json({ ok: true, message: 'Dein Passwort wurde ge\u00e4ndert.' });
+  const previousHouseId = currentHouseId(req);
+  db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .run(bcrypt.hashSync(newPassword, 10), user.id);
+    destroyUserSessions(user.id);
+  }).immediate();
+  const current = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  return regenerateSession(req, current).then(() => {
+    const house = db.prepare('SELECT id, name FROM houses WHERE id = ? AND active = 1')
+      .get(current.is_superadmin ? previousHouseId : current.house_id);
+    req.session.user = sessionUserFromRow(current, house);
+    req.session.activeHouseId = house?.id || current.house_id;
+    req.session.lastActivityAt = Date.now();
+    res.json({ ok: true, message: 'Dein Passwort wurde ge\u00e4ndert.', session: sessionInfo(req) });
+  }).catch(next);
 });
 
 personalRouter.get('/api/me/export', requireAuth, (req, res) => {

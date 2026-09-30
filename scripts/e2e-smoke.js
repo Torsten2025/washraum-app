@@ -749,7 +749,9 @@ async function verifyFixedSeriesControls(page, directory) {
     });
     await page.locator('#fixedBookingSubmit').focus();
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => fixedBookingLabel.value === '');
+    // The form resets before loadAdmin/loadBookings settle; wait for the whole
+    // submit so a late real resource response cannot overwrite the empty fixture.
+    await page.waitForFunction(() => fixedBookingLabel.value === '' && !fixedBookingPending);
     assert.deepEqual(saved.recurrence, { intervalWeeks: 3, startDate: start, endType: 'count', count: 3 });
     assert(saved.resourceIds[0] > 0);
     await page.unroute('**/api/admin/fixed-bookings');
@@ -961,7 +963,7 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.14-test.1');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.14-test.2');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
     assert.match(whatsNewText, /GBMZ/);
@@ -971,7 +973,7 @@ async function run() {
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.14-test.1')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.14-test.2')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -981,10 +983,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.14-test\.1/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.14-test\.2/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.14-test\.1/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.14-test\.2/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');

@@ -384,7 +384,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.14-test.1';
+const WHATS_NEW_VERSION = '0.3.14-test.2';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -422,6 +422,7 @@ let adminApartmentDirectory = [];
 let adminIntegrationState = { backup: false, email: false, push: false };
 let logoutInProgress = false;
 let sessionIdleTimeoutMs = 0;
+let sessionRememberDevice = false;
 let sessionWarningMs = 0;
 let sessionLastActivityAt = 0;
 let sessionLastKeepaliveAt = 0;
@@ -1717,6 +1718,11 @@ async function keepSessionAlive(force = false) {
         return false;
       }
       if (!response.ok) return false;
+      if (data.session) {
+        sessionRememberDevice = data.session.rememberDevice === true;
+        sessionIdleTimeoutMs = Number(data.session.idleTimeoutMs || 0);
+        sessionWarningMs = Number(data.session.warningMs || 0);
+      }
       sessionLastKeepaliveAt = Date.now();
       sessionLastActivityAt = sessionLastKeepaliveAt;
       scheduleSessionTimeout();
@@ -1746,6 +1752,10 @@ function recordSessionActivity(event) {
 
 function checkSessionDeadline() {
   if (!currentUser || sessionEnding) return;
+  if (sessionRememberDevice) {
+    keepSessionAlive();
+    return;
+  }
   const remainingMs = sessionRemainingMs();
   if (remainingMs <= 0) {
     endInactiveSession();
@@ -1761,6 +1771,8 @@ function checkSessionDeadline() {
 }
 
 function configureSessionTimeout(sessionConfig = {}) {
+  sessionRememberDevice = sessionConfig.rememberDevice === true;
+  hideSessionWarning();
   sessionIdleTimeoutMs = Number(sessionConfig.idleTimeoutMs || 0);
   sessionWarningMs = Number(sessionConfig.warningMs || 0);
   sessionLastActivityAt = Number(sessionConfig.lastActivityAt || Date.now());
@@ -5070,6 +5082,7 @@ async function changePassword() {
       })
     });
     passwordForm.reset();
+    configureSessionTimeout(data.session);
     showStatus(localizedSystemText(data.message, translate('settings.passwordChanged', 'Dein Passwort wurde geaendert.')));
   } catch (error) {
     showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
