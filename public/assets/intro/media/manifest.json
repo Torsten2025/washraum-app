@@ -13,7 +13,7 @@
       "captions": "/assets/intro/media/resident-de.vtt",
       "poster": "/assets/intro/media/resident-de-poster.png",
       "transcript": "/assets/intro/media/resident-de.txt",
-      "bytes": 1388962
+      "bytes": 1425018
     },
     {
       "id": "resident-en",
@@ -27,7 +27,7 @@
       "captions": "/assets/intro/media/resident-en.vtt",
       "poster": "/assets/intro/media/resident-en-poster.png",
       "transcript": "/assets/intro/media/resident-en.txt",
-      "bytes": 1180385
+      "bytes": 1255234
     },
     {
       "id": "house-admin-de",
@@ -41,7 +41,7 @@
       "captions": "/assets/intro/media/house-admin-de.vtt",
       "poster": "/assets/intro/media/house-admin-de-poster.png",
       "transcript": "/assets/intro/media/house-admin-de.txt",
-      "bytes": 1742437
+      "bytes": 1848938
     },
     {
       "id": "house-admin-en",
@@ -55,7 +55,7 @@
       "captions": "/assets/intro/media/house-admin-en.vtt",
       "poster": "/assets/intro/media/house-admin-en-poster.png",
       "transcript": "/assets/intro/media/house-admin-en.txt",
-      "bytes": 1547058
+      "bytes": 1633463
     },
     {
       "id": "superadmin-de",
@@ -69,7 +69,7 @@
       "captions": "/assets/intro/media/superadmin-de.vtt",
       "poster": "/assets/intro/media/superadmin-de-poster.png",
       "transcript": "/assets/intro/media/superadmin-de.txt",
-      "bytes": 1626334
+      "bytes": 1683661
     },
     {
       "id": "superadmin-en",
@@ -83,7 +83,7 @@
       "captions": "/assets/intro/media/superadmin-en.vtt",
       "poster": "/assets/intro/media/superadmin-en-poster.png",
       "transcript": "/assets/intro/media/superadmin-en.txt",
-      "bytes": 1425800
+      "bytes": 1454157
     }
   ]
 }

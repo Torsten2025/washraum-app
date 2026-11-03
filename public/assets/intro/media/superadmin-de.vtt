@@ -9,14 +9,17 @@ kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlich
 00:00:15.683 --> 00:00:23.350
 muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
 
-00:00:24.350 --> 00:00:33.350
-Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten
+00:00:24.350 --> 00:00:31.497
+Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die
 
-00:00:33.350 --> 00:00:42.350
-und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst.
+00:00:31.497 --> 00:00:38.644
+folgenden Ansichten und Aktionen beziehen sich auf dieses Haus,
 
-00:00:42.350 --> 00:00:51.350
-Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
+00:00:38.644 --> 00:00:45.791
+bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt
+
+00:00:45.791 --> 00:00:51.350
+besonders vor Sperren, Zugangskarten, Einladungen oder Kontoaenderungen.
 
 00:00:52.350 --> 00:00:59.421
 Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl.

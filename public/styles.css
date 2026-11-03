@@ -19,6 +19,104 @@
   --soft-shadow: 0 12px 34px rgba(19, 32, 28, 0.1);
 }
 
+.resident-access-card {
+  display: grid;
+  grid-template-columns: minmax(140px, 190px) 1fr;
+  gap: 1rem;
+  align-items: center;
+  width: min(100%, 620px);
+  margin-top: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(18, 76, 57, 0.18);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8f5 100%);
+  color: #10271f;
+  box-shadow: 0 18px 44px rgba(13, 36, 28, 0.12);
+}
+
+.resident-access-card-brand {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.resident-access-card-brand strong {
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.resident-access-card img {
+  width: 100%;
+  max-width: 190px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.resident-access-card dl,
+.resident-access-card dl div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.resident-access-card dl {
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.resident-access-card dt {
+  color: #52655e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.resident-access-card dd {
+  margin: 0;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.resident-access-card p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #52655e;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 560px) {
+  .resident-access-card {
+    grid-template-columns: 1fr;
+  }
+
+  .resident-access-card img {
+    justify-self: center;
+  }
+}
+
+@media print {
+  body.printing-access-card * {
+    visibility: hidden !important;
+  }
+
+  body.printing-access-card .resident-access-card,
+  body.printing-access-card .resident-access-card * {
+    visibility: visible !important;
+  }
+
+  body.printing-access-card .resident-access-card {
+    position: absolute;
+    inset: 16mm auto auto 16mm;
+    width: 170mm;
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

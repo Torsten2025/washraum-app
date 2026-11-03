@@ -12,13 +12,13 @@ const PRODUCTION_RENDER_SERVICE_ID = 'srv-d8k09i48aovs73di2ejg';
 const PRODUCTION_DOMAIN = 'washraum-app.onrender.com';
 const PRODUCTION_DB_PATH = '/var/data/washraum.sqlite';
 const PRODUCTION_BACKUP_DIR = '/var/data/backups';
-const EXPECTED_LIVE_VERSION = '0.3.12';
-const EXPECTED_CANDIDATE_VERSION = '0.3.14-test.2';
+const EXPECTED_LIVE_VERSION = '0.3.14-test.2';
+const EXPECTED_CANDIDATE_VERSION = '0.3.15-test.1';
 const SIGNED_PROOF_CONTRACT_VERSION = 'waschzeit-signed-predeploy-proof-v1';
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const ALLOWED_TABLES = new Set([
-  'account_recovery_codes', 'activity_entries', 'apartment_invitations',
+  'account_recovery_codes', 'activity_entries', 'apartment_invitations', 'resident_access_cards',
   'apartment_name_requests', 'apartments', 'audit_log', 'blocked_dates',
   'booking_day_usage', 'bookings', 'calendar_feed_tokens', 'device_pairing_codes',
   'diaper_game_challenge_scores', 'diaper_game_rounds', 'diaper_game_scores',
@@ -45,6 +45,17 @@ const CALENDAR_FEED_COLUMNS = Object.freeze([
 ]);
 const CALENDAR_FEED_FOREIGN_KEYS = Object.freeze({
   user_id: 'users', apartment_id: 'apartments', house_id: 'houses'
+});
+// The pre-deploy source can still be the preceding live version without this
+// additive table. Once present, its complete one-time-card lifecycle and
+// apartment/creator deletion bounds are mandatory.
+const RESIDENT_ACCESS_CARD_COLUMNS = Object.freeze([
+  'id', 'apartment_id', 'access_id', 'token_hash', 'code_hash',
+  'expires_at', 'used_at', 'revoked_at', 'created_by', 'created_at'
+]);
+const RESIDENT_ACCESS_CARD_FOREIGN_KEYS = Object.freeze({
+  apartment_id: Object.freeze({ table: 'apartments', onDelete: 'CASCADE' }),
+  created_by: Object.freeze({ table: 'users', onDelete: 'SET NULL' })
 });
 
 class ProductionBackupError extends Error {
@@ -256,6 +267,16 @@ function inspectDatabase(db, filePath, fsImpl = fs, options = {}) {
       || Object.entries(CALENDAR_FEED_FOREIGN_KEYS).some(([column, table]) => !foreignKeys.some((foreignKey) => (
         foreignKey.from === column && foreignKey.table === table && foreignKey.to === 'id'
         && Number(foreignKey.seq) === 0 && foreignKey.on_delete === 'CASCADE'
+      )))) reject('SCHEMA_CONTRACT');
+  }
+  const accessCardColumns = columnsByTable.get('resident_access_cards');
+  if (accessCardColumns) {
+    if (RESIDENT_ACCESS_CARD_COLUMNS.some((column) => !accessCardColumns.has(column))) reject('SCHEMA_CONTRACT');
+    const foreignKeys = db.pragma("foreign_key_list('resident_access_cards')");
+    if (foreignKeys.length !== Object.keys(RESIDENT_ACCESS_CARD_FOREIGN_KEYS).length
+      || Object.entries(RESIDENT_ACCESS_CARD_FOREIGN_KEYS).some(([column, contract]) => !foreignKeys.some((foreignKey) => (
+        foreignKey.from === column && foreignKey.table === contract.table && foreignKey.to === 'id'
+        && Number(foreignKey.seq) === 0 && foreignKey.on_delete === contract.onDelete
       )))) reject('SCHEMA_CONTRACT');
   }
 

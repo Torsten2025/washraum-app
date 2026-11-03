@@ -5,13 +5,13 @@ Haus-Admin | Deutsch
 Als Haus-Admin kannst du zugleich Bewohner sein. Mein Waschplan enthaelt deine privaten Wohnungsbuchungen. Unter Verwalten bearbeitest du Aufgaben fuer das Haus. Jede Adminaktion wird deiner persoenlichen Identitaet zugeordnet und nicht dem gemeinsamen Wohnungskonto.
 
 2. Verwaltungsuebersicht priorisieren [00:00:24.000]
-Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe zuerst dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach folgen Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
+Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe zuerst dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach folgen Zugangskarten, optionale E-Mail-Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
 
-3. Wohnungen und Einladungen [00:00:50.000]
-Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen vom Klingelschild fest. Hinterlege die E-Mail-Adresse des Bewohners und sende eine zeitlich begrenzte Einladung. Erst beim Annehmen der Einladung entsteht der persoenliche Zugang mit der bereits richtigen Wohnungszuordnung.
+3. Wohnungen und Zugangskarten [00:00:50.000]
+Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen vom Klingelschild fest. Erstelle dann fuer jede Person eine eigene Zugangskarte und uebergib sie persoenlich. Der QR-Code oder die Kombination aus Zugangskennung und Aktivierungscode gilt sieben Tage und nur einmal. Die Person setzt ihr Passwort selbst; eine E-Mail-Adresse ist freiwillig.
 
 4. Konten und Wiederherstellung [00:01:18.000]
-In der Kontenverwaltung erkennst du aktive, eingeladene oder gesperrte Personen. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet, E-Mail-Adresse und Wohnungszuordnung. Aendere niemals eine fremde E-Mail-Adresse nur, um selbst einen Passwortlink zu erhalten.
+In der Kontenverwaltung erkennst du aktive oder gesperrte Personen und offene Zugangskarten. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet und Wohnungszuordnung. Danach erzeugst du einen 15 Minuten gueltigen Einmalcode. Die Person setzt ihr Passwort selbst und kann ihre Zugangskennung ohne E-Mail weiterverwenden.
 
 5. Geraete und Raeume verwalten [00:01:46.000]
 Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und Geraetebestand. Als Haus-Admin startest du direkt bei den Geraeten deines eigenen Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource meinen. Gesperrte Ressourcen werden nur ueber den Tagebuchablauf wieder freigegeben.

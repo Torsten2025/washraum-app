@@ -9,8 +9,8 @@ const CREDENTIAL_FAILURE_BITS = Object.freeze({
 });
 const EXPECTED = Object.freeze({
   appEnvironment: 'agent-test',
-  appRelease: 'agent-v0.3.14-test.2',
-  appVersion: '0.3.14-test.2',
+  appRelease: 'agent-v0.3.15-test.1',
+  appVersion: '0.3.15-test.1',
   branch: 'codex/agent-test',
   databasePath: '/tmp/waschzeit-agent-test.sqlite',
   externalHostname: 'waschzeit-agent-test.onrender.com',
@@ -370,6 +370,7 @@ function assertGlobalFixtureInvariants(db, env) {
   const globallyEmptyTables = [
     'account_recovery_codes',
     'apartment_invitations',
+    'resident_access_cards',
     'apartment_name_requests',
     'audit_log',
     'booking_day_usage',

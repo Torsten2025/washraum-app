@@ -5,7 +5,7 @@ Super administrator | English
 As a super administrator, you can see the condition of multiple houses. Start with critical problems, missing backups, maintenance warnings and unusual audit events. Every entry must clearly identify the affected house before you act.
 
 2. Switch the active house [00:00:24.000]
-The house selector changes the active administration context. The following views and actions refer to that house until you switch again. Check the house name and target especially before blocks, invitations or account changes.
+The house selector changes the active administration context. The following views and actions refer to that house until you switch again. Check the house name and target especially before blocks, access cards, invitations or account changes.
 
 3. Manage houses [00:00:52.000]
 In House and Equipment, super administrators start with house selection. The House tab contains locations and master data; Equipment shows only resources from the server-side active house. Before deactivation, review active residents, bookings, open workflows and the required data backup.

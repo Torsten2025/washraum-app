@@ -12,17 +12,17 @@ maintenance warnings and unusual audit events. Every entry must
 00:00:18.093 --> 00:00:23.350
 clearly identify the affected house before you act.
 
-00:00:24.350 --> 00:00:31.497
+00:00:24.350 --> 00:00:31.100
 The house selector changes the active administration context. The
 
-00:00:31.497 --> 00:00:38.644
+00:00:31.100 --> 00:00:37.850
 following views and actions refer to that house until
 
-00:00:38.644 --> 00:00:45.791
+00:00:37.850 --> 00:00:44.600
 you switch again. Check the house name and target
 
-00:00:45.791 --> 00:00:51.350
-especially before blocks, invitations or account changes.
+00:00:44.600 --> 00:00:51.350
+especially before blocks, access cards, invitations or account changes.
 
 00:00:52.350 --> 00:00:59.100
 In House and Equipment, super administrators start with house selection.

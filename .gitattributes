@@ -1,0 +1,5 @@
+# Bootstrap integrity is defined over the same LF bytes locally and on GitHub.
+scripts/bootstrap-production-backup.js text eol=lf
+scripts/production-backup-contract.js text eol=lf
+scripts/verify-production-backup.js text eol=lf
+scripts/production-backup-bundle.sha256 text eol=lf

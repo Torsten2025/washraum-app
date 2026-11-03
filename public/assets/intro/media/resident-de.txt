@@ -2,7 +2,7 @@ Willkommen bei WaschZeit
 Bewohner | Deutsch
 
 1. Anmelden und persoenlich einrichten [00:00:00.000]
-Willkommen bei WaschZeit. Du meldest dich mit deiner persoenlichen E-Mail-Adresse und deinem Passwort an. Unter Einstellungen pruefst du deinen Namen, deine Sprache und die gewuenschten Benachrichtigungen. Deine Buchungen bleiben dabei immer deiner Wohnung zugeordnet.
+Willkommen bei WaschZeit. Beim persoenlichen Onboarding scannst du den QR-Code deiner Zugangskarte oder gibst Zugangskennung und Aktivierungscode ein. Danach legst du dein eigenes Passwort fest. Eine E-Mail-Adresse ist nicht erforderlich. Unter Einstellungen pruefst du Sprache und Benachrichtigungen. Deine Buchungen bleiben immer deiner Wohnung zugeordnet.
 
 2. Woche und Monat ueberblicken [00:00:24.000]
 Im Wochenkalender findest du schnell einen passenden freien Termin. Die Monatsansicht zeigt dir den gemeinsamen Waschplan und hilft bei der laengerfristigen Orientierung. Vergangene, belegte oder gesperrte Zeiten sind klar gekennzeichnet und koennen nicht gebucht werden.

@@ -104,7 +104,7 @@ function createNotificationRouters({
     const weekday = req.body?.weekday === '' || req.body?.weekday == null ? null : Number(req.body.weekday);
     const preferredSlot = String(req.body?.slot || '') || null;
 
-    if (!isValidEmail(email)) {
+    if (email && !isValidEmail(email)) {
       return res.status(400).json({ error: 'Bitte eine g\u00fcltige E-Mail-Adresse eintragen' });
     }
     if (secondaryEmail && !isValidEmail(secondaryEmail)) {
@@ -113,7 +113,7 @@ function createNotificationRouters({
     if (secondaryEmail && secondaryEmail === email) {
       return res.status(400).json({ error: 'Die zweite E-Mail-Adresse muss sich von der ersten unterscheiden.' });
     }
-    if (findEmailOwner(email, req.session.user.id) || (secondaryEmail && findEmailOwner(secondaryEmail, req.session.user.id))) {
+    if ((email && findEmailOwner(email, req.session.user.id)) || (secondaryEmail && findEmailOwner(secondaryEmail, req.session.user.id))) {
       return res.status(409).json({ error: 'Eine dieser E-Mail-Adressen ist bereits einem anderen Konto zugeordnet.' });
     }
     if (!['all', 'washer', 'drying_room', 'tumbler'].includes(resourceType)) {
@@ -145,7 +145,7 @@ function createNotificationRouters({
       db.transaction(() => {
         db.prepare(`
           UPDATE users
-          SET email = ?, secondary_email = NULLIF(?, ''), notify_releases = ?,
+          SET email = NULLIF(?, ''), secondary_email = NULLIF(?, ''), notify_releases = ?,
               email_verified = ?, email_verified_value = ?,
               secondary_email_verified = ?, secondary_email_verified_value = ?
           WHERE id = ?
@@ -176,7 +176,7 @@ function createNotificationRouters({
             slot = excluded.slot
         `).run(req.session.user.id, resourceType, weekday, preferredSlot);
       })();
-      if (emailChanged && emailStatus().configured) {
+      if (emailChanged && email && emailStatus().configured) {
         await sendEmailVerification(req, {
           id: req.session.user.id,
           username: req.session.user.username,
@@ -205,7 +205,7 @@ function createNotificationRouters({
     res.json({
       user: req.session.user,
       notificationPreferences: { resourceType, weekday, slot: preferredSlot },
-      message: req.session.user.emailVerified
+      message: !email || req.session.user.emailVerified
         ? 'Benachrichtigungen gespeichert.'
         : emailStatus().configured
           ? 'Benachrichtigungen gespeichert. Bitte best\u00e4tige die neue E-Mail-Adresse.'

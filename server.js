@@ -205,6 +205,21 @@ function createCurrentTables() {
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS resident_access_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      apartment_id INTEGER NOT NULL,
+      access_id TEXT NOT NULL COLLATE NOCASE,
+      token_hash TEXT NOT NULL UNIQUE,
+      code_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      revoked_at TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS device_pairing_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -548,6 +563,8 @@ function seedCurrentDefaults() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartments_house ON apartments (house_id, active, label)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_apartment ON apartment_invitations (apartment_id, created_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_apartment_invitations_email ON apartment_invitations (lower(email), expires_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_resident_access_cards_apartment ON resident_access_cards (apartment_id, expires_at)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_resident_access_cards_active_id ON resident_access_cards (lower(access_id)) WHERE used_at IS NULL AND revoked_at IS NULL");
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_cases_house_status ON maintenance_cases (house_id, status, updated_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_maintenance_cases_resource ON maintenance_cases (resource_id, status)");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_one_open_case_per_resource ON maintenance_cases (resource_id) WHERE status != 'closed' AND resource_id IS NOT NULL");
@@ -1366,6 +1383,11 @@ const {
   findEmailOwner,
   apartmentForCode,
   apartmentInvitationForToken,
+  residentAccessCardForToken,
+  residentAccessCardForCredentials,
+  issueResidentAccessCard,
+  normalizeResidentAccessId,
+  generateResidentAccessId,
   pendingInvitationForEmail,
   issueApartmentInvitation,
   apartmentAccountLabel,
@@ -1379,6 +1401,7 @@ const {
   allowTestInvitationLink,
   normalizeEmail,
   normalizeAccessCode,
+  generateReadableCode,
   tokenHash,
   smtpConfig,
   sendMail,
@@ -1469,6 +1492,10 @@ const accountRouters = createAccountRouters({
   findEmailOwner,
   apartmentForCode,
   apartmentInvitationForToken,
+  residentAccessCardForToken,
+  residentAccessCardForCredentials,
+  normalizeResidentAccessId,
+  generateResidentAccessId,
   apartmentAccountUsername,
   personalAccountUsername,
   regenerateSession,
@@ -1540,6 +1567,8 @@ const houseRoleRouters = createHouseRoleRouters({
   verifiedEmailForUser,
   normalizeAccessCode,
   generateReadableCode,
+  issueResidentAccessCard,
+  QRCode,
   findEmailOwner,
   pendingInvitationForEmail,
   issueApartmentInvitation,

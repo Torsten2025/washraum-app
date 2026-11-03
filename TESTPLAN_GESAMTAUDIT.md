@@ -6,6 +6,10 @@ Dieser Testplan prueft die App in einer isolierten lokalen Umgebung. Jeder Lauf 
 
 ## Ausfuehrung
 
+Sicherheits-Patchkandidat `0.3.15-test.1`: `npm ci` in eigener Installation, `npm audit --omit=dev` ohne Befund sowie neuer kompletter `npm run check` und `test:emailfree` sind erforderlich. Express bleibt in Major 4; gesperrte Kette Express 4.22.3 / body-parser 1.20.9 / proxy-addr 2.0.8 / qs 6.16.2. Bestehende Auth-, Ursprung-, Nutzlast-, Rollen-, Buchungs-, Admin-, Backup- und Browserregressionen duerfen durch das Dependency-Update nicht umgangen werden.
+
+QA01-03-Zusatzregression: `npm run test:emailfree` prueft echte Profil-/Filterformulare ohne E-Mail und Reload, mehrere NULL-Adressen, optionale erste/zweite Adresse samt Bestaetigungsbindung, DE/EN-Wiederherstellung mit nutzbarer Legacy-Kennung sowie getrennte schreibgeschuetzte Profilkennung bei 390/768/1440 px. Sie ist zusaetzlich in `test:e2e` und damit `npm run check` eingebunden.
+
 ```bash
 npm run audit
 npm run check
@@ -25,7 +29,7 @@ npm run check
 | SEC-06 | Datenschutzexport und Kontoloeschung | Nur eigene Daten; eigene Meldungen hausuebergreifend, aber ohne fremde Reports, Kontakte, Admin-/Audit-/Outboxfelder; Report- oder Kontoloeschung entfernt die persoenliche Meldungsschicht und erhaelt den neutralen Betriebsfall; geschuetzte Admin- und letzte-Admin-Konten bleiben erhalten | `npm test`, `node scripts/maintenance-reporting-test.js`, `test:roles` |
 | SEC-07 | Harte Betriebs-Kill-Switches | Nur explizites, trim-/case-insensitives `true` aktiviert Backup, E-Mail oder Push. In Produktion brauchen E-Mail und Push zusaetzlich `PRODUCTION_EMAIL_APPROVED=true` beziehungsweise `PRODUCTION_PUSH_APPROVED=true`; E-Mail erfordert eine vollstaendige SMTP-Konfiguration, externe VAPID-Bindungen bleiben verboten. Pro Kanal bleiben `false`, fehlend, leer, ungueltig und direkte Factory-Nutzung ohne `enabled` trotz gesetzter Providerwerte fail-closed; direkte und indirekte Pfade erzeugen null Dateien, DB-Kopien, Queue-/Token-/Abo-/Auditwirkungen sowie null DNS-, Netzwerk- oder Providerverbindungen. Die Adminoberflaeche zeigt DE/EN eindeutig `Deaktiviert`/`Disabled`, blendet irrefuehrende Providerhinweise aus und macht Backup-Erstellung, Download, Testversand sowie Wartungsstart unbedienbar; direkte API-Pfade bleiben `503` | `test:safety`, `test:i18n`, `test:a11y`, `test:e2e` |
 
-## B. Anmeldung, Einladung und Sitzungen
+## B. Anmeldung, Zugangskarten, Einladung und Sitzungen
 
 | ID | Pruefung | Soll-Ergebnis | Automatisierung |
 | --- | --- | --- | --- |
@@ -33,13 +37,14 @@ npm run check
 | AUTH-02 | Unbekanntes Konto, falsches Passwort und SQL-artige Eingabe | Einheitliche Meldung ohne Kontoauskunft | `test:security` |
 | AUTH-03 | Erfolgreicher Login | Neue Sitzungskennung und sichere Cookie-Attribute | `test:security` |
 | AUTH-04 | Adminlogin | Technischer Kontoname bleibt fuer Notfallzugang nutzbar | `test:security` |
-| AUTH-05 | Bewohnerlogin | Primaere E-Mail funktioniert ohne Beachtung der Grossschreibung; freier Name nicht | `test:security` |
+| AUTH-05 | Bewohnerlogin | Zufallskennung aus Zugangskarte sowie primaere E-Mail funktionieren ohne Beachtung der Grossschreibung; freie Altnamen mit E-Mail nicht | `test:security` |
 | AUTH-06 | Zweite E-Mail | Beide Adressen melden dasselbe Wohnungskonto an | `test:security`, `npm test` |
-| AUTH-07 | Partnerzugang per QR | QR enthaelt die vorausgefuellte Loginadresse; Partner nutzt eigene E-Mail und eigenes Passwort; Token ist zehn Minuten gueltig und einmalig; Adminrechte werden nicht uebertragen | `test:security`, `npm test`, `test:roles`, `test:e2e` |
+| AUTH-07 | Partnerzugang per QR | QR enthaelt den Einmalcode; Partner nutzt eigenes Passwort und optional E-Mail; ohne E-Mail entsteht eine Zufallskennung; Token ist zehn Minuten gueltig und einmalig; Adminrechte werden nicht uebertragen | `test:security`, `npm test`, `test:roles`, `test:e2e` |
 | AUTH-08 | Passwortwechsel | Altes Passwort erforderlich; anderes Passwort; weitere Sitzungen enden | `test:security`, `npm test` |
 | AUTH-09 | Passwort-Reset-Anfrage | Bekannte und unbekannte E-Mail erhalten dieselbe Antwort | `test:security` |
 | AUTH-10 | Deaktiviertes Konto | Aktive Sitzungen verlieren Zugriff; erneuter Login liefert 403 | `test:security`, `npm test` |
 | AUTH-11 | Inaktivitaet | Warnung vor Ablauf, Keepalive und serverseitige Abmeldung | `npm test`, `test:a11y` |
+| AUTH-12 | Wiederherstellung ohne E-Mail | Persoenlich gepruefter 15-Minuten-Code setzt nur das Passwort, beendet Sitzungen und behaelt Zugangskennung, Wohnung, Buchungsidentitaet und Rolle | `test:roles`, `npm test` |
 | RATE-01 | 21 falsche Logins derselben Identitaet | 429 mit `Retry-After` | `test:security` |
 | RATE-02 | Wiederherstellungsversuche | Eigenes IP-Limit greift | `test:security` |
 | RATE-03 | Einladungsannahme | Eigenes IP-Limit greift | `test:security` |
@@ -55,6 +60,7 @@ npm run check
 | REG-05 | Alter Zusammenfuehrungsweg | Wird mit 410 abgelehnt; Konto, Sitzung und persoenliche Reports bleiben unveraendert; neue Partner verwenden eigene Identitaeten | `npm test` |
 | REG-06 | Umzug | Nur Superadmin; keine kommenden Buchungen; Rolle wird Bewohner | `npm test`, `test:roles` |
 | REG-07 | Einladung mit bestehender E-Mail | Vorhandenes Passwort wird geprueft; dieselbe Identitaet erhaelt die Wohnung, ohne zweites Konto oder Rollenverlust | `test:roles` |
+| REG-08 | Persoenliche Zugangskarte | Nur Admin im aktiven Haus erzeugt Karte; QR oder Kennung plus Code sind sieben Tage, einmalig, gehasht und widerrufbar; Aktivierung setzt eigenes Passwort, keine E-Mail und nur Bewohnerrecht | `test:security`, `test:roles`, `test:e2e`, `test:a11y` |
 
 ## D. Rollen und Hausgrenzen
 
@@ -121,7 +127,7 @@ npm run check
 | RP-22 | Mobil/A11y | Tastatur, Fokus, Live-Status, Fieldset, Touch und schmale Ansicht ohne Ueberlagerung | `test:a11y`, `test:e2e` |
 | RP-23 | Privacy/Export | Nur eigene Buchungsart, Haus, Datum, Slot, Waschmaschine und optional Tumbler; keine Selbsttrocknungs- oder Fremddaten | `npm test`, `test:remaining-slots` |
 | RP-24 | Audit/Fixture-Trennung | Keine personenbezogene Ueberwachung; Fixture unsichtbar und ausserhalb Agent-Test fail-closed | `test:fixture`, `test:safety`, Quellscan |
-| RP-25 | Releasegrenze | Sichtbar `0.3.14-test.2`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
+| RP-25 | Releasegrenze | Sichtbar `0.3.15-test.1`; Fixture und Produktfunktion getrennt belegt; produktive Aktivierung nur mit eigenem Freigabeschalter | `test:safety`, `npm run check` |
 
 ### Lean-A-Fixture `FA-01` bis `FA-12`
 
@@ -136,7 +142,7 @@ npm run check
 | FA-07 | Credentials | Drei getrennte Owner-Runtimewerte; kein Wert in Code, Ausgabe oder Artefakt | `test:fixture`, Quellscan |
 | FA-08 | Fake-Sink | Tatsaechliche E-Mail-/Pushprovidergrenzen laufen nur in den abstrakten lokalen Sink; Providerbindungen fehlen und der direkt am Provider-Wrapper gemessene Zaehler fuer externe Provider-, DNS-, E-Mail-, Push- oder Backupattempts bleibt null | `test:fixture`, `test:safety` |
 | FA-09 | No-PII | Keine reale Adresse, Kontakt-, Push-, Opt-in-, Outbox- oder Personendaten | `test:fixture`, Quellscan |
-| FA-10 | Gemeinsame Version | Fixture und Restplatz verwenden exakt `0.3.14-test.2` | `test:safety` |
+| FA-10 | Gemeinsame Version | Fixture und Produkt verwenden exakt `0.3.15-test.1` | `test:safety` |
 | FA-11 | Bestand | Bestehender kombinierter Seed-Admin wird nicht geaendert; test.10 bleibt ausserhalb | `test:fixture`, Identitaetsgate |
 | FA-12 | Produktion | Fehlende oder abweichende Identitaet stoppt vor Dateisystem/DB; keinerlei Produktionspfad | `test:fixture`, `test:safety` |
 
@@ -220,7 +226,7 @@ Hinweis: Dieser neue Block ergaenzt die nachfolgenden Betriebspruefungen. Die Bu
 | OPS-06 | Produktion | `/api/health`, persistenter Pfad, Revision, SMTP, Push und externes Backup | Manueller Live-Test |
 | OPS-07 | Isoliertes Staging | Eigener Dienst und Zweig, Auto-Deploy aus, `npm ci`, Healthcheck, fluechtige `/tmp`-DB, keine Disk/Produktions-Env-Gruppe und alle drei Kill-Switches exakt `false` | `test:safety`, Blueprintreview |
 | OPS-08 | Lean-Produktionsstart | Fehlende/falsche Produktionsidentitaet, Seed-Force-Reset, aktive Backup-/Nachrichtenflags oder vorhandene Upload-/Providerbindungen stoppen vor Dateisystem/SQLite; `AUTO_BACKUP=false` startet auch in Produktion keinen Scheduler. Der Offline-Pruefer akzeptiert nur den allowlisteten WaschZeit-Schemakern, meldet ausschliesslich Hashes/Zaehler und lehnt eine fremde Einzeltabelle ohne Inhaltsausgabe ab | `test:safety`, `npm test` |
-| OPS-09 | Produktionsbackup und Einmal-Deployhook | Exakte Dienst-/Livecommit-/Liveversion-`0.3.12`-/Kandidaten-`0.3.14-test.2`-/Pfadbindung vor Wirkung; Online-Backup und isolierte Restorekopie besitzen identische Datei-, Schema- und Zaehlerhashes. Das Bootstrap-Bundle wird vor dem Kandidatendeploy aus dem exakten nichtdeployenden Commit geladen und vor Ausfuehrung bytegenau gegen ein separat gefrorenes Manifest geprueft. Der Bootstrap signiert den Nachweis mit einem getrennten 256-Bit-Schluessel. Eine atomar erzeugte, nicht deployende GitHub-Ref verbraucht jeden Nonce genau einmal vor Livecheck und Hook; Replay, paralleler Lauf, unsicherer Ledgerzustand oder Crash nach Verbrauch stoppen ohne weiteren Versuch. Der Workflow akzeptiert weder freie Hash-/PASS-Eingaben noch einen ungueltigen, alten oder umgebungsfremden Nachweis und vergleicht danach den realen Health-Commit und die Liveversion. Falsche Identitaet, Symlink/Reparsepunkt, vorhandenes Ziel, Parallelitaet, defekte/fremde DB, Integritaets-/FK-/Schema-/Zaehlerabweichung sowie Backup-/Restorefehler stoppen ohne veroeffentlichtes Artefakt. Der manuelle Workflow sendet bei Erfolg genau einen Hook-POST ohne Redirect/Retry; erfundener Proof, fehlender Livebeleg, Timeout, Queue, Transport, Status-/Bodyabweichung bleiben terminal vor dem Hook | `test:production-release`, `test:safety`, Workflowreview |
+| OPS-09 | Produktionsbackup und Einmal-Deployhook | Exakte Dienst-/Livecommit-/Liveversion-`0.3.14-test.2`-/Kandidaten-`0.3.15-test.1`-/Pfadbindung vor Wirkung; Online-Backup und isolierte Restorekopie besitzen identische Datei-, Schema- und Zaehlerhashes. Das Bootstrap-Bundle wird vor dem Kandidatendeploy aus dem exakten nichtdeployenden Commit geladen und vor Ausfuehrung bytegenau gegen ein separat gefrorenes Manifest geprueft. Der Bootstrap signiert den Nachweis mit einem getrennten 256-Bit-Schluessel. Eine atomar erzeugte, nicht deployende GitHub-Ref verbraucht jeden Nonce genau einmal vor Livecheck und Hook; Replay, paralleler Lauf, unsicherer Ledgerzustand oder Crash nach Verbrauch stoppen ohne weiteren Versuch. Der Workflow akzeptiert weder freie Hash-/PASS-Eingaben noch einen ungueltigen, alten oder umgebungsfremden Nachweis und vergleicht danach den realen Health-Commit und die Liveversion. Falsche Identitaet, Symlink/Reparsepunkt, vorhandenes Ziel, Parallelitaet, defekte/fremde DB, Integritaets-/FK-/Schema-/Zaehlerabweichung sowie Backup-/Restorefehler stoppen ohne veroeffentlichtes Artefakt. Der manuelle Workflow sendet bei Erfolg genau einen Hook-POST ohne Redirect/Retry; erfundener Proof, fehlender Livebeleg, Timeout, Queue, Transport, Status-/Bodyabweichung bleiben terminal vor dem Hook | `test:production-release`, `test:safety`, Workflowreview |
 
 | OPS-10 | Stabile Produktionsquelle | Strukturpruefung und Onlinebackup verwenden dieselbe durchgehend offene SQLite-Verbindung; ein zusaetzlicher read-only Dateideskriptor bindet die Geraete-/Inodeidentitaet. Austauschversuche waehrend Bindung, Pruefung, Backup, Restore, Publikation oder Proofbildung stoppen ohne publiziertes Backup und ohne PASS-Proof | `test:production-release` |
 

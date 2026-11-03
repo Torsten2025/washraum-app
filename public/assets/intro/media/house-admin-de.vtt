@@ -9,35 +9,41 @@ privaten Wohnungsbuchungen. Unter Verwalten bearbeitest du Aufgaben fuer das Hau
 00:00:15.683 --> 00:00:23.350
 Adminaktion wird deiner persoenlichen Identitaet zugeordnet und nicht dem gemeinsamen Wohnungskonto.
 
-00:00:24.350 --> 00:00:32.683
-Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe
+00:00:24.350 --> 00:00:32.971
+Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe zuerst
 
-00:00:32.683 --> 00:00:41.017
-zuerst dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach
+00:00:32.971 --> 00:00:41.591
+dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach folgen Zugangskarten,
 
-00:00:41.017 --> 00:00:49.350
-folgen Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
+00:00:41.591 --> 00:00:49.350
+optionale E-Mail-Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
 
-00:00:50.350 --> 00:00:57.273
-Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den
+00:00:50.350 --> 00:00:56.174
+Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen
 
-00:00:57.273 --> 00:01:04.196
-Namen vom Klingelschild fest. Hinterlege die E-Mail-Adresse des Bewohners und
+00:00:56.174 --> 00:01:01.997
+vom Klingelschild fest. Erstelle dann fuer jede Person eine eigene Zugangskarte
 
-00:01:04.196 --> 00:01:11.119
-sende eine zeitlich begrenzte Einladung. Erst beim Annehmen der Einladung
+00:01:01.997 --> 00:01:07.821
+und uebergib sie persoenlich. Der QR-Code oder die Kombination aus Zugangskennung
 
-00:01:11.119 --> 00:01:17.350
-entsteht der persoenliche Zugang mit der bereits richtigen Wohnungszuordnung.
+00:01:07.821 --> 00:01:13.644
+und Aktivierungscode gilt sieben Tage und nur einmal. Die Person setzt
 
-00:01:18.350 --> 00:01:27.931
-In der Kontenverwaltung erkennst du aktive, eingeladene oder gesperrte Personen. Bei
+00:01:13.644 --> 00:01:17.350
+ihr Passwort selbst; eine E-Mail-Adresse ist freiwillig.
 
-00:01:27.931 --> 00:01:37.511
-Wiederherstellungsbedarf pruefst du zuerst Identitaet, E-Mail-Adresse und Wohnungszuordnung. Aendere niemals eine
+00:01:18.350 --> 00:01:25.594
+In der Kontenverwaltung erkennst du aktive oder gesperrte Personen und offene
 
-00:01:37.511 --> 00:01:45.350
-fremde E-Mail-Adresse nur, um selbst einen Passwortlink zu erhalten.
+00:01:25.594 --> 00:01:32.838
+Zugangskarten. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet und Wohnungszuordnung. Danach erzeugst
+
+00:01:32.838 --> 00:01:40.082
+du einen 15 Minuten gueltigen Einmalcode. Die Person setzt ihr Passwort
+
+00:01:40.082 --> 00:01:45.350
+selbst und kann ihre Zugangskennung ohne E-Mail weiterverwenden.
 
 00:01:46.350 --> 00:01:52.745
 Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und
@@ -63,17 +69,20 @@ Betriebsnachweis dokumentierst du nur Ressource, Zeiten und sachliche Massnahmen
 00:02:33.666 --> 00:02:39.350
 technische Eintraege werden nicht geloescht oder nachtraeglich veraendert.
 
-00:02:40.350 --> 00:02:48.130
-Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource
+00:02:40.350 --> 00:02:46.268
+Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die
 
-00:02:48.130 --> 00:02:55.911
-gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und
+00:02:46.268 --> 00:02:52.187
+Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur
 
-00:02:55.911 --> 00:03:03.691
-niemals automatisch geloescht. Danach dokumentierst du die Reparatur und fuehrst die Funktionspruefung aus. Eine
+00:02:52.187 --> 00:02:58.105
+angezeigt und niemals automatisch geloescht. Danach dokumentierst du die Reparatur
 
-00:03:03.691 --> 00:03:09.350
-erfolgreiche Pruefung schliesst den Fall und gibt eine gesperrte Ressource direkt wieder frei.
+00:02:58.105 --> 00:03:04.023
+und fuehrst die Funktionspruefung aus. Eine erfolgreiche Pruefung schliesst den
+
+00:03:04.023 --> 00:03:09.350
+Fall und gibt eine gesperrte Ressource direkt wieder frei.
 
 00:03:10.350 --> 00:03:16.760
 Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen

@@ -371,6 +371,79 @@ async function run() {
       });
     });
 
+    await check('REG-04', 'Persoenliche Zugangskarte aktiviert ein Bewohnerkonto ohne E-Mail', async () => {
+      const created = await expectStatus(admin, '/api/admin/apartments/access-card', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          label: 'Audit 3. OG rechts',
+          displayName: 'Audit Zugangskarte'
+        })
+      });
+      assert.match(created.body.accessCard.accessId, /^WZ-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+      assert.match(created.body.accessCard.activationCode, /^A-[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+      assert.match(created.body.accessCard.qrCodeDataUrl, /^data:image\/png;base64,/);
+      const accessToken = new URL(created.body.accessCard.activationUrl).searchParams.get('access');
+      assert.match(accessToken, /^[a-f0-9]{64}$/);
+
+      const preview = await expectStatus(new ApiClient(), `/api/access-cards/${accessToken}`, 200);
+      assert.equal(preview.body.accessCard.accessId, created.body.accessCard.accessId);
+      assert.equal(preview.body.accessCard.displayName, 'Audit Zugangskarte');
+      await expectStatus(new ApiClient(), '/api/access-cards/activate', 400, {
+        method: 'POST',
+        body: JSON.stringify({
+          accessId: created.body.accessCard.accessId,
+          activationCode: 'A-AAAAA-AAAAA',
+          password: 'Audit-Zugang-2026!',
+          passwordConfirmation: 'Audit-Zugang-2026!'
+        })
+      });
+
+      const accessResident = new ApiClient();
+      const activated = await expectStatus(accessResident, '/api/access-cards/activate', 201, {
+        method: 'POST',
+        body: JSON.stringify({
+          accessId: created.body.accessCard.accessId,
+          activationCode: created.body.accessCard.activationCode,
+          password: 'Audit-Zugang-2026!',
+          passwordConfirmation: 'Audit-Zugang-2026!',
+          rememberDevice: true
+        })
+      });
+      assert.equal(activated.body.user.email, '');
+      assert.equal(activated.body.user.role, 'user');
+      assert.equal(activated.body.user.apartmentLabel, 'Audit 3. OG rechts');
+      assert.equal(activated.body.accessId, created.body.accessCard.accessId);
+      await expectStatus(new ApiClient(), `/api/access-cards/${accessToken}`, 404);
+      await expectStatus(new ApiClient(), '/api/access-cards/activate', 400, {
+        method: 'POST',
+        body: JSON.stringify({
+          token: accessToken,
+          password: 'Audit-Zugang-2026!',
+          passwordConfirmation: 'Audit-Zugang-2026!'
+        })
+      });
+      const relogin = await expectStatus(new ApiClient(), '/api/login', 200, {
+        method: 'POST',
+        body: JSON.stringify({
+          username: created.body.accessCard.accessId.toLowerCase(),
+          password: 'Audit-Zugang-2026!'
+        })
+      });
+      assert.equal(relogin.body.user.id, activated.body.user.id);
+      await expectStatus(accessResident, `/api/admin/apartments/${created.body.apartment.id}/access-card`, 403, {
+        method: 'POST'
+      });
+
+      const revoked = await expectStatus(admin, `/api/admin/apartments/${created.body.apartment.id}/access-card`, 201, {
+        method: 'POST'
+      });
+      await expectStatus(admin, `/api/admin/apartments/${created.body.apartment.id}/access-cards`, 200, {
+        method: 'DELETE'
+      });
+      const revokedToken = new URL(revoked.body.accessCard.activationUrl).searchParams.get('access');
+      await expectStatus(new ApiClient(), `/api/access-cards/${revokedToken}`, 404);
+    });
+
     await check('AUTH-05A', 'Admin kann die E-Mail eines fremden Wohnungskontos nicht uebernehmen', async () => {
       await expectStatus(admin, `/api/admin/apartments/${apartment.apartment.id}`, 403, {
         method: 'PUT',
@@ -513,6 +586,26 @@ async function run() {
       await expectStatus(new ApiClient(), '/api/device-login', 400, {
         method: 'POST',
         body: JSON.stringify({ deviceCode: 'W-UNGUELTIG' })
+      });
+
+      const emailFreeCode = await expectStatus(resident, '/api/me/device-code', 201, { method: 'POST' });
+      const emailFreeMember = await expectStatus(new ApiClient(), '/api/device-login', 200, {
+        method: 'POST',
+        body: JSON.stringify({
+          deviceCode: emailFreeCode.body.code,
+          email: '',
+          password: 'Audit-Ohne-Mail-2026!',
+          passwordConfirmation: 'Audit-Ohne-Mail-2026!'
+        })
+      });
+      assert.match(emailFreeMember.body.accessId, /^WZ-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+      assert.equal(emailFreeMember.body.user.email, '');
+      await expectStatus(new ApiClient(), '/api/login', 200, {
+        method: 'POST',
+        body: JSON.stringify({
+          username: emailFreeMember.body.accessId,
+          password: 'Audit-Ohne-Mail-2026!'
+        })
       });
     });
 

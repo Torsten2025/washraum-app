@@ -74,13 +74,14 @@
         <p class="auth-panel-kicker">Anmelden und direkt zum Wochenplan</p>
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
+          <button id="showAccessCard" class="auth-tab" type="button" data-i18n="auth.accessCard">Zugangskarte</button>
           <button id="showRegister" class="auth-tab" type="button">Einladung</button>
           <button id="showDeviceLogin" class="auth-tab" type="button">Ger&auml;t verbinden</button>
         </div>
         <form id="loginForm" class="stack auth-form">
           <label>
-            E-Mail
-            <input name="email" autocomplete="username" inputmode="email" required>
+            <span data-i18n="auth.loginIdentifier">E-Mail oder Zugangskennung</span>
+            <input name="email" autocomplete="username" required>
           </label>
           <p class="helper-text">Admin-Konten k&ouml;nnen hier ihren technischen Kontonamen verwenden.</p>
           <label>
@@ -116,8 +117,8 @@
             <input name="code" autocomplete="one-time-code" required>
           </label>
           <label>
-            Eigene E-Mail-Adresse
-            <input name="email" type="email" autocomplete="email" required>
+            <span data-i18n="auth.optionalEmail">E-Mail-Adresse (optional)</span>
+            <input name="email" type="email" autocomplete="email">
           </label>
           <label>
             Neues Passwort
@@ -154,16 +155,48 @@
           <p class="helper-text">E-Mail, Wohnung und Klingelschildname sind bereits festgelegt. Besteht die E-Mail schon, wird genau diese pers&ouml;nliche Identit&auml;t um die Wohnungsmitgliedschaft erg&auml;nzt.</p>
           <p id="registerMessage" class="message" role="status"></p>
         </form>
+        <form id="accessCardForm" class="stack auth-form" hidden>
+          <h2 data-i18n="auth.activateAccessCard">Persoenlichen Zugang aktivieren</h2>
+          <div id="accessCardSummary" class="invitation-summary" role="status">
+            <strong data-i18n="auth.accessCardReady">Zugangskarte bereithalten</strong>
+            <span data-i18n="auth.accessCardManualHint">QR-Code scannen oder Zugangskennung und Aktivierungscode von der Karte eingeben.</span>
+          </div>
+          <input name="token" type="hidden">
+          <div id="accessCardManualFields" class="stack">
+            <label>
+              <span data-i18n="auth.accessId">Zugangskennung</span>
+              <input name="accessId" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="WZ-ABCD-2345">
+            </label>
+            <label>
+              <span data-i18n="auth.activationCode">Aktivierungscode</span>
+              <input name="activationCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false">
+            </label>
+          </div>
+          <label>
+            <span data-i18n="auth.yourPassword">Dein Passwort</span>
+            <input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          </label>
+          <label>
+            <span data-i18n="auth.repeatPassword">Passwort wiederholen</span>
+            <input name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          </label>
+          <label class="checkbox-label">
+            <input name="accessRememberDevice" type="checkbox">
+            <span data-i18n="auth.rememberDevice">Auf diesem Geraet angemeldet bleiben</span>
+          </label>
+          <button type="submit" data-i18n="auth.activateAccess">Zugang aktivieren</button>
+          <p id="accessCardMessage" class="message" role="status"></p>
+        </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>
           <h2>Partner zur Wohnung hinzuf&uuml;gen</h2>
-          <p class="helper-text">Der QR-Code vergibt ausschliesslich Bewohnerrechte. Dein Partner verwendet eine eigene E-Mail und ein eigenes Passwort; Adminrechte werden nie &uuml;bertragen.</p>
+          <p class="helper-text" data-i18n="auth.partnerHint">Der QR-Code vergibt ausschliesslich Bewohnerrechte. Eine E-Mail-Adresse ist freiwillig; Adminrechte werden nie &uuml;bertragen.</p>
           <label>
             Ger&auml;tecode
             <input name="deviceCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
           </label>
           <label>
-            Pers&ouml;nliche E-Mail
-            <input name="email" type="email" autocomplete="email" required>
+            <span data-i18n="auth.personalEmailOptional">Pers&ouml;nliche E-Mail (optional)</span>
+            <input name="email" type="email" autocomplete="email">
           </label>
           <label>
             Eigenes Passwort

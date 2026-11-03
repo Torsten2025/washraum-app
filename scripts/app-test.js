@@ -778,14 +778,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.14-test.2');
+    assert.equal(health.body.version, '0.3.15-test.1');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.14-test.2');
+    assert.equal(versionStatus.body.version, '0.3.15-test.1');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -3232,15 +3232,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.14-test.2'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.15-test.1'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.14-test.2"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.15-test.1"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.14-test.2'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.14-test.2'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.15-test.1'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.15-test.1'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -3406,6 +3406,7 @@ async function run() {
     assert.ok(stylesText.includes('.admin-account-recovery-result'));
     assert.ok(stylesText.includes('.invitation-summary'));
     assert.ok(stylesText.includes('.apartment-invite-form'));
+    assert.ok(stylesText.includes('.resident-access-card'));
     assert.ok(stylesText.includes('.pairing-panel'));
     assert.ok(stylesText.includes('.pairing-qr'));
     assert.ok(stylesText.includes('.release-notice-modal'));
@@ -3473,6 +3474,7 @@ async function run() {
     assert.ok(appScriptText.includes('Wiederherstellungscode'));
     assert.ok(appScriptText.includes('/recovery-code'));
     assert.ok(appScriptText.includes('/invitation'));
+    assert.ok(appScriptText.includes('/access-card'));
     assert.ok(!appScriptText.includes('/new-code'));
     assert.ok(!appScriptText.includes('input name="secondaryEmail" type="email"'));
     assert.ok(!appScriptText.includes('user-password-reset-form'));
@@ -3556,10 +3558,14 @@ async function run() {
     assert.ok(loginHtml.includes('accountRecoveryForm'));
     assert.ok(loginHtml.includes('Wiederherstellungscode'));
     assert.ok(loginHtml.includes('invitationSummary'));
+    assert.ok(loginHtml.includes('accessCardForm'));
+    assert.ok(loginHtml.includes('E-Mail oder Zugangskennung'));
     assert.ok(!loginHtml.includes('name="apartmentCode"'));
     const loginScript = await expectStatus(guest, '/login.js', 200);
     assert.ok(loginScript.body.toString().includes('/api/account-recovery/confirm'));
     assert.ok(loginScript.body.toString().includes('/api/invitations/accept'));
+    assert.ok(loginScript.body.toString().includes('/api/access-cards/activate'));
+    assert.ok(loginScript.body.toString().includes("urlParameters.get('access')"));
     assert.ok(loginScript.body.toString().includes("urlParameters.get('device')"));
     await expectStatus(guest, '/reset.html?token=test', 200);
 
@@ -3605,6 +3611,7 @@ async function run() {
         emailPreferences: true,
         apartmentAccounts: true,
         invitationOnboarding: true,
+        accessCardOnboarding: true,
         devicePairing: true,
         originProtection: true,
         privacyControls: true,

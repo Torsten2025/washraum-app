@@ -24,29 +24,38 @@ checks. Invitations, account notices, recurring appointments and general informa
 00:00:44.203 --> 00:00:49.350
 for your house follow after those tasks.
 
-00:00:50.350 --> 00:00:57.100
+00:00:50.350 --> 00:00:55.140
 For a new resident, first define the stable apartment label and
 
-00:00:57.100 --> 00:01:03.850
-the name shown on the doorbell. Add the resident email address
+00:00:55.140 --> 00:00:59.931
+the name shown on the doorbell. Then create a separate access
 
-00:01:03.850 --> 00:01:10.600
-and send a time-limited invitation. The personal sign-in is created only
+00:00:59.931 --> 00:01:04.721
+card for each person and hand it over in person. The
 
-00:01:10.600 --> 00:01:17.350
-when the invitation is accepted, with the correct apartment already assigned.
+00:01:04.721 --> 00:01:09.511
+QR code or combination of access ID and activation code is
 
-00:01:18.350 --> 00:01:25.497
-Account administration shows active, invited and blocked people. Before
+00:01:09.511 --> 00:01:14.302
+valid for seven days and only once. The person sets their
 
-00:01:25.497 --> 00:01:32.644
-helping with recovery, verify the identity, email address and
+00:01:14.302 --> 00:01:17.350
+own password; an email address is optional.
 
-00:01:32.644 --> 00:01:39.791
-apartment assignment. Never replace another person's email address merely
+00:01:18.350 --> 00:01:23.750
+Account administration shows active or blocked people and open
 
-00:01:39.791 --> 00:01:45.350
-to receive their password reset link yourself.
+00:01:23.750 --> 00:01:29.150
+access cards. Before helping with recovery, verify the identity
+
+00:01:29.150 --> 00:01:34.550
+and apartment assignment. Then create a one-time code valid
+
+00:01:34.550 --> 00:01:39.950
+for 15 minutes. The person sets their own password
+
+00:01:39.950 --> 00:01:45.350
+and can continue using the access ID without email.
 
 00:01:46.350 --> 00:01:51.742
 In House and Equipment, first switch deliberately between house details and
@@ -75,20 +84,20 @@ operational record contains only the resource, times and factual measures. Exist
 00:02:34.082 --> 00:02:39.350
 technical entries cannot be deleted or changed afterwards.
 
-00:02:40.350 --> 00:02:46.654
+00:02:40.350 --> 00:02:46.392
 When taking over a report, explicitly choose without a preset
 
-00:02:46.654 --> 00:02:52.959
+00:02:46.392 --> 00:02:52.433
 whether to block the resource or keep it available. Existing
 
-00:02:52.959 --> 00:02:59.263
+00:02:52.433 --> 00:02:58.475
 bookings are displayed but never deleted automatically. Then document the
 
-00:02:59.263 --> 00:03:05.567
-repair and perform the functional check. A successful check closes the
+00:02:58.475 --> 00:03:04.517
+repair and perform the functional check. A successful check closes
 
-00:03:05.567 --> 00:03:09.350
-case and immediately releases a blocked resource.
+00:03:04.517 --> 00:03:09.350
+the case and immediately releases a blocked resource.
 
 00:03:10.350 --> 00:03:16.898
 A recurring package contains exactly one washing machine. You may add

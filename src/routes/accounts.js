@@ -26,6 +26,10 @@ function createAccountRouters({
   findEmailOwner,
   apartmentForCode,
   apartmentInvitationForToken,
+  residentAccessCardForToken,
+  residentAccessCardForCredentials,
+  normalizeResidentAccessId,
+  generateResidentAccessId,
   apartmentAccountUsername,
   personalAccountUsername,
   regenerateSession,
@@ -67,7 +71,8 @@ primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
     WHERE lower(email) = ?
        OR lower(secondary_email) = ?
        OR (role = 'admin' AND lower(username) = ?)
-       OR (role = 'user' AND (email IS NULL OR trim(email) = '') AND lower(username) = ?)
+       OR (role = 'user' AND lower(username) = ?
+           AND ((email IS NULL OR trim(email) = '') OR upper(username) LIKE 'WZ-%'))
   `).get(loginName, loginName, loginName, loginName);
 
   if (!user || !verifyStoredPassword(String(password || ''), user.password_hash)) {
@@ -105,6 +110,7 @@ primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
 primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) => {
   const code = normalizeAccessCode(req.body?.deviceCode);
   const email = normalizeEmail(req.body?.email);
+  const usesEmail = Boolean(email);
   const password = String(req.body?.password || '');
   const passwordConfirmation = String(req.body?.passwordConfirmation || '');
   const record = code ? db.prepare(`
@@ -123,10 +129,10 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
   if (!record) {
     return res.status(400).json({ error: 'Der Ger\u00e4tecode ist ung\u00fcltig oder abgelaufen.' });
   }
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Bitte deine persoenliche E-Mail-Adresse eintragen.' });
+  if (usesEmail && !isValidEmail(email)) {
+    return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen oder das Feld leer lassen.' });
   }
-  const existingOwner = findEmailOwner(email);
+  const existingOwner = usesEmail ? findEmailOwner(email) : null;
   const existingUser = existingOwner ? db.prepare('SELECT * FROM users WHERE id = ?').get(existingOwner.id) : null;
   if (existingUser && (!existingUser.active || !verifyStoredPassword(password, existingUser.password_hash))) {
     return res.status(401).json({ error: 'E-Mail-Adresse oder vorhandenes Passwort ist nicht korrekt.' });
@@ -147,14 +153,15 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
         db.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
           .run(record.pairing_apartment_id, existingUser.id);
       } else {
+        const accessId = usesEmail ? personalAccountUsername(email) : generateResidentAccessId();
         const inserted = db.prepare(`
           INSERT INTO users
             (username, email, password_hash, role, house_id, active, notify_releases,
              email_verified, apartment_id)
           VALUES (?, ?, ?, 'user', ?, 1, 1, 0, ?)
         `).run(
-          personalAccountUsername(email),
-          email,
+          accessId,
+          usesEmail ? email : null,
           bcrypt.hashSync(password, 10),
           record.house_id,
           record.pairing_apartment_id
@@ -171,7 +178,7 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
       return identityId;
     })();
     const identity = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-    if (!existingUser) {
+    if (!existingUser && usesEmail) {
       await sendEmailVerification(req, identity).catch((error) => {
         console.error(`QR-Mitglied konnte keine Bestaetigungsmail erhalten: ${error.message}`);
       });
@@ -188,9 +195,111 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
     });
     res.json({
       user: req.session.user,
+      accessId: usesEmail ? null : identity.username,
       message: `${req.session.user.apartmentLabel} wurde deinem persoenlichen Zugang hinzugefuegt. Adminrechte wurden nicht uebertragen.`
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+primaryRouter.get('/api/access-cards/:token', registrationRateLimit, (req, res) => {
+  const card = residentAccessCardForToken(req.params.token);
+  if (!card) {
+    return res.status(404).json({ error: 'Diese Zugangskarte ist ungueltig, abgelaufen oder bereits verwendet.' });
+  }
+  res.json({
+    accessCard: {
+      accessId: card.access_id,
+      apartmentLabel: card.label,
+      displayName: card.display_name,
+      houseName: card.house_name,
+      expiresAt: new Date(Number(card.expires_at)).toISOString()
+    }
+  });
+});
+
+primaryRouter.post('/api/access-cards/activate', registrationRateLimit, authRateLimit, async (req, res, next) => {
+  const token = String(req.body?.token || '').trim();
+  const accessId = normalizeResidentAccessId(req.body?.accessId);
+  const activationCode = normalizeAccessCode(req.body?.activationCode);
+  const password = String(req.body?.password || '');
+  const passwordConfirmation = String(req.body?.passwordConfirmation || '');
+  const rememberDevice = req.body?.rememberDevice === true;
+  const lookupCard = () => token
+    ? residentAccessCardForToken(token)
+    : residentAccessCardForCredentials(accessId, activationCode);
+  const card = lookupCard();
+  if (!card) {
+    return res.status(400).json({ error: 'Diese Zugangskarte ist ungueltig, abgelaufen oder bereits verwendet.' });
+  }
+  if (!isValidPassword(password) || password !== passwordConfirmation) {
+    return res.status(400).json({ error: 'Die beiden Passwoerter muessen uebereinstimmen und 12 bis 128 Zeichen haben.' });
+  }
+
+  try {
+    const userId = db.transaction(() => {
+      const current = lookupCard();
+      if (!current) {
+        const conflict = new Error('ACCESS_CARD_ALREADY_USED');
+        conflict.code = 'ACCESS_CARD_ALREADY_USED';
+        throw conflict;
+      }
+      const inserted = db.prepare(`
+        INSERT INTO users
+          (username, email, password_hash, role, house_id, active, notify_releases,
+           email_verified, apartment_id)
+        VALUES (?, NULL, ?, 'user', ?, 1, 1, 0, ?)
+      `).run(
+        current.access_id,
+        bcrypt.hashSync(password, 10),
+        current.house_id,
+        current.apartment_id
+      );
+      const consumed = db.prepare(`
+        UPDATE resident_access_cards SET used_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL
+      `).run(current.access_card_id);
+      if (consumed.changes !== 1) {
+        const conflict = new Error('ACCESS_CARD_ALREADY_USED');
+        conflict.code = 'ACCESS_CARD_ALREADY_USED';
+        throw conflict;
+      }
+      db.prepare(`
+        UPDATE apartments
+        SET claimed_by = COALESCE(claimed_by, ?),
+            claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP),
+            activation_code_hash = NULL
+        WHERE id = ?
+      `).run(inserted.lastInsertRowid, current.apartment_id);
+      return Number(inserted.lastInsertRowid);
+    })();
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const house = db.prepare('SELECT id, name FROM houses WHERE id = ?').get(user.house_id);
+    await regenerateSession(req, user);
+    req.session.user = sessionUserFromRow(user, house);
+    req.session.activeHouseId = user.house_id;
+    req.session.lastActivityAt = Date.now();
+    if (rememberDevice) {
+      req.session.rememberDevice = true;
+      req.session.rememberRenewedAt = Date.now();
+      req.session.rememberExpiresAt = req.session.rememberRenewedAt + REMEMBER_MS;
+      bindRememberCookie(req.session);
+    }
+    clearAuthRateLimit(req);
+    writeAuditForHouse(req, user.house_id, 'resident.access_card_activated', 'apartment', user.apartment_id, {
+      userId
+    });
+    res.status(201).json({
+      user: req.session.user,
+      accessId: user.username,
+      message: `${card.label} ist aktiviert. Willkommen bei WaschZeit.`
+    });
+  } catch (error) {
+    if (error.code === 'ACCESS_CARD_ALREADY_USED' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese Zugangskarte wurde gerade bereits verwendet.' });
+    }
     next(error);
   }
 });
@@ -555,9 +664,9 @@ primaryRouter.post('/api/account-recovery/confirm', recoveryRateLimit, async (re
   const code = normalizeAccessCode(req.body?.code);
   const email = normalizeEmail(req.body?.email);
   const newPassword = String(req.body?.newPassword || '');
-  if (!code || !isValidEmail(email) || !isValidPassword(newPassword)) {
+  if (!code || (email && !isValidEmail(email)) || !isValidPassword(newPassword)) {
     return res.status(400).json({
-      error: 'Bitte einen gueltigen Wiederherstellungscode, eine E-Mail-Adresse und ein Passwort mit 12 bis 128 Zeichen eingeben.'
+      error: 'Bitte einen gueltigen Wiederherstellungscode und ein Passwort mit 12 bis 128 Zeichen eingeben. Die E-Mail-Adresse ist optional.'
     });
   }
 
@@ -575,20 +684,25 @@ primaryRouter.post('/api/account-recovery/confirm', recoveryRateLimit, async (re
   if (verifiedEmailForUser(record)) {
     return res.status(409).json({ error: 'Dieses Konto besitzt inzwischen eine bestaetigte E-Mail-Adresse. Bitte den normalen Passwort-Reset verwenden.' });
   }
-  if (findEmailOwner(email, record.user_id)) {
+  if (email && findEmailOwner(email, record.user_id)) {
     return res.status(409).json({ error: 'Diese E-Mail-Adresse gehoert bereits zu einem anderen Konto.' });
   }
 
   try {
     db.transaction(() => {
-      db.prepare(`
-        UPDATE users
-        SET email = ?, email_verified = 0, email_verified_value = NULL,
-            secondary_email = NULL, secondary_email_verified = 0,
-            secondary_email_verified_value = NULL,
-            password_hash = ?
-        WHERE id = ?
-      `).run(email, bcrypt.hashSync(newPassword, 10), record.user_id);
+      if (email) {
+        db.prepare(`
+          UPDATE users
+          SET email = ?, email_verified = 0, email_verified_value = NULL,
+              secondary_email = NULL, secondary_email_verified = 0,
+              secondary_email_verified_value = NULL,
+              password_hash = ?
+          WHERE id = ?
+        `).run(email, bcrypt.hashSync(newPassword, 10), record.user_id);
+      } else {
+        db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+          .run(bcrypt.hashSync(newPassword, 10), record.user_id);
+      }
       db.prepare('UPDATE account_recovery_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(record.recovery_id);
       db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(record.user_id);
@@ -597,16 +711,22 @@ primaryRouter.post('/api/account-recovery/confirm', recoveryRateLimit, async (re
     destroyUserSessions(record.user_id);
 
     const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(record.user_id);
-    const verification = await sendEmailVerification(req, updatedUser).catch((error) => {
-      console.error(`Bestaetigungsmail nach Kontowiederherstellung fehlgeschlagen: ${error.message}`);
-      return { configured: true, sent: false };
-    });
+    const verification = email
+      ? await sendEmailVerification(req, updatedUser).catch((error) => {
+        console.error(`Bestaetigungsmail nach Kontowiederherstellung fehlgeschlagen: ${error.message}`);
+        return { configured: true, sent: false };
+      })
+      : { configured: false, sent: false };
     writeAuditForHouse(req, record.house_id, 'user.recovery_completed', 'user', record.user_id, {
       verificationSent: Boolean(verification.sent)
     });
     res.json({
       ok: true,
-      message: verification.sent
+      loginIdentifier: updatedUser.email && !/^WZ-/i.test(updatedUser.username)
+        ? updatedUser.email : updatedUser.username,
+      message: !email
+        ? `Konto wiederhergestellt. Du kannst dich mit ${updatedUser.email && !/^WZ-/i.test(updatedUser.username) ? updatedUser.email : updatedUser.username} und dem neuen Passwort anmelden.`
+        : verification.sent
         ? 'Konto wiederhergestellt. Bitte bestaetige jetzt deine E-Mail-Adresse und melde dich danach an.'
         : 'Konto wiederhergestellt. Du kannst dich mit der neuen E-Mail-Adresse und dem neuen Passwort anmelden; die E-Mail-Bestaetigung muss noch versendet werden.'
     });

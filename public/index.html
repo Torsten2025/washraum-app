@@ -71,8 +71,8 @@
 
     <section id="whatsNewNotice" class="app-update-notice whats-new-notice" aria-labelledby="whatsNewTitle" hidden>
       <div>
-        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.14-test.2</strong>
-        <span data-i18n="whatsNew.summary">Namen bei belegten Terminen, bessere Desktop-App-Ansicht, einfacherer Kalenderfeed und aktivierte Datensicherung. Bei Haeusern waehlt der Superadmin bei der Anlage oder spaeter GBMZ (bisherige Regeln) oder Liberal (freie Eintragung in freie Slots; keine Doppelbelegung und nur im berechtigten Haus).</span>
+        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.15-test.1</strong>
+        <span data-i18n="whatsNew.summary">Persoenliche Zugangskarten ermoeglichen das Onboarding ohne E-Mail. QR-Code oder Kennung und Einmalcode aktivieren den Zugang; E-Mail-Einladungen bleiben freiwillig moeglich.</span>
       </div>
       <button id="dismissWhatsNewButton" type="button" data-i18n="common.understood">Verstanden</button>
     </section>
@@ -453,13 +453,13 @@
 
           <section id="adminSectionPeople" class="admin-section" data-admin-section="people" hidden>
             <div class="admin-section-heading">
-              <h3>Wohnungen &amp; Einladungen</h3>
-              <span>Wohnung fest zuordnen und Bewohner sicher per E-Mail einladen</span>
+              <h3 data-i18n="admin.apartmentsAccess">Wohnungen &amp; Zugaenge</h3>
+              <span data-i18n="admin.apartmentsAccessHint">Wohnung fest zuordnen und persoenliche Zugangskarten beim Onboarding uebergeben</span>
             </div>
             <details class="admin-create-panel admin-narrow-panel">
               <summary>
-                <span>Wohnung anlegen und einladen</span>
-                <small>Wohnung, Klingelschildname und erste Kontaktadresse erfassen</small>
+                <span data-i18n="admin.createApartmentAccess">Wohnung anlegen und Zugangskarte erstellen</span>
+                <small data-i18n="admin.createApartmentAccessHint">Wohnung und Klingelschild erfassen; eine E-Mail-Adresse ist freiwillig</small>
               </summary>
               <form id="apartmentForm" class="stack compact-form admin-narrow-form">
                 <label>
@@ -471,10 +471,10 @@
                   <input id="apartmentDisplayNameInput" name="displayName" placeholder="z.B. Meier / Keller" maxlength="80" required>
                 </label>
                 <label>
-                  E-Mail f&uuml;r die Einladung
-                  <input id="apartmentInviteEmailInput" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch" required>
+                  <span data-i18n="admin.optionalInvitationEmail">E-Mail f&uuml;r eine Einladung (optional)</span>
+                  <input id="apartmentInviteEmailInput" name="email" type="email" autocomplete="off" placeholder="name@beispiel.ch">
                 </label>
-                <button type="submit">Einladung senden</button>
+                <button type="submit" data-i18n="admin.createAccess">Wohnung und Zugang erstellen</button>
               </form>
             </details>
             <div id="apartmentInvitationResult" class="verification-status" role="status" hidden></div>
@@ -857,6 +857,10 @@
                   <span data-i18n="settings.doorbellName">Klingelschild</span>
                   <input id="settingsUsername" type="text" readonly>
                 </label>
+                <label>
+                  <span data-i18n="settings.loginIdentifier">Anmeldekennung</span>
+                  <input id="settingsLoginIdentifier" type="text" readonly aria-describedby="settingsLoginIdentifierHint">
+                </label>
                 <label id="settingsApartmentLabelWrap">
                   <span data-i18n="settings.apartment">Wohnung</span>
                   <input id="settingsApartmentLabel" type="text" readonly>
@@ -877,6 +881,7 @@
                 <strong id="apartmentAccountStatus">Wohnungszuordnung wird gepr&uuml;ft.</strong>
                 <button id="openApartmentSetupButton" class="text-button" type="button" hidden data-i18n="settings.assignApartment">Jetzt Wohnung zuordnen</button>
               </div>
+              <p id="settingsLoginIdentifierHint" class="muted" data-i18n="settings.saveLoginIdentifier">Bewahre deine Anmeldekennung sicher auf, bevor du die aktivierte Zugangskarte vernichtest. Du brauchst sie beim naechsten Anmelden.</p>
               <details id="nameCorrectionPanel" class="profile-correction-panel">
                 <summary data-i18n="settings.correctDoorbell">Klingelschildname korrigieren lassen</summary>
                 <p class="muted" data-i18n="settings.correctDoorbellHint">Dein Vorschlag wird erst nach Pr&uuml;fung durch den Haus-Admin sichtbar.</p>
@@ -891,8 +896,8 @@
                 <button id="sendDisplayNameRequestButton" class="secondary" type="button" data-i18n="settings.requestCorrection">Korrektur anfragen</button>
               </details>
               <label>
-                <span data-i18n="settings.primaryEmail">Erste E-Mail</span>
-                <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+                <span data-i18n="settings.primaryEmail">Erste E-Mail (optional)</span>
+                <input id="notificationEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com">
               </label>
               <div id="emailVerificationStatus" class="verification-status" role="status"></div>
               <button id="resendVerificationButton" class="text-button" type="button" hidden data-i18n="settings.resendPrimary">Best&auml;tigungsmail erneut senden</button>

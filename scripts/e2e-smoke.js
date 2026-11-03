@@ -880,8 +880,8 @@ async function run() {
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupOverlay .eyebrow').innerText(), 'EXISTING ACCOUNT');
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupTitle').innerText(), 'This existing account needs an apartment.');
     assert.match(await onboardingLogoutPage.locator('#apartmentSetupOverlay .intro-copy > p:last-child').innerText(), /building administration/i);
-    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm h3').innerText(), 'Use a personal invitation');
-    assert.match(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm .muted').innerText(), /partner QR code/i);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm h3').innerText(), 'Use a personal access card');
+    assert.match(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm .muted').innerText(), /scan the QR code|access ID/i);
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Sign out');
     assert.equal(await onboardingLogoutPage.locator('#postponeApartmentSetupButton').innerText(), 'Assign later');
     assert.equal(await onboardingLogoutPage.locator('#closeApartmentSetupButton').getAttribute('aria-label'), 'Continue apartment assignment later');
@@ -944,6 +944,40 @@ async function run() {
     await invalidInvitePage.waitForFunction(() => document.querySelector('#invitationSummary strong')?.textContent === 'Invitation unavailable');
     assert.match(await invalidInvitePage.locator('#invitationSummary').innerText(), /invalid|expired|already been used/i);
     await invalidInvitePage.close();
+
+    const accessCardResponse = await fetch(`${baseUrl}/api/admin/apartments/access-card`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({
+        label: 'E2E 3. OG rechts',
+        displayName: 'E2E Zugangskarte'
+      })
+    });
+    assert.equal(accessCardResponse.status, 201);
+    const accessCardApartment = await accessCardResponse.json();
+    const invalidAccessPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await invalidAccessPage.goto(`${baseUrl}/login.html?access=${'f'.repeat(64)}`, { waitUntil: 'domcontentloaded' });
+    await invalidAccessPage.selectOption('[data-language-picker]', 'en');
+    await invalidAccessPage.waitForFunction(() => document.querySelector('#accessCardSummary strong')?.textContent === 'Access card unavailable');
+    assert.match(await invalidAccessPage.locator('#accessCardSummary').innerText(), /invalid|expired|already been used/i);
+    await invalidAccessPage.close();
+
+    const accessCardPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await accessCardPage.goto(accessCardApartment.accessCard.activationUrl, { waitUntil: 'domcontentloaded' });
+    await accessCardPage.selectOption('[data-language-picker]', 'en');
+    await accessCardPage.waitForFunction(() => document.documentElement.lang === 'en');
+    await accessCardPage.waitForFunction(() => !document.querySelector('#accessCardForm button[type="submit"]')?.disabled);
+    assert.equal(await accessCardPage.locator('#accessCardForm h2').innerText(), 'Activate personal access');
+    assert.match(await accessCardPage.locator('#accessCardSummary').innerText(), /E2E Zugangskarte/);
+    assert.ok(await accessCardPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await accessCardPage.fill('#accessCardForm input[name="password"]', 'E2E-Zugangskarte-2026!');
+    await accessCardPage.fill('#accessCardForm input[name="passwordConfirmation"]', 'E2E-Zugangskarte-2026!');
+    await accessCardPage.check('#accessCardForm input[name="accessRememberDevice"]');
+    await accessCardPage.click('#accessCardForm button[type="submit"]');
+    await accessCardPage.waitForURL('**/index.html?welcome=1', { timeout: 10000 });
+    await accessCardPage.waitForSelector('#settingsOverlay:not([hidden])');
+    await accessCardPage.close();
+
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.goto(apartment.invitationLink, { waitUntil: 'domcontentloaded' });
     await page.selectOption('[data-language-picker]', 'en');
@@ -963,17 +997,13 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.14-test.2');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.1');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
-    assert.match(whatsNewText, /occupied bookings|desktop app layout|calendar feed|backups/i);
-    assert.match(whatsNewText, /GBMZ/);
-    assert.match(whatsNewText, /Liberal/);
-    assert.match(whatsNewText, /no double bookings/i);
-    assert.match(whatsNewText, /authorized house/i);
+    assert.match(whatsNewText, /access cards|without email|QR code|one-time code/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.14-test.2')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.1')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -983,10 +1013,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.14-test\.2/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.1/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.14-test\.2/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.1/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');

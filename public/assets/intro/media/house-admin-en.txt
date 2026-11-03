@@ -7,11 +7,11 @@ As a house administrator, you may also be a resident. My Laundry Plan contains y
 2. Prioritize the administration overview [00:00:24.000]
 The administration overview places important tasks before general figures. First review urgent incidents, blocked equipment and pending functional checks. Invitations, account notices, recurring appointments and general information for your house follow after those tasks.
 
-3. Apartments and invitations [00:00:50.000]
-For a new resident, first define the stable apartment label and the name shown on the doorbell. Add the resident email address and send a time-limited invitation. The personal sign-in is created only when the invitation is accepted, with the correct apartment already assigned.
+3. Apartments and access cards [00:00:50.000]
+For a new resident, first define the stable apartment label and the name shown on the doorbell. Then create a separate access card for each person and hand it over in person. The QR code or combination of access ID and activation code is valid for seven days and only once. The person sets their own password; an email address is optional.
 
 4. Accounts and recovery [00:01:18.000]
-Account administration shows active, invited and blocked people. Before helping with recovery, verify the identity, email address and apartment assignment. Never replace another person's email address merely to receive their password reset link yourself.
+Account administration shows active or blocked people and open access cards. Before helping with recovery, verify the identity and apartment assignment. Then create a one-time code valid for 15 minutes. The person sets their own password and can continue using the access ID without email.
 
 5. Manage equipment and rooms [00:01:46.000]
 In House and Equipment, first switch deliberately between house details and the equipment inventory. As a house administrator, you start directly with equipment from your own house. Use clear names so the calendar, report and logbook refer to the same resource. Blocked resources can only be released through the logbook workflow.

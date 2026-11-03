@@ -10,7 +10,7 @@ Die vollstaendige Bedienungsanleitung, Rollenmatrix, Funktionsuebersicht, Testre
 - Waschpakete reservieren per Schnellwahl eine bis drei Waschmaschinen im gleichen Slot, eine waehlbare Trockenraumdauer und den Tumbler gemeinsam und atomar. Alle Bestandteile koennen gemeinsam verwaltet werden.
 - Restplaetze buchen fuer einen freien, noch nicht begonnenen Slot am heutigen Schweizer Tag exakt eine Waschmaschine und optional einen Tumbler; Trockenraum und neue Benachrichtigungen bleiben ausgeschlossen.
 - Jede Person, jedes Geraet und jede Buchung gehoert zu genau einer Hausnummer.
-- Jede Person verwendet genau eine eindeutige E-Mail-Identitaet. Diese kann Bewohner einer Wohnung, Haus-Admin und zusaetzlich Superadmin sein; `Mein Waschplan` und `Verwalten` bleiben dabei klar getrennt.
+- Jede Person verwendet einen eigenen Zugang mit zufaelliger Zugangskennung; eine E-Mail-Adresse ist freiwillig. Dieselbe Identitaet kann Bewohner einer Wohnung, Haus-Admin und zusaetzlich Superadmin sein; `Mein Waschplan` und `Verwalten` bleiben dabei klar getrennt.
 - Zentrale deutsche und englische Oberflaeche mit lokaler Sprachwahl vor Login und kontobezogener Persistenz nach Login; Deutsch bleibt der sichere Rueckfall.
 - Haus-Admins verwalten ihr Haus. Der Superadmin verwaltet Haeuser, Geraete, additive Rollen und kontrollierte Umzuege zwischen Hausnummern.
 - GBMZ-Regeln fuer Waschmaschinen, Tumbler und Trockenraeume werden serverseitig in Schweizer Zeit geprueft.
@@ -63,9 +63,9 @@ npm run test:i18n
 
 Die Sprachwahl benoetigt keine Umgebungsvariable. Der Browserkatalog liegt in `public/i18n.js`; serverseitige E-Mail- und Push-Texte liegen in `src/services/localization.js`. `users.language` akzeptiert nur `de` oder `en`.
 
-## Wohnungseinladung
+## Bewohnerzugang
 
-Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung, Klingelschildname und Ziel-E-Mail fest. Die App sendet ausschliesslich per SMTP einen sieben Tage gueltigen Einladungslink. Eine neue E-Mail legt eine persoenliche Identitaet an; eine bereits bekannte E-Mail erweitert nach Bestaetigung des vorhandenen Passworts dieselbe Identitaet um die Wohnungsmitgliedschaft. Weitere Familienmitglieder erhalten per zehn Minuten gueltigem QR-Code einen eigenen persoenlichen Bewohnerzugang zur gemeinsamen Wohnung. Der QR-Code kopiert niemals Adminrechte. Alle Mitglieder sehen dieselben Wohnungsbuchungen und teilen die Vorausbuchungsregeln. Ohne funktionierenden E-Mail-Versand kann keine Produktionseinladung erstellt werden.
+Neue Bewohner koennen sich nicht frei registrieren. Haus-Admin oder Superadmin legen Wohnungsbezeichnung und Klingelschildname fest und erzeugen pro Person eine sieben Tage gueltige Zugangskarte. QR-Token und lesbarer Aktivierungscode werden nur gehasht gespeichert und einmalig verbraucht; die Person setzt ihr Passwort selbst und meldet sich danach mit der zufaelligen Zugangskennung an. E-Mail bleibt fuer Einladung, Reset und Hinweise optional. Weitere Familienmitglieder erhalten eine eigene Karte oder per zehn Minuten gueltigem Partner-QR einen eigenen Bewohnerzugang zur gemeinsamen Wohnung. Kein Karten- oder QR-Weg kopiert Adminrechte. Alle Mitglieder sehen dieselben Wohnungsbuchungen und teilen die Vorausbuchungsregeln. Ohne SMTP bleiben Zugangskarten, Anmeldung, Push und In-App-Funktionen nutzbar.
 
 Beim ersten Start wird `Maneggplatz 18` als Standardhaus angelegt. Das erste Admin-Konto wird zum Superadmin. Weitere Hausnummern erhalten anfangs drei Waschmaschinen, drei Trockenraeume und zwei Tumbler. Namen, aktive Geraete und Hausstatus koennen danach angepasst werden. Ein Bewohner kann nur ohne kommende Buchungen in ein anderes Haus verschoben werden.
 

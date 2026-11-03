@@ -6,10 +6,15 @@ const invitationSummary = document.querySelector('#invitationSummary');
 const invitationPasswordLabel = document.querySelector('#invitationPasswordLabel');
 const invitationPasswordConfirmationLabel = document.querySelector('#invitationPasswordConfirmationLabel');
 const showLogin = document.querySelector('#showLogin');
+const showAccessCard = document.querySelector('#showAccessCard');
 const showRegister = document.querySelector('#showRegister');
 const showDeviceLogin = document.querySelector('#showDeviceLogin');
 const deviceLoginForm = document.querySelector('#deviceLoginForm');
 const deviceLoginMessage = document.querySelector('#deviceLoginMessage');
+const accessCardForm = document.querySelector('#accessCardForm');
+const accessCardMessage = document.querySelector('#accessCardMessage');
+const accessCardSummary = document.querySelector('#accessCardSummary');
+const accessCardManualFields = document.querySelector('#accessCardManualFields');
 const recoveryForm = document.querySelector('#recoveryForm');
 const recoveryMessage = document.querySelector('#recoveryMessage');
 const accountRecoveryForm = document.querySelector('#accountRecoveryForm');
@@ -21,7 +26,7 @@ const updateAppButton = document.querySelector('#updateAppButton');
 const loginMaintenanceNotice = document.querySelector('#loginMaintenanceNotice');
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || '';
 const i18n = window.WZ_I18N;
-const translate = (key, fallback) => i18n?.t(key, {}, fallback) || fallback;
+const translate = (key, fallback, variables = {}) => i18n?.t(key, variables, fallback) || String(fallback).replace(/\{([^}]+)\}/g, (match, name) => variables[name] ?? match);
 const localize = (value) => i18n?.translateVisibleText(value) || value;
 let invitationUsesExistingAccount = false;
 
@@ -108,12 +113,15 @@ function setMode(mode) {
   const isRecovery = mode === 'recovery';
   const isAccountRecovery = mode === 'account-recovery';
   const isDeviceLogin = mode === 'device';
-  form.hidden = isRegister || isRecovery || isAccountRecovery || isDeviceLogin;
+  const isAccessCard = mode === 'access-card';
+  form.hidden = isRegister || isRecovery || isAccountRecovery || isDeviceLogin || isAccessCard;
   registerForm.hidden = !isRegister;
+  accessCardForm.hidden = !isAccessCard;
   recoveryForm.hidden = !isRecovery;
   accountRecoveryForm.hidden = !isAccountRecovery;
   deviceLoginForm.hidden = !isDeviceLogin;
-  showLogin.classList.toggle('active', !isRegister && !isRecovery && !isAccountRecovery && !isDeviceLogin);
+  showLogin.classList.toggle('active', !isRegister && !isRecovery && !isAccountRecovery && !isDeviceLogin && !isAccessCard);
+  showAccessCard.classList.toggle('active', isAccessCard);
   showRegister.classList.toggle('active', isRegister);
   showDeviceLogin.classList.toggle('active', isDeviceLogin);
   message.textContent = '';
@@ -121,9 +129,18 @@ function setMode(mode) {
   deviceLoginMessage.textContent = '';
   recoveryMessage.textContent = '';
   accountRecoveryMessage.textContent = '';
+  accessCardMessage.textContent = '';
 }
 
 showLogin.addEventListener('click', () => setMode('login'));
+showAccessCard.addEventListener('click', () => {
+  accessCardForm.reset();
+  accessCardManualFields.hidden = false;
+  accessCardForm.elements.accessId.required = true;
+  accessCardForm.elements.activationCode.required = true;
+  accessCardSummary.innerHTML = `<strong>${escapeHtml(translate('auth.accessCardReady', 'Zugangskarte bereithalten'))}</strong><span>${escapeHtml(translate('auth.accessCardManualHint', 'QR-Code scannen oder Zugangskennung und Aktivierungscode von der Karte eingeben.'))}</span>`;
+  setMode('access-card');
+});
 showRegister.addEventListener('click', () => setMode('register'));
 showDeviceLogin.addEventListener('click', () => setMode('device'));
 showRecovery.addEventListener('click', () => setMode('recovery'));
@@ -136,6 +153,7 @@ const verification = urlParameters.get('verification');
 const loggedOut = urlParameters.get('loggedOut');
 const sessionExpired = urlParameters.get('sessionExpired');
 const invitationToken = urlParameters.get('invite');
+const accessCardToken = urlParameters.get('access');
 const devicePairingToken = urlParameters.get('device');
 if (verification === 'ok') {
   message.textContent = 'E-Mail-Adresse best\u00e4tigt. Du kannst dich jetzt anmelden.';
@@ -218,7 +236,56 @@ async function loadInvitation(token) {
   }
 }
 
-if (invitationToken) {
+async function loadAccessCard(token) {
+  setMode('access-card');
+  const submitButton = accessCardForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  accessCardForm.elements.token.value = token || '';
+  accessCardManualFields.hidden = true;
+  accessCardForm.elements.accessId.required = false;
+  accessCardForm.elements.activationCode.required = false;
+  try {
+    const response = await fetch(`/api/access-cards/${encodeURIComponent(token)}`, { cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      accessCardSummary.innerHTML = `<strong>${escapeHtml(translate('auth.accessCardUnavailable', 'Zugangskarte nicht verfuegbar'))}</strong><span>${escapeHtml(localize(data.error || translate('auth.requestAccessCard', 'Bitte fordere eine neue Zugangskarte an.')))}</span>`;
+      return;
+    }
+    const card = data.accessCard;
+    accessCardSummary.innerHTML = `
+      <strong>${escapeHtml(card.displayName)}</strong>
+      <span>${escapeHtml(card.apartmentLabel)} &middot; ${escapeHtml(card.houseName)}</span>
+      <span>${escapeHtml(translate('auth.accessIdWithValue', 'Zugangskennung: {accessId}', { accessId: card.accessId }))}</span>
+    `;
+    submitButton.disabled = false;
+  } catch {
+    accessCardSummary.innerHTML = `<strong>${escapeHtml(translate('auth.accessCardLoadFailed', 'Zugangskarte konnte nicht geladen werden'))}</strong><span>${escapeHtml(translate('auth.tryAgain', 'Bitte versuche es erneut.'))}</span>`;
+  }
+}
+
+accessCardForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  accessCardMessage.textContent = '';
+  const formData = new FormData(accessCardForm);
+  if (formData.get('password') !== formData.get('passwordConfirmation')) {
+    accessCardMessage.textContent = translate('auth.passwordMismatch', 'Die beiden Passwoerter stimmen nicht ueberein.');
+    return;
+  }
+  const data = await submitJson(accessCardForm, '/api/access-cards/activate', {
+    token: formData.get('token'),
+    accessId: formData.get('accessId'),
+    activationCode: formData.get('activationCode'),
+    password: formData.get('password'),
+    passwordConfirmation: formData.get('passwordConfirmation'),
+    rememberDevice: formData.get('accessRememberDevice') === 'on'
+  }, accessCardMessage);
+  if (!data) return;
+  window.location.href = '/index.html?welcome=1';
+});
+
+if (accessCardToken) {
+  loadAccessCard(accessCardToken);
+} else if (invitationToken) {
   loadInvitation(invitationToken);
 } else if (devicePairingToken) {
   setMode('device');
@@ -237,6 +304,9 @@ deviceLoginForm.addEventListener('submit', async (event) => {
     passwordConfirmation: formData.get('passwordConfirmation')
   }, deviceLoginMessage);
   if (!data) return;
+  if (data.accessId) {
+    window.alert(translate('auth.saveAccessId', 'Deine Zugangskennung lautet {accessId}. Bitte notiere sie jetzt.', { accessId: data.accessId }));
+  }
   window.location.href = '/index.html';
 });
 
@@ -267,6 +337,8 @@ accountRecoveryForm.addEventListener('submit', async (event) => {
   }, accountRecoveryMessage);
   if (data) {
     accountRecoveryForm.reset();
-    accountRecoveryMessage.textContent = data.message || 'Das Konto wurde wiederhergestellt.';
+    accountRecoveryMessage.textContent = data.loginIdentifier
+      ? translate('auth.recoveryLogin', 'Konto wiederhergestellt. Melde dich mit {identifier} und deinem neuen Passwort an.', { identifier: data.loginIdentifier })
+      : localize(data.message || 'Das Konto wurde wiederhergestellt.');
   }
 });

@@ -2,7 +2,7 @@ Welcome to WaschZeit
 Resident | English
 
 1. Sign in and set up your profile [00:00:00.000]
-Welcome to WaschZeit. Sign in with your personal email address and password. In Settings, check your name, language and notification preferences. Your bookings always remain assigned to your apartment.
+Welcome to WaschZeit. During personal onboarding, scan the QR code on your access card or enter its access ID and activation code. Then set your own password. An email address is not required. In Settings, check your language and notification preferences. Your bookings always remain assigned to your apartment.
 
 2. Explore the week and month [00:00:24.000]
 The weekly calendar helps you find a suitable available time quickly. The monthly view shows the shared laundry schedule and supports longer-term planning. Past, occupied or blocked times are clearly marked and cannot be booked.

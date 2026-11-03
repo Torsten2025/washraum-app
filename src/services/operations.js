@@ -113,6 +113,7 @@ function createOperationsService({
       db.prepare('DELETE FROM password_reset_tokens WHERE CAST(expires_at AS INTEGER) <= ?').run(Date.now());
       db.prepare('DELETE FROM account_recovery_codes WHERE used_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
       db.prepare('DELETE FROM device_pairing_codes WHERE used_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
+      db.prepare('DELETE FROM resident_access_cards WHERE used_at IS NOT NULL OR revoked_at IS NOT NULL OR CAST(expires_at AS INTEGER) <= ?').run(Date.now());
       db.prepare("DELETE FROM release_notices WHERE created_at < datetime('now', '-30 days')").run();
       db.prepare("DELETE FROM bookings WHERE booking_date < date('now', '-365 days')").run();
       db.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', '-365 days')").run();

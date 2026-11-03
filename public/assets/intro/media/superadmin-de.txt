@@ -5,7 +5,7 @@ Superadmin | Deutsch
 Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlichen Auditereignissen. Jeder Eintrag muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
 
 2. Das aktive Haus wechseln [00:00:24.000]
-Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Einladungen oder Kontoaenderungen.
+Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Zugangskarten, Einladungen oder Kontoaenderungen.
 
 3. Haeuser verwalten [00:00:52.000]
 Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl. Der Reiter Haus zeigt Standorte und Stammdaten; der Reiter Geraete zeigt ausschliesslich Ressourcen des serverseitig aktiven Hauses. Vor einer Deaktivierung pruefst du aktive Bewohner, Buchungen, offene Vorgaenge und die notwendige Datensicherung.

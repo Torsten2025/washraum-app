@@ -20,6 +20,8 @@ function createHouseRoleRouters({
   verifiedEmailForUser,
   normalizeAccessCode,
   generateReadableCode,
+  issueResidentAccessCard,
+  QRCode,
   findEmailOwner,
   pendingInvitationForEmail,
   issueApartmentInvitation,
@@ -38,6 +40,24 @@ function createHouseRoleRouters({
   const recoveryRouter = express.Router();
   const housesRouter = express.Router();
   const houseCodeRouter = express.Router();
+
+  async function createAccessCardResponse(req, apartment) {
+    const card = issueResidentAccessCard(req, apartment);
+    const qrCodeDataUrl = await QRCode.toDataURL(card.link, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 320,
+      color: { dark: '#0d241cff', light: '#ffffffff' }
+    });
+    return {
+      id: card.id,
+      accessId: card.accessId,
+      activationCode: card.code,
+      expiresAt: new Date(card.expiresAt).toISOString(),
+      activationUrl: card.link,
+      qrCodeDataUrl
+    };
+  }
 
   function writeRequiredAudit(req, action, targetType, targetId = '', details = {}) {
     db.prepare(`
@@ -70,6 +90,9 @@ accountsRouter.get('/api/admin/apartments', requireAdmin, (req, res) => {
     SELECT a.id, a.label, a.display_name, a.active, a.claimed_at,
            CASE WHEN EXISTS (SELECT 1 FROM users member WHERE member.apartment_id = a.id AND member.active = 1) THEN 1 ELSE 0 END AS claimed,
            (SELECT COUNT(*) FROM users member WHERE member.apartment_id = a.id AND member.active = 1) AS member_count,
+           (SELECT COUNT(*) FROM resident_access_cards rac
+            WHERE rac.apartment_id = a.id AND rac.used_at IS NULL AND rac.revoked_at IS NULL
+              AND CAST(rac.expires_at AS INTEGER) > ?) AS active_access_card_count,
            (SELECT group_concat(member.email, ', ') FROM users member WHERE member.apartment_id = a.id AND member.active = 1 AND member.email IS NOT NULL) AS member_emails,
            u.email, u.secondary_email, u.email_verified, u.secondary_email_verified,
            ai.email AS invitation_email, ai.expires_at AS invitation_expires_at,
@@ -91,7 +114,7 @@ accountsRouter.get('/api/admin/apartments', requireAdmin, (req, res) => {
     )
     WHERE a.house_id = ?
     ORDER BY a.label COLLATE NOCASE
-  `).all(currentHouseId(req)).map((apartment) => ({
+  `).all(Date.now(), currentHouseId(req)).map((apartment) => ({
     ...apartment,
     active: Boolean(apartment.active),
     claimed: Boolean(apartment.claimed),
@@ -106,9 +129,92 @@ accountsRouter.get('/api/admin/apartments', requireAdmin, (req, res) => {
               : Number(apartment.invitation_expires_at) <= Date.now()
                 ? 'expired'
                 : 'pending',
-    member_count: Number(apartment.member_count || 0)
+    member_count: Number(apartment.member_count || 0),
+    active_access_card_count: Number(apartment.active_access_card_count || 0)
   }));
   res.json({ apartments });
+});
+
+accountsRouter.post('/api/admin/apartments/access-card', requireAdmin, async (req, res, next) => {
+  const label = String(req.body?.label || '').trim();
+  const displayName = String(req.body?.displayName || '').trim();
+  if (!isValidPlainText(label, 2, 60)) {
+    return res.status(400).json({ error: 'Bitte eine Wohnungsbezeichnung mit 2 bis 60 Zeichen eingeben.' });
+  }
+  if (!isValidPlainText(displayName, 2, 80)) {
+    return res.status(400).json({ error: 'Bitte den Namen vom Klingelschild mit 2 bis 80 Zeichen eingeben.' });
+  }
+  try {
+    const result = db.prepare(`
+      INSERT INTO apartments (house_id, label, display_name, activation_code_hash)
+      VALUES (?, ?, ?, NULL)
+    `).run(currentHouseId(req), label, displayName);
+    const apartment = {
+      id: Number(result.lastInsertRowid),
+      house_id: currentHouseId(req),
+      house_name: db.prepare('SELECT name FROM houses WHERE id = ?').get(currentHouseId(req)).name,
+      label,
+      display_name: displayName
+    };
+    const accessCard = await createAccessCardResponse(req, apartment);
+    writeAudit(req, 'resident.access_card_created', 'apartment', apartment.id, {
+      label
+    });
+    res.status(201).json({
+      apartment: { id: apartment.id, label, display_name: displayName, claimed: false, active: true },
+      accessCard,
+      message: 'Wohnung angelegt. Die persoenliche Zugangskarte ist bereit.'
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Diese Wohnungsbezeichnung ist bereits vorhanden.' });
+    }
+    next(error);
+  }
+});
+
+accountsRouter.post('/api/admin/apartments/:id/access-card', requireAdmin, async (req, res, next) => {
+  const apartment = db.prepare(`
+    SELECT a.id, a.house_id, a.label, a.display_name, h.name AS house_name
+    FROM apartments a JOIN houses h ON h.id = a.house_id
+    WHERE a.id = ? AND a.house_id = ? AND a.active = 1
+  `).get(Number(req.params.id), currentHouseId(req));
+  if (!apartment) return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
+  try {
+    const accessCard = await createAccessCardResponse(req, apartment);
+    writeAudit(req, 'resident.access_card_created', 'apartment', apartment.id, {
+      label: apartment.label
+    });
+    res.status(201).json({
+      apartment: { id: apartment.id, label: apartment.label, display_name: apartment.display_name },
+      accessCard,
+      message: 'Die persoenliche Zugangskarte ist bereit und sieben Tage gueltig.'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+accountsRouter.delete('/api/admin/apartments/:id/access-cards', requireAdmin, (req, res) => {
+  const apartment = db.prepare(`
+    SELECT id, label FROM apartments WHERE id = ? AND house_id = ? AND active = 1
+  `).get(Number(req.params.id), currentHouseId(req));
+  if (!apartment) return res.status(404).json({ error: 'Wohnung nicht gefunden.' });
+  const revoked = db.prepare(`
+    UPDATE resident_access_cards SET revoked_at = CURRENT_TIMESTAMP
+    WHERE apartment_id = ? AND used_at IS NULL AND revoked_at IS NULL
+      AND CAST(expires_at AS INTEGER) > ?
+  `).run(apartment.id, Date.now());
+  writeAudit(req, 'resident.access_cards_revoked', 'apartment', apartment.id, {
+    count: revoked.changes
+  });
+  res.json({
+    ok: true,
+    revoked: revoked.changes,
+    message: revoked.changes === 1
+      ? 'Die offene Zugangskarte wurde ungueltig gemacht.'
+      : `${revoked.changes} offene Zugangskarten wurden ungueltig gemacht.`
+  });
 });
 
 accountsRouter.post('/api/admin/apartments', requireAdmin, async (req, res, next) => {

@@ -240,6 +240,7 @@ const settingsEyebrow = document.querySelector('#settingsEyebrow');
 const settingsTitle = document.querySelector('#settingsTitle');
 const settingsIntroText = document.querySelector('#settingsIntroText');
 const settingsUsername = document.querySelector('#settingsUsername');
+const settingsLoginIdentifier = document.querySelector('#settingsLoginIdentifier');
 const settingsApartmentLabel = document.querySelector('#settingsApartmentLabel');
 const settingsApartmentLabelWrap = document.querySelector('#settingsApartmentLabelWrap');
 const settingsRole = document.querySelector('#settingsRole');
@@ -384,7 +385,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.14-test.2';
+const WHATS_NEW_VERSION = '0.3.15-test.1';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1274,12 +1275,18 @@ async function revokeCalendarFeed() {
   calendarFeedStatus.textContent = translate('settings.calendarFeedRevoked', 'Die Kalenderadresse wurde widerrufen.');
 }
 
+function currentLoginIdentifier() {
+  return currentUser.role === 'admin' || /^WZ-/i.test(currentUser.username) || !currentUser.email
+    ? currentUser.username : currentUser.email;
+}
+
 function openSettings(firstRun = false) {
   closeAccountMenu();
   settingsReturnFocus = document.activeElement;
   settingsFirstRun = firstRun;
   renderSettingsHeader();
   settingsUsername.value = currentUser.displayName || currentUser.username;
+  settingsLoginIdentifier.value = currentLoginIdentifier();
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
   nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
@@ -2234,17 +2241,6 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     });
   }
 
-  if (overview.usersMissingEmail) {
-    tasks.push({
-      level: 'attention',
-      title: translate(overview.usersMissingEmail === 1 ? 'admin.accountMissingEmailOne' : 'admin.accountMissingEmailMany', '{count} Konten ohne E-Mail', { count: overview.usersMissingEmail }),
-      text: translate('admin.identityRecoveryText', 'Identitaet persoenlich pruefen und bei Bedarf einen kurz gueltigen Wiederherstellungscode ausgeben.'),
-      section: 'people',
-      action: translate('admin.accountCheck', 'Konto pruefen'),
-      group: 'warnings'
-    });
-  }
-
   if (blockedResources.length && !openCases.length) {
     tasks.push({
       level: 'attention',
@@ -2400,7 +2396,7 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
     .join('');
 
   setAdminTabCount(adminLogbookCount, openCases.length);
-  setAdminTabCount(adminPeopleCount, Number(overview.usersMissingEmail || 0) + nameRequests.length);
+  setAdminTabCount(adminPeopleCount, nameRequests.length);
   setAdminTabCount(adminHouseCount, blockedResources.length);
   setAdminTabCount(
     adminSystemCount,
@@ -2415,7 +2411,7 @@ function renderAdminWorkQueue({ overview, recovery, apartments, resources: admin
 function renderEmailVerificationStatus() {
   const configuredAddress = Boolean(currentUser.email);
   emailVerificationStatus.textContent = !configuredAddress
-    ? translate('settings.emailRequired', 'E-Mail ist Pflicht: Bitte Adresse eintragen, sonst ist kein Passwort-Reset moeglich.')
+    ? translate('settings.emailOptional', 'Optional: Mit einer bestaetigten E-Mail-Adresse kannst du den Passwort-Reset per E-Mail und E-Mail-Hinweise nutzen.')
     : currentUser.emailVerified
       ? translate('settings.emailVerified', 'E-Mail-Adresse bestaetigt.')
       : translate('settings.emailUnverified', 'Bitte E-Mail-Adresse bestaetigen. Bis dahin sind Passwort-Reset per Mail und Hinweise nicht vollstaendig nutzbar.');
@@ -2644,6 +2640,7 @@ function renderHouseContext() {
   accountPanelName.textContent = accountLabel;
   accountPanelMeta.textContent = `${roleLabel} - ${currentUser.houseName}${currentUser.apartmentLabel ? ` - ${currentUser.apartmentLabel}` : ''}`;
   settingsUsername.value = accountLabel;
+  settingsLoginIdentifier.value = currentLoginIdentifier();
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
   nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
@@ -4745,6 +4742,7 @@ async function saveNotifications() {
       })
     });
     currentUser = data.user;
+    settingsLoginIdentifier.value = currentLoginIdentifier();
     renderEmailVerificationStatus();
     renderSettingsSummary();
     showStatus(localizedSystemText(data.message, translate('settings.notificationsSaved', 'Benachrichtigungen gespeichert.')));
@@ -4821,12 +4819,13 @@ async function createDevicePairingCode() {
 async function createApartment() {
   apartmentInvitationResult.hidden = true;
   try {
-    const data = await api('/api/admin/apartments', {
+    const email = apartmentInviteEmailInput.value.trim();
+    const data = await api(email ? '/api/admin/apartments' : '/api/admin/apartments/access-card', {
       method: 'POST',
       body: JSON.stringify({
         label: apartmentLabelInput.value,
         displayName: apartmentDisplayNameInput.value,
-        email: apartmentInviteEmailInput.value
+        email
       })
     });
     apartmentLabelInput.value = '';
@@ -4843,9 +4842,43 @@ async function createApartment() {
 
 function showApartmentInvitationResult(data, apartment) {
   const invitation = data.invitation || {};
+  const accessCard = data.accessCard || null;
   apartmentInvitationResult.replaceChildren();
   const title = document.createElement('strong');
   title.textContent = `${apartment.label} - ${apartment.display_name}`;
+  if (accessCard) {
+    const card = document.createElement('section');
+    card.className = 'resident-access-card';
+    card.innerHTML = `
+      <div class="resident-access-card-brand">
+        <strong>WaschZeit</strong>
+        <span>${escapeHtml(translate('admin.personalAccessCard', 'Persoenliche Zugangskarte'))}</span>
+      </div>
+      <img src="${escapeHtml(accessCard.qrCodeDataUrl)}" alt="${escapeHtml(translate('admin.accessCardQrAlt', 'QR-Code zur einmaligen Kontoaktivierung'))}">
+      <dl>
+        <div><dt>${escapeHtml(translate('admin.apartment', 'Wohnung'))}</dt><dd>${escapeHtml(apartment.label)}</dd></div>
+        <div><dt>${escapeHtml(translate('admin.doorbellName', 'Name am Klingelschild'))}</dt><dd>${escapeHtml(apartment.display_name)}</dd></div>
+        <div><dt>${escapeHtml(translate('admin.accessId', 'Zugangskennung'))}</dt><dd>${escapeHtml(accessCard.accessId)}</dd></div>
+        <div><dt>${escapeHtml(translate('admin.activationCode', 'Aktivierungscode'))}</dt><dd>${escapeHtml(accessCard.activationCode)}</dd></div>
+      </dl>
+      <p>${escapeHtml(translate('admin.accessCardExpiry', 'Einmalig aktivierbar bis {date}. Danach mit Zugangskennung und eigenem Passwort anmelden.', { date: new Date(accessCard.expiresAt).toLocaleString(activeLocale()) }))}</p>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'inline-actions access-card-actions';
+    const printButton = document.createElement('button');
+    printButton.type = 'button';
+    printButton.className = 'secondary';
+    printButton.textContent = translate('admin.printAccessCard', 'Zugangskarte drucken');
+    printButton.addEventListener('click', () => {
+      document.body.classList.add('printing-access-card');
+      window.print();
+      window.setTimeout(() => document.body.classList.remove('printing-access-card'), 500);
+    });
+    actions.append(printButton);
+    apartmentInvitationResult.append(title, card, actions);
+    apartmentInvitationResult.hidden = false;
+    return;
+  }
   const status = document.createElement('span');
   status.textContent = invitation.emailSent
     ? translate('admin.invitationSent', 'Persoenliche Einladung an {email} gesendet.', { email: invitation.email })
@@ -4910,6 +4943,23 @@ function renderApartments(apartments) {
       ? translate('admin.reviewSuggestion', 'Vorschlag pruefen')
       : translate('admin.edit', 'Bearbeiten');
     actions.append(editButton);
+    const accessCardButton = document.createElement('button');
+    accessCardButton.type = 'button';
+    accessCardButton.textContent = translate('admin.createAccessCard', 'Zugangskarte erstellen');
+    accessCardButton.addEventListener('click', async () => {
+      accessCardButton.disabled = true;
+      try {
+        const data = await api(`/api/admin/apartments/${apartment.id}/access-card`, { method: 'POST' });
+        showApartmentInvitationResult(data, apartment);
+        showStatus(data.message);
+        await loadAdmin();
+      } catch (error) {
+        showStatus(error.message, 'error');
+      } finally {
+        accessCardButton.disabled = false;
+      }
+    });
+    actions.append(accessCardButton);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary';
@@ -4925,6 +4975,30 @@ function renderApartments(apartments) {
       inviteForm.querySelector('input')?.focus();
     });
     actions.append(button);
+    if (apartment.active_access_card_count > 0) {
+      const revokeCardsButton = document.createElement('button');
+      revokeCardsButton.type = 'button';
+      revokeCardsButton.className = 'text-button danger';
+      revokeCardsButton.textContent = translate(
+        apartment.active_access_card_count === 1 ? 'admin.revokeAccessCardOne' : 'admin.revokeAccessCardMany',
+        '{count} offene Zugangskarte(n) sperren',
+        { count: apartment.active_access_card_count }
+      );
+      revokeCardsButton.addEventListener('click', async () => {
+        if (!window.confirm(translate('admin.revokeAccessCardsConfirm', 'Alle offenen Zugangskarten dieser Wohnung ungueltig machen?'))) return;
+        revokeCardsButton.disabled = true;
+        try {
+          const data = await api(`/api/admin/apartments/${apartment.id}/access-cards`, { method: 'DELETE' });
+          showStatus(data.message);
+          await loadAdmin();
+        } catch (error) {
+          showStatus(error.message, 'error');
+        } finally {
+          revokeCardsButton.disabled = false;
+        }
+      });
+      actions.append(revokeCardsButton);
+    }
 
     const inviteForm = document.createElement('form');
     inviteForm.className = 'apartment-invite-form compact-form';
@@ -5164,7 +5238,7 @@ async function loadAdmin() {
   if (currentUser.isSuperadmin) renderAdminMaintenance(overviewData.maintenance, adminIntegrationState.backup);
   adminOverview.innerHTML = `
     <div><strong>${overviewData.users}</strong><span>${escapeHtml(translate('admin.activeUsers', 'aktive Nutzer'))}</span></div>
-    <div class="${overviewData.usersMissingEmail ? 'is-warning' : ''}"><strong>${overviewData.usersMissingEmail}</strong><span>${escapeHtml(translate('admin.unverifiedMail', 'ohne bestaetigte E-Mail'))}</span></div>
+    <div><strong>${overviewData.usersMissingEmail}</strong><span>${escapeHtml(translate('admin.optionalMailMissing', 'ohne optionale E-Mail'))}</span></div>
     <div><strong>${overviewData.todayBookings}</strong><span>${escapeHtml(translate('admin.bookingsToday', 'Buchungen heute'))}</span></div>
     <div><strong>${overviewData.activeResources}</strong><span>${escapeHtml(translate('admin.activeResources', 'aktive Ressourcen'))}</span></div>
     <div><strong>${overviewData.fixedBookings}</strong><span>${escapeHtml(translate('admin.recurringBookings', 'feste Buchungen'))}</span></div>

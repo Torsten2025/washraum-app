@@ -1,6 +1,6 @@
 {
   "name": "waschplan-app",
-  "version": "0.3.14-test.2",
+  "version": "0.3.15-test.1",
   "packageManager": "npm@10.9.8",
   "description": "Waschraum-Buchungsapp mit Express, SQLite und statischem Frontend.",
   "main": "server.js",
@@ -22,7 +22,8 @@
     "test:remaining-slots": "node scripts/remaining-slot-test.js",
     "verify:production-backup": "node scripts/verify-production-backup.js",
     "test:production-release": "node scripts/production-release-tooling-test.js",
-    "test:e2e": "node scripts/runtime-safety-test.js --with-integrations e2e-smoke.js",
+    "test:e2e": "node scripts/runtime-safety-test.js --with-integrations e2e-smoke.js && node scripts/emailfree-regression-test.js",
+    "test:emailfree": "node scripts/emailfree-regression-test.js",
     "test:a11y": "node scripts/accessibility-check.js",
     "audit": "node scripts/full-audit.js",
     "check": "npm run verify:email && npm run verify && npm run test:fixture && npm run test:remaining-slots && npm run test:safety && npm run test:production-release && npm run test:i18n && npm run test:media && npm run test:security && npm run test:maintenance && npm test && npm run test:roles && npm run test:year && npm run test:a11y && npm run test:backup && npm run test:e2e"
@@ -33,7 +34,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.10.0",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
     "express-session": "^1.18.1",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7"

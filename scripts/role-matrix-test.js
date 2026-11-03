@@ -381,6 +381,57 @@ async function run() {
       method: 'POST',
       body: JSON.stringify({ email: 'angriff@example.test' })
     });
+    const accessCard = await expectStatus(
+      houseAdmin,
+      `/api/admin/apartments/${invitedApartment.body.apartment.id}/access-card`,
+      201,
+      { method: 'POST' }
+    );
+    assert.match(accessCard.body.accessCard.accessId, /^WZ-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    assert.match(accessCard.body.accessCard.qrCodeDataUrl, /^data:image\/png;base64,/);
+    await expectStatus(resident, `/api/admin/apartments/${invitedApartment.body.apartment.id}/access-card`, 403, {
+      method: 'POST'
+    });
+    await expectStatus(resident, `/api/admin/apartments/${invitedApartment.body.apartment.id}/access-cards`, 403, {
+      method: 'DELETE'
+    });
+    const accessCardResident = new ApiClient();
+    const accessToken = new URL(accessCard.body.accessCard.activationUrl).searchParams.get('access');
+    const accessActivation = await expectStatus(accessCardResident, '/api/access-cards/activate', 201, {
+      method: 'POST',
+      body: JSON.stringify({
+        token: accessToken,
+        password: 'Rollen-Zugangskarte-2026!',
+        passwordConfirmation: 'Rollen-Zugangskarte-2026!'
+      })
+    });
+    assert.deepEqual(accessActivation.body.user.roles, ['resident']);
+    assert.equal(accessActivation.body.user.canManage, false);
+    await expectStatus(accessCardResident, '/api/admin/resources', 403);
+    const accessRecovery = await expectStatus(
+      houseAdmin,
+      `/api/admin/users/${accessActivation.body.user.id}/recovery-code`,
+      201,
+      {
+        method: 'POST',
+        body: JSON.stringify({ confirm: 'KONTO WIEDERHERSTELLEN' })
+      }
+    );
+    await expectStatus(new ApiClient(), '/api/account-recovery/confirm', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: accessRecovery.body.code,
+        email: '',
+        newPassword: 'Rollen-Zugangskarte-Neu!'
+      })
+    });
+    await expectStatus(new ApiClient(), '/api/login', 200, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: accessCard.body.accessCard.accessId,
+        password: 'Rollen-Zugangskarte-Neu!'
+      })
+    });
     await expectStatus(houseAdmin, '/api/me/device-code', 403, { method: 'POST' });
     await expectStatus(houseAdmin, '/api/me/calendar-feed', 403, { method: 'POST' });
 
@@ -1048,6 +1099,7 @@ async function run() {
         crossHouseIsolation: true,
         maintenanceWorkflow: true,
         invitationOnboarding: true,
+        accessCardOnboarding: true,
         residentOnlyQrPairing: true,
         personalMultiRoleIdentity: true,
         sharedApartmentBookingScope: true,

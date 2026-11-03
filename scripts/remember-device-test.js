@@ -228,7 +228,12 @@ async function httpChecks() {
       const browserCookie = (await context.cookies()).find(c => c.name === 'connect.sid');
       assert.ok(browserCookie.httpOnly);
       assert.equal(browserCookie.sameSite, 'Lax');
-      assert.ok(browserCookie.expires * 1000 > Date.now() + REMEMBER_MS - 60000);
+      const browserSession = await page.evaluate(async () => (await (await fetch('/api/me')).json()).session);
+      assert.equal(browserSession.rememberDevice, true);
+      assert.ok(Math.abs(browserSession.expiresAt - Date.now() - REMEMBER_MS) < 5000,
+        `server remember deadline mismatch: ${browserSession.expiresAt}`);
+      assert.ok(Math.abs(browserCookie.expires * 1000 - browserSession.expiresAt) < 2000,
+        `cookie/server deadline mismatch: cookie=${browserCookie.expires * 1000} server=${browserSession.expiresAt}`);
       mutate(`connect.sid=${browserCookie.value}`, s => { s.lastActivityAt = Date.now() - 31 * 60000; });
       await context.close();
       context = await launch();

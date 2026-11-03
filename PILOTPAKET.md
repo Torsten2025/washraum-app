@@ -10,6 +10,33 @@ Pilotumfang: 3 bis 5 Wohnungen
 
 Dieses Dokument ist die organisatorische Arbeitsvorlage fuer den Kleinstpiloten. Es enthaelt keine personenbezogenen Kontaktdaten. Namen, E-Mail-Adressen, Telefonnummern und vertrauliche Sitzungsunterlagen werden ausschliesslich in einem dafuer freigegebenen externen Ablageort verwaltet.
 
+## 0. Einfuehrungsplan fuer Zugangskarten ab 1. Januar 2027
+
+Der technische Zielweg ist die persoenliche Uebergabe einer einmaligen Zugangskarte. E-Mail bleibt freiwillig und ist weder fuer Aktivierung noch Anmeldung, Partnerzugang oder persoenlich gepruefte Wiederherstellung erforderlich. Dieser Plan beschreibt die Einfuehrung; er ersetzt kein technisches, QA-, institutionelles oder Produktions-Gate.
+
+| Termin | Aktivitaet | Ergebnis |
+| --- | --- | --- |
+| bis 30. November 2026 | Kandidat `0.3.15-test.1`, Migration, DE/EN-Oberflaeche, Videos und Pflichtpruefungen abschliessen | eindeutig eingefrorener Testkandidat |
+| 1.–7. Dezember 2026 | unabhaengige QA auf Aktivierung, Login, Wiederherstellung, Hausgrenzen, Backup/Restore und bestehende Kernfunktionen | dokumentiertes PASS/FAIL |
+| 8.–14. Dezember 2026 | drei bis fuenf persoenliche Probe-Onboardings mit synthetischen oder freigegebenen Testkonten | gemessene Aktivierungsdauer und verstaendliche Karte |
+| 15.–18. Dezember 2026 | Befunde korrigieren, erneut pruefen und finalen Kandidaten einfrieren | releasebereiter Kandidat |
+| bis 21. Dezember 2026 | freigegebenen Stand bereitstellen; Zugangskarten noch nicht vorab ungesichert verteilen | kein Feiertags-Deploy erforderlich |
+| 22.–31. Dezember 2026 | persoenliche Termine, Supportweg und Reihenfolge vereinbaren | vorbereitete Einfuehrung ohne Kontaktdaten im Repository |
+| ab 1. Januar 2027 | Zugangskarten im persoenlichen Onboarding erzeugen, direkt aktivieren und danach vernichten | Zugang ohne E-Mail aktiv |
+| 2.–14. Januar 2027 | Supportphase; fehlgeschlagene Aktivierungen, verlorene Karten, Sperren und Wiederherstellungen beobachten | taeglicher neutraler Lageueberblick |
+| 15. Januar 2027 | Auswertung und Entscheid, ob optionale E-Mail-Einladungen weiterhin sichtbar bleiben | dokumentierter Folgeentscheid |
+
+### Persoenlicher Onboardingtermin, etwa 5 Minuten
+
+1. Verwaltung waehlt das richtige Haus und kontrolliert Wohnungsbezeichnung sowie Klingelschildname.
+2. Fuer jede anwesende Person wird eine eigene Zugangskarte erzeugt. Die Karte wird nicht per Messenger oder unverschluesselt weitergeleitet.
+3. Die Person scannt den QR-Code oder gibt Zugangskennung und Aktivierungscode ein, kontrolliert Wohnung und Klingelschild und setzt ihr eigenes Passwort. Die Verwaltung sieht oder notiert dieses Passwort nicht.
+4. Auf einem persoenlichen Geraet kann `Auf diesem Geraet angemeldet bleiben` bewusst aktiviert werden. Danach werden App-Installation, Push, erste Buchung und Abmeldung kurz gezeigt.
+5. Vor dem Vernichten der verbrauchten Karte wird die eigene Anmeldekennung sicher notiert (auch unter Einstellungen > Profil separat vom Klingelschild ablesbar) und eine erneute Anmeldung ausprobiert. Eine verlorene oder noch offene Karte wird im Adminbereich widerrufen und ersetzt.
+6. Bei vergessenem Passwort prueft die Verwaltung die Person ausserhalb der App und uebergibt einen 15 Minuten gueltigen Wiederherstellungscode. Eine E-Mail-Adresse bleibt freiwillig.
+
+Pro erwachsener Person wird ein eigener Zugang verwendet. Ein gemeinsames Wohnungskennwort und der Klingelschildname als Login sind ausgeschlossen, damit Sperrung, Auszug, Audit und persoenliche Benachrichtigungen getrennt bleiben.
+
 ## 1. Pilot-Gate vor jeder Einladung
 
 Der Status bleibt `NICHT FREIGEGEBEN`, bis alle fuer den konkreten Hauspiloten erforderlichen Stellen ihren getrennten Entscheid dokumentiert haben:

@@ -7,6 +7,7 @@ function createAccountService({
   allowTestInvitationLink,
   normalizeEmail,
   normalizeAccessCode,
+  generateReadableCode,
   tokenHash,
   smtpConfig,
   sendMail,
@@ -51,6 +52,84 @@ function createAccountService({
         AND a.active = 1
         AND h.active = 1
     `).get(tokenHash(normalized), Date.now(), allowTestInvitationLink ? 1 : 0);
+  }
+
+  function normalizeResidentAccessId(value) {
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  function generateResidentAccessId() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      let randomPart = '';
+      for (let index = 0; index < 8; index += 1) {
+        randomPart += alphabet[crypto.randomInt(0, alphabet.length)];
+      }
+      const accessId = `WZ-${randomPart.slice(0, 4)}-${randomPart.slice(4)}`;
+      const existingUser = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(accessId);
+      const existingCard = db.prepare(`
+        SELECT id FROM resident_access_cards
+        WHERE lower(access_id) = lower(?) AND used_at IS NULL AND revoked_at IS NULL
+      `).get(accessId);
+      if (!existingUser && !existingCard) return accessId;
+    }
+    throw new Error('ACCESS_ID_GENERATION_FAILED');
+  }
+
+  function residentAccessCardForToken(token) {
+    const normalized = String(token || '').trim();
+    if (!/^[a-f0-9]{64}$/i.test(normalized)) return null;
+    return db.prepare(`
+      SELECT rac.id AS access_card_id, rac.apartment_id, rac.access_id, rac.expires_at,
+             a.house_id, a.label, a.display_name, h.name AS house_name
+      FROM resident_access_cards rac
+      JOIN apartments a ON a.id = rac.apartment_id
+      JOIN houses h ON h.id = a.house_id
+      WHERE rac.token_hash = ? AND rac.used_at IS NULL AND rac.revoked_at IS NULL
+        AND CAST(rac.expires_at AS INTEGER) > ? AND a.active = 1 AND h.active = 1
+    `).get(tokenHash(normalized), Date.now());
+  }
+
+  function residentAccessCardForCredentials(accessId, code) {
+    const normalizedAccessId = normalizeResidentAccessId(accessId);
+    const normalizedCode = normalizeAccessCode(code);
+    if (!/^WZ-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(normalizedAccessId) || !normalizedCode) return null;
+    return db.prepare(`
+      SELECT rac.id AS access_card_id, rac.apartment_id, rac.access_id, rac.expires_at,
+             a.house_id, a.label, a.display_name, h.name AS house_name
+      FROM resident_access_cards rac
+      JOIN apartments a ON a.id = rac.apartment_id
+      JOIN houses h ON h.id = a.house_id
+      WHERE lower(rac.access_id) = lower(?) AND rac.code_hash = ?
+        AND rac.used_at IS NULL AND rac.revoked_at IS NULL
+        AND CAST(rac.expires_at AS INTEGER) > ? AND a.active = 1 AND h.active = 1
+    `).get(normalizedAccessId, tokenHash(normalizedCode), Date.now());
+  }
+
+  function issueResidentAccessCard(req, apartment) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const code = generateReadableCode('A');
+    const accessId = generateResidentAccessId();
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const result = db.prepare(`
+      INSERT INTO resident_access_cards
+        (apartment_id, access_id, token_hash, code_hash, expires_at, created_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      apartment.id,
+      accessId,
+      tokenHash(token),
+      tokenHash(normalizeAccessCode(code)),
+      String(expiresAt),
+      req.session.user.id
+    );
+    return {
+      id: Number(result.lastInsertRowid),
+      accessId,
+      code,
+      expiresAt,
+      link: `${publicAppUrl(req)}/login.html?access=${encodeURIComponent(token)}`
+    };
   }
 
   function pendingInvitationForEmail(email, exceptApartmentId = 0) {
@@ -215,6 +294,11 @@ function createAccountService({
     findEmailOwner,
     apartmentForCode,
     apartmentInvitationForToken,
+    residentAccessCardForToken,
+    residentAccessCardForCredentials,
+    issueResidentAccessCard,
+    normalizeResidentAccessId,
+    generateResidentAccessId,
     pendingInvitationForEmail,
     issueApartmentInvitation,
     apartmentAccountLabel,
