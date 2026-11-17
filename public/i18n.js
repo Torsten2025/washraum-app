@@ -519,7 +519,7 @@
     'settings.calendarFeedCreated': { de: 'Adresse erstellt. Sie wird nur jetzt angezeigt und ersetzt eine fruehere Adresse sofort.', en: 'Address created. It is shown only now and immediately replaces any previous address.' },
     'settings.calendarFeedRevoked': { de: 'Die Kalenderadresse wurde widerrufen.', en: 'The calendar address has been revoked.' },
     'settings.calendarFeedCopied': { de: 'Adresse kopiert. Behandle sie wie ein Passwort.', en: 'Address copied. Treat it like a password.' },
-    'whatsNew.title': { de: 'Neu in Version 0.3.15-test.2', en: 'New in version 0.3.15-test.2' },
+    'whatsNew.title': { de: 'Neu in Version 0.3.15-test.3', en: 'New in version 0.3.15-test.3' },
     'whatsNew.summary': { de: 'Persoenliche Zugangskarten ermoeglichen das Onboarding ohne E-Mail. QR-Code oder Kennung und Einmalcode aktivieren den Zugang; E-Mail-Einladungen bleiben freiwillig moeglich.', en: 'Personal access cards enable onboarding without email. A QR code or access ID plus one-time code activates the account; email invitations remain available as an option.' },
     'common.understood': { de: 'Verstanden', en: 'Got it' },
     'settings.newPassword': { de: 'Neues Passwort', en: 'New password' },
