@@ -49,8 +49,39 @@ for (const module of diaperModuleSamples.values()) {
   if (module.type === 'leak') assert.equal('leakZone' in publicShape, false);
 }
 
-const port = 33000 + (process.pid % 1000);
-const baseUrl = `http://127.0.0.1:${port}`;
+let port;
+let baseUrl;
+async function availableTestPort() {
+  const listener = net.createServer();
+  await new Promise((resolve, reject) => {
+    listener.once('error', reject);
+    listener.listen(0, resolve);
+  });
+  const selected = listener.address().port;
+  await new Promise((resolve, reject) => listener.close(error => error ? reject(error) : resolve()));
+  return selected;
+}
+async function verifyAvailableTestPorts() {
+  const occupied = net.createServer();
+  await new Promise((resolve, reject) => {
+    occupied.once('error', reject);
+    occupied.listen(0, resolve);
+  });
+  try {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const selected = await availableTestPort();
+      assert.notEqual(selected, occupied.address().port);
+      const probe = net.createServer();
+      await new Promise((resolve, reject) => {
+        probe.once('error', reject);
+        probe.listen(selected, resolve);
+      });
+      await new Promise((resolve, reject) => probe.close(error => error ? reject(error) : resolve()));
+    }
+  } finally {
+    await new Promise((resolve, reject) => occupied.close(error => error ? reject(error) : resolve()));
+  }
+}
 const databasePath = path.join(os.tmpdir(), `waschplan-test-${process.pid}.sqlite`);
 const backupDirectory = path.join(os.tmpdir(), `waschplan-test-backups-${process.pid}`);
 const serverOutput = [];
@@ -190,7 +221,7 @@ assert.notEqual(puzzleSignature(nextPractice.puzzle), puzzleSignature(firstPract
 assert.notEqual(resultVariantForPuzzle(nextPractice.puzzle), resultVariantForPuzzle(firstPractice.puzzle));
 
 async function verifyProductionMaintenanceMigrationGate() {
-  const migrationPort = port + 3;
+  const migrationPort = await availableTestPort();
   const migrationDatabasePath = path.join(os.tmpdir(), `waschplan-migration-gate-${process.pid}.sqlite`);
   const commonEnv = {
     ...process.env,
@@ -288,7 +319,7 @@ async function verifyProductionMaintenanceMigrationGate() {
 }
 
 async function verifyEmailVerificationBindingMigration() {
-  const migrationPort = port + 4;
+  let migrationPort;
   const migrationDatabasePath = path.join(os.tmpdir(), `waschplan-email-binding-${process.pid}.sqlite`);
   const commonEnv = {
     ...process.env,
@@ -305,6 +336,8 @@ async function verifyEmailVerificationBindingMigration() {
   };
 
   async function runServerToHealth() {
+    migrationPort = await availableTestPort();
+    commonEnv.PORT = String(migrationPort);
     const output = [];
     const child = spawn(process.execPath, ['server.js'], {
       cwd: path.resolve(__dirname, '..'),
@@ -524,7 +557,13 @@ async function verifySmtpDelivery() {
   });
   await new Promise((resolve) => smtpServer.listen(0, '127.0.0.1', resolve));
   const smtpPort = smtpServer.address().port;
-  const appPort = port + 2;
+  let appPort;
+  try {
+    appPort = await availableTestPort();
+  } catch (error) {
+    await new Promise(resolve => smtpServer.close(resolve));
+    throw error;
+  }
   const smtpDatabasePath = path.join(os.tmpdir(), `waschplan-smtp-${process.pid}.sqlite`);
   const smtpOutput = [];
   const smtpApp = spawn(process.execPath, ['server.js'], {
@@ -736,6 +775,7 @@ function verifyReleaseWindow() {
 }
 
 async function run() {
+  await verifyAvailableTestPorts();
   verifyReleaseWindow();
   await verifyReleaseEmailRecipientRevalidation();
   for (const value of [undefined, '', 'unknown', 'staging', 'agent-test', 'PRODUCTION ']) {
@@ -746,6 +786,8 @@ async function run() {
     resolveAppEnvironment({ NODE_ENV: 'production', APP_ENV: ' production ' }),
     { environment: 'production', displayName: 'WaschZeit' }
   );
+  port = await availableTestPort();
+  baseUrl = `http://127.0.0.1:${port}`;
   const server = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve(__dirname, '..'),
     env: {
@@ -778,14 +820,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.15-test.3');
+    assert.equal(health.body.version, '0.3.15-test.4');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.15-test.3');
+    assert.equal(versionStatus.body.version, '0.3.15-test.4');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -3232,15 +3274,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.15-test.3'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.15-test.4'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.15-test.3"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.15-test.4"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.15-test.3'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.15-test.3'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.15-test.4'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.15-test.4'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));

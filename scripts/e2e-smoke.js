@@ -997,13 +997,13 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.3');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.4');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /access cards|without email|QR code|one-time code/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.3')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.4')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -1013,10 +1013,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.3/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.4/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.3/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.4/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
