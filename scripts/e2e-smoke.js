@@ -650,16 +650,15 @@ async function verifyDayDialogNames(page, databasePath, screenshotDirectory) {
 }
 
 async function verifyTakeoverFilter(residentPage, adminPage) {
-  const report = await residentPage.evaluate(async () => {
-    const resourceData = await fetch('/api/resources').then((response) => response.json());
-    const resource = resourceData.resources.find((item) => item.type === 'washer');
-    const response = await fetch('/api/maintenance-cases', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-      body: JSON.stringify({ resourceId: resource.id, title: 'Filter regression', description: 'Synthetische Uebernahmepruefung', notifyPush: false, notifyEmail: false })
-    });
-    if (response.status !== 201) throw new Error(`Takeover fixture failed: ${response.status}`);
-    return { ...(await response.json()), resourceName: resource.name };
-  });
+  await residentPage.locator('#reportIssueButton').click();
+  await residentPage.locator('#reportIssueSubject').fill('Filter regression');
+  await residentPage.locator('#reportIssueDescription').fill('Synthetische Uebernahmepruefung');
+  const resourceName = await residentPage.locator('#reportIssueResource option:checked').textContent();
+  const reportResponse = residentPage.waitForResponse(r => r.url().endsWith('/api/maintenance-cases') && r.request().method() === 'POST');
+  await residentPage.locator('#reportIssueForm button[type="submit"]').click();
+  const created = await reportResponse;
+  assert.equal(created.status(), 201);
+  const report = { ...(await created.json()), resourceName };
   await adminPage.evaluate(async () => {
     await loadAdmin(); setAppView('admin'); setAdminSection('logbook');
     maintenanceStatusFilter.value = 'new'; maintenanceSearch.value = ''; renderMaintenanceCases();
@@ -678,18 +677,81 @@ async function verifyTakeoverFilter(residentPage, adminPage) {
   await adminPage.waitForFunction(() => document.querySelector('#maintenanceStatusFilter')?.value === 'in_progress');
   await adminPage.waitForSelector('.maintenance-case.status-in_progress');
   assert.ok(await adminPage.locator('.maintenance-case.status-in_progress').filter({ hasText: report.resourceName }).isVisible());
-  await adminPage.evaluate(async (caseId) => {
-    for (const action of [
-      { action: 'repair', note: 'Synthetische Pruefung erledigt.' },
-      { action: 'test', successful: true, note: 'Synthetische Funktionspruefung erfolgreich.' }
-    ]) {
-      await api(`/api/admin/maintenance-cases/${caseId}/actions`, { method: 'POST', body: JSON.stringify(action) });
+  for (const action of ['repair', 'test']) {
+    const activeCard = adminPage.locator('.maintenance-case').filter({ hasText: report.resourceName }).first();
+    await activeCard.locator('.maintenance-step-field select').selectOption(action);
+    if (action === 'test') await activeCard.locator('.maintenance-test-field select').selectOption('true');
+    await activeCard.locator('textarea').fill(`Synthetische Funktionspruefung: ${action}.`);
+    const responsePromise = adminPage.waitForResponse(r => r.url().endsWith(`/maintenance-cases/${report.id}/actions`) && r.request().method() === 'POST');
+    await activeCard.locator('button[type="submit"]').click();
+    assert.equal((await responsePromise).status(), 200);
+    await adminPage.waitForLoadState('networkidle');
+  }
+  await adminPage.evaluate(async () => { await loadAdmin(); setAppView('booking'); });
+  const closedCases = await adminPage.evaluate(async () => (await api('/api/admin/maintenance-cases')).cases);
+  assert(closedCases.some(item => item.id === report.id && item.status === 'closed'), 'Successful UI test must close the stored issue');
+  console.log(JSON.stringify({ ok: true, suite: 'maintenance-browser', steps: ['resident form', 'failed takeover retry', 'takeover', 'repair form', 'successful test form', 'stored closure'] }));
+}
+
+async function verifyNotificationBooking(page, adminPage, databasePath) {
+  const fixture = await page.evaluate(() => {
+    let date = addDaysString(todayString(), 10);
+    while (new Date(`${date}T12:00:00Z`).getUTCDay() === 0) date = addDaysString(date, 1);
+    return { date, houseId: currentUser.activeHouseId, userId: currentUser.bookingUserId || currentUser.id };
+  });
+  const actor = await adminPage.evaluate(() => ({ id: currentUser.id, houseId: currentUser.activeHouseId }));
+  assert.equal(actor.houseId, fixture.houseId);
+  const db = new Database(databasePath);
+  const ids = [];
+  try {
+    for (const name of ['Message booking test', 'Message reserve test']) {
+      ids.push(Number(db.prepare("INSERT INTO resources (name, type, house_id) VALUES (?, 'tumbler', ?)").run(name, fixture.houseId).lastInsertRowid));
     }
-    await loadAdmin(); setAppView('booking');
-  }, report.id);
+    const bookingId = Number(db.prepare('INSERT INTO bookings (user_id, resource_id, booking_date, slot) VALUES (?, ?, ?, ?)').run(actor.id, ids[0], fixture.date, '12:00-17:00').lastInsertRowid);
+    await adminPage.evaluate(async id => {
+      await api(`/api/bookings/${id}/cancel-notify`, { method: 'POST' });
+    }, bookingId);
+    await page.evaluate(async () => {
+      await api('/api/me/notifications', { method: 'PUT', body: JSON.stringify({
+        email: currentUser.email || '', secondaryEmail: currentUser.secondaryEmail || '',
+        notifyReleases: true, resourceType: 'tumbler', weekday: '', slot: ''
+      }) });
+      await loadReleaseNotices();
+    });
+    await page.locator('#messageCenterButton').click();
+    const message = page.locator('#messageCenterList .message-item').filter({ hasText: 'Message booking test' });
+    assert.equal(await message.count(), 1);
+    await message.locator('button').click();
+    await page.waitForSelector('#releaseNoticeOverlay:not([hidden])');
+    const response = page.waitForResponse(r => r.url().endsWith('/api/bookings') && r.request().method() === 'POST');
+    await page.locator('#bookReleaseNoticeButton').click();
+    assert.equal((await response).status(), 201);
+    await page.waitForFunction(() => releaseNoticeOverlay.hidden);
+    const stored = db.prepare('SELECT user_id FROM bookings WHERE resource_id = ? AND booking_date = ?').get(ids[0], fixture.date);
+    assert.equal(stored.user_id, fixture.userId);
+    console.log(JSON.stringify({ ok: true, suite: 'notification-browser', steps: ['real cancellation', 'filtered message', 'detail', 'book button', 'stored ownership'] }));
+  } finally {
+    for (const id of ids) {
+      db.prepare('DELETE FROM release_notices WHERE resource_id = ?').run(id);
+      db.prepare('DELETE FROM bookings WHERE resource_id = ?').run(id);
+      db.prepare('DELETE FROM resources WHERE id = ?').run(id);
+    }
+    db.close();
+    await page.evaluate(async () => { await refreshAll(); });
+  }
 }
 
 async function verifyFixedSeriesControls(page, directory) {
+  // A currently visible dynamic server message must follow repeated language
+  // changes without losing its household name or resetting its timeout.
+  await page.evaluate(() => { i18n.setLanguage('en', { persist: false }); showStatus('Ansicht gewechselt zu Maneggplatz 18.'); });
+  assert.equal(await page.locator('#statusText').textContent(), 'Switched view to Maneggplatz 18.');
+  await page.evaluate(() => i18n.setLanguage('de', { persist: false }));
+  assert.equal(await page.locator('#statusText').textContent(), 'Ansicht gewechselt zu Maneggplatz 18.');
+  await page.evaluate(() => i18n.setLanguage('en', { persist: false }));
+  assert.equal(await page.locator('#statusText').textContent(), 'Switched view to Maneggplatz 18.');
+  await page.evaluate(() => { showStatus(''); i18n.setLanguage('de', { persist: false }); });
+  assert.equal(await page.locator('#statusText').textContent(), '', 'Cleared messages must not reappear on language change');
   for (const language of ['de', 'en']) {
     await page.evaluate(async language => {
       i18n.setLanguage(language, { persist: false });
@@ -755,13 +817,35 @@ async function verifyFixedSeriesControls(page, directory) {
     assert.deepEqual(saved.recurrence, { intervalWeeks: 3, startDate: start, endType: 'count', count: 3 });
     assert(saved.resourceIds[0] > 0);
     await page.unroute('**/api/admin/fixed-bookings');
+    const isolatedWasher = await page.evaluate(async language => {
+      const result = await api('/api/admin/resources', { method: 'POST', body: JSON.stringify({ name: `UI series ${language}`, type: 'washer' }) });
+      await loadAdmin();
+      return result.id;
+    }, language);
+    await page.selectOption('#fixedBookingWasher', String(isolatedWasher));
+    await page.fill('#fixedBookingLabel', `Real series ${language}`);
+    await page.fill('#fixedBookingStart', start);
+    await page.fill('#fixedBookingInterval', '2');
+    await page.selectOption('#fixedBookingEndType', 'count');
+    await page.fill('#fixedBookingCount', '3');
+    const realSave = page.waitForResponse(r => r.url().endsWith('/api/admin/fixed-bookings') && r.request().method() === 'POST');
+    await page.locator('#fixedBookingSubmit').click();
+    const persistedResponse = await realSave;
+    assert.equal(persistedResponse.status(), 201);
+    const persisted = await persistedResponse.json();
+    await page.waitForFunction(() => !fixedBookingPending);
+    const rows = await page.evaluate(async () => (await api('/api/admin/fixed-bookings')).fixedBookings);
+    assert(rows.some(row => row.id === persisted.id && row.label === `Real series ${language}`));
+    await page.evaluate(async id => { await api(`/api/admin/fixed-bookings/${id}`, { method: 'DELETE' }); await loadAdmin(); }, persisted.id);
+    const afterDelete = await page.evaluate(async () => (await api('/api/admin/fixed-bookings')).fixedBookings);
+    assert(!afterDelete.some(row => row.id === persisted.id));
     await page.evaluate(() => populateFixedBookingControls([]));
     assert(await page.locator('#fixedBookingEmpty').isVisible());
     assert(await page.locator('#fixedBookingSubmit').isDisabled());
     await page.evaluate(async () => { await loadAdmin(); });
   }
   await page.evaluate(() => { i18n.setLanguage('de', { persist: false }); setAppView('booking'); });
-  console.log(JSON.stringify({ ok: true, suite: 'series-browser', locales: ['de', 'en'], widths: [320, 390, 760, 1024, 1440], payloadTransport: 'mocked POST; actual admin GET' }));
+  console.log(JSON.stringify({ ok: true, suite: 'series-browser', locales: ['de', 'en'], widths: [320, 390, 760, 1024, 1440], payloadTransport: 'mocked payload assertion plus real form POST, stored GET and DELETE' }));
 }
 
 async function run() {
@@ -796,6 +880,7 @@ async function run() {
   server.stderr.on('data', (chunk) => output.push(chunk.toString()));
 
   let browser;
+  let flushButtons;
   try {
     await waitForServer(baseUrl, output);
     const fixtureDb = new Database(databasePath);
@@ -855,6 +940,7 @@ async function run() {
       headless: true,
       ...(executablePath ? { executablePath } : {})
     });
+    flushButtons = await require('./button-coverage').trackButtons(browser, 'e2e');
     const loginNullHouseAccount = async (email, password) => {
       const response = await fetch(`${baseUrl}/api/login`, {
         method: 'POST',
@@ -997,13 +1083,13 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.5');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.6');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /access cards|without email|QR code|one-time code/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.5')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.6')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -1013,10 +1099,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.5/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.6/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.5/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.6/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
@@ -1248,7 +1334,7 @@ async function run() {
       document.querySelector('#notificationSlot').value
     ]), ['tumbler', '5', '17:00-21:00']);
     assert.deepEqual(await page.locator('#notificationResourceType option').allTextContents(), [
-      'Alle Bereiche', 'Waschmaschinen', 'Trockenraeume', 'Tumbler'
+      'Alle Bereiche', 'Waschmaschinen', 'Trockenräume', 'Tumbler'
     ]);
     await page.evaluate(() => {
       const picker = document.querySelector('#settingsLanguage');
@@ -1427,7 +1513,7 @@ async function run() {
     await page.waitForSelector('#reportIssueOverlay:not([hidden])');
     assert.equal(await page.locator('#reportNotifyPush').isDisabled(), true);
     assert.equal(await page.locator('#ownMaintenanceCases input[type="checkbox"]').first().isDisabled(), true);
-    assert.match(await page.locator('#reportNotificationHint').innerText(), /kein aktives Push-Geraet/i);
+    assert.match(await page.locator('#reportNotificationHint').innerText(), /noch kein Gerät für Push-Mitteilungen aktiviert/);
     await page.click('#closeReportIssueButton');
     syntheticPushAvailable = true;
     syntheticEmailAvailable = true;
@@ -1716,6 +1802,7 @@ async function run() {
     await passiveAdminContext.close();
     await verifyFixedSeriesControls(adminPage, screenshotDirectory);
     await verifyTakeoverFilter(page, adminPage);
+    await verifyNotificationBooking(page, adminPage, databasePath);
 
     await adminPage.waitForSelector('#weekCalendar [data-calendar-date]');
     const readHouseState = () => adminPage.evaluate(() => ({
@@ -2231,6 +2318,7 @@ async function run() {
     }));
   } finally {
     if (browser) await browser.close();
+    flushButtons?.();
     if (server.exitCode === null) {
       server.kill();
       await new Promise((resolve) => server.once('exit', resolve));

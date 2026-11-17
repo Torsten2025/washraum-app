@@ -371,6 +371,7 @@ let calendarPreviewSuppressFocus = false;
 let calendarPointerFocus = false;
 let calendarSheetDragStart = null;
 let statusTimer = null;
+let statusMessageSource = '';
 let currentRecommendation = null;
 let bookingFlowOptions = null;
 let remainingSlotOptions = null;
@@ -385,7 +386,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.5';
+const WHATS_NEW_VERSION = '0.3.15-test.6';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -644,10 +645,12 @@ function isPastSlot(dateString, slot) {
 
 function showStatus(message, tone = 'ok') {
   window.clearTimeout(statusTimer);
+  statusMessageSource = message;
   statusText.textContent = i18n?.translateVisibleText(message) || message;
   statusText.className = `notice ${tone}`;
   if (message) {
     statusTimer = window.setTimeout(() => {
+      statusMessageSource = '';
       statusText.textContent = '';
       statusText.className = 'notice muted';
     }, tone === 'error' ? 10000 : 7000);
@@ -1276,11 +1279,12 @@ async function revokeCalendarFeed() {
 }
 
 function currentLoginIdentifier() {
-  return currentUser.role === 'admin' || /^WZ-/i.test(currentUser.username) || !currentUser.email
+  return /^WZ-/i.test(currentUser.username) || !currentUser.email
     ? currentUser.username : currentUser.email;
 }
 
 function openSettings(firstRun = false) {
+  closeCalendarPreview();
   closeAccountMenu();
   settingsReturnFocus = document.activeElement;
   settingsFirstRun = firstRun;
@@ -2609,7 +2613,7 @@ async function enablePushNotifications() {
     showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
     await renderPushStatus();
   } finally {
-    enablePushButton.disabled = false;
+    enablePushButton.disabled = !['active', 'inactive'].includes(currentPushState);
   }
 }
 
@@ -3151,6 +3155,7 @@ function positionCalendarDayDetails() {
 }
 
 function openCalendarPreview(day, anchor, { pinned = false } = {}) {
+  if (document.body.classList.contains('modal-open')) return;
   clearCalendarPreviewTimers();
   calendarDetailAnchor?.classList.remove('is-previewed');
   calendarDetailAnchor?.setAttribute('aria-expanded', 'false');
@@ -6634,6 +6639,7 @@ async function createFixedBooking() {
 }
 
 async function deleteFixedBooking(id) {
+  if (!window.confirm(translate('admin.removeFixedConfirm', 'Diesen Dauertermin mit allen zugehörigen Geräten und Wiederholungen entfernen?'))) return;
   try {
     const data = await api(`/api/admin/fixed-bookings/${id}`, { method: 'DELETE' });
     showStatus(data.message || 'Feste Buchung entfernt.');
@@ -6741,19 +6747,7 @@ sessionStayButton.addEventListener('click', async () => {
     sessionCountdown.textContent = 'Verbindung fehlgeschlagen. Bitte versuche es noch einmal.';
   }
 });
-sessionLogoutButton.addEventListener('click', async () => {
-  sessionEnding = true;
-  clearSessionTimers();
-  sessionLogoutButton.disabled = true;
-  try {
-    await fetch('/api/logout', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' }
-    });
-  } catch {}
-  window.location.replace('/login.html?loggedOut=1');
-});
+sessionLogoutButton.addEventListener('click', (event) => submitLogout(event, sessionLogoutButton, sessionCountdown));
 let diaperGameRoundMs = 60000;
 let diaperGamePenaltyMs = 4500;
 let diaperGameMaxMistakes = 3;
@@ -7637,6 +7631,7 @@ async function submitLogout(event, button, messageTarget = null) {
   if (logoutInProgress) return;
 
   logoutInProgress = true;
+  button.disabled = true;
   logoutButton.disabled = true;
   apartmentSetupLogoutButton.disabled = true;
   button.textContent = translate('common.loggingOut', 'Wird abgemeldet...');
@@ -7657,11 +7652,16 @@ async function submitLogout(event, button, messageTarget = null) {
     window.location.replace('/login.html?loggedOut=1');
   } catch (error) {
     logoutInProgress = false;
+    button.disabled = false;
     logoutButton.disabled = false;
     apartmentSetupLogoutButton.disabled = false;
     button.textContent = translate('common.logout', 'Abmelden');
     const message = `${error.message} ${translate('auth.tryAgain', 'Bitte versuche es erneut.')}`;
     if (messageTarget) {
+      if (messageTarget === sessionCountdown) {
+        window.clearInterval(sessionCountdownTimer);
+        sessionCountdownTimer = null;
+      }
       messageTarget.textContent = message;
       messageTarget.className = 'message error';
     } else {
@@ -7846,8 +7846,14 @@ createCalendarFeedButton.addEventListener('click', () => createCalendarFeed().ca
   calendarFeedStatus.textContent = error.message;
 }));
 copyCalendarFeedButton.addEventListener('click', async () => {
-  await navigator.clipboard.writeText(calendarFeedUrl.value);
-  calendarFeedStatus.textContent = translate('settings.calendarFeedCopied', 'Adresse kopiert. Behandle sie wie ein Passwort.');
+  try {
+    await navigator.clipboard.writeText(calendarFeedUrl.value);
+    calendarFeedStatus.textContent = translate('settings.calendarFeedCopied', 'Adresse kopiert. Behandle sie wie ein Passwort.');
+  } catch {
+    calendarFeedUrl.focus();
+    calendarFeedUrl.select();
+    calendarFeedStatus.textContent = translate('settings.calendarFeedCopyFailed', 'Automatisches Kopieren ist nicht möglich. Kopiere die markierte Adresse bitte selbst.');
+  }
 });
 revokeCalendarFeedButton.addEventListener('click', () => revokeCalendarFeed().catch((error) => {
   calendarFeedStatus.textContent = error.message;
@@ -8185,6 +8191,9 @@ async function refreshLocalizedDynamicViews() {
 }
 
 window.addEventListener('waschzeit:languagechange', () => {
+  // Keep the original server text: translating the already rendered English
+  // toast cannot restore German (in particular for messages containing names).
+  statusText.textContent = i18n?.translateVisibleText(statusMessageSource) || statusMessageSource;
   if (!currentUser) return;
   refreshLocalizedDynamicViews().catch((error) => {
     showStatus(error.message || translate('app.noConnection', 'Keine Verbindung zur App.'), 'error');

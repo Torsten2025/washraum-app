@@ -21,6 +21,7 @@ async function run() {
     EMAIL_ENABLED: 'false', PUSH_ENABLED: 'false', BACKUP_ENABLED: 'false', AUTO_BACKUP: 'false'
   }, stdio: 'ignore' });
   let browser;
+  let flushButtons;
   let db;
   async function request(route, body, cookie = '', method = 'POST') {
     const response = await fetch(base + route, { method,
@@ -51,6 +52,7 @@ async function run() {
       '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'
     ].find(candidate => fs.existsSync(candidate));
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+    flushButtons = await require('./button-coverage').trackButtons(browser, 'emailfree');
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     const screenshots = path.join(root, 'artifacts', 'qr-test2');
@@ -273,6 +275,7 @@ async function run() {
   } finally {
     db?.close();
     await browser?.close();
+    flushButtons?.();
     if (server.exitCode === null) {
       server.kill();
       await new Promise(resolve => server.once('exit', resolve));

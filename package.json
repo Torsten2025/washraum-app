@@ -1,6 +1,6 @@
 {
   "name": "waschplan-app",
-  "version": "0.3.15-test.5",
+  "version": "0.3.15-test.6",
   "packageManager": "npm@10.9.8",
   "description": "Waschraum-Buchungsapp mit Express, SQLite und statischem Frontend.",
   "main": "server.js",
@@ -24,9 +24,10 @@
     "test:production-release": "node scripts/production-release-tooling-test.js",
     "test:e2e": "node scripts/runtime-safety-test.js --with-integrations e2e-smoke.js && node scripts/emailfree-regression-test.js",
     "test:emailfree": "node scripts/emailfree-regression-test.js",
+    "test:buttons": "node --check scripts/button-audit-test.js && node --check scripts/button-coverage.js && node --check scripts/button-game-cases.js && node --check scripts/button-inventory.js && node scripts/button-audit-test.js && node scripts/button-inventory.js",
     "test:a11y": "node scripts/accessibility-check.js",
     "audit": "node scripts/full-audit.js",
-    "check": "npm run verify:email && npm run verify && npm run test:fixture && npm run test:remaining-slots && npm run test:safety && npm run test:production-release && npm run test:i18n && npm run test:media && npm run test:security && npm run test:maintenance && npm test && npm run test:roles && npm run test:year && npm run test:a11y && npm run test:backup && npm run test:e2e"
+    "check": "npm run verify:email && npm run verify && npm run test:fixture && npm run test:remaining-slots && npm run test:safety && npm run test:production-release && npm run test:i18n && npm run test:media && npm run test:security && npm run test:maintenance && npm test && npm run test:roles && npm run test:year && npm run test:a11y && npm run test:backup && npm run test:e2e && npm run test:buttons"
   },
   "engines": {
     "node": ">=20"
