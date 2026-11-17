@@ -385,7 +385,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.1';
+const WHATS_NEW_VERSION = '0.3.15-test.2';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -4847,6 +4847,7 @@ function showApartmentInvitationResult(data, apartment) {
   const title = document.createElement('strong');
   title.textContent = `${apartment.label} - ${apartment.display_name}`;
   if (accessCard) {
+    const manualLoginUrl = new URL('/login.html', accessCard.activationUrl).href;
     const card = document.createElement('section');
     card.className = 'resident-access-card';
     card.innerHTML = `
@@ -4862,6 +4863,7 @@ function showApartmentInvitationResult(data, apartment) {
         <div><dt>${escapeHtml(translate('admin.activationCode', 'Aktivierungscode'))}</dt><dd>${escapeHtml(accessCard.activationCode)}</dd></div>
       </dl>
       <p>${escapeHtml(translate('admin.accessCardExpiry', 'Einmalig aktivierbar bis {date}. Danach mit Zugangskennung und eigenem Passwort anmelden.', { date: new Date(accessCard.expiresAt).toLocaleString(activeLocale()) }))}</p>
+      <p class="access-card-manual-url">${escapeHtml(translate('admin.accessCardManualUrl', 'Ohne QR: {url} öffnen, „Zugangskarte“ wählen und Zugangskennung sowie Aktivierungscode eingeben.', { url: manualLoginUrl }))}</p>
     `;
     const actions = document.createElement('div');
     actions.className = 'inline-actions access-card-actions';

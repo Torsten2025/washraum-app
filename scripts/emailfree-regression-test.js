@@ -42,7 +42,7 @@ async function run() {
     const createCard = async label => {
       const result = await request('/api/admin/apartments/access-card', { label, displayName: label }, admin.cookie);
       assert.equal(result.status, 201);
-      return result.body.accessCard;
+      return { ...result.body.accessCard, apartment: result.body.apartment };
     };
     const card = await createCard('Synthetic household one');
     const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH || [
@@ -53,6 +53,65 @@ async function run() {
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
+    const screenshots = path.join(root, 'artifacts', 'qr-test2');
+    fs.mkdirSync(screenshots, { recursive: true });
+    await page.goto(base + '/login.html');
+    for (const language of ['de', 'en']) {
+      await page.locator('[data-language-picker]').selectOption(language);
+      assert.match(await page.locator('#accessCardOnboardingHint').innerText(), language === 'de' ? /keine E-Mail nötig/ : /no email needed/);
+      for (const width of [390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 1000 });
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+        await page.screenshot({ path: path.join(screenshots, `login-${language}-${width}.png`), fullPage: true });
+      }
+    }
+    const adminContext = await browser.newContext({ viewport: { width: 390, height: 1000 } });
+    const adminPage = await adminContext.newPage();
+    await adminPage.goto(base + '/login.html');
+    await adminPage.locator('#loginForm input[name=email]').fill('regression-admin');
+    await adminPage.locator('#loginForm input[name=password]').fill(password);
+    await adminPage.locator('#loginForm button[type=submit]').click();
+    await adminPage.waitForURL('**/index.html');
+    await adminPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
+    for (const language of ['de', 'en']) {
+      await adminPage.evaluate(async data => {
+        window.WZ_I18N.setLanguage(data.language);
+        await loadAdmin();
+        settingsOverlay.hidden = true;
+        setAppView('admin', { userInitiated: true });
+        setAdminSection('people');
+        showApartmentInvitationResult({ accessCard: data.card }, data.card.apartment);
+      }, { language, card });
+      const printed = adminPage.locator('.resident-access-card');
+      assert.match(await printed.locator('.access-card-manual-url').innerText(), new RegExp(base.replaceAll('.', '\\.') + '/login.html'));
+      assert.ok(!(await printed.locator('.access-card-manual-url').innerText()).includes('?access='));
+      assert.match(await printed.locator('.access-card-manual-url').innerText(), language === 'de' ? /Zugangskarte/ : /Access card/);
+      assert.ok(await printed.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
+      await adminPage.evaluate(() => window.scrollTo(0, 0));
+      await adminPage.screenshot({ path: path.join(screenshots, `card-${language}-390.png`), fullPage: true });
+      await adminPage.setViewportSize({ width: 794, height: 1123 }); // A4 at 96 CSS dpi
+      await adminPage.evaluate(() => document.body.classList.add('printing-access-card'));
+      await adminPage.emulateMedia({ media: 'print' });
+      assert.equal(await printed.evaluate(el => el.checkVisibility()), true);
+      await printed.screenshot({ path: path.join(screenshots, `print-${language}.png`) });
+      for (const selector of ['img', '.access-card-manual-url']) {
+        const uncovered = await printed.locator(selector).evaluate(el => {
+          const r = el.getBoundingClientRect();
+          const inset = el.tagName === 'IMG' ? 20 : 2; // QR image has a 14px rounded border.
+          return [[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
+            [r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset]].map(([x, y]) => {
+            const top = document.elementFromPoint(x, y);
+            return { x, y, clear: top === el || el.contains(top), top: top?.tagName + '.' + top?.className };
+          });
+        });
+        assert.ok(uncovered.every(point => point.clear), `A4 print ${selector} must not be clipped or covered: ${JSON.stringify(uncovered)}`);
+      }
+      await printed.screenshot({ path: path.join(screenshots, `print-${language}.png`) });
+      await adminPage.emulateMedia({ media: 'screen' });
+      await adminPage.evaluate(() => document.body.classList.remove('printing-access-card'));
+      await adminPage.setViewportSize({ width: 390, height: 1000 });
+    }
+    await adminContext.close();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(card.activationUrl);
@@ -165,7 +224,10 @@ async function run() {
     assert.deepEqual(deliveries, ['transport@example.test'], 'removal never sends mail to an empty address');
     const secondCard = await createCard('Synthetic household two');
     const secondPage = await context.newPage();
-    await secondPage.goto(secondCard.activationUrl);
+    await secondPage.goto(base + '/login.html');
+    await secondPage.locator('#showAccessCard').click();
+    await secondPage.locator('#accessCardForm input[name=accessId]').fill(secondCard.accessId);
+    await secondPage.locator('#accessCardForm input[name=activationCode]').fill(secondCard.activationCode);
     await secondPage.locator('#accessCardForm input[name=password]').fill(password);
     await secondPage.locator('#accessCardForm input[name=passwordConfirmation]').fill(password);
     await secondPage.locator('#accessCardForm button[type=submit]').click();

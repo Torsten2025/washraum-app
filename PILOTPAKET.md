@@ -10,13 +10,17 @@ Pilotumfang: 3 bis 5 Wohnungen
 
 Dieses Dokument ist die organisatorische Arbeitsvorlage fuer den Kleinstpiloten. Es enthaelt keine personenbezogenen Kontaktdaten. Namen, E-Mail-Adressen, Telefonnummern und vertrauliche Sitzungsunterlagen werden ausschliesslich in einem dafuer freigegebenen externen Ablageort verwaltet.
 
-## 0. Einfuehrungsplan fuer Zugangskarten ab 1. Januar 2027
+## 0. Aktuelle Zugangskarten-Vorbereitung und urspruenglicher Einfuehrungsplan
+
+Aktueller Vorbereitungsstand 17.11.2026: Zuerst liefert/bestaetigt der Eigentuemer die aktuellen Klingelschilder und Wohnungszuordnungen. Danach werden nach gesonderter Veroeffentlichungsfreigabe persoenliche Karten im vorhandenen Adminablauf erstellt und direkt uebergeben. QR ist die einmalige Aktivierung, kein dauerhaft passwortloser Login. Ohne Kamera wird die aufgedruckte Loginadresse geoeffnet und `Zugangskarte` gewaehlt; Kennung und Code werden manuell eingegeben. E-Mail ist nicht erforderlich und spaeter freiwillig im Profil. Der folgende Terminplan ist eine organisatorische Vorlage, keine Behauptung eines bereits erfolgten Livegangs. Ein Datenneustart ist separat begrenzt und noch nicht ausgefuehrt.
 
 Der technische Zielweg ist die persoenliche Uebergabe einer einmaligen Zugangskarte. E-Mail bleibt freiwillig und ist weder fuer Aktivierung noch Anmeldung, Partnerzugang oder persoenlich gepruefte Wiederherstellung erforderlich. Dieser Plan beschreibt die Einfuehrung; er ersetzt kein technisches, QA-, institutionelles oder Produktions-Gate.
 
-| Termin | Aktivitaet | Ergebnis |
+Der folgende Dezember-/Januarplan ist die urspruengliche Planung, keine Wartepflicht fuer die jetzt gewuenschte Veroeffentlichung. Ein neuer Termin folgt erst aus Freigabe und tatsaechlichem Live-Nachweis.
+
+| Urspruenglicher Termin | Aktivitaet | Ergebnis |
 | --- | --- | --- |
-| bis 30. November 2026 | Kandidat `0.3.15-test.1`, Migration, DE/EN-Oberflaeche, Videos und Pflichtpruefungen abschliessen | eindeutig eingefrorener Testkandidat |
+| bis 30. November 2026 | Kandidat `0.3.15-test.2`, Migration, DE/EN-Oberflaeche, Videos und Pflichtpruefungen abschliessen | eindeutig eingefrorener Testkandidat |
 | 1.–7. Dezember 2026 | unabhaengige QA auf Aktivierung, Login, Wiederherstellung, Hausgrenzen, Backup/Restore und bestehende Kernfunktionen | dokumentiertes PASS/FAIL |
 | 8.–14. Dezember 2026 | drei bis fuenf persoenliche Probe-Onboardings mit synthetischen oder freigegebenen Testkonten | gemessene Aktivierungsdauer und verstaendliche Karte |
 | 15.–18. Dezember 2026 | Befunde korrigieren, erneut pruefen und finalen Kandidaten einfrieren | releasebereiter Kandidat |

@@ -1,5 +1,15 @@
 # Releaseplan: E-Mail-freier Zugang
 
+## Offener Neustartumfang vom 17.11.2026 – nur Vorbereitung, keine ausgefuehrte Loeschung
+
+Der Kandidat `0.3.15-test.2` verbessert nur QR-Einstiegshinweis und Druckfallback. Aktuelle Klingelschilder fehlen noch; keine realen Konten oder Karten wurden angelegt. Kein Reset-Tool, keine Schema-/Archivierungsloesung und kein Produktionsreset wurden implementiert oder ausgefuehrt. Historische Nachweise unten bleiben zeitlich unveraendert.
+
+- Erhalten: Haeuser, Wohnungen/Klingelschilder, Geraetekonfiguration, Waschregeln, betriebliche Einstellungen und Sperrungen; bestehende technische Tagebuchfaelle/-eintraege und Auditprotokolle nicht ungefragt loeschen.
+- Vorgesehener Kontenumfang: genau die vom Eigentuemer eindeutig bestaetigte aktive Superadminidentitaet (ID und Identitaet) erhalten; alle anderen Konten einschliesslich weiterer Superadmins entfernen. Kein `erster Admin`- oder pauschaler Superadminfilter. Seed-Konfiguration vorher abgleichen, damit ein geloeschter Seed-Admin beim Neustart nicht neu entsteht.
+- Vorgesehene Nutzungs-/Zugriffsbereinigung gesondert bestaetigen: alle Buchungen, Spielstaende, Wohnungsquoten/Restplatzanforderungen, Benachrichtigungs-/Versandwarteschlangen, Push-Abos, Kalenderfeeds, alle Sitzungen sowie alte Einladungs-, Karten-, Partner-, Reset-, Verifikations- und Recoverycodes – auch des erhaltenen Kontos. Alte Wohnungsaktivierungshashes explizit entwerten. Wohnungs-/Akteurverweise bereinigen, keine Geraetesperre aufheben; IDs und sqlite_sequence nicht zuruecksetzen.
+- Noch explizit zu entscheiden: Dauertermine sind Reservierungen, keine Waschregeln. Persoenliche `maintenance_reports` und ihre Zustell-/Praeferenzschicht werden bei Kontoloeschung durch FK-CASCADE entfernt, waehrend `maintenance_cases`, `maintenance_entries` und Auditdaten grundsaetzlich erhalten bleiben. Diese Abgrenzung muss vor einer Loeschung bestaetigt werden; keine stillschweigende Archivierung oder Vernichtung historischer Meldungen.
+- Ein spaeter separat beauftragter Ausfuehrungsweg muss standardmaessig nur Vorschau liefern, konkretes Dienst-/DB-Ziel und exakt einen Owner pruefen, vorher einen frischen geprueften Backup-/Restorebeleg verlangen und bei fehlendem Owner, fremdem Ziel oder Backupfehler ohne Loeschung stoppen. Vor echtem Reset ist eine konkrete Loeschliste samt Zaehlwerten und ausdruecklicher Produktionsfreigabe erforderlich. Wartung allein ersetzt keine kontrollierte Stilllegung paralleler Schreib-/Versandablaeufe. Der globale Produktions-Pilotreset bleibt gesperrt; keine dauerhafte Reset-API wird vorgeschlagen.
+
 Status: **VORBEREITUNG – KEINE RELEASEFREIGABE**
 
 Rolle: RELEASE. Dieser Bericht dokumentiert den lesenden Preflight vom 03.11.2026 (Abschluss der lokalen Quellenpruefung gegen 22:29 Uhr Europe/Berlin). Die anschliessende Schreibfreigabe betrifft ausschliesslich diesen neuen Bericht. Produktdateien, Tests, Providerkonfiguration und Produktionsdaten wurden durch RELEASE nicht veraendert. Kein Commit, Push oder Deployment wurde ausgefuehrt.

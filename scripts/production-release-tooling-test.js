@@ -198,7 +198,7 @@ function backupInput(root, overrides = {}) {
       candidateCommit: CANDIDATE_COMMIT,
       expectedLiveVersion: '0.3.14-test.2',
       actualLiveVersion: '0.3.14-test.2',
-      candidateVersion: '0.3.15-test.1',
+      candidateVersion: '0.3.15-test.2',
       databasePath: path.join(root, 'washraum.sqlite'),
       targetPath: expectedTargetPath(CANDIDATE_COMMIT, backupDir, path)
     },
@@ -231,7 +231,7 @@ function validProof(now = Date.now()) {
     sourceCommit: LIVE_COMMIT,
     candidateCommit: CANDIDATE_COMMIT,
     sourceVersion: '0.3.14-test.2',
-    candidateVersion: '0.3.15-test.1',
+    candidateVersion: '0.3.15-test.2',
     databasePath: '/var/data/washraum.sqlite',
     backupPath: `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`,
     bootstrapObserved: true,
@@ -311,7 +311,7 @@ async function verifyBackupBootstrap() {
     assert.equal(proof.sourceCommit, LIVE_COMMIT);
     assert.equal(proof.candidateCommit, CANDIDATE_COMMIT);
     assert.equal(proof.sourceVersion, '0.3.14-test.2');
-    assert.equal(proof.candidateVersion, '0.3.15-test.1');
+    assert.equal(proof.candidateVersion, '0.3.15-test.2');
     assert.equal(proof.sourceOpenedReadOnly, true);
     assert.equal(proof.targetCreatedExactlyOnce, true);
     assert.equal(proof.restoreDrill.ok, true);
@@ -578,7 +578,7 @@ function verifyArgumentAndProofContracts() {
     '--expected-live-commit', LIVE_COMMIT,
     '--candidate-commit', CANDIDATE_COMMIT,
     '--expected-live-version', '0.3.14-test.2',
-    '--candidate-version', '0.3.15-test.1',
+    '--candidate-version', '0.3.15-test.2',
     '--database', '/var/data/washraum.sqlite',
     '--target', `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`
   ]);
