@@ -385,7 +385,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.4';
+const WHATS_NEW_VERSION = '0.3.15-test.5';
 let bookingFlowState = {
   date: '',
   step: 1,
