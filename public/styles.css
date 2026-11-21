@@ -9102,7 +9102,9 @@ body:not(.admin-view) .side-panel {
 .settings-footer #settingsProgressText {
   font-size: 12px;
   margin: 0;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1100px) {
