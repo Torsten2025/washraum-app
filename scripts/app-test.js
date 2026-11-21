@@ -21,6 +21,7 @@ const {
   publicModule
 } = require('../src/routes/diaper-game');
 const { createNotificationService } = require('../src/services/notifications');
+const { createPushService } = require('../src/services/push');
 const { isValidEmail, normalizeEmail } = require('../src/services/email-verification');
 
 function answerForDiaperModule(module) {
@@ -438,7 +439,7 @@ async function verifyReleaseEmailRecipientRevalidation() {
        secondary_email_verified)
     VALUES (?, ?, 1, 1, 1, 'de', ?, 1, ?, 0)
   `);
-  for (let id = 1; id <= 13; id += 1) {
+  for (let id = 1; id <= 14; id += 1) {
     const username = `recipient-${String(id).padStart(2, '0')}`;
     const email = `${username}@example.test`;
     insertUser.run(id, username, email, email);
@@ -480,9 +481,11 @@ async function verifyReleaseEmailRecipientRevalidation() {
   });
 
   try {
-    const result = await service.notifyReleaseSubscribers({}, {
+    // Account 1 owns the household bookings, but family member 14 performs the cancellation.
+    const actorRequest = { session: { user: { id: 14 } } };
+    const result = await service.notifyReleaseSubscribers(actorRequest, {
       house_id: 1,
-      user_id: 999,
+      user_id: 1,
       resource_type: 'washer',
       resource_name: 'Waschmaschine Test',
       booking_date: '2026-08-11',
@@ -505,6 +508,45 @@ async function verifyReleaseEmailRecipientRevalidation() {
     }
     assert.equal(providerOutput.includes('changed-06@example.test'), false);
     assert.equal(providerOutput.includes('drift-11@example.test'), false);
+    assert.equal(providerOutput.includes('recipient-14@example.test'), false);
+
+    fixtureDb.exec(`
+      CREATE TABLE push_subscriptions (id INTEGER PRIMARY KEY, user_id, house_id, endpoint, p256dh, auth, active, updated_at);
+      INSERT INTO push_subscriptions SELECT id, id, house_id, 'device-' || id, '', '', 1, 0 FROM users WHERE id IN (1,2,7,8,9,10,13,14);
+      UPDATE notification_preferences SET resource_type = 'tumbler' WHERE user_id = 13;
+    `);
+    const devices = [];
+    let changeDuringDelivery = false;
+    const push = createPushService({
+      db: fixtureDb, enabled: true, env: { VAPID_PUBLIC_KEY: 'test', VAPID_PRIVATE_KEY: 'test', VAPID_SUBJECT: 'mailto:test@example.test' },
+      webPush: { setVapidDetails() {} }, weekdayForDate: () => 2,
+      providerSendNotification: async (sub, payload) => {
+        devices.push(sub.endpoint);
+        assert.match(JSON.parse(payload).url, /notice=42/);
+        if (changeDuringDelivery && sub.endpoint === 'device-1') {
+          // While delivery is outstanding, the first device's binding changes;
+          // the next account opts out and a third subscription moves away.
+          fixtureDb.prepare("UPDATE push_subscriptions SET auth = 'replacement' WHERE id = 1").run();
+          fixtureDb.prepare('UPDATE users SET notify_releases = 0 WHERE id = 2').run();
+          fixtureDb.prepare('UPDATE push_subscriptions SET house_id = 2 WHERE id = 7').run();
+          throw Object.assign(new Error('Retired fixture'), { statusCode: 410 });
+        }
+      }
+    });
+    const sent = await push.notifyPushSubscribers(actorRequest, {
+      house_id: 1, user_id: 1, resource_type: 'washer', booking_date: '2026-08-11', slot: '07:00-12:00', notice_id: 42
+    }, 'Test');
+    // Includes the owner and member 7 without an address. Excludes actor, wrong house, opt-outs and filters.
+    assert.deepEqual(devices.sort(), ['device-1', 'device-2', 'device-7']);
+    assert.equal(sent.sent, 3);
+    devices.length = 0;
+    changeDuringDelivery = true;
+    const afterChange = await push.notifyPushSubscribers(actorRequest, {
+      house_id: 1, user_id: 1, resource_type: 'washer', booking_date: '2026-08-11', slot: '07:00-12:00', notice_id: 42
+    }, 'Test');
+    assert.deepEqual(devices, ['device-1']);
+    assert.equal(afterChange.failed, 1);
+    assert.equal(fixtureDb.prepare('SELECT active FROM push_subscriptions WHERE id = 1').get().active, 1);
   } finally {
     fixtureDb.close();
   }
@@ -733,6 +775,32 @@ async function verifySmtpDelivery() {
     });
     assert.equal(acceptedInvitation.status, 201);
     assert.equal((await acceptedInvitation.json()).user.emailVerified, true);
+    // The person acting is not necessarily the household's booking owner.
+    // Go through actual QR joining, optional mail confirmation and shared booking cancellation.
+    const origin = 'http://127.0.0.1:' + appPort;
+    const ownerCookie = acceptedInvitation.headers.get('set-cookie').split(';')[0];
+    async function householdRequest(route, cookie, body, status, method = 'POST') {
+      const response = await fetch(origin + route, { method,
+        headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) });
+      assert.equal(response.status, status, route);
+      return response;
+    }
+    const pair = await (await householdRequest('/api/me/device-code', ownerCookie, {}, 201)).json();
+    const password = 'SMTP-Family-2026!';
+    const joined = await householdRequest('/api/device-login', '', { deviceCode: pair.code, password, passwordConfirmation: password }, 200);
+    const memberCookie = joined.headers.get('set-cookie').split(';')[0];
+    const memberEmail = 'smtp-family@example.test';
+    await householdRequest('/api/me/notifications', memberCookie, { email: memberEmail, notifyReleases: true }, 200, 'PUT');
+    const token = messages.at(-1).match(/email-verification\/confirm\?token=([a-f0-9]+)/)[1];
+    assert.equal((await fetch(origin + '/api/email-verification/confirm?token=' + token, { redirect: 'manual' })).status, 302);
+    const shared = await (await householdRequest('/api/bookings', ownerCookie,
+      { resourceId: smtpWasher.id, date: smtpBookingDate, slot: '07:00-12:00' }, 201)).json();
+    const beforeCancel = messages.length;
+    const cancelled = await (await householdRequest('/api/bookings/' + shared.id + '/cancel-notify', memberCookie, {}, 200)).json();
+    const recipients = messages.slice(beforeCancel).map(mail => mail.match(/^To: (.+?)\r?$/m)[1]).sort();
+    assert.deepEqual(recipients, ['smtp-einladung@example.com', 'smtp-person@example.com']);
+    assert.equal(cancelled.emailNotifications.sent, 2);
+    assert(!recipients.includes(memberEmail));
   } finally {
     if (smtpApp.exitCode === null) {
       smtpApp.kill();
@@ -820,14 +888,14 @@ async function run() {
     assert.equal(health.body.ok, true);
     assert.equal(health.body.storage, 'local');
     assert.equal(health.body.adminReady, true);
-    assert.equal(health.body.version, '0.3.15-test.8');
+    assert.equal(health.body.version, '0.3.15-test.9');
     assert.equal(health.body.environment, 'test');
     assert.equal(health.body.appName, 'WaschZeit Test');
     assert.equal(health.body.maintenanceMode, false);
     assert.ok(health.response.headers.get('content-security-policy'));
     assert.equal(health.response.headers.get('x-content-type-options'), 'nosniff');
     const versionStatus = await expectStatus(guest, '/api/version', 200);
-    assert.equal(versionStatus.body.version, '0.3.15-test.8');
+    assert.equal(versionStatus.body.version, '0.3.15-test.9');
     assert.equal(versionStatus.body.environment, 'test');
     assert.equal(versionStatus.body.appName, 'WaschZeit Test');
     assert.equal(versionStatus.body.maintenance.active, false);
@@ -973,35 +1041,49 @@ async function run() {
     assert.equal(pushKey.body.configured, true);
     assert.ok(pushKey.body.publicKey.length > 40);
     const pushEndpoint = `https://push.example.test/${crypto.randomUUID()}`;
+    const deviceKeys = {
+      p256dh: crypto.randomBytes(65).toString('base64url'),
+      auth: crypto.randomBytes(16).toString('base64url')
+    };
+    const deviceStatus = (client, keys = deviceKeys, endpoint = pushEndpoint) => expectStatus(client, '/api/push/subscriptions/status', 200, {
+      method: 'POST', body: JSON.stringify({ subscription: { endpoint, keys } })
+    });
+    assert.deepEqual((await deviceStatus(user)).body, { active: false });
     await expectStatus(user, '/api/push/subscriptions', 201, {
       method: 'POST',
       body: JSON.stringify({
         subscription: {
           endpoint: pushEndpoint,
-          keys: {
-            p256dh: Buffer.from(crypto.randomBytes(65)).toString('base64url'),
-            auth: Buffer.from(crypto.randomBytes(16)).toString('base64url')
-          }
+          keys: deviceKeys
         }
       })
     });
     const pushMe = await expectStatus(user, '/api/me', 200);
+    const registerDevice = (client, code, endpoint, keys) => expectStatus(client, '/api/push/subscriptions', code, {
+      method: 'POST', body: JSON.stringify({ subscription: { endpoint, keys } })
+    });
+    await registerDevice(user, 201, pushEndpoint, deviceKeys);
+    await registerDevice(user, 409, pushEndpoint, { ...deviceKeys, auth: 'different-test-key' });
+    assert.deepEqual((await deviceStatus(user)).body, { active: true });
+    await expectStatus(guest, '/api/push/subscriptions/status', 401, { method: 'POST', body: '{}' });
+    assert.deepEqual((await deviceStatus(user, { ...deviceKeys, auth: 'stale' })).body, { active: false });
+    await expectStatus(user, '/api/push/subscriptions', 400, { method: 'DELETE', body: '{}' });
+    assert.deepEqual((await deviceStatus(user)).body, { active: true });
     assert.equal(pushMe.body.push.activeSubscriptions, 1);
     await expectStatus(user, '/api/push/subscriptions', 200, {
       method: 'DELETE',
       body: JSON.stringify({ endpoint: pushEndpoint })
     });
     const pushMeAfterDelete = await expectStatus(user, '/api/me', 200);
+    await registerDevice(user, 409, pushEndpoint, deviceKeys);
+    assert.deepEqual((await deviceStatus(user)).body, { active: false });
     assert.equal(pushMeAfterDelete.body.push.activeSubscriptions, 0);
     await expectStatus(user, '/api/push/subscriptions', 201, {
       method: 'POST',
       body: JSON.stringify({
         subscription: {
           endpoint: `${pushEndpoint}-active`,
-          keys: {
-            p256dh: Buffer.from(crypto.randomBytes(65)).toString('base64url'),
-            auth: Buffer.from(crypto.randomBytes(16)).toString('base64url')
-          }
+          keys: deviceKeys
         }
       })
     });
@@ -1505,6 +1587,9 @@ async function run() {
       body: JSON.stringify({ username: 'admin', password: 'Admin-Test-2026!' })
     });
     assert.equal(adminLogin.body.user.isSuperadmin, true);
+    await registerDevice(admin, 409, `${pushEndpoint}-active`, deviceKeys);
+    assert.deepEqual((await deviceStatus(user, deviceKeys, `${pushEndpoint}-active`)).body, { active: true });
+    assert.deepEqual((await deviceStatus(admin, deviceKeys, `${pushEndpoint}-active`)).body, { active: false });
     await expectStatus(admin, '/api/remaining-slots/options', 403);
     const users = await expectStatus(admin, '/api/admin/users', 200);
     const resident = users.body.users.find((item) => item.username === 'Bewohner Test');
@@ -1681,6 +1766,13 @@ async function run() {
     const calendarText = calendarFeedResponse.body.toString('utf8');
     assert.match(calendarText, /BEGIN:VCALENDAR\r\n/);
     assert.match(calendarText, /X-WR-TIMEZONE:Europe\/Zurich/);
+    const unfolded = calendarText.replace(/\r\n /g, '');
+    const zone = unfolded.match(/BEGIN:VTIMEZONE\r\n([\s\S]*?)END:VTIMEZONE/)?.[1];
+    assert.ok(zone && unfolded.indexOf('END:VTIMEZONE') < unfolded.indexOf('BEGIN:VEVENT'));
+    assert.deepEqual([...new Set([...unfolded.matchAll(/DT(?:START|END);TZID=([^:]+):/g)].map(match => match[1]))], ['Europe/Zurich']);
+    assert.match(zone, /^TZID:Europe\/Zurich\r\n/);
+    assert.match(zone, /BEGIN:DAYLIGHT\r\nDTSTART:19960331T020000\r\nTZOFFSETFROM:\+0100\r\nTZOFFSETTO:\+0200\r\nTZNAME:CEST\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\nEND:DAYLIGHT/);
+    assert.match(zone, /BEGIN:STANDARD\r\nDTSTART:19961027T030000\r\nTZOFFSETFROM:\+0200\r\nTZOFFSETTO:\+0100\r\nTZNAME:CET\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nEND:STANDARD/);
     assert.doesNotMatch(calendarText, /�/);
     assert.ok(calendarText.split('\r\n').every((line) => Buffer.byteLength(line, 'utf8') <= 75));
     assert.match(calendarText.replace(/\r\n /g, ''), new RegExp(unicodeResourceName));
@@ -2383,7 +2475,13 @@ async function run() {
       UPDATE push_subscriptions SET house_id = ?
       WHERE user_id = ? AND active = 1
     `).run(foreignPushHouse.lastInsertRowid, registration.body.user.id);
+    const outsideHouseKeys = pushIsolationDatabase.prepare(
+      'SELECT p256dh, auth FROM push_subscriptions WHERE endpoint = ?'
+    ).get(maintenancePushEndpoint);
     pushIsolationDatabase.close();
+    // Same account and browser keys, but assigned to another house.
+    await registerDevice(user, 409, maintenancePushEndpoint, outsideHouseKeys);
+    assert.deepEqual((await deviceStatus(user, outsideHouseKeys, maintenancePushEndpoint)).body, { active: false });
     await expectStatus(admin, '/api/me/active-house', 200, {
       method: 'PUT',
       body: JSON.stringify({ houseId: foreignPushHouse.lastInsertRowid })
@@ -3274,15 +3372,15 @@ async function run() {
     assert.ok(!appRoleMatrix.includes('OWNER_BRIEFING'));
     assert.ok(!roleMatrixTestDocument.includes('OWNER_BRIEFING'));
     assert.ok(indexHtml.includes('recordedIntroVideo'));
-    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.15-test.8'));
+    assert.ok(indexHtml.includes('/intro-media.js?v=v0.3.15-test.9'));
     assert.ok(indexHtml.includes('/assets/intro/media/resident-de.mp4'));
     assert.ok(indexHtml.includes('Kapitel 1 von 9'));
-    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.15-test.8"'));
+    assert.ok(indexHtml.includes('name="waschzeit-version" content="0.3.15-test.9"'));
     assert.ok(indexHtml.includes('<title>WaschZeit Test | Waschplan</title>'));
     assert.ok(indexHtml.includes('<span class="app-wordmark">WaschZeit Test</span>'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_APP_NAME__'));
-    assert.ok(indexHtml.includes('/app.js?v=v0.3.15-test.8'));
-    assert.ok(indexHtml.includes('/styles.css?v=v0.3.15-test.8'));
+    assert.ok(indexHtml.includes('/app.js?v=v0.3.15-test.9'));
+    assert.ok(indexHtml.includes('/styles.css?v=v0.3.15-test.9'));
     assert.ok(indexHtml.includes('id="appUpdateNotice"'));
     assert.ok(indexHtml.includes('id="maintenanceOverlay"'));
     assert.ok(!indexHtml.includes('__WASCHZEIT_RELEASE__'));
@@ -3563,12 +3661,22 @@ async function run() {
     const captions = await expectStatus(guest, '/assets/intro/media/resident-de.vtt', 200);
     const captionText = captions.body.toString();
     assert.ok(captionText.startsWith('WEBVTT'));
-    assert.ok(captionText.includes('Willkommen bei WaschZeit'));
-    assert.ok(captionText.includes('Im Wochenkalender findest du schnell'));
-    assert.ok(captionText.includes('Fuer ein Waschpaket waehlst du zuerst'));
-    assert.ok(captionText.includes('Dein Text bleibt als persoenliche Meldung'));
-    assert.ok(captionText.includes('Status sind Neu, In Bearbeitung und Erledigt.'));
-    assert.ok(captionText.includes('00:04:'));
+    // Check the actual subtitles served over HTTP, including all nine topics.
+    for (const phrase of [
+      'Zugangskarte funktioniert ohne E-Mail', 'zwischen Woche und Monat',
+      'Wähle ein freies Zeitfenster', 'Eine künftige Buchung kannst du absagen',
+      'Früher frei', 'Push richtest du unter App und Gerät',
+      'Melde ein Problem', 'Einladung per Haushalts-QR', 'im Kalender abonnieren'
+    ]) assert.ok(captionText.includes(phrase), 'Resident video caption missing: ' + phrase);
+    const cueRanges = [...captionText.matchAll(/^(\d\d):(\d\d):(\d\d\.\d{3}) --> (\d\d):(\d\d):(\d\d\.\d{3})/gm)];
+    assert.ok(cueRanges.length >= 18);
+    assert.equal(cueRanges[0][0].slice(0, 12), '00:00:00.000');
+    const last = cueRanges.at(-1);
+    const captionEnd = Number(last[4]) * 3600 + Number(last[5]) * 60 + Number(last[6]);
+    const filmManifest = await expectStatus(guest, '/assets/intro/media/manifest.json', 200);
+    const residentFilm = filmManifest.body.packages.find(item => item.id === 'resident-de');
+    assert.ok(residentFilm.duration >= captionEnd && residentFilm.duration - captionEnd < 2,
+      'The last spoken instruction must reach the end of the published resident film.');
     for (const sceneAsset of [
       'app-overview.png',
       'booking-time-focused.png',

@@ -1,32 +1,31 @@
-WaschZeit fuer Superadmins
-Superadmin | Deutsch
+WaschZeit für Superadmins
 
-1. Mehrere Haeuser im Blick behalten [00:00:00.000]
-Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlichen Auditereignissen. Jeder Eintrag muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
+1. Mehrere Häuser im Blick behalten [00:00:00.000]
+Die Übersicht bündelt Aufgaben und Warnungen. Prüfe bei jedem Eintrag das betroffene Haus, bevor du handelst.
 
-2. Das aktive Haus wechseln [00:00:24.000]
-Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die folgenden Ansichten und Aktionen beziehen sich auf dieses Haus, bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt besonders vor Sperren, Zugangskarten, Einladungen oder Kontoaenderungen.
+2. Das aktive Haus wechseln [00:00:06.480]
+Wähle das aktive Haus oben aus. Die Verwaltung lädt dessen Daten neu. Kontrolliere den Hausnamen vor jeder Änderung.
 
-3. Haeuser verwalten [00:00:52.000]
-Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl. Der Reiter Haus zeigt Standorte und Stammdaten; der Reiter Geraete zeigt ausschliesslich Ressourcen des serverseitig aktiven Hauses. Vor einer Deaktivierung pruefst du aktive Bewohner, Buchungen, offene Vorgaenge und die notwendige Datensicherung.
+3. Häuser verwalten [00:00:13.800]
+Unter Haus und Geräte wechselst du zwischen Standorten und Geräten. Ein Haus zu deaktivieren ist keine gewöhnliche Bereinigung. Prüfe erst alle Auswirkungen.
 
-4. Rollen sicher verwalten [00:01:20.000]
-Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin sein. Bewohnerbuchungen bleiben der Wohnung zugeordnet, waehrend Adminaktionen persoenlich protokolliert werden. Vergib nur die Rechte, die fuer die konkrete Aufgabe erforderlich sind.
+4. Rollen sicher verwalten [00:00:22.880]
+Wohnungszuordnung und Verwaltungsrechte sind unterschiedliche Dinge. Eine zusätzliche QR-Karte erstellt einen Bewohnerzugang, keine Adminrechte.
 
-5. Superadminrecht und Uebergabe [00:01:48.000]
-Ein Superadmin kann einem aktiven Haus-Admin zusaetzliche Superadminrechte geben. Der bisherige Superadmin behaelt sein Recht, damit keine ungewollte alleinige Uebergabe entsteht. Entzug oder geplante Nachfolge verlangen Passwortbestaetigung, Auditspur und mindestens einen verbleibenden handlungsfaehigen Superadmin.
+5. Superadminrecht und Übergabe [00:00:31.760]
+Eine handlungsfähige Stellvertretung schützt vor dem Verlust des Zugangs. Prüfe die Person und ihre Rechte sorgfältig. Eine Übergabe ist kein gemeinsames Passwort.
 
-6. Backup und externe Sicherung [00:02:18.000]
-Im Systembereich kontrollierst du Zeitpunkt, Integritaet und Ziel der Datenbanksicherungen. Eine Kopie auf demselben Server allein schuetzt nicht vor einem vollstaendigen Ausfall. Richte eine externe Sicherung ein und pruefe regelmaessig, ob sich eine Sicherung tatsaechlich wiederherstellen laesst.
+6. Backup und externe Sicherung [00:00:41.080]
+Eine Sicherung braucht einen geprüften Rückweg. Nutze nur den freigegebenen Download und die geschützte Aufbewahrung. Externe Backup-Anbindungen sind in Produktion gesperrt.
 
-7. Wartungsmodus steuern [00:02:48.000]
-Nutze den Wartungsmodus fuer groessere Datenbank- oder Betriebsarbeiten. Informiere Bewohner, erstelle vorher eine Sicherung und verhindere waehrenddessen neue Veraenderungen. Nach der Arbeit pruefst du Health-Status und Kernfunktionen, bevor du den normalen Betrieb wieder freigibst.
+7. Wartungsmodus steuern [00:00:50.720]
+Wartung ist ein geplanter Betriebsschritt, kein gewöhnlicher Schalter. Sicherung, Freigabe und anschließende Funktionsprüfung gehören dazu. Diese Aufnahme startet keine Wartung.
 
-8. Pilotdaten kontrolliert zuruecksetzen [00:03:16.000]
-Der Pilot-Reset ist keine normale Aufraeumfunktion. Pruefe genau, welche Buchungen und Testdaten entfernt werden, und erstelle unmittelbar vorher ein Backup. Konten, Tagebuchnachweise oder produktive Daten duerfen nicht unbeabsichtigt Teil des Resets sein.
+8. Produktionssperre respektieren [00:01:01.040]
+Der globale Pilotreset ist in Produktion gesperrt. Nutze ihn nicht zum Aufräumen. Datenbereinigung braucht einen getrennt geprüften Auftrag.
 
-9. Audit und Systemstatus pruefen [00:03:44.000]
-Das Audit zeigt, wer eine administrative Aktion wann und fuer welches Haus ausgefuehrt hat. Der Systemstatus ergaenzt Version, Datenbank, E-Mail, Push, Backup und Wartungszustand. Ungewoehnliche Ereignisse werden geprueft und dokumentiert, aber nicht still aus dem Verlauf entfernt.
+9. Audit und Systemstatus prüfen [00:01:09.560]
+Im Systembereich prüfst du Dienste und Betriebszustand. Das Audit zeigt administrative Aktionen. Technische Nachweise werden nicht still entfernt.
 
-10. Kritische Aktionen sicher ausfuehren [00:04:12.000]
-Bei Rollenwechseln, Hausdeaktivierung, Wartung und Datenreset handelst du bewusst langsam. Pruefe Ziel, Haus, aktuelle Sicherung, Auswirkungen und Ruecksetzmoeglichkeit. Bestaetige mit deinem eigenen aktuellen Passwort, kontrolliere danach Audit und Systemstatus und dokumentiere offene Restpunkte.
+10. Kritische Aktionen sicher ausführen [00:01:18.640]
+Kontrolliere vor weitreichenden Aktionen Haus, Ziel und Rückweg. Beende die Verwaltung bewusst. Auf gemeinsam genutzten Geräten meldest du dich ab.

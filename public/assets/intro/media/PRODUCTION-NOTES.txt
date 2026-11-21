@@ -1,0 +1,55 @@
+Rollenfilme v2 – lokale Medienproduktion
+
+Bild: echte lokale WaschZeit-App, ausschließlich synthetische Demo-Konten,
+Demo-Häuser und eine temporäre Datenbank. Keine produktiven Zugriffe.
+Ein eingeblendeter grüner Ring ist eine redaktionelle Klickmarkierung.
+QR-Codes und Kalenderadressen in den Filmen gehören nur zur kurzlebigen lokalen
+Demo. Sie sind keine produktiven Zugangsdaten.
+
+Ton: Piper 1.8.0, offline. Deutsche Stimme de_DE-thorsten-medium;
+englische Stimme en_US-joe-medium. Beide heruntergeladenen Modellkarten nennen
+CC0 für den Datensatz und das rdh-Basismodell. Modelle und Piper sind reine
+lokale Authoring-Abhängigkeiten; sie werden nicht mit der App ausgeliefert.
+Quellen (Modellkarten am 21.11.2026 geprüft):
+https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/medium/MODEL_CARD
+https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/joe/medium/MODEL_CARD
+https://github.com/OHF-Voice/piper1-gpl
+
+Untertitel: jeder Satz wird getrennt synthetisiert; Anfang und Ende basieren
+auf der tatsächlich gemessenen PCM-Laufzeit. Keine Schätzung nach Wortanzahl.
+Kapiteldauern basieren auf der tatsächlichen Aufnahme, nicht auf alten Folien.
+
+Aufnahme: Chromium-CDP-Screencast mit tatsächlichen Frame-Zeitstempeln,
+1280 x 720, finale Ausgabe 25 fps. Synthetische Uhr 23.11.2026 10:30 Uhr
+Schweizer Zeit erlaubt die echte Freigabe einer laufenden Demo-Buchung.
+Push-Berechtigung/Abonnement und Clipboard sind isolierte Browseradapter;
+Push-Transport ist ein No-Send-Adapter. Endpoint: push.example.invalid.
+Keine Bestätigung eines Empfangs auf einem echten Telefon oder Kalenderabo.
+Die dargestellte App und ihre API-Antworten sind nicht nachgezeichnet.
+
+Finalkodierung: H.264 libx264, preset slow, zwei Durchläufe; Bitrate aus der
+gemessenen Laufzeit auf nominal 2,15 MiB pro Film berechnet (Puffer für das
+gemessene Überschwingen bei UI-Material). PCM-Ton wird mit
+loudnorm I=-17:TP=-2:LRA=9 in zwei gemessenen Durchläufen normalisiert.
+Ein -4-dB-Limiter und 1 dB Endreserve schützen vor AAC-Inter-Sample-Spitzen.
+AAC mono 44,1 kHz / 64 kbit/s; finale AAC-Dateien werden nachgemessen.
+Bestehendes Budget: weniger als 3 MiB je Film, weniger als 15 MiB insgesamt.
+Modell-SHA256:
+de_DE-thorsten-medium.onnx FD270EB3D1EBF91D763F8A0F949B1B1BEBDFEFAEA18C3AAF8577DD34536E064F
+en_US-joe-medium.onnx ABF4B998E34045CBD00EAF050DE2DE620F81DED6EB8B85A24B022A1C2B3F08D2
+
+Nicht dargestellt als Echtbeleg: Zustellung an reale E-Mail-/Push-Empfänger,
+Einrichtung auf einem echten Mobilgerät, produktive Backups oder Wartung.
+Es wird kein Pilotreset durchgeführt. Dieser bleibt in Produktion gesperrt.
+
+Reproduktion: Node-Version des Projekts verwenden. FFMPEG_PATH, PIPER_PYTHON
+und PIPER_MODELS auf lokale Authoring-Werkzeuge setzen. Dann
+node scripts/record-intro-films.js
+INTRO_WORK_DIR kann auf ein separates temporäres Render-Verzeichnis zeigen.
+--probe erzeugt nur eine kurze lokale Probe, keine vollständige Medienfreigabe.
+Nach Abschluss aller sechs Aufnahmen:
+node scripts/record-intro-films.js --finalize-existing
+Dieser Schritt kodiert die erhaltenen Originalsegmente ohne erneute Appaktion
+und erzeugt den finalen Katalog und das Manifest aus der Aufnahmetimeline.
+Für eine gezielte Neuaufnahme akzeptiert INTRO_ONLY etwa resident-de oder
+house_admin-en. Danach finalisieren und Medien-/I18N-Tests ausführen.

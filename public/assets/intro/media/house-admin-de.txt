@@ -1,35 +1,34 @@
-WaschZeit fuer Haus-Admins
-Haus-Admin | Deutsch
+WaschZeit für Haus-Admins
 
 1. Waschplan und Verwaltung trennen [00:00:00.000]
-Als Haus-Admin kannst du zugleich Bewohner sein. Mein Waschplan enthaelt deine privaten Wohnungsbuchungen. Unter Verwalten bearbeitest du Aufgaben fuer das Haus. Jede Adminaktion wird deiner persoenlichen Identitaet zugeordnet und nicht dem gemeinsamen Wohnungskonto.
+Mein Waschplan zeigt deine eigenen Termine, sofern du auch Bewohner bist. Unter Verwalten arbeitest du für dein Haus. Deine Aktionen bleiben persönlich nachvollziehbar.
 
-2. Verwaltungsuebersicht priorisieren [00:00:24.000]
-Die Verwaltungsuebersicht stellt wichtige Aufgaben vor reine Kennzahlen. Pruefe zuerst dringende Stoerungen, gesperrte Geraete und offene Funktionspruefungen. Danach folgen Zugangskarten, optionale E-Mail-Einladungen, Kontohinweise, Dauertermine und allgemeine Informationen deines Hauses.
+2. Verwaltungsübersicht priorisieren [00:00:09.400]
+Beginne mit den offenen Aufgaben in der Übersicht. Prüfe Störungen und Sperren zuerst. Die Verknüpfungen führen zum passenden Bereich.
 
-3. Wohnungen und Zugangskarten [00:00:50.000]
-Lege fuer einen Einzug zuerst die stabile Wohnungsbezeichnung und den Namen vom Klingelschild fest. Erstelle dann fuer jede Person eine eigene Zugangskarte und uebergib sie persoenlich. Der QR-Code oder die Kombination aus Zugangskennung und Aktivierungscode gilt sieben Tage und nur einmal. Die Person setzt ihr Passwort selbst; eine E-Mail-Adresse ist freiwillig.
+3. Wohnungen und Zugangskarten [00:00:16.680]
+Trage Wohnung und Klingelschild ein. Die E-Mail bleibt freiwillig. Erstelle eine persönliche Zugangskarte. Sie gilt sieben Tage und nur einmal. Übergib sie der richtigen Person.
 
-4. Konten und Wiederherstellung [00:01:18.000]
-In der Kontenverwaltung erkennst du aktive oder gesperrte Personen und offene Zugangskarten. Bei Wiederherstellungsbedarf pruefst du zuerst Identitaet und Wohnungszuordnung. Danach erzeugst du einen 15 Minuten gueltigen Einmalcode. Die Person setzt ihr Passwort selbst und kann ihre Zugangskennung ohne E-Mail weiterverwenden.
+4. Konten und Wiederherstellung [00:00:27.400]
+Für eine weitere Person in derselben Wohnung erstellst du eine zusätzliche QR-Karte. Ein Wiederherstellungscode ist nur für berechtigte Bewohner ohne bestätigte E-Mail gedacht. Prüfe zuvor die Identität.
 
-5. Geraete und Raeume verwalten [00:01:46.000]
-Unter Haus und Geraete wechselst du zuerst bewusst zwischen Hausdaten und Geraetebestand. Als Haus-Admin startest du direkt bei den Geraeten deines eigenen Hauses. Verwende eindeutige Namen, damit Kalender, Meldung und Tagebuch dieselbe Ressource meinen. Gesperrte Ressourcen werden nur ueber den Tagebuchablauf wieder freigegeben.
+5. Geräte und Räume verwalten [00:00:38.760]
+Unter Haus und Geräte siehst du den Bestand deines Hauses. Eindeutige Namen helfen im Kalender. Eine Sperre muss ausdrücklich entschieden werden.
 
-6. Maschinen- und Raumtagebuch [00:02:12.000]
-Das Tagebuch zeigt nur die drei Hauptstatus Neu, In Bearbeitung und Erledigt. Persoenliche Meldungstexte bleiben getrennt und loeschbar. Im neutralen Betriebsnachweis dokumentierst du nur Ressource, Zeiten und sachliche Massnahmen. Bestehende technische Eintraege werden nicht geloescht oder nachtraeglich veraendert.
+6. Maschinen- und Raumtagebuch [00:00:46.840]
+Das Tagebuch trennt neue, laufende und erledigte Fälle. Öffne einen Fall und prüfe Ressource und Verlauf. Persönliche Meldungen sind davon getrennt.
 
-7. Stoerung bis Freigabe bearbeiten [00:02:40.000]
-Bei der Uebernahme waehlst du ohne Vorauswahl ausdruecklich, ob die Ressource gesperrt wird oder verfuegbar bleibt. Bestehende Buchungen werden nur angezeigt und niemals automatisch geloescht. Danach dokumentierst du die Reparatur und fuehrst die Funktionspruefung aus. Eine erfolgreiche Pruefung schliesst den Fall und gibt eine gesperrte Ressource direkt wieder frei.
+7. Störung bis Freigabe bearbeiten [00:00:56.320]
+Nach der Übernahme dokumentierst du die Reparatur. Erst die erfolgreiche Funktionsprüfung schließt den Fall und gibt eine fallbezogene Sperre frei.
 
-8. Dauertermine pflegen [00:03:10.000]
-Ein Dauerpaket enthaelt genau eine Waschmaschine. Optional fuegst du einen Trockenraum mit passender Nutzungsdauer und einen Tumbler hinzu. Alle Bestandteile werden gemeinsam geprueft und gespeichert. Bei einem Konflikt entsteht kein Teilpaket; entfernt wird spaeter immer das vollstaendige kuenftige Paket.
+8. Dauertermine pflegen [00:01:04.600]
+Dauertermine sind für begründete regelmäßige Nutzungen gedacht. Wähle Gerät, Zeit und Laufzeit. Prüfe die Vorschau, bevor du die Serie speicherst.
 
-9. Auswertung verstehen [00:03:36.000]
-Die Auswertung zeigt Nutzung, Auslastung und betriebliche Auffaelligkeiten deines Hauses. Sie hilft bei Kapazitaetsfragen und Wartungsentscheidungen. Verwende Kennzahlen nicht als Rangliste oder zur oeffentlichen Bewertung einzelner Bewohner.
+9. Auswertung verstehen [00:01:13.800]
+Die Auswertung zeigt Nutzung und verfügbare Kapazität im Haus. Nutze sie für den Betrieb, nicht für einen Vergleich einzelner Bewohner.
 
-10. Kritische Aktionen bestaetigen [00:04:02.000]
-Sicherheitsrelevante Aktionen verlangen dein aktuelles Passwort und teilweise einen exakten Bestaetigungstext. Lies Zielkonto, Haus und Auswirkung vor dem Absenden noch einmal. Teile dein Passwort niemals und fuehre eine kritische Aktion nicht auf Zuruf ohne eigene Pruefung aus.
+10. Kritische Aktionen bestätigen [00:01:21.520]
+Kritische Aktionen zeigen dir Ziel und Auswirkung vor der Bestätigung. Wenn du unsicher bist, brich ab. Teile dein eigenes Passwort niemals.
 
-11. Grenzen der Haus-Adminrolle [00:04:30.000]
-Als Haus-Admin bearbeitest du Wohnungen, Konten, Ressourcen und technische Vorgaenge deines zugewiesenen Hauses. Du buchst keine privaten Termine im Namen anderer Bewohner. Andere Haeuser, globale Systemeinstellungen und Superadminrechte bleiben ausserhalb deiner Rolle.
+11. Grenzen der Haus-Adminrolle [00:01:29.800]
+Dein Verwaltungsbereich bleibt auf dein Haus begrenzt. Andere Häuser und globale Systemeinstellungen sind keine Hausadmin-Aufgabe.

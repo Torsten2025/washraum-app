@@ -1,29 +1,28 @@
 Willkommen bei WaschZeit
-Bewohner | Deutsch
 
-1. Anmelden und persoenlich einrichten [00:00:00.000]
-Willkommen bei WaschZeit. Beim persoenlichen Onboarding scannst du den QR-Code deiner Zugangskarte oder gibst Zugangskennung und Aktivierungscode ein. Danach legst du dein eigenes Passwort fest. Eine E-Mail-Adresse ist nicht erforderlich. Unter Einstellungen pruefst du Sprache und Benachrichtigungen. Deine Buchungen bleiben immer deiner Wohnung zugeordnet.
+1. Anmelden und persönlich einrichten [00:00:00.000]
+Deine persönliche Zugangskarte funktioniert ohne E-Mail. Lege dein Passwort fest und bewahre deine Anmeldekennung sicher auf.
 
-2. Woche und Monat ueberblicken [00:00:24.000]
-Im Wochenkalender findest du schnell einen passenden freien Termin. Die Monatsansicht zeigt dir den gemeinsamen Waschplan und hilft bei der laengerfristigen Orientierung. Vergangene, belegte oder gesperrte Zeiten sind klar gekennzeichnet und koennen nicht gebucht werden.
+2. Woche und Monat überblicken [00:00:07.720]
+Wechsle zwischen Woche und Monat, um freie Zeiten zu finden. Wähle einen kommenden Tag. Belegte Zeiten bleiben geschützt.
 
-3. Waschpaket buchen [00:00:52.000]
-Fuer ein Waschpaket waehlst du zuerst einen Tag und ein freies Zeitfenster. Danach entscheidest du dich fuer eine Waschmaschine und kannst einen passenden Trockenraum oder Tumbler ergaenzen. Die App prueft alle Hausregeln, bevor sie das Paket gemeinsam speichert.
+3. Waschpaket buchen [00:00:15.240]
+Wähle ein freies Zeitfenster und deine Waschmaschine. Ergänze bei Bedarf die Trocknung. Prüfe die Zusammenfassung und buche. Dein fertiges Paket erscheint unter Meine Buchungen.
 
-4. Eigene Buchungen verwalten [00:01:22.000]
-Unter Meine Buchungen siehst du deine kommenden Termine in zeitlicher Reihenfolge. Dort erkennst du Maschine, Raum, Datum und Zeitfenster. Du kannst nur deine eigenen Buchungen veraendern; Buchungen anderer Wohnungen bleiben geschuetzt.
+4. Eigene Buchungen verwalten [00:00:26.720]
+Unter Meine Buchungen findest du die Termine deiner Wohnung. Eine künftige Buchung kannst du absagen. Danach ist die Zeit wieder frei.
 
-5. Frueher freigeben oder absagen [00:01:50.000]
-Bist du frueher fertig, kannst du die nicht mehr benoetigte Maschine oder den Raum freigeben. Andere Bewohner erhalten dann einen neutralen Hinweis auf die wieder freie Zeit. Eine Absage entfernt dagegen deine noch nicht begonnene Buchung vollstaendig.
+5. Früher freigeben oder absagen [00:00:34.320]
+Schon fertig mit Waschen? Tippe bei deinem laufenden Termin auf Früher frei. Dann können andere die Maschine gleich nutzen.
 
-6. Mitteilungen passend filtern [00:02:16.000]
-Das Mitteilungszentrum sammelt aktuelle Hinweise, zum Beispiel eine vorzeitig freigegebene Maschine. Mit deinen persoenlichen Filtern bestimmst du, welche Ressourcentypen und Zeitfenster fuer dich interessant sind. Eigene oder bereits ungueltige Freigaben werden nicht als buchbarer Hinweis angeboten.
+6. Freiwillige E-Mail und Geräte-Push [00:00:41.280]
+E-Mail ist freiwillig. Auch ohne Adresse kannst du deine Einstellungen speichern. Wähle passende Benachrichtigungsfilter. Push richtest du unter App und Gerät auf jedem Gerät einzeln ein.
 
-7. Stoerung melden [00:02:44.000]
-Wenn eine Maschine oder ein Raum nicht richtig funktioniert, erstellst du eine sachliche Stoerungsmeldung. Dein Text bleibt als persoenliche Meldung getrennt und kann von dir geloescht werden. Statushinweise per Push oder E-Mail sind freiwillig und anfangs ausgeschaltet. Die drei sichtbaren Status sind Neu, In Bearbeitung und Erledigt.
+7. Störung melden [00:00:52.120]
+Melde ein Problem direkt am betroffenen Gerät oder Raum. Beschreibe nur, was du beobachtet hast. Nachrichten zum Bearbeitungsstand sind freiwillig.
 
-8. Weiteres Haushaltsmitglied verbinden [00:03:10.000]
-Unter App und Geraet kannst du einen kurz gueltigen QR-Code fuer ein weiteres Haushaltsmitglied erzeugen. Die Person erhaelt einen eigenen persoenlichen Zugang, wird aber derselben Wohnung zugeordnet. Adminrechte werden durch den QR-Code niemals uebertragen.
+8. Weiteres Haushaltsmitglied verbinden [00:01:00.960]
+Öffne im Profil die Einladung per Haushalts-QR. Der Code gilt zehn Minuten und nur einmal. Noch kein Konto? Lass die Kennung leer und wähle dein eigenes Passwort. Schon registriert? Melde dich mit deiner Bewohnerkennung und deinem Passwort an.
 
-9. Hilfe, Datenschutz und Abmeldung [00:03:36.000]
-Unter Hilfe und Regeln kannst du die wichtigsten Ablaeufe jederzeit nachlesen. Sicherheit und Daten erklaert, welche Angaben gespeichert werden und welche Rechte du hast. Nutzt du ein fremdes oder gemeinsam verwendetes Geraet, beendest du deine Sitzung anschliessend mit Abmelden.
+9. Kalenderabo und Hilfe [00:01:15.960]
+Unter App und Gerät kannst du deine Wohnungstermine im Kalender abonnieren. Halte die Adresse geheim. Unter Hilfe findest du Regeln und Einführung. Melde dich auf gemeinsam genutzten Geräten wieder ab.

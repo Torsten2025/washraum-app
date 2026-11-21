@@ -226,6 +226,13 @@ function createBookingRouters({
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WaschZeit//Personal Calendar Feed//DE',
       'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:WaschZeit - Meine Buchungen',
       'X-WR-TIMEZONE:Europe/Zurich',
+      // Modern Zurich rules (IANA tzdb, Europe): the wall time *before* each change.
+      'BEGIN:VTIMEZONE', 'TZID:Europe/Zurich',
+      'BEGIN:DAYLIGHT', 'DTSTART:19960331T020000', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200',
+      'TZNAME:CEST', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
+      'BEGIN:STANDARD', 'DTSTART:19961027T030000', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100',
+      'TZNAME:CET', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD',
+      'END:VTIMEZONE',
       ...events.flat(), 'END:VCALENDAR'
     ];
     res.set({

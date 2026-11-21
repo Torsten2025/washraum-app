@@ -1,109 +1,61 @@
 WEBVTT
 
-00:00:00.350 --> 00:00:08.017
-Als Superadmin siehst du den Zustand mehrerer Haeuser. Beginne mit
+00:00:00.000 --> 00:00:02.612
+Die Übersicht bündelt Aufgaben und Warnungen.
 
-00:00:08.017 --> 00:00:15.683
-kritischen Problemen, fehlenden Sicherungen, Wartungswarnungen und ungewoehnlichen Auditereignissen. Jeder Eintrag
+00:00:02.612 --> 00:00:06.072
+Prüfe bei jedem Eintrag das betroffene Haus, bevor du handelst.
 
-00:00:15.683 --> 00:00:23.350
-muss eindeutig zeigen, welches Haus betroffen ist, bevor du handelst.
+00:00:06.480 --> 00:00:08.593
+Wähle das aktive Haus oben aus.
 
-00:00:24.350 --> 00:00:31.497
-Mit dem Hauswaehler wechselst du den aktiven Verwaltungskontext. Die
+00:00:08.593 --> 00:00:13.376
+Die Verwaltung lädt dessen Daten neu. Kontrolliere den Hausnamen vor jeder Änderung.
 
-00:00:31.497 --> 00:00:38.644
-folgenden Ansichten und Aktionen beziehen sich auf dieses Haus,
+00:00:13.800 --> 00:00:17.376
+Unter Haus und Geräte wechselst du zwischen Standorten und Geräten.
 
-00:00:38.644 --> 00:00:45.791
-bis du erneut wechselst. Kontrolliere deshalb Hausname und Zielobjekt
+00:00:17.376 --> 00:00:22.473
+Ein Haus zu deaktivieren ist keine gewöhnliche Bereinigung. Prüfe erst alle Auswirkungen.
 
-00:00:45.791 --> 00:00:51.350
-besonders vor Sperren, Zugangskarten, Einladungen oder Kontoaenderungen.
+00:00:22.880 --> 00:00:26.735
+Wohnungszuordnung und Verwaltungsrechte sind unterschiedliche Dinge.
 
-00:00:52.350 --> 00:00:59.421
-Unter Haus und Geraete startest du als Superadmin bei der Hausauswahl.
+00:00:26.735 --> 00:00:31.320
+Eine zusätzliche QR-Karte erstellt einen Bewohnerzugang, keine Adminrechte.
 
-00:00:59.421 --> 00:01:06.493
-Der Reiter Haus zeigt Standorte und Stammdaten; der Reiter Geraete zeigt
+00:00:31.760 --> 00:00:35.440
+Eine handlungsfähige Stellvertretung schützt vor dem Verlust des Zugangs.
 
-00:01:06.493 --> 00:01:13.564
-ausschliesslich Ressourcen des serverseitig aktiven Hauses. Vor einer Deaktivierung pruefst du
+00:00:35.440 --> 00:00:40.653
+Prüfe die Person und ihre Rechte sorgfältig. Eine Übergabe ist kein gemeinsames Passwort.
 
-00:01:13.564 --> 00:01:19.350
-aktive Bewohner, Buchungen, offene Vorgaenge und die notwendige Datensicherung.
+00:00:41.080 --> 00:00:43.541
+Eine Sicherung braucht einen geprüften Rückweg.
 
-00:01:20.350 --> 00:01:29.350
-Eine persoenliche Identitaet kann Bewohner eines Hauses, Haus-Admin und zusaetzlich Superadmin
+00:00:43.541 --> 00:00:50.310
+Nutze nur den freigegebenen Download und die geschützte Aufbewahrung. Externe Backup-Anbindungen sind in Produktion gesperrt.
 
-00:01:29.350 --> 00:01:38.350
-sein. Bewohnerbuchungen bleiben der Wohnung zugeordnet, waehrend Adminaktionen persoenlich protokolliert werden.
+00:00:50.720 --> 00:00:54.342
+Wartung ist ein geplanter Betriebsschritt, kein gewöhnlicher Schalter.
 
-00:01:38.350 --> 00:01:47.350
-Vergib nur die Rechte, die fuer die konkrete Aufgabe erforderlich sind.
+00:00:54.342 --> 00:01:00.623
+Sicherung, Freigabe und anschließende Funktionsprüfung gehören dazu. Diese Aufnahme startet keine Wartung.
 
-00:01:48.350 --> 00:01:56.026
-Ein Superadmin kann einem aktiven Haus-Admin zusaetzliche Superadminrechte geben.
+00:01:01.040 --> 00:01:04.047
+Der globale Pilotreset ist in Produktion gesperrt.
 
-00:01:56.026 --> 00:02:03.703
-Der bisherige Superadmin behaelt sein Recht, damit keine ungewollte
+00:01:04.047 --> 00:01:09.132
+Nutze ihn nicht zum Aufräumen. Datenbereinigung braucht einen getrennt geprüften Auftrag.
 
-00:02:03.703 --> 00:02:11.379
-alleinige Uebergabe entsteht. Entzug oder geplante Nachfolge verlangen Passwortbestaetigung,
+00:01:09.560 --> 00:01:12.927
+Im Systembereich prüfst du Dienste und Betriebszustand.
 
-00:02:11.379 --> 00:02:17.350
-Auditspur und mindestens einen verbleibenden handlungsfaehigen Superadmin.
+00:01:12.927 --> 00:01:18.233
+Das Audit zeigt administrative Aktionen. Technische Nachweise werden nicht still entfernt.
 
-00:02:18.350 --> 00:02:26.188
-Im Systembereich kontrollierst du Zeitpunkt, Integritaet und Ziel der Datenbanksicherungen.
+00:01:18.640 --> 00:01:22.541
+Kontrolliere vor weitreichenden Aktionen Haus, Ziel und Rückweg.
 
-00:02:26.188 --> 00:02:34.026
-Eine Kopie auf demselben Server allein schuetzt nicht vor einem
-
-00:02:34.026 --> 00:02:41.864
-vollstaendigen Ausfall. Richte eine externe Sicherung ein und pruefe regelmaessig,
-
-00:02:41.864 --> 00:02:47.350
-ob sich eine Sicherung tatsaechlich wiederherstellen laesst.
-
-00:02:48.350 --> 00:02:55.497
-Nutze den Wartungsmodus fuer groessere Datenbank- oder Betriebsarbeiten. Informiere
-
-00:02:55.497 --> 00:03:02.644
-Bewohner, erstelle vorher eine Sicherung und verhindere waehrenddessen neue
-
-00:03:02.644 --> 00:03:09.791
-Veraenderungen. Nach der Arbeit pruefst du Health-Status und Kernfunktionen,
-
-00:03:09.791 --> 00:03:15.350
-bevor du den normalen Betrieb wieder freigibst.
-
-00:03:16.350 --> 00:03:25.631
-Der Pilot-Reset ist keine normale Aufraeumfunktion. Pruefe genau, welche Buchungen und
-
-00:03:25.631 --> 00:03:34.913
-Testdaten entfernt werden, und erstelle unmittelbar vorher ein Backup. Konten, Tagebuchnachweise
-
-00:03:34.913 --> 00:03:43.350
-oder produktive Daten duerfen nicht unbeabsichtigt Teil des Resets sein.
-
-00:03:44.350 --> 00:03:51.647
-Das Audit zeigt, wer eine administrative Aktion wann und fuer
-
-00:03:51.647 --> 00:03:58.945
-welches Haus ausgefuehrt hat. Der Systemstatus ergaenzt Version, Datenbank, E-Mail,
-
-00:03:58.945 --> 00:04:06.242
-Push, Backup und Wartungszustand. Ungewoehnliche Ereignisse werden geprueft und dokumentiert,
-
-00:04:06.242 --> 00:04:11.350
-aber nicht still aus dem Verlauf entfernt.
-
-00:04:12.350 --> 00:04:21.350
-Bei Rollenwechseln, Hausdeaktivierung, Wartung und Datenreset handelst du bewusst langsam. Pruefe
-
-00:04:21.350 --> 00:04:30.350
-Ziel, Haus, aktuelle Sicherung, Auswirkungen und Ruecksetzmoeglichkeit. Bestaetige mit deinem eigenen
-
-00:04:30.350 --> 00:04:39.350
-aktuellen Passwort, kontrolliere danach Audit und Systemstatus und dokumentiere offene Restpunkte.
+00:01:22.541 --> 00:01:26.848
+Beende die Verwaltung bewusst. Auf gemeinsam genutzten Geräten meldest du dich ab.

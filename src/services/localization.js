@@ -64,8 +64,8 @@ function translateReleaseSubject(subject, language) {
   const source = String(subject || '').replace(/^Waschplan:/, 'WaschZeit:');
   return source
     .replace(/Waschpaket wieder frei/, 'Laundry package available again')
-    .replace(/Termin fuer (.+) wieder frei/, 'Booking for $1 available again')
-    .replace(/(.+) frueher frei/, '$1 released early')
+    .replace(/Termin f(?:ü|ue)r (.+) wieder frei$/, 'Booking for $1 available again')
+    .replace(/(.+) fr(?:ü|ue)her frei$/, '$1 released early')
     .replace(/(.+) frei$/, '$1 available');
 }
 

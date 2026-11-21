@@ -386,7 +386,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.8';
+const WHATS_NEW_VERSION = '0.3.15-test.9';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -2512,13 +2512,14 @@ function renderPushStatusView() {
     unsupported: ['settings.pushUnsupported', 'Dieses Geraet unterstuetzt Web-Push leider nicht.'],
     unavailable: ['settings.pushServerUnavailable', 'Push ist auf dem Server noch nicht bereit.'],
     active: ['settings.pushActive', 'Push ist auf diesem Geraet aktiv.'],
+    disconnected: ['settings.pushDisconnected', 'Dieses Gerät ist nicht mit deinem Konto verbunden. Verbinde Push erneut.'],
     blocked: ['settings.pushBlocked', 'Push wurde im Browser blockiert. Bitte in den Website-Einstellungen erlauben.'],
     inactive: ['settings.pushInactive', 'Push ist bereit, aber auf diesem Geraet noch nicht aktiviert.']
   }[currentPushState];
   pushStatusText.textContent = currentPushState === 'error'
     ? localizedSystemText(currentPushError, translate('app.noConnection', 'Keine Verbindung zur App.'))
     : translate(state?.[0] || 'settings.pushChecking', state?.[1] || 'Push-Status wird geprueft.');
-  enablePushButton.textContent = currentPushState === 'active'
+  enablePushButton.textContent = ['active', 'disconnected'].includes(currentPushState)
     ? translate('settings.pushReconnect', 'Push erneut verbinden')
     : translate('settings.enablePush', 'Push aktivieren');
   renderSettingsSummary();
@@ -2547,10 +2548,17 @@ async function renderPushStatus() {
     const subscription = await currentPushSubscription();
     const permission = Notification.permission;
     if (subscription && permission === 'granted') {
-      currentPushState = 'active';
+      const device = await api('/api/push/subscriptions/status', {
+        method: 'POST', body: JSON.stringify({ subscription })
+      });
+      const browserKey = subscription.options?.applicationServerKey;
+      const expectedKey = urlBase64ToUint8Array(pushConfig.publicKey);
+      const matchesServerKey = !browserKey || (browserKey.byteLength === expectedKey.length
+        && new Uint8Array(browserKey).every((value, i) => value === expectedKey[i]));
+      currentPushState = device.active === true && matchesServerKey ? 'active' : 'disconnected';
       currentPushError = '';
       enablePushButton.disabled = false;
-      disablePushButton.hidden = false;
+      disablePushButton.hidden = currentPushState !== 'active';
       renderPushStatusView();
       return;
     }
@@ -2593,13 +2601,18 @@ async function enablePushNotifications() {
     if (!pushConfig.configured || !pushConfig.publicKey) {
       throw new Error(translate('settings.pushServerUnavailable', 'Push ist auf dem Server noch nicht bereit.'));
     }
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(pushConfig.publicKey)
+    const previous = await registration.pushManager.getSubscription();
+    if (previous) {
+      // A provider may already have rejected this endpoint. Re-saving its old
+      // keys would briefly show "active" but never restore delivery.
+      await api('/api/push/subscriptions', {
+        method: 'DELETE', body: JSON.stringify({ endpoint: previous.endpoint })
       });
+      await previous.unsubscribe();
     }
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(pushConfig.publicKey)
+    });
     const data = await api('/api/push/subscriptions', {
       method: 'POST',
       body: JSON.stringify({ subscription })
@@ -2610,20 +2623,18 @@ async function enablePushNotifications() {
     showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
     await renderPushStatus();
   } finally {
-    enablePushButton.disabled = !['active', 'inactive'].includes(currentPushState);
+    enablePushButton.disabled = !['active', 'inactive', 'disconnected'].includes(currentPushState);
   }
 }
 
 async function disablePushNotifications() {
   try {
     const subscription = await currentPushSubscription();
+    if (!subscription) return await renderPushStatus();
     await api('/api/push/subscriptions', {
-      method: 'DELETE',
-      body: JSON.stringify({ endpoint: subscription?.endpoint || '' })
+      method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint })
     });
-    if (subscription) {
-      await subscription.unsubscribe();
-    }
+    await subscription.unsubscribe();
     showStatus(translate('settings.pushDisabled', 'Push-Hinweise wurden auf diesem Geraet deaktiviert.'));
     await renderPushStatus();
   } catch (error) {

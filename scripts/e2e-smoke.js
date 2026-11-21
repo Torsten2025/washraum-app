@@ -436,6 +436,10 @@ async function captureMediaSource(page, outputDirectory, name) {
 }
 
 async function verifyIntroMediaPackage(page, outputDirectory, expected, screenshotPaths) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../public/assets/intro/media/manifest.json'), 'utf8'));
+  const timing = manifest.packages.find(item => item.id === expected.id);
+  assert.ok(timing && timing.chapterStarts.length === expected.chapters, 'Measured media chapter timing is complete');
+  expected = { ...expected, duration: timing.duration, secondStart: timing.chapterStarts[1] };
   const originalViewport = page.viewportSize();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.click('#accountMenuButton');
@@ -1084,13 +1088,15 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.8');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.9');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
-    assert.match(whatsNewText, /access cards|without email|QR code|one-time code/i);
+    assert.match(whatsNewText, /this device is connected to your account for push alerts/i);
+    assert.match(whatsNewText, /release alerts go to the right household members/i);
+    assert.match(whatsNewText, /calendar subscriptions include Swiss daylight saving time/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.8')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.9')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -1100,10 +1106,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.8/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.9\b/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.8/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.9\b/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
@@ -1281,7 +1287,7 @@ async function run() {
     await assertEnglishResidentPage(page, 'resident/en-after-reload');
     await captureMediaSource(page, screenshotDirectory, 'resident-en-plan');
     await verifyIntroMediaPackage(page, screenshotDirectory, {
-      id: 'resident-en', language: 'en', duration: 242, chapters: 9, secondStart: 24
+      id: 'resident-en', language: 'en', chapters: 9
     }, mediaScreenshots);
     await page.click('#accountMenuButton');
     await page.click('#openKnowledgeButton');
@@ -1762,7 +1768,7 @@ async function run() {
     await page.waitForFunction(() => document.querySelector('#messageCenterOverlay')?.hidden === true);
     await page.waitForFunction(() => !String(document.querySelector('#statusText')?.textContent || '').trim());
     await verifyIntroMediaPackage(page, screenshotDirectory, {
-      id: 'resident-de', language: 'de', duration: 242, chapters: 9, secondStart: 24
+      id: 'resident-de', language: 'de', chapters: 9
     }, mediaScreenshots);
     await captureMediaSource(page, screenshotDirectory, 'resident-de-plan');
     await captureVisualChecks(page, screenshotDirectory);
@@ -1987,7 +1993,7 @@ async function run() {
       return houseId;
     };
     await verifyIntroMediaPackage(adminPage, screenshotDirectory, {
-      id: 'superadmin-de', language: 'de', duration: 280, chapters: 10, secondStart: 24
+      id: 'superadmin-de', language: 'de', chapters: 10
     }, mediaScreenshots);
     await captureMediaSource(adminPage, screenshotDirectory, 'superadmin-de-house');
     await captureVisualChecks(adminPage, screenshotDirectory, 'admin-house-');
@@ -2024,7 +2030,7 @@ async function run() {
     assert.equal(await adminPage.evaluate(() => document.activeElement?.id), 'settingsLanguage');
     await adminPage.click('#closeSettingsButton');
     await verifyIntroMediaPackage(adminPage, screenshotDirectory, {
-      id: 'superadmin-en', language: 'en', duration: 280, chapters: 10, secondStart: 24
+      id: 'superadmin-en', language: 'en', chapters: 10
     }, mediaScreenshots);
     for (const section of ['overview', 'logbook', 'people', 'house', 'fixed', 'analytics', 'system']) {
       await adminPage.click(`[data-admin-target="${section}"]`);
@@ -2264,7 +2270,7 @@ async function run() {
     await houseAdminPage.click('#adminViewButton');
     await houseAdminPage.waitForSelector('body.admin-view');
     await verifyIntroMediaPackage(houseAdminPage, screenshotDirectory, {
-      id: 'house-admin-de', language: 'de', duration: 298, chapters: 11, secondStart: 24
+      id: 'house-admin-de', language: 'de', chapters: 11
     }, mediaScreenshots);
     for (const section of ['overview', 'house', 'people', 'fixed', 'analytics', 'logbook']) {
       await houseAdminPage.click(`[data-admin-target="${section}"]`);
@@ -2278,7 +2284,7 @@ async function run() {
     await houseAdminPage.waitForFunction(() => document.documentElement.lang === 'en');
     await houseAdminPage.click('#closeSettingsButton');
     await verifyIntroMediaPackage(houseAdminPage, screenshotDirectory, {
-      id: 'house-admin-en', language: 'en', duration: 298, chapters: 11, secondStart: 24
+      id: 'house-admin-en', language: 'en', chapters: 11
     }, mediaScreenshots);
     for (const section of ['overview', 'house', 'people', 'fixed', 'analytics', 'logbook']) {
       await houseAdminPage.click(`[data-admin-target="${section}"]`);

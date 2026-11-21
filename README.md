@@ -109,17 +109,18 @@ Bewohner koennen ihre Kontodaten und Buchungen exportieren, Benachrichtigungen a
 
 ## Videos neu erzeugen
 
-Die sechs MP4-, Poster-, VTT- und Transkriptpakete entstehen aus derselben Kapitelquelle. Zuerst erzeugt der Browserlauf aktuelle Rollen-/Sprachaufnahmen, danach rendert der Generator die Medien:
+Die sechs Rollenfilme (Bewohner, Hausadmin, Superadmin; je DE und EN) werden in einer lokalen WaschZeit-Instanz mit erfundenen Haushalten aufgezeichnet. Für die normale App oder ihre Tests ist keine Sprachsoftware nötig. Wer neue Filme produziert, braucht zusätzlich Chromium, FFmpeg und eine lokale Python-Umgebung mit Piper. Vor dem Aufruf `PIPER_PYTHON`, `PIPER_MODELS` und `FFMPEG_PATH` auf die lokalen Werkzeuge bzw. das Modellverzeichnis setzen. Für beide Produktionsschritte dasselbe neue, private Arbeitsverzeichnis in `INTRO_WORK_DIR` angeben. Stimmen, Lizenzquellen und Hinweise: [Produktion der Rollenfilme](public/assets/intro/media/PRODUCTION-NOTES.txt).
 
 ```bash
-npm run test:e2e
 npm run generate:intro-media
+npm run generate:intro-media -- --finalize-existing
 npm run test:media
+npm run test:e2e
 ```
 
-Unter Windows nutzt der Generator die installierten deutschen und englischen Systemstimmen sowie FFmpeg aus `FFMPEG_PATH` oder dem lokalen `imageio_ffmpeg`-Paket. Die Medien liegen unter `public/assets/intro/media/`: Bewohner je 04:02 und 9 Kapitel, Haus-Admin je 04:58 und 11 Kapitel, Superadmin je 04:40 und 10 Kapitel. `public/intro-content.js` bleibt die gemeinsame Quelle fuer Kapitelmetadaten, Sprechertext und Transkript; `public/intro-media.js` ordnet Rolle und Sprache den echten Dateien zu.
+Unter `public/assets/intro/media/` liegen MP4, Poster, Untertitel, Transkript und Manifest. Bewohner haben neun Kapitel, Hausadmins elf und Superadmins zehn. Kapitelstarts, Untertitel und Transkripte folgen der tatsächlichen Sprachfassung; deshalb dürfen DE und EN unterschiedlich lang sein. Bei der Aufnahme werden keine Bewohnerdaten verwendet und keine Nachrichten an echte Geräte versendet.
 
-Poster, Untertitel, Transkripte und Manifest sind offline verfuegbar. Die zusammen rund 9,3 MB grossen MP4-Dateien werden erst bei Wiedergabe geladen und nicht im PWA-Cache gespeichert.
+Poster, Untertitel, Transkripte und Manifest stehen auch offline zur Verfügung. Die MP4-Dateien werden nicht mit der App vorab geladen und nicht im PWA-Cache gespeichert.
 
 ## Einfuehrung im Haus
 

@@ -96,7 +96,7 @@ function createNotificationService({
       ORDER BY username
     `).all(
       booking.house_id,
-      booking.user_id,
+      req.session.user.id,
       booking.resource_type || 'all',
       weekdayForDate(booking.booking_date),
       booking.slot
@@ -140,7 +140,7 @@ function createNotificationService({
         const current = currentRecipient.get(
           recipient.id,
           booking.house_id,
-          booking.user_id,
+          req.session.user.id,
           resourceType,
           bookingWeekday,
           booking.slot

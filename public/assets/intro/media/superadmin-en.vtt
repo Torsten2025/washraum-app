@@ -1,118 +1,61 @@
 WEBVTT
 
-00:00:00.350 --> 00:00:06.264
-As a super administrator, you can see the condition
+00:00:00.000 --> 00:00:03.251
+The overview brings together tasks and warnings.
 
-00:00:06.264 --> 00:00:12.179
-of multiple houses. Start with critical problems, missing backups,
+00:00:03.251 --> 00:00:06.931
+Check which building each item belongs to before taking action.
 
-00:00:12.179 --> 00:00:18.093
-maintenance warnings and unusual audit events. Every entry must
+00:00:07.360 --> 00:00:09.624
+Choose the active building at the top.
 
-00:00:18.093 --> 00:00:23.350
-clearly identify the affected house before you act.
+00:00:09.624 --> 00:00:14.698
+Administration reloads its data. Check the building name before making changes.
 
-00:00:24.350 --> 00:00:31.100
-The house selector changes the active administration context. The
+00:00:15.120 --> 00:00:18.568
+Building and Equipment separates locations from equipment.
 
-00:00:31.100 --> 00:00:37.850
-following views and actions refer to that house until
+00:00:18.568 --> 00:00:23.769
+Deactivating a building is not routine cleanup. Check the consequences first.
 
-00:00:37.850 --> 00:00:44.600
-you switch again. Check the house name and target
+00:00:24.200 --> 00:00:28.333
+Apartment membership and administration permissions are different things.
 
-00:00:44.600 --> 00:00:51.350
-especially before blocks, access cards, invitations or account changes.
+00:00:28.333 --> 00:00:33.047
+An additional QR card creates a resident sign-in, not administrator rights.
 
-00:00:52.350 --> 00:00:59.100
-In House and Equipment, super administrators start with house selection.
+00:00:33.480 --> 00:00:37.543
+A trusted deputy protects against losing administrative access.
 
-00:00:59.100 --> 00:01:05.850
-The House tab contains locations and master data; Equipment shows
+00:00:37.543 --> 00:00:42.582
+Check the person and permissions carefully. Handover does not mean sharing a password.
 
-00:01:05.850 --> 00:01:12.600
-only resources from the server-side active house. Before deactivation, review
+00:00:43.000 --> 00:00:45.821
+A backup needs a tested recovery path.
 
-00:01:12.600 --> 00:01:19.350
-active residents, bookings, open workflows and the required data backup.
+00:00:45.821 --> 00:00:52.218
+Use only approved download and protected storage. External backup integrations are blocked in production.
 
-00:01:20.350 --> 00:01:27.100
-A personal identity may be a resident of one house,
+00:00:52.640 --> 00:00:56.808
+Maintenance is planned operational work, not an everyday switch.
 
-00:01:27.100 --> 00:01:33.850
-a house administrator and additionally a super administrator. Resident bookings
+00:00:56.808 --> 00:01:03.379
+It requires backup, authorization and checks afterwards. This recording does not start maintenance.
 
-00:01:33.850 --> 00:01:40.600
-remain assigned to the apartment, while administrative actions are logged
+00:01:03.800 --> 00:01:06.761
+The global pilot reset is blocked in production.
 
-00:01:40.600 --> 00:01:47.350
-personally. Grant only the permissions required for the specific responsibility.
+00:01:06.761 --> 00:01:11.567
+Do not use it for cleanup. Data removal needs a separately reviewed task.
 
-00:01:48.350 --> 00:01:55.769
-A super administrator can grant an active house administrator additional super
+00:01:12.000 --> 00:01:15.111
+System shows service and operational status.
 
-00:01:55.769 --> 00:02:03.187
-administrator rights. The existing super administrator keeps their rights, preventing an
+00:01:15.111 --> 00:01:20.789
+The audit records administrative actions. Do not silently remove technical records.
 
-00:02:03.187 --> 00:02:10.606
-unintended sole handover. Revocation or planned succession requires password confirmation, an
+00:01:21.200 --> 00:01:25.391
+Before a major action, check the building, target and recovery path.
 
-00:02:10.606 --> 00:02:17.350
-audit trail and at least one remaining capable super administrator.
-
-00:02:18.350 --> 00:02:25.600
-In the System area, check the time, integrity and destination
-
-00:02:25.600 --> 00:02:32.850
-of database backups. A copy on the same server alone
-
-00:02:32.850 --> 00:02:40.100
-does not protect against a complete outage. Configure external storage
-
-00:02:40.100 --> 00:02:47.350
-and regularly verify that a backup can actually be restored.
-
-00:02:48.350 --> 00:02:57.350
-Use maintenance mode for major database or operational work. Inform residents,
-
-00:02:57.350 --> 00:03:06.350
-create a backup first and prevent new changes during the work.
-
-00:03:06.350 --> 00:03:15.350
-Afterwards, verify health status and core functions before restoring normal operation.
-
-00:03:16.350 --> 00:03:23.273
-The pilot reset is not a routine cleanup tool. Review
-
-00:03:23.273 --> 00:03:30.196
-exactly which bookings and test data will be removed, and
-
-00:03:30.196 --> 00:03:37.119
-create a backup immediately beforehand. Accounts, logbook evidence and production
-
-00:03:37.119 --> 00:03:43.350
-data must not accidentally become part of the reset.
-
-00:03:44.350 --> 00:03:51.594
-The audit records who performed an administrative action, when it happened
-
-00:03:51.594 --> 00:03:58.838
-and which house it affected. System status adds the version, database,
-
-00:03:58.838 --> 00:04:06.082
-email, push, backup and maintenance state. Investigate and document unusual events
-
-00:04:06.082 --> 00:04:11.350
-instead of silently removing them from the history.
-
-00:04:12.350 --> 00:04:19.273
-For role changes, house deactivation, maintenance and data resets, work
-
-00:04:19.273 --> 00:04:26.196
-deliberately. Verify the target, house, current backup, impact and recovery
-
-00:04:26.196 --> 00:04:33.119
-option. Confirm with your own current password, then review the
-
-00:04:33.119 --> 00:04:39.350
-audit and system status and document any remaining work.
+00:01:25.391 --> 00:01:29.106
+Finish deliberately. Sign out on shared devices.

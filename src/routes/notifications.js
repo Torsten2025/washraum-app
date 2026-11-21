@@ -1,5 +1,6 @@
 const express = require('express');
 const { mailCopy, normalizeLanguage } = require('../services/localization');
+const { samePushBinding, deactivatePushBinding } = require('../services/push');
 
 function createNotificationRouters({
   db,
@@ -41,6 +42,19 @@ function createNotificationRouters({
     });
   });
 
+  // Do not put the private push endpoint in a URL, return another account's
+  // subscription, or reassign an existing device just by checking its status.
+  pushRouter.post('/api/push/subscriptions/status', requireAuth, (req, res) => {
+    const subscription = req.body?.subscription;
+    const { endpoint, keys } = subscription || {};
+    const active = typeof endpoint === 'string' && typeof keys?.p256dh === 'string'
+      && typeof keys.auth === 'string' && Boolean(db.prepare(`
+        SELECT 1 FROM push_subscriptions
+        WHERE user_id = ? AND house_id = ? AND endpoint = ? AND p256dh = ? AND auth = ? AND active = 1
+      `).get(req.session.user.id, currentHouseId(req), endpoint, keys.p256dh, keys.auth));
+    res.set('Cache-Control', 'no-store').json({ active });
+  });
+
   pushRouter.post('/api/push/subscriptions', requireAuth, (req, res) => {
     const status = pushStatus();
     if (status.enabled !== true) {
@@ -58,17 +72,15 @@ function createNotificationRouters({
       return res.status(400).json({ error: 'Push-Abo ist unvollstaendig.' });
     }
 
-    db.prepare(`
+    const registered = db.prepare(`
       INSERT INTO push_subscriptions (user_id, house_id, endpoint, p256dh, auth, user_agent, active, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       ON CONFLICT(endpoint) DO UPDATE SET
-        user_id = excluded.user_id,
-        house_id = excluded.house_id,
-        p256dh = excluded.p256dh,
-        auth = excluded.auth,
         user_agent = excluded.user_agent,
-        active = 1,
         updated_at = CURRENT_TIMESTAMP
+      WHERE push_subscriptions.active = 1 AND push_subscriptions.user_id = excluded.user_id
+        AND push_subscriptions.house_id = excluded.house_id AND push_subscriptions.p256dh = excluded.p256dh
+        AND push_subscriptions.auth = excluded.auth
     `).run(
       req.session.user.id,
       currentHouseId(req),
@@ -77,23 +89,20 @@ function createNotificationRouters({
       auth,
       String(req.get('user-agent') || '').slice(0, 300)
     );
+    // Existing registrations are immutable, including retired ones. The browser
+    // must obtain a new provider subscription on reconnect or account change.
+    if (!registered.changes) return res.status(409).json({ error: 'Bitte verbinde Push auf diesem Gerät erneut.' });
     res.status(201).json({ ok: true, message: 'Push-Hinweise sind auf diesem Geraet aktiv.' });
   });
 
   pushRouter.delete('/api/push/subscriptions', requireAuth, (req, res) => {
     const endpoint = String(req.body?.endpoint || '').trim();
-    if (endpoint) {
-      db.prepare(`
-        UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
-        WHERE endpoint = ? AND user_id = ?
-      `).run(endpoint, req.session.user.id);
-    } else {
-      db.prepare(`
-        UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ?
-      `).run(req.session.user.id);
-    }
-    res.json({ ok: true, message: 'Push-Hinweise wurden fuer dieses Konto deaktiviert.' });
+    if (!endpoint) return res.status(400).json({ error: 'Kein Gerät ausgewählt.' });
+    db.prepare(`
+      UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE endpoint = ? AND user_id = ? AND house_id = ?
+    `).run(endpoint, req.session.user.id, currentHouseId(req));
+    res.json({ ok: true, message: 'Push-Hinweise wurden für dieses Gerät deaktiviert.' });
   });
 
   preferencesRouter.put('/api/me/notifications', requireAuth, async (req, res) => {
@@ -386,8 +395,8 @@ function createNotificationRouters({
       }
     }
 
-    const subscriptions = db.prepare(`
-      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.language,
+    const eligibleSql = `
+      SELECT ps.id, ps.user_id, ps.house_id, ps.endpoint, ps.p256dh, ps.auth, u.language,
              COALESCE(NULLIF(a.display_name, ''), a.label, u.username) AS username
       FROM push_subscriptions ps
       JOIN users u ON u.id = ps.user_id
@@ -396,16 +405,19 @@ function createNotificationRouters({
         AND ps.active = 1
         AND u.active = 1
         AND (? IS NULL OR ps.user_id = ?)
-      ORDER BY username, ps.updated_at DESC
-    `).all(currentHouseId(req), targetUserId, targetUserId);
+    `;
+    const scope = [currentHouseId(req), targetUserId, targetUserId];
+    const subscriptions = db.prepare(eligibleSql + ' ORDER BY username, ps.updated_at DESC').all(...scope);
     if (!subscriptions.length) {
       return res.status(409).json({ error: 'Fuer diese Auswahl ist noch kein Push-Geraet aktiviert.' });
     }
 
     let sent = 0;
     let failed = 0;
-    const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    for (const subscription of subscriptions) {
+    const current = db.prepare(eligibleSql + ' AND ps.id = ?');
+    for (const candidate of subscriptions) {
+      const subscription = current.get(...scope, candidate.id);
+      if (!samePushBinding(candidate, subscription)) continue;
       try {
         const english = normalizeLanguage(subscription.language) === 'en';
         const payload = pushPayload({
@@ -422,7 +434,7 @@ function createNotificationRouters({
         failed += 1;
         const invalidSubscription = /public key|p256dh|auth secret|specified curve/i.test(String(error.message || ''));
         if ([404, 410].includes(error.statusCode) || invalidSubscription) {
-          deactivate.run(subscription.id);
+          deactivatePushBinding(db, subscription);
         } else {
           console.error(`Push-Test fehlgeschlagen: ${error.message}`);
         }

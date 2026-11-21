@@ -303,21 +303,25 @@ async function run() {
         await step(role, 'Push enable/disable/denied buttons (browser and provider boundary stubs)', async () => {
           await settings(page, 'device');
           const requests = [];
+          let serverActive = false;
+          await page.route('**/api/push/subscriptions/status', route => route.fulfill({ json: { active: serverActive } }));
           await page.route('**/api/push/public-key', route => route.fulfill({ json: { configured: true, publicKey: 'AAAA' } }));
           await page.route('**/api/push/subscriptions', route => {
             requests.push({ method: route.request().method(), body: route.request().postDataJSON() });
+            serverActive = route.request().method() === 'POST';
             return route.fulfill({ json: { ok: true } });
           });
           await page.evaluate(() => {
             window.auditPushOriginal = { registerServiceWorker, currentPushSubscription, Notification: window.Notification };
             window.auditSubscription = null;
+            let generation = 0;
             window.Notification = { permission: 'default', requestPermission: async () => { Notification.permission = 'granted'; return 'granted'; } };
             currentPushSubscription = async () => window.auditSubscription;
             registerServiceWorker = async () => ({ pushManager: {
               getSubscription: currentPushSubscription,
               subscribe: async () => (window.auditSubscription = {
-                endpoint: 'https://push.example.invalid/synthetic',
-                toJSON: () => ({ endpoint: 'https://push.example.invalid/synthetic', keys: { p256dh: 'synthetic', auth: 'synthetic' } }),
+                endpoint: 'https://push.example.invalid/synthetic-' + ++generation,
+                toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'synthetic', auth: 'synthetic' } }; },
                 unsubscribe: async () => { window.auditSubscription = null; return true; }
               })
             } });
@@ -326,7 +330,17 @@ async function run() {
           await page.locator('#enablePushButton').click();
           await page.locator('#disablePushButton').waitFor({ state: 'visible' });
           assert.equal(requests.at(-1).method, 'POST');
-          assert.equal(requests.at(-1).body.subscription.endpoint, 'https://push.example.invalid/synthetic');
+          assert.equal(requests.at(-1).body.subscription.endpoint, 'https://push.example.invalid/synthetic-1');
+          serverActive = false; // Browser retained its subscription after server deactivation.
+          await page.evaluate(() => renderPushStatus());
+          assert(await page.locator('#disablePushButton').isHidden());
+          assert.match(await page.locator('#pushStatusText').innerText(), /nicht mit deinem Konto verbunden/);
+          assert.equal(requests.length, 1, 'Opening settings must not rebind a device');
+          await page.locator('#enablePushButton').click();
+          await page.locator('#disablePushButton').waitFor({ state: 'visible' });
+          assert.deepEqual(requests.map(r => r.method), ['POST', 'DELETE', 'POST']);
+          assert.equal(requests[1].body.endpoint, 'https://push.example.invalid/synthetic-1');
+          assert.equal(requests[2].body.subscription.endpoint, 'https://push.example.invalid/synthetic-2', 'Reconnect requests fresh provider keys');
           await page.locator('#disablePushButton').click(); await page.locator('#disablePushButton').waitFor({ state: 'hidden' });
           assert.equal(requests.at(-1).method, 'DELETE');
           assert.equal(await page.evaluate(() => window.auditSubscription), null);
@@ -337,6 +351,7 @@ async function run() {
           assert.match(await page.locator('#pushStatusText').textContent(), /blockiert/);
           assert(await page.locator('#enablePushButton').isDisabled(), 'Blocked browser permission must leave push activation disabled');
           await page.unroute('**/api/push/public-key'); await page.unroute('**/api/push/subscriptions');
+          await page.unroute('**/api/push/subscriptions/status');
           await page.evaluate(async () => {
             registerServiceWorker = auditPushOriginal.registerServiceWorker;
             currentPushSubscription = auditPushOriginal.currentPushSubscription;

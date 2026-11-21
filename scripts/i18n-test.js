@@ -86,6 +86,10 @@ assert.equal(
 assert.equal(i18n.translateVisibleText('Bitte einen gueltigen Namen und Bereich waehlen.'), 'Choose a valid name and category.');
 assert.equal(i18n.translateVisibleText('Freigabe erst nach einer erfolgreichen Funktionspruefung moeglich.'), 'The resource can only be released after a successful functional test.');
 assert.equal(i18n.translateVisibleText('WM 1 wurde gesperrt und im Tagebuch erfasst.'), 'WM 1 was blocked and recorded in the logbook.');
+for (const testWord of ['Funktionspruefung', 'Funktionsprüfung']) {
+  assert.equal(i18n.translateVisibleText('WM 1 wurde nach bestandener ' + testWord + ' freigegeben und der Fall abgeschlossen.'), 'WM 1 passed the functional test and is available again. The case is closed.');
+  assert.equal(i18n.translateVisibleText(testWord + ' nicht bestanden. Die Ressource bleibt gesperrt.'), 'The functional test failed. The equipment is still blocked.');
+}
 assert.equal(i18n.translateVisibleText('Tuchmacherstrasse 46 wurde ohne Ger\u00e4te angelegt.'), 'Tuchmacherstrasse 46 was created without equipment.');
 assert.equal(i18n.translateVisibleText('Tuchmacherstrasse 46 wurde ohne Geraete angelegt.'), 'Tuchmacherstrasse 46 was created without equipment.');
 assert.equal(i18n.t('settings.doorbellName'), 'Doorbell name');
@@ -250,5 +254,9 @@ assert.match(
   /Alex released WM 1 early/
 );
 assert.match(translateReleaseSubject('WaschZeit: WM 1 frei', 'en'), /available/);
+for (const word of ['für', 'fuer']) {
+  assert.equal(translateReleaseSubject(`Waschplan: Termin ${word} WM 1 wieder frei`, 'en'), 'WaschZeit: Booking for WM 1 available again');
+}
+assert.equal(translateReleaseSubject('WaschZeit: WM 1 früher frei', 'en'), 'WaschZeit: WM 1 released early');
 
 console.log(`I18N-Test bestanden: ${Object.keys(i18n.messages).length} Schluessel, 6 Rollen-/Sprachfuehrungen.`);

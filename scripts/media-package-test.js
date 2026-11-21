@@ -80,6 +80,7 @@ const catalog = loadMediaCatalog();
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public', 'assets', 'intro', 'media', 'manifest.json'), 'utf8'));
 assert.equal(catalog.packages.length, 6);
 assert.equal(manifest.packages.length, 6);
+assert.equal(manifest.version, catalog.version);
 assert.deepEqual([...new Set(catalog.packages.map((item) => `${item.role}/${item.language}`))].sort(), [
   'house_admin/de', 'house_admin/en', 'resident/de', 'resident/en', 'superadmin/de', 'superadmin/en'
 ]);
@@ -91,11 +92,17 @@ for (const media of catalog.packages) {
   assert.ok(manifestEntry, `${media.id}: Manifesteintrag fehlt`);
   assert.equal(manifestEntry.duration, media.duration);
   assert.equal(manifestEntry.chapters, media.chapters.length);
+  assert.equal(manifestEntry.capture, 'real-local-app', `${media.id}: real app recording required`);
+  assert.equal(manifestEntry.frameRate, 25, `${media.id}: motion-video output required`);
+  assert.equal(manifestEntry.captionTiming, 'measured-PCM-phrases', `${media.id}: captions must follow measured speech`);
+  assert.deepEqual(manifestEntry.chapterStarts, Array.from(media.chapters, chapter => chapter.startTime));
+  assert.ok(media.duration < (media.role === 'resident' ? 180 : 220), `${media.id}: concise role introduction required`);
   for (const asset of ['video', 'captions', 'poster', 'transcript']) {
     assert.ok(fs.existsSync(localPath(media[asset])), `${media.id}: ${asset} fehlt`);
   }
 
   const video = mp4Metadata(localPath(media.video));
+  assert.equal(video.bytes, manifestEntry.bytes, `${media.id}: Manifestgroesse stimmt nicht`);
   assert.equal(video.width, 1280, `${media.id}: Videobreite`);
   assert.equal(video.height, 720, `${media.id}: Videohoehe`);
   assert.ok(Math.abs(video.duration - media.duration) < 0.15, `${media.id}: Laufzeit ${video.duration} statt ${media.duration}`);

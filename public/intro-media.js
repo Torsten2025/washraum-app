@@ -40,7 +40,7 @@
   const byId = new Map(packages.map((item) => [item.id, item]));
 
   global.WaschZeitIntroMedia = Object.freeze({
-    version: 'media-v1',
+    version: 'media-v2',
     packages: Object.freeze(packages),
     get(role, language) {
       const safeRole = roles.includes(role) ? role : 'resident';

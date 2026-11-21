@@ -1,5 +1,15 @@
 const { translateReleaseSubject, translateReleaseText } = require('./localization');
 
+function samePushBinding(before, now) {
+  return Boolean(now && ['id', 'user_id', 'house_id', 'endpoint', 'p256dh', 'auth'].every(key => now[key] === before[key]));
+}
+
+function deactivatePushBinding(db, row) {
+  db.prepare(`UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
+    WHERE active = 1 AND id = ? AND user_id = ? AND house_id = ? AND endpoint = ? AND p256dh = ? AND auth = ?`)
+    .run(row.id, row.user_id, row.house_id, row.endpoint, row.p256dh, row.auth);
+}
+
 function createPushService({
   db,
   webPush,
@@ -135,8 +145,8 @@ function createPushService({
       return { enabled: status.enabled, configured: false, sent: 0, failed: 0 };
     }
 
-    const recipients = db.prepare(`
-      SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, u.language
+    const eligibleSql = `
+      SELECT ps.id, ps.user_id, ps.house_id, ps.endpoint, ps.p256dh, ps.auth, u.language
       FROM push_subscriptions ps
       JOIN users u ON u.id = ps.user_id
       LEFT JOIN notification_preferences np ON np.user_id = u.id
@@ -149,15 +159,16 @@ function createPushService({
         AND (np.resource_type IS NULL OR np.resource_type = 'all' OR np.resource_type = ?)
         AND (np.weekday IS NULL OR np.weekday = ?)
         AND (np.slot IS NULL OR np.slot = ?)
-      ORDER BY ps.updated_at DESC
-    `).all(
+    `;
+    const scope = [
       booking.house_id,
       booking.house_id,
-      booking.user_id,
+      req.session.user.id,
       booking.resource_type || 'all',
       weekdayForDate(booking.booking_date),
       booking.slot
-    );
+    ];
+    const recipients = db.prepare(eligibleSql + ' ORDER BY ps.updated_at DESC, ps.id').all(...scope);
 
     if (!recipients.length) {
       return { enabled: true, configured: true, sent: 0, failed: 0 };
@@ -165,8 +176,10 @@ function createPushService({
 
     let sent = 0;
     let failed = 0;
-    const deactivate = db.prepare('UPDATE push_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    for (const recipient of recipients) {
+    const current = db.prepare(eligibleSql + ' AND ps.id = ?');
+    for (const candidate of recipients) {
+      const recipient = current.get(...scope, candidate.id);
+      if (!samePushBinding(candidate, recipient)) continue;
       try {
         const payload = pushPayload({
           title: translateReleaseSubject(title, recipient.language),
@@ -179,7 +192,7 @@ function createPushService({
         failed += 1;
         const invalidSubscription = /public key|p256dh|auth secret|specified curve/i.test(String(error.message || ''));
         if ([404, 410].includes(error.statusCode) || invalidSubscription) {
-          deactivate.run(recipient.id);
+          deactivatePushBinding(db, recipient);
         } else {
           console.error(`Push-Hinweis fehlgeschlagen: ${error.message}`);
         }
@@ -201,4 +214,4 @@ function createPushService({
   };
 }
 
-module.exports = { createPushService };
+module.exports = { createPushService, samePushBinding, deactivatePushBinding };
