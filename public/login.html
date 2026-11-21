@@ -76,8 +76,8 @@
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
           <button id="showAccessCard" class="auth-tab" type="button" data-i18n="auth.accessCard">Zugangskarte</button>
-          <button id="showRegister" class="auth-tab" type="button">Einladung</button>
-          <button id="showDeviceLogin" class="auth-tab" type="button">Ger&auml;t verbinden</button>
+          <button id="showRegister" class="auth-tab" type="button" data-i18n="auth.emailInvitationTab">E-Mail-Einladung</button>
+          <button id="showDeviceLogin" class="auth-tab" type="button" data-i18n="auth.householdQrTab">Haushalts-QR</button>
         </div>
         <form id="loginForm" class="stack auth-form">
           <label>
@@ -100,7 +100,7 @@
         </form>
         <form id="recoveryForm" class="stack auth-form" hidden>
           <h2>Neues Passwort anfordern</h2>
-          <p class="helper-text">Wir senden einen sicheren Link an deine best&auml;tigte E-Mail-Adresse.</p>
+          <p class="helper-text" data-i18n="auth.resetOptions">Ohne bestätigte E-Mail? Frag deine Hausverwaltung nach einem persönlichen Wiederherstellungscode für deinen Bewohnerzugang. Mit bestätigter Adresse kannst du einen Link anfordern.</p>
           <label>
             E-Mail
             <input name="email" type="email" autocomplete="email" required>
@@ -189,15 +189,15 @@
           <p id="accessCardMessage" class="message" role="status"></p>
         </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>
-          <h2>Partner zur Wohnung hinzuf&uuml;gen</h2>
-          <p class="helper-text" data-i18n="auth.partnerHint">Der QR-Code vergibt ausschliesslich Bewohnerrechte. Eine E-Mail-Adresse ist freiwillig; Adminrechte werden nie &uuml;bertragen.</p>
+          <h2 data-i18n="auth.partnerTitle">Deinem Haushalt beitreten</h2>
+          <p class="helper-text" data-i18n="auth.partnerHint">Neu hier? Lass das Feld für Kennung oder E-Mail leer und lege ein Passwort fest. Notiere dir danach deine WZ-Kennung. Hast du schon einen Bewohnerzugang, verwende deine bisherige Kennung oder E-Mail und dein Passwort. Der QR-Code vergibt keine Adminrechte.</p>
           <label>
             Ger&auml;tecode
             <input name="deviceCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
           </label>
           <label>
-            <span data-i18n="auth.personalEmailOptional">Pers&ouml;nliche E-Mail (optional)</span>
-            <input name="email" type="email" autocomplete="email">
+            <span data-i18n="auth.householdIdentifier">Anmeldekennung oder E-Mail (optional)</span>
+            <input name="identifier" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
           </label>
           <label>
             Eigenes Passwort

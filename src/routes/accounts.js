@@ -110,6 +110,7 @@ primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
 primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) => {
   const code = normalizeAccessCode(req.body?.deviceCode);
   const email = normalizeEmail(req.body?.email);
+  const username = normalizeEmail(req.body?.username);
   const usesEmail = Boolean(email);
   const password = String(req.body?.password || '');
   const passwordConfirmation = String(req.body?.passwordConfirmation || '');
@@ -119,7 +120,7 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
            a.house_id, a.label AS apartment_label, a.display_name AS apartment_display_name
     FROM device_pairing_codes dpc
     JOIN users u ON u.id = dpc.user_id
-    JOIN apartments a ON a.id = COALESCE(dpc.apartment_id, u.apartment_id)
+    JOIN apartments a ON a.id = dpc.apartment_id AND a.id = u.apartment_id AND a.house_id = u.house_id
     WHERE dpc.code_hash = ?
       AND dpc.used_at IS NULL
       AND CAST(dpc.expires_at AS INTEGER) > ?
@@ -132,10 +133,16 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
   if (usesEmail && !isValidEmail(email)) {
     return res.status(400).json({ error: 'Bitte eine gueltige E-Mail-Adresse eintragen oder das Feld leer lassen.' });
   }
-  const existingOwner = usesEmail ? findEmailOwner(email) : null;
+  const invalidIdentity = () => res.status(401).json({ error: 'Anmeldekennung oder Passwort ist nicht korrekt.' });
+  if (username && usesEmail) return invalidIdentity();
+  const existingOwner = usesEmail ? findEmailOwner(email) : username ? db.prepare(`
+    SELECT id FROM users WHERE role = 'user' AND lower(username) = ?
+      AND ((email IS NULL OR trim(email) = '') OR upper(username) LIKE 'WZ-%')
+  `).get(username) : null;
+  if (username && !existingOwner) return invalidIdentity();
   const existingUser = existingOwner ? db.prepare('SELECT * FROM users WHERE id = ?').get(existingOwner.id) : null;
   if (existingUser && (!existingUser.active || !verifyStoredPassword(password, existingUser.password_hash))) {
-    return res.status(401).json({ error: 'E-Mail-Adresse oder vorhandenes Passwort ist nicht korrekt.' });
+    return invalidIdentity();
   }
   if (!existingUser && (!isValidPassword(password) || password !== passwordConfirmation)) {
     return res.status(400).json({ error: 'Fuer einen neuen Zugang muessen beide Passwoerter uebereinstimmen und 12 bis 128 Zeichen haben.' });
@@ -148,6 +155,9 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
   }
   try {
     const userId = db.transaction(() => {
+      const consumed = db.prepare(`UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND used_at IS NULL AND CAST(expires_at AS INTEGER) > ?`).run(record.pairing_id, Date.now());
+      if (consumed.changes !== 1) throw new Error('PAIRING_UNAVAILABLE');
       let identityId = existingUser?.id;
       if (existingUser) {
         db.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
@@ -173,8 +183,6 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
         SET claimed_by = COALESCE(claimed_by, ?), claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP)
         WHERE id = ?
       `).run(identityId, record.pairing_apartment_id);
-      db.prepare('UPDATE device_pairing_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ? AND used_at IS NULL')
-        .run(record.pairing_id);
       return identityId;
     })();
     const identity = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
@@ -195,10 +203,11 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
     });
     res.json({
       user: req.session.user,
-      accessId: usesEmail ? null : identity.username,
+      accessId: !existingUser && !usesEmail ? identity.username : null,
       message: `${req.session.user.apartmentLabel} wurde deinem persoenlichen Zugang hinzugefuegt. Adminrechte wurden nicht uebertragen.`
     });
   } catch (error) {
+    if (error.message === 'PAIRING_UNAVAILABLE') return res.status(400).json({ error: 'Der Gerätecode ist ungültig oder abgelaufen.' });
     next(error);
   }
 });
@@ -928,7 +937,7 @@ primaryRouter.post('/api/me/device-code', requireAuth, requireApartmentAccount, 
 
 primaryRouter.post('/api/me/apartment/join', requireAuth, (req, res) => {
   return res.status(410).json({
-    error: 'Konten werden nicht mehr zusammengefuehrt. Nutze die QR-Einladung auf der Loginseite mit deiner eigenen E-Mail-Adresse.'
+    error: 'Konten werden nicht mehr zusammengefuehrt. Nutze den Haushalts-QR auf der Anmeldeseite. Eine E-Mail ist nicht nötig.'
   });
 });
 

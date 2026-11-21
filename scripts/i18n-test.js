@@ -171,7 +171,10 @@ for (const requiredSettingsKey of [
   'settings.ruleWasher',
   'settings.cleanEveryUse',
   'settings.deleteWarning',
-  'settings.progress'
+  'settings.optionalExtras',
+  'settings.openHouseholdQr',
+  'auth.householdQrTab',
+  'auth.householdIdentifier'
 ]) {
   assert.ok(i18n.messages[requiredSettingsKey], `${requiredSettingsKey} must be part of the settings contract`);
 }

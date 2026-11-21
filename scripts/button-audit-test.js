@@ -470,6 +470,8 @@ async function run() {
           await page.locator('.access-card-actions button').click(); assert.equal(await page.evaluate(() => window.__printCalls), 1);
           const apartment = db.prepare('SELECT id FROM apartments WHERE label=?').get(`Audit apartment ${role}`);
           let row = page.locator('#apartmentList .user-admin-item').filter({ hasText: `Audit apartment ${role}` });
+          assert.match(await row.locator('.user-admin-identity').innerText(), /Offene QR-Karten: 1/);
+          assert.doesNotMatch(await row.locator('.user-admin-identity').innerText(), /noch nicht eingeladen/);
           await row.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
           await row.locator('.apartment-edit-form input').fill('Not saved');
           await row.locator('.apartment-edit-form [data-cancel]').click();
@@ -478,7 +480,7 @@ async function run() {
           await row.locator('.apartment-edit-form input').fill(`Changed household ${role}`);
           await responseClick(page, row.locator('.apartment-edit-form button[type=submit]'), `/api/admin/apartments/${apartment.id}`, 'PUT');
           assert.equal(db.prepare('SELECT display_name FROM apartments WHERE id=?').get(apartment.id).display_name, `Changed household ${role}`);
-          await row.getByRole('button', { name: 'Einladen', exact: true }).click();
+          await row.getByRole('button', { name: 'Per E-Mail einladen', exact: true }).click();
           await row.locator('.apartment-invite-form [data-cancel]').click(); assert(await row.locator('.apartment-invite-form').isHidden());
           await responseClick(page, row.getByRole('button', { name: 'Zugangskarte erstellen', exact: true }), `/api/admin/apartments/${apartment.id}/access-card`, 'POST', 201);
           const revoke = row.getByRole('button', { name: /offene.*Zugangskarte.*sperren/ });
@@ -486,14 +488,16 @@ async function run() {
           await dialogClick(page, revoke, true); await revoke.waitFor({ state: 'hidden' }); assert.equal(await revoke.count(), 0);
           for (let attempt = 0; attempt < 2; attempt++) {
             const sent = mail.length;
-            await row.getByRole('button', { name: /^(Einladen|Einladung erneuern)$/ }).click();
+            await row.getByRole('button', { name: /^(Per E-Mail einladen|E-Mail-Einladung erneuern)$/ }).click();
             await row.locator('.apartment-invite-form input').fill(`invited-${role}@example.invalid`);
             await responseClick(page, row.locator('.apartment-invite-form button[type=submit]'), `/api/admin/apartments/${apartment.id}/invitation`);
             assert(mail.length > sent, 'Invitation and renewal reach the local SMTP sink');
           }
           const managedApartment = db.prepare('SELECT apartment_id FROM users WHERE id=?').get(managed).apartment_id;
           const occupied = page.locator('#apartmentList .user-admin-item').filter({ hasText: 'button-managed' });
-          await occupied.getByRole('button', { name: /^(Weitere Person|Einladung erneuern)$/ }).click();
+          await responseClick(page, occupied.getByRole('button', { name: 'Weitere Person per QR-Karte hinzufügen' }), `/api/admin/apartments/${managedApartment}/access-card`, 'POST', 201);
+          assert(await page.locator('.resident-access-card img').isVisible());
+          await occupied.getByRole('button', { name: /^(Per E-Mail einladen|E-Mail-Einladung erneuern)$/ }).click();
           await occupied.locator('.apartment-invite-form input').fill(`additional-${role}@example.invalid`);
           const sent = mail.length;
           await responseClick(page, occupied.locator('.apartment-invite-form button[type=submit]'), `/api/admin/apartments/${managedApartment}/invitation`);

@@ -113,7 +113,6 @@ async function run() {
       await adminPage.evaluate(() => document.body.classList.remove('printing-access-card'));
       await adminPage.setViewportSize({ width: 390, height: 1000 });
     }
-    await adminContext.close();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(card.activationUrl);
@@ -165,6 +164,123 @@ async function run() {
     assert.equal(account.status, 200);
     db = new Database(path.join(temporary, 'test.sqlite'));
     const user = db.prepare('SELECT id FROM users WHERE username = ?').get(card.accessId);
+    // Real resident UI -> QR link -> second browser -> real sign-in with the generated ID.
+    const ownerId = db.prepare('SELECT claimed_by FROM apartments WHERE id=?').get(card.apartment.id).claimed_by;
+    assert.equal(ownerId, user.id);
+    // The previously email-only admin action must issue a usable personal QR card without SMTP.
+    await adminPage.evaluate(() => loadAdmin());
+    const row = adminPage.locator('#apartmentList .user-admin-item').filter({ hasText: 'Synthetic household one' });
+    const issuedCard = adminPage.waitForResponse(r => r.url().endsWith(`/api/admin/apartments/${card.apartment.id}/access-card`) && r.request().method() === 'POST');
+    await row.getByRole('button', { name: /Add a person with a QR card|Weitere Person per QR-Karte/ }).click();
+    const extraCard = (await (await issuedCard).json()).accessCard;
+    assert.match(extraCard.qrCodeDataUrl, /^data:image\/png;base64,/);
+    const cardContext = await browser.newContext();
+    const cardPage = await cardContext.newPage();
+    await cardPage.goto(extraCard.activationUrl);
+    await cardPage.locator('#accessCardForm [name=password]').fill(password);
+    await cardPage.locator('#accessCardForm [name=passwordConfirmation]').fill(password);
+    await cardPage.locator('#accessCardForm button[type=submit]').click();
+    await cardPage.waitForURL('**/index.html?welcome=1');
+    const extra = await request('/api/login', { username: extraCard.accessId, password });
+    assert.equal(extra.status, 200);
+    assert.equal(extra.body.user.apartmentId, card.apartment.id);
+    assert.deepEqual(extra.body.user.roles, ['resident']);
+    assert.notEqual(extra.body.user.id, ownerId);
+    await cardContext.close();
+    await adminContext.close();
+    for (const language of ['de', 'en']) {
+      await page.locator('[data-settings-target="profile"]').click();
+      await page.locator('#settingsLanguage').selectOption(language);
+      await page.waitForFunction(lang => document.documentElement.lang === lang, language);
+      assert.match(await page.locator('#settingsProgressText').innerText(), language === 'en' ? /optional/ : /freiwillig/);
+      await page.locator('#openHouseholdQr').click();
+      assert.match(await page.locator('[data-i18n="settings.pairingHint"]').innerText(), language === 'en' ? /no email needed/i : /E-Mail ist nicht nötig/);
+      const issue = page.waitForResponse(r => r.url().endsWith('/api/me/device-code') && r.request().method() === 'POST');
+      await page.locator('#createDeviceCodeButton').click();
+      const pairing = await (await issue).json();
+      assert.match(pairing.qrCodeDataUrl, /^data:image\/png;base64,/);
+      const memberContext = await browser.newContext();
+      const memberPage = await memberContext.newPage();
+      try {
+        await memberPage.goto(pairing.loginUrl);
+        await memberPage.locator('[data-language-picker]').selectOption(language);
+        const form = memberPage.locator('#deviceLoginForm');
+        assert.equal(await form.locator('[name=deviceCode]').inputValue(), pairing.code);
+        assert.match(await form.locator('[data-i18n="auth.partnerHint"]').innerText(), language === 'en' ? /leave .* blank/i : /Lass .* leer/i);
+        await form.locator('[name=password]').fill(password);
+        await form.locator('[name=passwordConfirmation]').fill(password);
+        let savedId;
+        memberPage.once('dialog', async dialog => {
+          savedId = dialog.message().match(/WZ-[A-Z0-9-]+/i)?.[0];
+          await dialog.accept();
+        });
+        const join = memberPage.waitForResponse(r => r.url().endsWith('/api/device-login'));
+        await form.locator('button[type=submit]').click();
+        const result = await join;
+        assert.equal(result.status(), 200);
+        await memberPage.waitForURL('**/index.html');
+        await memberPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
+        const member = await memberPage.evaluate(() => currentUser);
+        assert.equal(savedId, member.username);
+        assert.deepEqual(member.roles, ['resident']);
+        assert.equal(member.apartmentId, card.apartment.id);
+        assert.notEqual(member.id, ownerId);
+        assert.equal(db.prepare('SELECT email FROM users WHERE id=?').get(member.id).email, null);
+        assert.equal((await request('/api/login', { username: savedId, password })).body.user.id, member.id);
+        // Reuse an existing sign-in with the manual household code; never create another account.
+        const next = await request('/api/me/device-code', {}, account.cookie);
+        await memberPage.goto(base + '/login.html');
+        await memberPage.locator('#showDeviceLogin').click();
+        await form.locator('[name=deviceCode]').fill(next.body.code);
+        await form.locator('[name=identifier]').fill(savedId);
+        await form.locator('[name=password]').fill(password);
+        const reconnect = memberPage.waitForResponse(r => r.url().endsWith('/api/device-login'));
+        await form.locator('button[type=submit]').click();
+        assert.equal((await reconnect).status(), 200);
+        await memberPage.waitForURL('**/index.html');
+        await memberPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
+        assert.equal(await memberPage.evaluate(() => currentUser.id), member.id);
+        assert.equal(db.prepare('SELECT claimed_by FROM apartments WHERE id=?').get(card.apartment.id).claimed_by, ownerId);
+      } finally { await memberContext.close(); }
+    }
+    // Only this disposable synthetic DB is modified to model account and house moves.
+    const house = account.body.user.houseId;
+    const otherHouse = Number(db.prepare('INSERT INTO houses(name,code) VALUES (?,?)').run('QR test house', 'QRTEST22').lastInsertRowid);
+    const otherFlat = (await createCard('Other QR test flat')).apartment.id;
+    const makeLegacy = (name, houseId, flat) => Number(db.prepare(`
+      INSERT INTO users(username,role,password_hash,house_id,apartment_id,active)
+      SELECT ?, 'user', password_hash, ?, ?, 1 FROM users WHERE id=?`).run(name, houseId, flat, ownerId).lastInsertRowid);
+    const unassignedId = makeLegacy('qr-unassigned', house, null);
+    const foreignId = makeLegacy('qr-other-house', otherHouse, null);
+    const noHouseId = makeLegacy('qr-no-house', null, null);
+    const otherId = makeLegacy('qr-other-flat', house, otherFlat);
+    const issueCode = async () => {
+      const issued = await request('/api/me/device-code', {}, account.cookie);
+      assert.equal(issued.status, 201);
+      return issued.body.code;
+    };
+    const code = await issueCode();
+    const attach = (deviceCode, username, pass = password) => request('/api/device-login', { deviceCode, username, password: pass });
+    const countAccounts = () => db.prepare('SELECT count(*) AS n FROM users').get().n;
+    const countBefore = countAccounts();
+    assert.equal((await attach(code, 'qr-unassigned', 'incorrect-password')).status, 401);
+    assert.equal((await attach(code, 'qr-other-house')).status, 409);
+    assert.equal((await attach(code, 'qr-no-house')).status, 409);
+    assert.equal(db.prepare('SELECT house_id FROM users WHERE id=?').get(noHouseId).house_id, null);
+    assert.equal((await attach(code, 'qr-other-flat')).status, 409);
+    assert.equal(db.prepare('SELECT apartment_id FROM users WHERE id=?').get(foreignId).apartment_id, null);
+    assert.equal(db.prepare('SELECT apartment_id FROM users WHERE id=?').get(otherId).apartment_id, otherFlat);
+    const linked = await attach(code, 'qr-unassigned');
+    assert.equal(linked.status, 200);
+    assert.equal(linked.body.user.id, unassignedId);
+    assert.equal(linked.body.user.apartmentId, card.apartment.id);
+    assert.deepEqual(linked.body.user.roles, ['resident']);
+    assert.equal((await attach(code, 'qr-unassigned')).status, 400);
+    const stale = await issueCode();
+    db.prepare('UPDATE users SET apartment_id=? WHERE id=?').run(otherFlat, ownerId);
+    assert.equal((await attach(stale, 'qr-unassigned')).status, 400);
+    db.prepare('UPDATE users SET apartment_id=? WHERE id=?').run(card.apartment.id, ownerId);
+    assert.equal(countAccounts(), countBefore);
     const issueVerification = (kind, email) => {
       const token = randomBytes(32).toString('hex');
       db.prepare('INSERT INTO email_verification_tokens (user_id, token_hash, email_kind, email_value, expires_at) VALUES (?, ?, ?, ?, ?)')
@@ -271,7 +387,7 @@ async function run() {
     await recoveryPage.evaluate(() => openSettings());
     assert.equal(await recoveryPage.locator('#settingsLoginIdentifier').inputValue(), 'legacy@example.test');
     assert.deepEqual(errors, []);
-    console.log('Email-free QA01-03 regression PASS: actual forms, NULL uniqueness, optional addresses, verification binding, recovery DE/EN, usable ID at 390/768/1440 and reload.');
+    console.log('Email-free regression PASS: admin card for occupied household, DE/EN household QR from profile to separate sign-in, existing ID, house/apartment boundaries, optional addresses, recovery and responsive UI.');
   } finally {
     db?.close();
     await browser?.close();

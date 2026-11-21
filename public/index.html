@@ -71,8 +71,8 @@
 
     <section id="whatsNewNotice" class="app-update-notice whats-new-notice" aria-labelledby="whatsNewTitle" hidden>
       <div>
-        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.15-test.6</strong>
-        <span data-i18n="whatsNew.summary">Persoenliche Zugangskarten ermoeglichen das Onboarding ohne E-Mail. QR-Code oder Kennung und Einmalcode aktivieren den Zugang; E-Mail-Einladungen bleiben freiwillig moeglich.</span>
+        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.15-test.8</strong>
+        <span data-i18n="whatsNew.summary">Eine weitere Person braucht keine E-Mail: Öffne im Profil „Person per Haushalts-QR einladen“. Die Verwaltung kann für dieselbe Wohnung eine weitere QR-Karte ausstellen.</span>
       </div>
       <button id="dismissWhatsNewButton" type="button" data-i18n="common.understood">Verstanden</button>
     </section>
@@ -902,11 +902,12 @@
               <div id="emailVerificationStatus" class="verification-status" role="status"></div>
               <button id="resendVerificationButton" class="text-button" type="button" hidden data-i18n="settings.resendPrimary">Best&auml;tigungsmail erneut senden</button>
               <label>
-                <span data-i18n="settings.secondaryEmail">Zweite E-Mail der Wohnung (optional)</span>
-                <input id="secondaryNotificationEmail" name="secondaryEmail" type="email" autocomplete="email" placeholder="zweite-person@example.com">
+                <span data-i18n="settings.secondaryEmail">Zweite E-Mail für dein Konto (optional)</span>
+                <input id="secondaryNotificationEmail" name="secondaryEmail" type="email" autocomplete="email" placeholder="name@example.com">
               </label>
               <div id="secondaryEmailVerificationStatus" class="verification-status" role="status"></div>
               <button id="resendSecondaryVerificationButton" class="text-button" type="button" hidden data-i18n="settings.resendSecondary">Zweite Best&auml;tigungsmail erneut senden</button>
+              <button id="openHouseholdQr" class="secondary" type="button" hidden data-i18n="settings.openHouseholdQr">Person per Haushalts-QR einladen</button>
               <label>
                 <span data-i18n="settings.bookingMode">Bevorzugter Buchungsweg</span>
                 <select id="settingsBookingMode">
@@ -987,10 +988,10 @@
             </section>
             <section id="devicePairingCard" class="push-card" aria-labelledby="pairingTitle">
               <div>
-                <h4 id="pairingTitle" data-i18n="settings.pairingTitle">Partner zur Wohnung einladen</h4>
-                <p class="muted" data-i18n="settings.pairingHint">Der Partner scannt den einmaligen QR-Code und verwendet danach eine eigene E-Mail und ein eigenes Passwort. Es werden nur Bewohnerrechte f&uuml;r diese Wohnung vergeben.</p>
+                <h4 id="pairingTitle" data-i18n="settings.pairingTitle">Person in deinen Haushalt einladen</h4>
+                <p class="muted" data-i18n="settings.pairingHint">Zeig der Person den QR-Code. Sie hat zehn Minuten Zeit, ihn zu scannen oder den Code einzugeben. Mit einem eigenen Passwort erhält sie einen eigenen Bewohnerzugang zu deiner Wohnung. Eine E-Mail ist nicht nötig.</p>
                 <div id="devicePairingPanel" class="pairing-panel" hidden>
-                  <img id="devicePairingQr" class="pairing-qr" alt="QR-Code zum Verbinden eines weiteren Handys" width="256" height="256">
+                  <img id="devicePairingQr" class="pairing-qr" alt="Einmaliger QR-Code für ein Haushaltsmitglied" width="256" height="256">
                   <div class="pairing-details">
                     <strong data-i18n="settings.scanQr">Mit der Handykamera scannen</strong>
                     <span id="devicePairingApartment" class="muted"></span>
@@ -1128,12 +1129,12 @@
         <div class="intro-copy">
           <p class="eyebrow" data-i18n="onboarding.eyebrow">Bestehendes Konto</p>
           <h2 id="apartmentSetupTitle" data-i18n="onboarding.title">Dieses alte Konto braucht eine Wohnung.</h2>
-          <p data-i18n="onboarding.description">Bitte die Hausverwaltung um eine Einladung an deine pers&ouml;nliche E-Mail-Adresse. Nach der Best&auml;tigung bleibt dein Login bestehen und wird sicher der richtigen Wohnung zugeordnet.</p>
+          <p data-i18n="onboarding.description">Gehört dein Konto schon zu diesem Haus? Dann bitte eine Person in deiner Wohnung um einen Haushalts-QR. Ist noch kein Haus hinterlegt oder passt das Haus nicht, wende dich zuerst an die Hausverwaltung.</p>
         </div>
         <div class="apartment-setup-grid">
           <form id="apartmentSetupLogoutForm" action="/logout" method="post" class="stack compact-form">
-            <h3 data-i18n="onboarding.useInvitation">Pers&ouml;nliche Einladung verwenden</h3>
-            <p class="muted" data-i18n="onboarding.invitationHelp">Melde dich ab und &ouml;ffne den Einladungslink aus deiner E-Mail. Ein Partner-QR ist nur f&uuml;r eine weitere Person derselben Wohnung vorgesehen.</p>
+            <h3 data-i18n="onboarding.useInvitation">Bestehenden Bewohnerzugang behalten</h3>
+            <p class="muted" data-i18n="onboarding.invitationHelp">Melde dich ab und öffne den Haushalts-QR. Gib deine bisherige Anmeldekennung und dein Passwort ein. Lass die Kennung nicht leer: Sonst entsteht ein neues Konto. Auch eine neue Zugangskarte erstellt ein separates Konto.</p>
             <button id="apartmentSetupLogoutButton" type="submit" data-i18n="common.logout">Abmelden</button>
           </form>
         </div>

@@ -290,16 +290,17 @@ if (accessCardToken) {
 } else if (devicePairingToken) {
   setMode('device');
   deviceLoginForm.elements.deviceCode.value = devicePairingToken;
-  deviceLoginMessage.textContent = translate('auth.qrRecognized', 'QR-Code erkannt. Bitte melde dich mit deiner eigenen E-Mail an oder lege damit deinen persoenlichen Zugang an.');
+  deviceLoginMessage.textContent = translate('auth.qrRecognized', 'QR-Code erkannt. Lege dein persönliches Passwort fest; eine E-Mail-Adresse ist freiwillig.');
 }
 
 deviceLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   deviceLoginMessage.textContent = '';
   const formData = new FormData(deviceLoginForm);
+  const identifier = String(formData.get('identifier') || '').trim();
   const data = await submitJson(deviceLoginForm, '/api/device-login', {
     deviceCode: formData.get('deviceCode'),
-    email: formData.get('email'),
+    ...(identifier.includes('@') ? { email: identifier } : { username: identifier }),
     password: formData.get('password'),
     passwordConfirmation: formData.get('passwordConfirmation')
   }, deviceLoginMessage);

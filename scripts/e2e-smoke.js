@@ -227,7 +227,8 @@ const settingsLocalizationChecks = {
     /Installation und Push gelten/i,
     /Als App installieren/i,
     /Push auf diesem Ger(?:ae|\u00e4)t/i,
-    /Partner zur Wohnung einladen/i,
+    /Person in deinen Haushalt einladen/i,
+    /Zeig der Person den QR-Code/i,
     /QR-Code erzeugen/i,
     /Versionsstand wird/i,
     /Nach Update suchen/i
@@ -965,9 +966,9 @@ async function run() {
     await onboardingLogoutPage.waitForFunction(() => document.documentElement.lang === 'en');
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupOverlay .eyebrow').innerText(), 'EXISTING ACCOUNT');
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupTitle').innerText(), 'This existing account needs an apartment.');
-    assert.match(await onboardingLogoutPage.locator('#apartmentSetupOverlay .intro-copy > p:last-child').innerText(), /building administration/i);
-    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm h3').innerText(), 'Use a personal access card');
-    assert.match(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm .muted').innerText(), /scan the QR code|access ID/i);
+    assert.match(await onboardingLogoutPage.locator('#apartmentSetupOverlay .intro-copy > p:last-child').innerText(), /household QR code.*no building.*contact your building administrator first/i);
+    assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm h3').innerText(), 'Keep your existing resident account');
+    assert.match(await onboardingLogoutPage.locator('#apartmentSetupLogoutForm .muted').innerText(), /current sign-in ID and password.*new access card also creates a separate account/i);
     assert.equal(await onboardingLogoutPage.locator('#apartmentSetupLogoutButton').innerText(), 'Sign out');
     assert.equal(await onboardingLogoutPage.locator('#postponeApartmentSetupButton').innerText(), 'Assign later');
     assert.equal(await onboardingLogoutPage.locator('#closeApartmentSetupButton').getAttribute('aria-label'), 'Continue apartment assignment later');
@@ -1083,13 +1084,13 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.6');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.8');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
     assert.match(whatsNewText, /access cards|without email|QR code|one-time code/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.6')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.8')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -1099,10 +1100,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.6/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.8/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.6/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.8/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
@@ -1430,7 +1431,7 @@ async function run() {
     const partnerPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await partnerPage.goto(`${baseUrl}/login.html?device=${encodeURIComponent(pairingCode)}`, { waitUntil: 'domcontentloaded' });
     assert.equal(await partnerPage.locator('#deviceLoginForm input[name="deviceCode"]').inputValue(), pairingCode);
-    await partnerPage.fill('#deviceLoginForm input[name="email"]', 'e2e-partner@example.test');
+    await partnerPage.fill('#deviceLoginForm input[name="identifier"]', 'e2e-partner@example.test');
     await partnerPage.fill('#deviceLoginForm input[name="password"]', 'E2E-Partner-2026!');
     await partnerPage.fill('#deviceLoginForm input[name="passwordConfirmation"]', 'E2E-Partner-2026!');
     await partnerPage.click('#deviceLoginForm button[type="submit"]');

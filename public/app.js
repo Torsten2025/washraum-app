@@ -386,7 +386,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.6';
+const WHATS_NEW_VERSION = '0.3.15-test.8';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1157,21 +1157,17 @@ function pushIsActive() {
 
 function renderSettingsSummary() {
   if (!currentUser) return;
-  const emailReady = Boolean(currentUser.email && currentUser.emailVerified);
+  const hasEmail = Boolean(currentUser.email || currentUser.secondaryEmail);
+  const emailReady = Boolean(currentUser.emailVerified || currentUser.secondaryEmailVerified);
   const installReady = appInstalled();
   const pushReady = pushIsActive();
-  const completedCount = [emailReady, installReady, pushReady].filter(Boolean).length;
-  settingsProgressText.textContent = translate(
-    'settings.progress',
-    '{completed} von 3 Schritten erledigt.',
-    { completed: completedCount }
-  );
+  settingsProgressText.textContent = translate('settings.optionalExtras', 'E-Mail, App-Installation und Push sind freiwillig.');
   const items = [
     {
       label: translate('settings.summaryEmail', 'E-Mail'),
-      value: !currentUser.email
-        ? translate('settings.summaryMissing', 'fehlt')
-        : currentUser.emailVerified
+      value: !hasEmail
+        ? translate('settings.summaryOptional', 'optional')
+        : emailReady
           ? translate('settings.summaryConfirmed', 'bestaetigt')
           : translate('settings.summaryConfirm', 'bestaetigen')
     },
@@ -1201,7 +1197,7 @@ function renderSettingsHeader() {
     ? translate('settings.firstTitle', 'Einmal kurz einrichten.')
     : translate('common.settings', 'Einstellungen');
   settingsIntroText.textContent = settingsFirstRun
-    ? translate('settings.firstHint', 'Pruefe zuerst deine E-Mail. App, Push und weitere Kontofunktionen findest du anschliessend in den Reitern.')
+    ? translate('settings.firstHint', 'Du kannst WaschZeit ohne E-Mail nutzen. Hier wählst du, welche Extras du möchtest.')
     : translate('settings.intro', 'Profil, Benachrichtigungen, App, Hilfe und Sicherheit sind hier gebuendelt.');
 }
 
@@ -1214,6 +1210,7 @@ function renderApartmentAccountStatus() {
 }
 
 function renderDevicePairingLabels() {
+  devicePairingQr.alt = translate('settings.pairingQrAlt', 'Einmaliger QR-Code für ein Haushaltsmitglied');
   createDeviceCodeButton.textContent = devicePairingPanel.hidden
     ? translate('settings.createQr', 'QR-Code erzeugen')
     : translate('settings.createNewQr', 'Neuen QR-Code erzeugen');
@@ -2423,7 +2420,7 @@ function renderEmailVerificationStatus() {
   resendVerificationButton.hidden = !configuredAddress || Boolean(currentUser.emailVerified);
   const secondaryConfigured = Boolean(currentUser.secondaryEmail);
   secondaryEmailVerificationStatus.textContent = !secondaryConfigured
-    ? translate('settings.secondaryEmailHint', 'Optional: Eine zweite Person kann eine eigene Adresse fuer Reset und Hinweise hinterlegen.')
+    ? translate('settings.secondaryEmailHint', 'Nur für dein eigenes Konto. Diese Adresse erstellt keinen Zugang für eine weitere Person.')
     : currentUser.secondaryEmailVerified
       ? translate('settings.secondaryEmailVerified', 'Zweite E-Mail-Adresse bestaetigt.')
       : translate('settings.secondaryEmailUnverified', 'Bitte auch die zweite E-Mail-Adresse bestaetigen.');
@@ -2649,6 +2646,7 @@ function renderHouseContext() {
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
   nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
   devicePairingCard.hidden = !currentUser.canBook;
+  document.querySelector('#openHouseholdQr').hidden = devicePairingCard.hidden;
   settingsRole.value = roleLabel;
   settingsBookingMode.value = bookingMode;
   brandHouseName.textContent = currentUser.houseName;
@@ -4931,15 +4929,13 @@ function renderApartments(apartments) {
     ].filter(Boolean).join(' ').toLocaleLowerCase('de-CH');
     const identity = document.createElement('div');
     identity.className = 'user-admin-identity';
-    const invitationState = apartment.invitationStatus === 'pending'
-        ? translate('admin.invitationOpen', 'Einladung offen fuer {email}', { email: apartment.invitation_email })
-        : apartment.claimed
-          ? translate(apartment.member_count === 1 ? 'admin.peopleConnectedOne' : 'admin.peopleConnectedMany', '{count} Personen verbunden', { count: apartment.member_count })
-        : apartment.invitationStatus === 'expired'
-          ? translate('admin.invitationExpired', 'Einladung abgelaufen')
-          : apartment.invitationStatus === 'not_sent'
-            ? translate('admin.invitationNotSent', 'Einladung nicht versendet')
-            : translate('admin.notInvited', 'noch nicht eingeladen');
+    const accessStates = [];
+    if (apartment.claimed) accessStates.push(translate(apartment.member_count === 1 ? 'admin.peopleConnectedOne' : 'admin.peopleConnectedMany', '{count} Personen verbunden', { count: apartment.member_count }));
+    if (apartment.active_access_card_count > 0) accessStates.push(translate('admin.openQrCards', 'Offene QR-Karten: {count}', { count: apartment.active_access_card_count }));
+    if (apartment.invitationStatus === 'pending') accessStates.push(translate('admin.invitationOpen', 'Einladung offen fuer {email}', { email: apartment.invitation_email }));
+    if (!apartment.claimed && apartment.invitationStatus === 'expired') accessStates.push(translate('admin.invitationExpired', 'Einladung abgelaufen'));
+    if (!apartment.claimed && apartment.invitationStatus === 'not_sent') accessStates.push(translate('admin.invitationNotSent', 'Einladung nicht versendet'));
+    const invitationState = accessStates.join(' · ') || translate('admin.notInvited', 'noch nicht eingeladen');
     identity.innerHTML = `<strong>${escapeHtml(apartment.display_name)}</strong><span>${escapeHtml(apartment.label)} &middot; ${escapeHtml(invitationState)}</span>${apartment.member_emails ? `<span>${escapeHtml(apartment.member_emails)}</span>` : ''}${apartment.name_request_id ? `<span class="apartment-name-request">${escapeHtml(translate('admin.correctionRequested', 'Korrektur gewuenscht: {name}', { name: apartment.requested_display_name }))}</span>` : ''}`;
     const actions = document.createElement('div');
     actions.className = 'user-admin-actions';
@@ -4952,7 +4948,9 @@ function renderApartments(apartments) {
     actions.append(editButton);
     const accessCardButton = document.createElement('button');
     accessCardButton.type = 'button';
-    accessCardButton.textContent = translate('admin.createAccessCard', 'Zugangskarte erstellen');
+    accessCardButton.textContent = apartment.claimed
+      ? translate('admin.addPersonQr', 'Weitere Person per QR-Karte hinzufügen')
+      : translate('admin.createAccessCard', 'Zugangskarte erstellen');
     accessCardButton.addEventListener('click', async () => {
       accessCardButton.disabled = true;
       try {
@@ -4971,10 +4969,8 @@ function renderApartments(apartments) {
     button.type = 'button';
     button.className = 'secondary';
     button.textContent = apartment.invitationStatus === 'pending'
-      ? translate('admin.renew', 'Einladung erneuern')
-      : apartment.claimed
-        ? translate('admin.additionalPerson', 'Weitere Person')
-        : translate('admin.invitePerson', 'Einladen');
+      ? translate('admin.renewByEmail', 'E-Mail-Einladung erneuern')
+      : translate('admin.inviteByEmail', 'Per E-Mail einladen');
     button.addEventListener('click', () => {
       const inviteForm = item.querySelector('.apartment-invite-form');
       inviteForm.hidden = false;
@@ -5680,8 +5676,8 @@ function renderAdminUsers(users) {
         ? translate('admin.activeLower', 'aktiv')
         : translate('admin.inactiveLower', 'inaktiv');
     const apartmentName = user.apartment_label ? ` \u00b7 ${user.apartment_label}` : '';
-    const secondEmail = user.secondary_email ? ` \u00b7 ${user.secondary_email}` : '';
-    meta.textContent = `${roleName} \u00b7 ${accountState}${apartmentName}${user.email ? ` \u00b7 ${user.email}` : ` \u00b7 ${translate('admin.emailMissing', 'E-Mail fehlt')}`}${secondEmail}`;
+    const contacts = [user.email, user.secondary_email].filter(Boolean).join(' · ');
+    meta.textContent = `${roleName} · ${accountState}${apartmentName} · ${contacts || translate('admin.emailMissing', 'Keine E-Mail hinterlegt')}`;
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -7802,6 +7798,10 @@ installAppButton.addEventListener('click', installApp);
 enablePushButton.addEventListener('click', enablePushNotifications);
 disablePushButton.addEventListener('click', disablePushNotifications);
 createDeviceCodeButton.addEventListener('click', createDevicePairingCode);
+document.querySelector('#openHouseholdQr').addEventListener('click', () => {
+  setSettingsSection('device');
+  createDeviceCodeButton.focus();
+});
 bookReleaseNoticeButton.addEventListener('click', bookActiveReleaseNotice);
 closeReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
 dismissReleaseNoticeButton.addEventListener('click', closeReleaseNotice);
