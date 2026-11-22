@@ -1,4 +1,5 @@
 'use strict';
+const { loginAliasKey } = require('./login-alias');
 
 const {
   isValidEmail,
@@ -59,9 +60,9 @@ function createAccountSecurity({ bcrypt, crypto }) {
   const authRateWindowMs = 15 * 60 * 1000;
   const authRateMaxAttempts = 20;
 
-  function authRateLimit(req, res, next) {
+  function authRateLimit(req, res, next, identifier = req.body?.username || req.body?.email) {
     const now = Date.now();
-    const identity = normalizeEmail(req.body?.username || req.body?.email || 'unknown');
+    const identity = loginAliasKey(identifier || 'unknown');
     const key = `${String(req.ip || req.socket.remoteAddress || 'unknown')}|${identity}`;
     let bucket = authRateBuckets.get(key);
     if (!bucket || bucket.resetAt <= now) {

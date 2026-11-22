@@ -275,6 +275,7 @@ accessCardForm.addEventListener('submit', async (event) => {
     token: formData.get('token'),
     accessId: formData.get('accessId'),
     activationCode: formData.get('activationCode'),
+    loginAlias: formData.get('loginAlias'),
     password: formData.get('password'),
     passwordConfirmation: formData.get('passwordConfirmation'),
     rememberDevice: formData.get('accessRememberDevice') === 'on'
@@ -300,6 +301,7 @@ deviceLoginForm.addEventListener('submit', async (event) => {
   const identifier = String(formData.get('identifier') || '').trim();
   const data = await submitJson(deviceLoginForm, '/api/device-login', {
     deviceCode: formData.get('deviceCode'),
+    loginAlias: formData.get('loginAlias'),
     ...(identifier.includes('@') ? { email: identifier } : { username: identifier }),
     password: formData.get('password'),
     passwordConfirmation: formData.get('passwordConfirmation')

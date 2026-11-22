@@ -1088,15 +1088,15 @@ async function run() {
     await page.click('#settingsDoneButton');
     await page.waitForFunction(() => document.querySelector('#settingsOverlay')?.hidden === true);
     await page.waitForSelector('#whatsNewNotice:not([hidden])');
-    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.9');
+    assert.equal(await page.locator('#whatsNewTitle').innerText(), 'New in version 0.3.15-test.10');
     const whatsNewText = await page.locator('#whatsNewNotice').innerText();
-    assert.match(whatsNewText, /this device is connected to your account for push alerts/i);
-    assert.match(whatsNewText, /release alerts go to the right household members/i);
-    assert.match(whatsNewText, /calendar subscriptions include Swiss daylight saving time/i);
+    assert.match(whatsNewText, /choose your own sign-in name/i);
+    assert.match(whatsNewText, /WZ ID still works/i);
+    assert.match(whatsNewText, /no email is needed/i);
     await page.click('#dismissWhatsNewButton');
     assert.equal(await page.locator('#whatsNewNotice').isHidden(), true);
     assert.equal(await page.evaluate(() => (
-      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.9')
+      window.localStorage.getItem('waschzeit-whats-new-understood-0.3.15-test.10')
     )), '1');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(currentUser));
@@ -1106,10 +1106,10 @@ async function run() {
     await page.waitForSelector('#settingsOverlay:not([hidden])');
     await page.click('[data-settings-target="device"]');
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.9\b/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Test version 0\.3\.15-test\.10\b/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('de', { persist: false }));
     assert.equal(await page.locator('#appVersionText').isVisible(), true);
-    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.9\b/);
+    assert.match(await page.locator('#appVersionText').innerText(), /^Testversion 0\.3\.15-test\.10\b/);
     await page.evaluate(() => window.WZ_I18N.setLanguage('en', { persist: false }));
     await page.click('#checkAppUpdateButton');
     await page.waitForSelector('#whatsNewNotice:not([hidden])');

@@ -23,6 +23,7 @@ const { createOperationsRouters } = require('./src/routes/operations');
 const { createBackupService } = require('./src/services/backup');
 const { createAccountSecurity } = require('./src/services/account-security');
 const { createAccountService } = require('./src/services/account-service');
+const { aliasClaimsUsername } = require('./src/services/login-alias');
 const { resolveAppEnvironment } = require('./src/services/app-environment');
 const { createBookingRules } = require('./src/services/booking-rules');
 const { createMailTransport } = require('./src/services/mail-transport');
@@ -498,6 +499,9 @@ function createCurrentTables() {
 function seedCurrentDefaults() {
   ensureColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email', 'TEXT');
+  ensureColumn('users', 'login_alias', 'TEXT');
+  ensureColumn('users', 'login_alias_key', 'TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_alias_key ON users(login_alias_key) WHERE login_alias_key IS NOT NULL');
   ensureColumn('users', 'notify_releases', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'email_verified_value', 'TEXT');
@@ -874,6 +878,9 @@ function ensureColumn(table, column, definition) {
 function seedUser(username, password, role, houseId, isSuperadmin = false, forcePasswordReset = false) {
   const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (!exists) {
+    if (aliasClaimsUsername(db, username)) {
+      throw new Error('Der technische Kontoname ist nicht verfügbar.');
+    }
     db.prepare('INSERT INTO users (username, password_hash, role, house_id, is_superadmin) VALUES (?, ?, ?, ?, ?)')
       .run(username, bcrypt.hashSync(password, 10), role, houseId, isSuperadmin ? 1 : 0);
   } else if (isSuperadmin) {

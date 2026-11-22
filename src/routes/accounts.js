@@ -1,5 +1,6 @@
 'use strict';
 const { REMEMBER_MS, remembered, bindRememberCookie, renewRememberSession } = require('../services/session-store');
+const { checkedLoginAlias, loginAliasKey, submittedLoginIdentifier, aliasClaimsUsername, sendAliasError } = require('../services/login-alias');
 
 function createAccountRouters({
   express,
@@ -63,17 +64,22 @@ function createAccountRouters({
     };
   }
 
-primaryRouter.post('/api/login', authRateLimit, async (req, res, next) => {
+primaryRouter.post('/api/login', (req, res, next) => {
+  req.loginIdentifier = submittedLoginIdentifier(req.body);
+  return authRateLimit(req, res, next, req.loginIdentifier);
+}, async (req, res, next) => {
   const password = req.body?.password;
-  const loginName = normalizeEmail(req.body?.email || req.body?.username);
+  const loginName = normalizeEmail(req.loginIdentifier);
+  if (!loginName) return res.status(401).json({ error: 'Login fehlgeschlagen' });
   const user = db.prepare(`
     SELECT * FROM users
     WHERE lower(email) = ?
        OR lower(secondary_email) = ?
+       OR login_alias_key = ?
        OR (role = 'admin' AND lower(username) = ?)
        OR (role = 'user' AND lower(username) = ?
            AND ((email IS NULL OR trim(email) = '') OR upper(username) LIKE 'WZ-%'))
-  `).get(loginName, loginName, loginName, loginName);
+  `).get(loginName, loginName, loginAliasKey(req.loginIdentifier), loginName, loginName);
 
   if (!user || !verifyStoredPassword(String(password || ''), user.password_hash)) {
     return res.status(401).json({ error: 'Login fehlgeschlagen' });
@@ -136,9 +142,9 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
   const invalidIdentity = () => res.status(401).json({ error: 'Anmeldekennung oder Passwort ist nicht korrekt.' });
   if (username && usesEmail) return invalidIdentity();
   const existingOwner = usesEmail ? findEmailOwner(email) : username ? db.prepare(`
-    SELECT id FROM users WHERE role = 'user' AND lower(username) = ?
-      AND ((email IS NULL OR trim(email) = '') OR upper(username) LIKE 'WZ-%')
-  `).get(username) : null;
+    SELECT id FROM users WHERE role = 'user' AND (login_alias_key = ? OR
+      (lower(username) = ? AND ((email IS NULL OR trim(email) = '') OR upper(username) LIKE 'WZ-%')))
+  `).get(loginAliasKey(req.body?.username), username) : null;
   if (username && !existingOwner) return invalidIdentity();
   const existingUser = existingOwner ? db.prepare('SELECT * FROM users WHERE id = ?').get(existingOwner.id) : null;
   if (existingUser && (!existingUser.active || !verifyStoredPassword(password, existingUser.password_hash))) {
@@ -163,18 +169,21 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
         db.prepare('UPDATE users SET apartment_id = ? WHERE id = ?')
           .run(record.pairing_apartment_id, existingUser.id);
       } else {
-        const accessId = usesEmail ? personalAccountUsername(email) : generateResidentAccessId();
+        const alias = checkedLoginAlias(db, req.body?.loginAlias);
+        const accessId = usesEmail ? personalAccountUsername(email, alias) : generateResidentAccessId();
         const inserted = db.prepare(`
           INSERT INTO users
             (username, email, password_hash, role, house_id, active, notify_releases,
-             email_verified, apartment_id)
-          VALUES (?, ?, ?, 'user', ?, 1, 1, 0, ?)
+             email_verified, apartment_id, login_alias, login_alias_key)
+          VALUES (?, ?, ?, 'user', ?, 1, 1, 0, ?, ?, ?)
         `).run(
           accessId,
           usesEmail ? email : null,
           bcrypt.hashSync(password, 10),
           record.house_id,
-          record.pairing_apartment_id
+          record.pairing_apartment_id,
+          alias,
+          alias && loginAliasKey(alias)
         );
         identityId = inserted.lastInsertRowid;
       }
@@ -208,6 +217,7 @@ primaryRouter.post('/api/device-login', authRateLimit, async (req, res, next) =>
     });
   } catch (error) {
     if (error.message === 'PAIRING_UNAVAILABLE') return res.status(400).json({ error: 'Der Gerätecode ist ungültig oder abgelaufen.' });
+    if (sendAliasError(error, res)) return;
     next(error);
   }
 });
@@ -254,16 +264,19 @@ primaryRouter.post('/api/access-cards/activate', registrationRateLimit, authRate
         conflict.code = 'ACCESS_CARD_ALREADY_USED';
         throw conflict;
       }
+      const alias = checkedLoginAlias(db, req.body?.loginAlias);
       const inserted = db.prepare(`
         INSERT INTO users
           (username, email, password_hash, role, house_id, active, notify_releases,
-           email_verified, apartment_id)
-        VALUES (?, NULL, ?, 'user', ?, 1, 1, 0, ?)
+           email_verified, apartment_id, login_alias, login_alias_key)
+        VALUES (?, NULL, ?, 'user', ?, 1, 1, 0, ?, ?, ?)
       `).run(
         current.access_id,
         bcrypt.hashSync(password, 10),
         current.house_id,
-        current.apartment_id
+        current.apartment_id,
+        alias,
+        alias && loginAliasKey(alias)
       );
       const consumed = db.prepare(`
         UPDATE resident_access_cards SET used_at = CURRENT_TIMESTAMP
@@ -306,6 +319,7 @@ primaryRouter.post('/api/access-cards/activate', registrationRateLimit, authRate
       message: `${card.label} ist aktiviert. Willkommen bei WaschZeit.`
     });
   } catch (error) {
+    if (sendAliasError(error, res)) return;
     if (error.code === 'ACCESS_CARD_ALREADY_USED' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Diese Zugangskarte wurde gerade bereits verwendet.' });
     }
@@ -492,6 +506,9 @@ primaryRouter.post('/api/register', registrationRateLimit, authRateLimit, async 
     return res.status(400).json({ error: 'Fuer diese technische Registrierung fehlt ein gueltiger Kontoname.' });
   }
   const username = apartment ? apartmentAccountUsername(apartment.id) : legacyUsername;
+  if (!apartment && aliasClaimsUsername(db, username)) {
+    return res.status(409).json({ error: 'Dieser Kontoname ist nicht verfügbar.' });
+  }
 
   try {
     const emailVerified = 0;
@@ -553,6 +570,7 @@ primaryRouter.post('/api/register', registrationRateLimit, authRateLimit, async 
     if (error.code === 'APARTMENT_ALREADY_CLAIMED') {
       return res.status(409).json({ error: 'Diese Wohnung wurde gerade bereits aktiviert.' });
     }
+    if (sendAliasError(error, res)) return;
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({
         error: apartment ? 'Diese E-Mail-Adresse ist bereits vergeben' : 'Kontoname oder E-Mail ist bereits vergeben'
@@ -984,7 +1002,7 @@ personalRouter.put('/api/me/password', requireAuth, (req, res, next) => {
 
 personalRouter.get('/api/me/export', requireAuth, (req, res) => {
   const user = db.prepare(`
-    SELECT u.id, u.username, u.email, u.secondary_email, u.role, u.active,
+    SELECT u.id, u.username, u.login_alias, u.email, u.secondary_email, u.role, u.active,
            u.notify_releases, u.email_verified, u.email_verified_value,
            u.secondary_email_verified, u.secondary_email_verified_value,
            u.booking_mode, u.created_at, a.label AS apartment,

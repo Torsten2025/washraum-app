@@ -1,5 +1,6 @@
 'use strict';
 const { credentialStamp, STANDARD_COOKIE_MS } = require('./session-store');
+const { aliasClaimsUsername, loginAliasKey } = require('./login-alias');
 
 function createAccountService({
   db,
@@ -235,17 +236,24 @@ function createAccountService({
 
   function apartmentAccountUsername(apartmentId) {
     const base = `wohnung-${Number(apartmentId)}`;
-    if (!db.prepare('SELECT id FROM users WHERE username = ?').get(base)) return base;
-    return `${base}-${crypto.randomBytes(3).toString('hex')}`;
+    return availableTechnicalName(base);
   }
 
-  function personalAccountUsername(email) {
+  function availableTechnicalName(base, chosenAlias = null) {
+    let name = base;
+    while (loginAliasKey(name) === loginAliasKey(chosenAlias) || aliasClaimsUsername(db, name)
+        || db.prepare('SELECT 1 FROM users WHERE lower(username) = lower(?)').get(name)) {
+      name = `${base}-${crypto.randomBytes(3).toString('hex')}`;
+    }
+    return name;
+  }
+
+  function personalAccountUsername(email, chosenAlias = null) {
     const localPart = normalizeEmail(email).split('@')[0]
       .replace(/[^a-z0-9._-]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'person';
     const base = localPart.slice(0, 48);
-    if (!db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(base)) return base;
-    return `${base}-${crypto.randomBytes(3).toString('hex')}`;
+    return availableTechnicalName(base, chosenAlias);
   }
 
   function regenerateSession(req, authenticatedUser) {

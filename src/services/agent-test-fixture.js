@@ -9,8 +9,8 @@ const CREDENTIAL_FAILURE_BITS = Object.freeze({
 });
 const EXPECTED = Object.freeze({
   appEnvironment: 'agent-test',
-  appRelease: 'agent-v0.3.15-test.9',
-  appVersion: '0.3.15-test.9',
+  appRelease: 'agent-v0.3.15-test.10',
+  appVersion: '0.3.15-test.10',
   branch: 'codex/agent-test',
   databasePath: '/tmp/waschzeit-agent-test.sqlite',
   externalHostname: 'waschzeit-agent-test.onrender.com',

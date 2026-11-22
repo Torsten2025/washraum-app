@@ -114,21 +114,48 @@ async function run() {
       await adminPage.setViewportSize({ width: 390, height: 1000 });
     }
     const errors = [];
+    const longAlias = '𐐀'.repeat(40); // 40 letters, 80 UTF-16 code units
+    async function checkAliasInput(input, restore = '') {
+      await input.fill('');
+      await input.focus();
+      await input.page().keyboard.insertText(longAlias);
+      assert.equal(await input.inputValue(), longAlias, 'native browser input accepts 40 non-BMP letters');
+      await input.fill(restore);
+    }
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(card.activationUrl);
+    const cardAlias = page.locator('#accessCardForm input[name=loginAlias]');
+    assert.equal(await cardAlias.getAttribute('required'), null);
+    await checkAliasInput(cardAlias);
+    await cardAlias.fill('Regression-Admin');
     await page.locator('#accessCardForm input[name=password]').fill(password);
     await page.locator('#accessCardForm input[name=passwordConfirmation]').fill(password);
+    const rejected = page.waitForResponse(r => r.url().endsWith('/api/access-cards/activate'));
     await page.locator('#accessCardForm button[type=submit]').click();
-    await page.waitForURL('**/index.html?welcome=1');
-    await page.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
-    await page.evaluate(() => openSettings());
+    assert.equal((await rejected).status(), 409, 'a technical username is reserved across accounts');
+    await page.waitForFunction(() => /unavailable/i.test(document.querySelector('#accessCardMessage').textContent));
+    await cardAlias.fill('Le\u0301a Meier'); // keyboard in decomposed Unicode
+    await page.locator('#accessCardForm button[type=submit]').click();
+    // The real welcome flow opens the profile after its initial requests and
+    // then removes ?welcome=1. Do not open it a second time from the test.
+    await page.waitForURL('**/index.html');
+    await page.locator('#settingsOverlay').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#notificationEmail').getAttribute('required'), null);
     assert.equal(await page.locator('#settingsLoginIdentifier').inputValue(), card.accessId);
     assert.equal(await page.locator('#settingsLoginIdentifier').evaluate(el => el.readOnly), true);
     assert.equal(await page.locator('#settingsUsername').inputValue(), 'Synthetic household one');
+    assert.equal(await page.locator('#settingsLoginAlias').inputValue(), 'Léa Meier');
+    await checkAliasInput(page.locator('#settingsLoginAlias'), 'Léa Meier');
+    const firstAlias = await request('/api/login', { username: '  LÉA MEIER ', password });
+    assert.equal(firstAlias.status, 200);
+    await page.locator('#settingsLoginAlias').fill('Müller');
     const saved = page.waitForResponse(r => r.url().endsWith('/api/me/notifications') && r.request().method() === 'PUT');
     await page.locator('[data-i18n="settings.saveProfile"]').click();
     assert.equal((await saved).status(), 200, 'actual profile form saves without email');
+    await page.waitForFunction(() => /Profil gespeichert|Profile saved/.test(document.querySelector('#profileSaveFeedback').textContent));
+    assert.equal((await request('/api/login', { username: 'Léa Meier', password })).status, 401);
+    const aliasLogin = await request('/api/login', { username: 'MU\u0308LLER', password });
+    assert.equal(aliasLogin.body.user.id, firstAlias.body.user.id);
     await page.evaluate(() => setSettingsSection('notifications'));
     await page.locator('#notifyReleases').uncheck();
     await page.locator('#notificationResourceType').selectOption('washer');
@@ -159,6 +186,7 @@ async function run() {
       await page.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
       await page.evaluate(() => openSettings());
       assert.equal(await page.locator('#settingsLoginIdentifier').inputValue(), card.accessId);
+      assert.equal(await page.locator('#settingsLoginAlias').inputValue(), 'Müller');
     }
     const account = await request('/api/login', { username: card.accessId, password });
     assert.equal(account.status, 200);
@@ -174,18 +202,65 @@ async function run() {
     await row.getByRole('button', { name: /Add a person with a QR card|Weitere Person per QR-Karte/ }).click();
     const extraCard = (await (await issuedCard).json()).accessCard;
     assert.match(extraCard.qrCodeDataUrl, /^data:image\/png;base64,/);
-    const cardContext = await browser.newContext();
+    const cardContext = await browser.newContext({ serviceWorkers: 'block' });
     const cardPage = await cardContext.newPage();
     await cardPage.goto(extraCard.activationUrl);
     await cardPage.locator('#accessCardForm [name=password]').fill(password);
     await cardPage.locator('#accessCardForm [name=passwordConfirmation]').fill(password);
+    // Slow down one real start-up request without replacing its response.
+    // On a slow connection the account menu already works before welcome opens.
+    let releaseSlots;
+    const holdSlots = new Promise(resolve => { releaseSlots = resolve; });
+    await cardPage.route('**/api/slots', async route => { await holdSlots; await route.continue(); }, { times: 1 });
+    const slotsRequested = cardPage.waitForRequest('**/api/slots');
     await cardPage.locator('#accessCardForm button[type=submit]').click();
-    await cardPage.waitForURL('**/index.html?welcome=1');
+    await slotsRequested;
+    const earlyInput = cardPage.locator('#settingsLoginAlias');
+    try {
+      await cardPage.locator('#accountMenuButton').click();
+      await cardPage.locator('#openSettingsButton').click();
+      await earlyInput.click();
+      await cardPage.keyboard.insertText(longAlias);
+      assert.equal(await earlyInput.inputValue(), longAlias);
+    } finally {
+      releaseSlots();
+    }
+    await cardPage.waitForURL('**/index.html');
+    assert.equal(await earlyInput.inputValue(), longAlias, 'welcome preserves an already open profile draft');
+    assert.equal(await earlyInput.evaluate(el => document.activeElement === el), true, 'welcome leaves focus in the edited field');
     const extra = await request('/api/login', { username: extraCard.accessId, password });
     assert.equal(extra.status, 200);
     assert.equal(extra.body.user.apartmentId, card.apartment.id);
     assert.deepEqual(extra.body.user.roles, ['resident']);
     assert.notEqual(extra.body.user.id, ownerId);
+    assert.equal(extra.body.user.loginAlias, '', 'blank is still the default');
+    const profile = (body, cookie = extra.cookie) => request('/api/me/notifications', body, cookie, 'PUT');
+    assert.equal((await profile({ loginAlias: 'Müller' }, '')).status, 401);
+    for (const invalid of ['8abc', 'WZ-future', 'mail@example.test', 'xy\nxy', { alias: 'abc' }, 'a'.repeat(41)]) {
+      assert.equal((await profile({ loginAlias: invalid })).status, 400);
+    }
+    assert.equal((await profile({ loginAlias: 'MU\u0308LLER', email: 'changed@example.test' })).status, 409);
+    assert.equal(db.prepare('SELECT email FROM users WHERE id=?').get(extra.body.user.id).email, null);
+    const scoped = await profile({ loginAlias: 'Renée', userId: ownerId, role: 'admin' });
+    assert.equal(scoped.status, 200);
+    assert.equal(scoped.body.user.id, extra.body.user.id);
+    assert.deepEqual(scoped.body.user.roles, ['resident']);
+    assert.equal(db.prepare('SELECT login_alias FROM users WHERE id=?').get(ownerId).login_alias, 'Müller');
+    assert.doesNotMatch(JSON.stringify((await request('/api/admin/users', null, admin.cookie, 'GET')).body), /Müller|Renée|login_alias|loginAlias/);
+    assert.doesNotMatch(JSON.stringify((await request('/api/me/export', null, extra.cookie, 'GET')).body), /Müller/);
+    assert.equal((await request('/api/login', { username: 'RENÉE', password })).body.user.id, extra.body.user.id);
+    assert.equal((await profile({ loginAlias: '' })).status, 200);
+    assert.equal((await request('/api/login', { username: 'RENÉE', password })).status, 401);
+    assert.equal((await request('/api/login', { username: extraCard.accessId, password })).status, 200);
+    assert.equal((await profile({ loginAlias: longAlias })).status, 200);
+    assert.equal((await profile({ loginAlias: longAlias + '𐐀' })).status, 400);
+    assert.equal((await request('/api/login', { username: longAlias, password })).body.user.id, extra.body.user.id);
+    assert.equal((await profile({ loginAlias: 'STRAẞE' })).status, 200);
+    for (const variant of ['Straße', 'STRAẞE', 'STRASSE']) {
+      assert.equal((await request('/api/login', { username: variant, password })).body.user.id, extra.body.user.id);
+      assert.equal((await profile({ loginAlias: variant }, account.cookie)).status, 409);
+    }
+    assert.equal((await profile({ loginAlias: '' })).status, 200);
     await cardContext.close();
     await adminContext.close();
     for (const language of ['de', 'en']) {
@@ -207,8 +282,15 @@ async function run() {
         const form = memberPage.locator('#deviceLoginForm');
         assert.equal(await form.locator('[name=deviceCode]').inputValue(), pairing.code);
         assert.match(await form.locator('[data-i18n="auth.partnerHint"]').innerText(), language === 'en' ? /leave .* blank/i : /Lass .* leer/i);
+        const memberAlias = language === 'en' ? 'Jane Green' : 'Anna Grün';
+        await checkAliasInput(form.locator('[name=loginAlias]'));
+        await form.locator('[name=loginAlias]').fill('MU\u0308LLER');
         await form.locator('[name=password]').fill(password);
         await form.locator('[name=passwordConfirmation]').fill(password);
+        const conflict = memberPage.waitForResponse(r => r.url().endsWith('/api/device-login'));
+        await form.locator('button[type=submit]').click();
+        assert.equal((await conflict).status(), 409);
+        await form.locator('[name=loginAlias]').fill(memberAlias);
         let savedId;
         memberPage.once('dialog', async dialog => {
           savedId = dialog.message().match(/WZ-[A-Z0-9-]+/i)?.[0];
@@ -225,6 +307,7 @@ async function run() {
         assert.deepEqual(member.roles, ['resident']);
         assert.equal(member.apartmentId, card.apartment.id);
         assert.notEqual(member.id, ownerId);
+        assert.equal(member.loginAlias, memberAlias);
         assert.equal(db.prepare('SELECT email FROM users WHERE id=?').get(member.id).email, null);
         assert.equal((await request('/api/login', { username: savedId, password })).body.user.id, member.id);
         // Reuse an existing sign-in with the manual household code; never create another account.
@@ -232,7 +315,8 @@ async function run() {
         await memberPage.goto(base + '/login.html');
         await memberPage.locator('#showDeviceLogin').click();
         await form.locator('[name=deviceCode]').fill(next.body.code);
-        await form.locator('[name=identifier]').fill(savedId);
+        await form.locator('[name=identifier]').fill(language === 'en' ? memberAlias : savedId);
+        await form.locator('[name=loginAlias]').fill('Not a rename');
         await form.locator('[name=password]').fill(password);
         const reconnect = memberPage.waitForResponse(r => r.url().endsWith('/api/device-login'));
         await form.locator('button[type=submit]').click();
@@ -240,6 +324,7 @@ async function run() {
         await memberPage.waitForURL('**/index.html');
         await memberPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
         assert.equal(await memberPage.evaluate(() => currentUser.id), member.id);
+        assert.equal(await memberPage.evaluate(() => currentUser.loginAlias), memberAlias);
         assert.equal(db.prepare('SELECT claimed_by FROM apartments WHERE id=?').get(card.apartment.id).claimed_by, ownerId);
       } finally { await memberContext.close(); }
     }
@@ -254,6 +339,12 @@ async function run() {
     const foreignId = makeLegacy('qr-other-house', otherHouse, null);
     const noHouseId = makeLegacy('qr-no-house', null, null);
     const otherId = makeLegacy('qr-other-flat', house, otherFlat);
+    const legacyStreet = makeLegacy('straße-alt', house, null);
+    assert.equal((await request('/api/login', { username: ' Straße-alt ', password })).body.user.id, legacyStreet);
+    assert.equal((await request('/api/login', { username: 'STRASSE-ALT', password })).status, 401, 'no implicit alias on legacy accounts');
+    assert.equal((await profile({ loginAlias: 'STRAẞE-ALT' })).status, 409, 'all equivalent forms of old technical names are reserved');
+    makeLegacy('ZoË Müller', otherHouse, null);
+    assert.equal((await profile({ loginAlias: 'Zoe\u0308 Mu\u0308ller' })).status, 409, 'foreign-house historical names remain reserved');
     const issueCode = async () => {
       const issued = await request('/api/me/device-code', {}, account.cookie);
       assert.equal(issued.status, 201);
@@ -299,6 +390,17 @@ async function run() {
     assert.equal((await save({ email: 'optional@example.test', secondaryEmail: 'second@example.test' })).status, 200);
     await confirmVerification('primary', 'optional@example.test');
     await confirmVerification('secondary', 'second@example.test');
+    const persistedProfile = () => ({
+      values: db.prepare('SELECT email, secondary_email, email_verified_value, secondary_email_verified_value, email_verified, secondary_email_verified, notify_releases FROM users WHERE id=?').get(ownerId),
+      prefs: db.prepare('SELECT * FROM notification_preferences WHERE user_id=?').get(ownerId),
+      tokens: db.prepare('SELECT * FROM email_verification_tokens WHERE user_id=? ORDER BY id').all(ownerId)
+    });
+    const unchanged = persistedProfile();
+    assert.equal((await profile({ loginAlias: 'Müller' }, account.cookie)).status, 200);
+    assert.deepEqual(persistedProfile(), unchanged, 'alias-only PUT preserves addresses, verification bindings and filters');
+    for (const identifier of ['Müller', card.accessId, 'optional@example.test', 'second@example.test']) {
+      assert.equal((await request('/api/login', { username: identifier, password })).body.user.id, ownerId);
+    }
     await page.reload();
     await page.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
     await page.evaluate(() => openSettings());
@@ -337,6 +439,10 @@ async function run() {
     const syntheticResponse = { json() {}, status(code) { throw new Error(`Unexpected route status ${code}`); } };
     await handler(syntheticRequest, syntheticResponse);
     assert.deepEqual(deliveries, ['transport@example.test']);
+    syntheticRequest.body = { loginAlias: 'Müller' };
+    await handler(syntheticRequest, syntheticResponse);
+    assert.deepEqual(deliveries, ['transport@example.test'], 'alias-only save does not invoke even a configured mail transport');
+    syntheticRequest.body = { ...preferences, email: 'transport@example.test' };
     syntheticRequest.body.email = '';
     await handler(syntheticRequest, syntheticResponse);
     assert.deepEqual(deliveries, ['transport@example.test'], 'removal never sends mail to an empty address');
@@ -386,8 +492,18 @@ async function run() {
     await recoveryPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
     await recoveryPage.evaluate(() => openSettings());
     assert.equal(await recoveryPage.locator('#settingsLoginIdentifier').inputValue(), 'legacy@example.test');
+    const aliasContext = await browser.newContext();
+    const aliasPage = await aliasContext.newPage();
+    await aliasPage.goto(base + '/login.html');
+    await aliasPage.locator('#loginForm input[name=email]').fill('MÜLLER');
+    await aliasPage.locator('#loginForm input[name=password]').fill(password);
+    await aliasPage.locator('#loginForm button[type=submit]').click();
+    await aliasPage.waitForURL('**/index.html');
+    await aliasPage.waitForFunction(() => typeof currentUser !== 'undefined' && currentUser);
+    assert.equal(await aliasPage.evaluate(() => currentUser.id), ownerId);
+    await aliasContext.close();
     assert.deepEqual(errors, []);
-    console.log('Email-free regression PASS: admin card for occupied household, DE/EN household QR from profile to separate sign-in, existing ID, house/apartment boundaries, optional addresses, recovery and responsive UI.');
+    console.log('Email-free regression PASS: card and household QR, optional Unicode sign-in name, private profile rename/removal, ID/email compatibility, conflict retries, household boundaries, recovery and responsive DE/EN UI.');
   } finally {
     db?.close();
     await browser?.close();

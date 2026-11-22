@@ -1,6 +1,7 @@
 const express = require('express');
 const { mailCopy, normalizeLanguage } = require('../services/localization');
 const { samePushBinding, deactivatePushBinding } = require('../services/push');
+const { updateOwnLoginAlias, sendAliasError } = require('../services/login-alias');
 
 function createNotificationRouters({
   db,
@@ -106,6 +107,17 @@ function createNotificationRouters({
   });
 
   preferencesRouter.put('/api/me/notifications', requireAuth, async (req, res) => {
+    const editsAlias = Object.hasOwn(req.body || {}, 'loginAlias');
+    if (editsAlias && !['email', 'secondaryEmail', 'notifyReleases', 'resourceType', 'weekday', 'slot']
+      .some(field => Object.hasOwn(req.body, field))) {
+      try {
+        req.session.user.loginAlias = db.transaction(() => updateOwnLoginAlias(db, req.session.user.id, req.body.loginAlias))();
+        return res.json({ user: req.session.user, message: 'Profil gespeichert.' });
+      } catch (error) {
+        if (sendAliasError(error, res)) return;
+        throw error;
+      }
+    }
     const email = normalizeEmail(req.body?.email);
     const secondaryEmail = normalizeEmail(req.body?.secondaryEmail);
     const notifyReleases = req.body?.notifyReleases === false ? 0 : 1;
@@ -151,7 +163,9 @@ function createNotificationRouters({
       const secondaryEmailVerifiedValue = secondaryEmailVerified
         ? normalizeEmail(previous.secondary_email_verified_value)
         : null;
+      let newAlias;
       db.transaction(() => {
+        if (editsAlias) newAlias = updateOwnLoginAlias(db, req.session.user.id, req.body.loginAlias);
         db.prepare(`
           UPDATE users
           SET email = NULLIF(?, ''), secondary_email = NULLIF(?, ''), notify_releases = ?,
@@ -185,6 +199,7 @@ function createNotificationRouters({
             slot = excluded.slot
         `).run(req.session.user.id, resourceType, weekday, preferredSlot);
       })();
+      if (editsAlias) req.session.user.loginAlias = newAlias;
       if (emailChanged && email && emailStatus().configured) {
         await sendEmailVerification(req, {
           id: req.session.user.id,
@@ -202,6 +217,7 @@ function createNotificationRouters({
       req.session.user.emailVerified = Boolean(emailVerified);
       req.session.user.secondaryEmailVerified = Boolean(secondaryEmailVerified);
     } catch (error) {
+      if (sendAliasError(error, res)) return;
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits vergeben' });
       }

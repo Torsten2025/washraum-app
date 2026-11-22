@@ -241,6 +241,7 @@ const settingsTitle = document.querySelector('#settingsTitle');
 const settingsIntroText = document.querySelector('#settingsIntroText');
 const settingsUsername = document.querySelector('#settingsUsername');
 const settingsLoginIdentifier = document.querySelector('#settingsLoginIdentifier');
+const settingsLoginAlias = document.querySelector('#settingsLoginAlias');
 const settingsApartmentLabel = document.querySelector('#settingsApartmentLabel');
 const settingsApartmentLabelWrap = document.querySelector('#settingsApartmentLabelWrap');
 const settingsRole = document.querySelector('#settingsRole');
@@ -386,7 +387,7 @@ const loadedAppVersion = document.querySelector('meta[name="waschzeit-version"]'
 const loadedAppRelease = document.querySelector('meta[name="waschzeit-release"]')?.content || loadedAppVersion;
 const loadedAppReleasedAt = document.querySelector('meta[name="waschzeit-released-at"]')?.content || '';
 const loadedAppName = document.querySelector('meta[name="waschzeit-app-name"]')?.content || 'WaschZeit Test';
-const WHATS_NEW_VERSION = '0.3.15-test.9';
+const WHATS_NEW_VERSION = '0.3.15-test.10';
 let bookingFlowState = {
   date: '',
   step: 1,
@@ -1288,6 +1289,9 @@ function openSettings(firstRun = false) {
   renderSettingsHeader();
   settingsUsername.value = currentUser.displayName || currentUser.username;
   settingsLoginIdentifier.value = currentLoginIdentifier();
+  settingsLoginAlias.value = currentUser.loginAlias || '';
+  settingsLoginAlias.defaultValue = settingsLoginAlias.value;
+  document.querySelector('#profileSaveFeedback').textContent = '';
   settingsApartmentLabel.value = currentUser.apartmentLabel || '';
   settingsApartmentLabelWrap.hidden = !currentUser.apartmentLabel;
   nameCorrectionPanel.hidden = !currentUser.canBook || !currentUser.apartmentLabel;
@@ -2067,7 +2071,7 @@ async function init() {
     await openReleaseNoticeFromUrl(pageUrl);
   }
   if (pageUrl.searchParams.get('welcome') === '1') {
-    openSettings(!settingsCompleted());
+    if (settingsOverlay.hidden) openSettings(!settingsCompleted());
     window.history.replaceState({}, '', '/index.html');
   }
 }
@@ -4743,12 +4747,19 @@ function notificationResultText(data) {
 }
 
 async function saveNotifications() {
+  const isProfile = activeSettingsSection === 'profile';
+  const saveAlias = isProfile && settingsLoginAlias.value !== settingsLoginAlias.defaultValue;
+  const aliasOnly = saveAlias && notificationEmail.value === (currentUser.email || '')
+    && secondaryNotificationEmail.value === (currentUser.secondaryEmail || '');
+  const feedback = document.querySelector('#profileSaveFeedback');
+  if (isProfile) feedback.textContent = '';
   try {
     const data = await api('/api/me/notifications', {
       method: 'PUT',
-      body: JSON.stringify({
+      body: JSON.stringify(aliasOnly ? { loginAlias: settingsLoginAlias.value } : {
         email: notificationEmail.value,
         secondaryEmail: secondaryNotificationEmail.value,
+        ...(saveAlias ? { loginAlias: settingsLoginAlias.value } : {}),
         notifyReleases: notifyReleasesInput.checked,
         resourceType: notificationResourceType.value,
         weekday: notificationWeekday.value,
@@ -4757,11 +4768,21 @@ async function saveNotifications() {
     });
     currentUser = data.user;
     settingsLoginIdentifier.value = currentLoginIdentifier();
+    if (saveAlias) {
+      settingsLoginAlias.value = currentUser.loginAlias || '';
+      settingsLoginAlias.defaultValue = settingsLoginAlias.value;
+    }
     renderEmailVerificationStatus();
     renderSettingsSummary();
-    showStatus(localizedSystemText(data.message, translate('settings.notificationsSaved', 'Benachrichtigungen gespeichert.')));
+    const result = isProfile && data.message === 'Benachrichtigungen gespeichert.'
+      ? translate('settings.profileSaved', 'Profil gespeichert.')
+      : localizedSystemText(data.message, translate('settings.notificationsSaved', 'Benachrichtigungen gespeichert.'));
+    if (isProfile) feedback.textContent = result;
+    showStatus(result);
   } catch (error) {
-    showStatus(localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.')), 'error');
+    const message = localizedSystemText(error.message, translate('settings.actionFailed', 'Die Aktion konnte nicht abgeschlossen werden.'));
+    if (isProfile) feedback.textContent = message;
+    showStatus(message, 'error');
   }
 }
 

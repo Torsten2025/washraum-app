@@ -1,4 +1,4 @@
-const CACHE_NAME = 'waschzeit-pwa-v0.3.15-test.9';
+const CACHE_NAME = 'waschzeit-pwa-v0.3.15-test.10';
 const SHELL_ASSETS = [
   '/login.html',
   '/index.html',

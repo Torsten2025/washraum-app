@@ -693,6 +693,23 @@ async function run() {
     });
 
     await check('RATE-01', 'Anmeldeversuche werden pro IP und Identitaet begrenzt', async () => {
+      const { loginAliasKey, submittedLoginIdentifier } = require('../src/services/login-alias');
+      const { createAccountSecurity } = require('../src/services/account-security');
+      const security = createAccountSecurity({});
+      const keys = ['Straße', 'STRAẞE', 'STRASSE'].map((variant, index) => {
+        assert.equal(loginAliasKey(variant), 'strasse');
+        assert.equal(loginAliasKey(loginAliasKey(variant)), loginAliasKey(variant));
+        const body = index === 0 ? { username: variant } : index === 1 ? { email: variant } : { email: variant, username: 'unused-legacy-field' };
+        const req = { ip: 'synthetic', body };
+        security.authRateLimit(req, {}, () => {}, submittedLoginIdentifier(body));
+        return req.authRateKey;
+      });
+      assert.equal(new Set(keys).size, 1);
+      const mixed = await expectStatus(new ApiClient(), '/api/login', 200, {
+        method: 'POST',
+        body: JSON.stringify({ email: ' SECURITY-ADMIN ', username: 'unused-legacy-field', password: 'Security-Admin-2026!' })
+      });
+      assert.equal(mixed.body.user.username, 'security-admin');
       let limited = null;
       for (let attempt = 1; attempt <= 21; attempt += 1) {
         const response = await new ApiClient().request('/api/login', {
@@ -707,6 +724,10 @@ async function run() {
       }
       assert.ok(limited, 'Das Anmeldelimit wurde nach 21 Versuchen nicht erreicht.');
       assert.ok(Number(limited.response.headers.get('retry-after')) > 0);
+      await expectStatus(new ApiClient(), '/api/login', 429, {
+        method: 'POST',
+        body: JSON.stringify({ email: 'rate-limit@example.test', username: 'unused-legacy-field', password: 'Synthetic-Wrong-Password!' })
+      });
     });
 
     await check('RATE-02', 'Passwort-Wiederherstellung besitzt ein eigenes IP-Limit', async () => {

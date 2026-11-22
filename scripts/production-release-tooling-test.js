@@ -196,9 +196,9 @@ function backupInput(root, overrides = {}) {
       expectedLiveCommit: LIVE_COMMIT,
       actualLiveCommit: LIVE_COMMIT,
       candidateCommit: CANDIDATE_COMMIT,
-      expectedLiveVersion: '0.3.15-test.8',
-      actualLiveVersion: '0.3.15-test.8',
-      candidateVersion: '0.3.15-test.9',
+      expectedLiveVersion: '0.3.15-test.9',
+      actualLiveVersion: '0.3.15-test.9',
+      candidateVersion: '0.3.15-test.10',
       databasePath: path.join(root, 'washraum.sqlite'),
       targetPath: expectedTargetPath(CANDIDATE_COMMIT, backupDir, path)
     },
@@ -230,8 +230,8 @@ function validProof(now = Date.now()) {
     domain: PRODUCTION_DOMAIN,
     sourceCommit: LIVE_COMMIT,
     candidateCommit: CANDIDATE_COMMIT,
-    sourceVersion: '0.3.15-test.8',
-    candidateVersion: '0.3.15-test.9',
+    sourceVersion: '0.3.15-test.9',
+    candidateVersion: '0.3.15-test.10',
     databasePath: '/var/data/washraum.sqlite',
     backupPath: `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`,
     bootstrapObserved: true,
@@ -310,8 +310,8 @@ async function verifyBackupBootstrap() {
     assert.equal(proof.contract, BACKUP_CONTRACT_VERSION);
     assert.equal(proof.sourceCommit, LIVE_COMMIT);
     assert.equal(proof.candidateCommit, CANDIDATE_COMMIT);
-    assert.equal(proof.sourceVersion, '0.3.15-test.8');
-    assert.equal(proof.candidateVersion, '0.3.15-test.9');
+    assert.equal(proof.sourceVersion, '0.3.15-test.9');
+    assert.equal(proof.candidateVersion, '0.3.15-test.10');
     assert.equal(proof.sourceOpenedReadOnly, true);
     assert.equal(proof.targetCreatedExactlyOnce, true);
     assert.equal(proof.restoreDrill.ok, true);
@@ -333,6 +333,18 @@ async function verifyBackupBootstrap() {
     const badCommit = backupInput(path.join(root, 'bad-commit'));
     await expectBackupError('LIVE_COMMIT', () => createProductionBackup({ ...badCommit.input, actualLiveCommit: '3'.repeat(40) }, badCommit.options));
     assert.equal(fs.existsSync(badCommit.options.databasePath), false);
+
+    const badVersion = backupInput(path.join(root, 'old-release'));
+    await expectBackupError('LIVE_VERSION', () => createProductionBackup({
+      ...badVersion.input, expectedLiveVersion: '0.3.15-test.8', actualLiveVersion: '0.3.15-test.8'
+    }, badVersion.options));
+    await expectBackupError('LIVE_VERSION', () => createProductionBackup({
+      ...badVersion.input, actualLiveVersion: '0.3.15-test.8'
+    }, badVersion.options));
+    await expectBackupError('CANDIDATE_VERSION', () => createProductionBackup({
+      ...badVersion.input, candidateVersion: '0.3.15-test.9'
+    }, badVersion.options));
+    assert.equal(fs.existsSync(path.dirname(badVersion.options.databasePath)), false);
 
     const badPath = backupInput(path.join(root, 'bad-path'));
     await expectBackupError('DATABASE_PATH', () => createProductionBackup({ ...badPath.input, databasePath: path.join(root, 'wrong.sqlite') }, badPath.options));
@@ -577,8 +589,8 @@ function verifyArgumentAndProofContracts() {
     '--service', 'washraum-app',
     '--expected-live-commit', LIVE_COMMIT,
     '--candidate-commit', CANDIDATE_COMMIT,
-    '--expected-live-version', '0.3.15-test.8',
-    '--candidate-version', '0.3.15-test.9',
+    '--expected-live-version', '0.3.15-test.9',
+    '--candidate-version', '0.3.15-test.10',
     '--database', '/var/data/washraum.sqlite',
     '--target', `/var/data/backups/washraum-predeploy-${CANDIDATE_COMMIT}.sqlite`
   ]);
@@ -587,8 +599,8 @@ function verifyArgumentAndProofContracts() {
   const livePackageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'waschzeit-live-package-'));
   try {
     const livePackagePath = path.join(livePackageRoot, 'package.json');
-    fs.writeFileSync(livePackagePath, '{"version":"0.3.15-test.8"}\n');
-    assert.equal(readLiveVersion(livePackagePath), '0.3.15-test.8');
+    fs.writeFileSync(livePackagePath, '{"version":"0.3.15-test.9"}\n');
+    assert.equal(readLiveVersion(livePackagePath), '0.3.15-test.9');
     assert.throws(() => readLiveVersion(path.join(livePackageRoot, 'missing.json')), /LIVE_VERSION_SOURCE/);
   } finally {
     fs.rmSync(livePackageRoot, { recursive: true, force: true });
@@ -603,6 +615,7 @@ function verifyArgumentAndProofContracts() {
     { ...validProof(now), service: 'other' },
     { ...validProof(now), sourceVersion: '0.3.3' },
     { ...validProof(now), candidateVersion: '0.3.8' },
+    { ...validProof(now), sourceVersion: '0.3.15-test.8', candidateVersion: '0.3.15-test.9' },
     { ...validProof(now), candidateCommit: '3'.repeat(40) },
     { ...validProof(now), backupArtifactObserved: false },
     { ...validProof(now), executionNonce: '' },
@@ -686,7 +699,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
     consumeProofImpl: consumer.consume,
     liveFetchImpl: async () => {
       liveEndpointRequests += 1;
-      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.15-test.8' }) };
+      return { status: 200, json: async () => ({ ok: true, revision: LIVE_COMMIT, version: '0.3.15-test.9' }) };
     },
     hookFetchImpl: async () => {
       hookRequests += 1;
@@ -704,7 +717,7 @@ async function verifySignedProofObservesLiveBeforeSingleHook() {
   await expectBackupError('LIVE_ENDPOINT', () => runDeployment(deploymentInput(proofToken), {
     now,
     consumeProofImpl: mismatchConsumer.consume,
-    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.15-test.8' }) }),
+    liveFetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, revision: '9'.repeat(40), version: '0.3.15-test.9' }) }),
     hookFetchImpl: async () => { hookRequests += 1; throw new Error('must not run'); }
   }));
   assert.equal(hookRequests, 0);
@@ -714,7 +727,7 @@ async function verifyProofReplayAndCrashBoundaries() {
   const now = Date.now();
   const proofToken = signBackupProof(validProof(now), PROOF_KEY);
   const liveOk = async () => ({ status: 200, json: async () => ({
-    ok: true, revision: LIVE_COMMIT, version: '0.3.15-test.8'
+    ok: true, revision: LIVE_COMMIT, version: '0.3.15-test.9'
   }) });
 
   let liveRequests = 0;

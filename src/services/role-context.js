@@ -49,6 +49,7 @@ function createRoleContext({ db, env }) {
     return {
       id: user.id,
       username: user.username,
+      loginAlias: user.login_alias || '',
       role: canManage ? 'admin' : 'user',
       roles,
       isResident,

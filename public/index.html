@@ -71,8 +71,8 @@
 
     <section id="whatsNewNotice" class="app-update-notice whats-new-notice" aria-labelledby="whatsNewTitle" hidden>
       <div>
-        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.15-test.9</strong>
-        <span data-i18n="whatsNew.summary">Die App prüft jetzt, ob Push auf diesem Gerät mit deinem Konto verbunden ist. Familien erhalten passende Freigabe-Hinweise. Dein Kalenderabo berücksichtigt die Schweizer Zeitumstellung.</span>
+        <strong id="whatsNewTitle" data-i18n="whatsNew.title">Neu in Version 0.3.15-test.10</strong>
+        <span data-i18n="whatsNew.summary">Du kannst beim Aktivieren deiner QR-Karte oder später im Profil einen eigenen Anmeldenamen wählen. Deine WZ-Kennung bleibt gültig; eine E-Mail ist nicht nötig.</span>
       </div>
       <button id="dismissWhatsNewButton" type="button" data-i18n="common.understood">Verstanden</button>
     </section>
@@ -861,6 +861,10 @@
                   <span data-i18n="settings.loginIdentifier">Anmeldekennung</span>
                   <input id="settingsLoginIdentifier" type="text" readonly aria-describedby="settingsLoginIdentifierHint">
                 </label>
+                <label>
+                  <span data-i18n="auth.loginAlias">Eigener Anmeldename (optional)</span>
+                  <input id="settingsLoginAlias" name="loginAlias" type="text" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="settingsLoginAliasHint settingsAliasPrivacy">
+                </label>
                 <label id="settingsApartmentLabelWrap">
                   <span data-i18n="settings.apartment">Wohnung</span>
                   <input id="settingsApartmentLabel" type="text" readonly>
@@ -882,6 +886,8 @@
                 <button id="openApartmentSetupButton" class="text-button" type="button" hidden data-i18n="settings.assignApartment">Jetzt Wohnung zuordnen</button>
               </div>
               <p id="settingsLoginIdentifierHint" class="muted" data-i18n="settings.saveLoginIdentifier">Bewahre deine Anmeldekennung sicher auf, bevor du die aktivierte Zugangskarte vernichtest. Du brauchst sie beim naechsten Anmelden.</p>
+              <p id="settingsLoginAliasHint" class="muted" data-i18n="auth.aliasHint">Nur zum Anmelden, kein Passwort. 2–40 Zeichen, z. B. Léa Meier. Buchstaben, Zahlen, Leerzeichen, Punkt, Apostroph, Bindestrich und Unterstrich sind erlaubt. Beginne mit einem Buchstaben, nicht mit WZ-.</p>
+              <p id="settingsAliasPrivacy" class="muted" data-i18n="settings.aliasPrivacy">Dein Anmeldename ist für andere Bewohner nicht sichtbar. Lass das Feld leer und speichere das Profil, um ihn zu entfernen. Deine bisherige Anmeldekennung bleibt gültig.</p>
               <details id="nameCorrectionPanel" class="profile-correction-panel">
                 <summary data-i18n="settings.correctDoorbell">Klingelschildname korrigieren lassen</summary>
                 <p class="muted" data-i18n="settings.correctDoorbellHint">Dein Vorschlag wird erst nach Pr&uuml;fung durch den Haus-Admin sichtbar.</p>
@@ -918,6 +924,7 @@
               <div class="settings-actions">
                 <button class="secondary" type="submit" data-i18n="settings.saveProfile">Profil speichern</button>
               </div>
+              <p id="profileSaveFeedback" class="message" role="status"></p>
             </section>
 
             <section id="settingsPanelNotifications" class="settings-panel" role="tabpanel" data-settings-section="notifications" aria-labelledby="settingsNoticeTitle" hidden>

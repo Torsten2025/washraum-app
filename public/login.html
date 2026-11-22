@@ -72,7 +72,7 @@
           <span>Bestehende Buchungen bleiben erhalten. Die Anmeldung f&uuml;r die Verwaltung bleibt m&ouml;glich.</span>
         </div>
         <p class="auth-panel-kicker">Anmelden und direkt zum Wochenplan</p>
-        <p id="accessCardOnboardingHint" class="helper-text" data-i18n="auth.cardOnboardingHint">Zugang per persönlicher QR-Zugangskarte – keine E-Mail nötig. Karte einmalig aktivieren und ein eigenes Passwort setzen; danach mit WZ-Kennung und Passwort anmelden. E-Mail später freiwillig im Profil.</p>
+        <p id="accessCardOnboardingHint" class="helper-text" data-i18n="auth.cardOnboardingHint">Zugang per persönlicher QR-Zugangskarte – keine E-Mail nötig. Aktiviere die Karte einmal und setze ein Passwort. Danach meldest du dich mit WZ-Kennung oder eigenem Anmeldenamen und deinem Passwort an. Eine E-Mail kannst du später freiwillig im Profil ergänzen.</p>
         <div class="auth-tabs" role="tablist" aria-label="Anmeldung">
           <button id="showLogin" class="auth-tab active" type="button">Anmelden</button>
           <button id="showAccessCard" class="auth-tab" type="button" data-i18n="auth.accessCard">Zugangskarte</button>
@@ -81,7 +81,7 @@
         </div>
         <form id="loginForm" class="stack auth-form">
           <label>
-            <span data-i18n="auth.loginIdentifier">E-Mail oder Zugangskennung</span>
+            <span data-i18n="auth.loginIdentifier">Anmeldename, Zugangskennung oder E-Mail</span>
             <input name="email" autocomplete="username" required>
           </label>
           <p class="helper-text">Admin-Konten k&ouml;nnen hier ihren technischen Kontonamen verwenden.</p>
@@ -174,6 +174,11 @@
             </label>
           </div>
           <label>
+            <span data-i18n="auth.loginAlias">Eigener Anmeldename (optional)</span>
+            <input name="loginAlias" maxlength="80" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="cardAliasHint">
+          </label>
+          <p id="cardAliasHint" class="helper-text" data-i18n="auth.aliasHint">Nur zum Anmelden, kein Passwort. 2–40 Zeichen, z. B. Léa Meier. Buchstaben, Zahlen, Leerzeichen, Punkt, Apostroph, Bindestrich und Unterstrich sind erlaubt. Beginne mit einem Buchstaben, nicht mit WZ-.</p>
+          <label>
             <span data-i18n="auth.yourPassword">Dein Passwort</span>
             <input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
           </label>
@@ -190,15 +195,21 @@
         </form>
         <form id="deviceLoginForm" class="stack auth-form" hidden>
           <h2 data-i18n="auth.partnerTitle">Deinem Haushalt beitreten</h2>
-          <p class="helper-text" data-i18n="auth.partnerHint">Neu hier? Lass das Feld für Kennung oder E-Mail leer und lege ein Passwort fest. Notiere dir danach deine WZ-Kennung. Hast du schon einen Bewohnerzugang, verwende deine bisherige Kennung oder E-Mail und dein Passwort. Der QR-Code vergibt keine Adminrechte.</p>
+          <p class="helper-text" data-i18n="auth.partnerHint">Neu hier? Lass das Feld für die bestehende Kennung leer und lege ein Passwort fest. Einen eigenen Anmeldenamen kannst du im nächsten Feld wählen. Notiere dir danach deine WZ-Kennung. Hast du schon einen Bewohnerzugang, verwende deine bisherige Kennung, deinen Anmeldenamen oder deine E-Mail und dein Passwort. Der QR-Code vergibt keine Adminrechte.</p>
           <label>
             Ger&auml;tecode
             <input name="deviceCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
           </label>
           <label>
-            <span data-i18n="auth.householdIdentifier">Anmeldekennung oder E-Mail (optional)</span>
+            <span data-i18n="auth.householdIdentifier">Bestehende Kennung, Anmeldename oder E-Mail (optional)</span>
             <input name="identifier" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
           </label>
+          <label>
+            <span data-i18n="auth.loginAlias">Eigener Anmeldename (optional)</span>
+            <input name="loginAlias" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="householdAliasScope householdAliasHint">
+          </label>
+          <p id="householdAliasScope" class="helper-text" data-i18n="auth.householdAliasScope">Nur für ein neues Konto. Beim Verbinden eines bestehenden Kontos bleibt sein Name unverändert.</p>
+          <p id="householdAliasHint" class="helper-text" data-i18n="auth.aliasHint">Nur zum Anmelden, kein Passwort. 2–40 Zeichen, z. B. Léa Meier. Buchstaben, Zahlen, Leerzeichen, Punkt, Apostroph, Bindestrich und Unterstrich sind erlaubt. Beginne mit einem Buchstaben, nicht mit WZ-.</p>
           <label>
             Eigenes Passwort
             <input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required>
